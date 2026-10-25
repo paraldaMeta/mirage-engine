@@ -7,11 +7,33 @@ import path from 'node:path';
 export const CHROME = process.env.CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 
 export function launch({ w = 1440, h = 900, args = [] } = {}) {
+  const other = process.env.MIRAGE_BROWSER;
+  if (other) return launchPlaywright(other, { w, h });
   return puppeteer.launch({
     executablePath: CHROME, headless: true, defaultViewport: { width: w, height: h, deviceScaleFactor: 1 }, protocolTimeout: 900000,
     // --disable-audio-output: Web Audio runs against a null sink, so the host's sound device cannot fail a test
     args: ['--enable-gpu', '--ignore-gpu-blocklist', '--disable-gpu-watchdog', '--disable-audio-output', `--window-size=${w},${h}`, ...args],
   });
+}
+
+// MIRAGE_BROWSER=webkit | firefox (Safari's and Firefox's engines through Playwright, not a dependency here:
+// MIRAGE_PLAYWRIGHT=/path/to/node_modules/playwright/index.js). Pages get the few puppeteer calls the tools use.
+// ponytail: enough for playtest.mjs and perf.mjs; the garden-quest playthrough's touch / gamepad parts are Chrome-only.
+async function launchPlaywright(name, { w, h }) {
+  const pw = await import(process.env.MIRAGE_PLAYWRIGHT || 'playwright');
+  const browser = await (pw[name] || pw.default[name]).launch({ headless: true });
+  const context = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 1 });
+  return {
+    async newPage() {
+      const page = await context.newPage();
+      const evaluate = page.evaluate.bind(page), wait = page.waitForFunction.bind(page);
+      page.evaluate = (fn, ...a) => (typeof fn === 'function' ? evaluate(`(${fn})(...${JSON.stringify(a)})`) : evaluate(fn));
+      page.waitForFunction = (fn, o = {}) => wait(fn, undefined, { timeout: o.timeout, polling: o.polling });
+      page.setViewport = (v) => page.setViewportSize({ width: v.width, height: v.height });
+      return page;
+    },
+    close: () => browser.close(),
+  };
 }
 
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.webp': 'image/webp', '.png': 'image/png', '.css': 'text/css', '.svg': 'image/svg+xml', '.wasm': 'application/wasm' };
