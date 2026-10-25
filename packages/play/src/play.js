@@ -6,7 +6,7 @@ import { bakeWalkGrid } from './walkgrid.js';
 import { createWalker } from './walker.js';
 
 // ---------------------------------------------------------------------------
-// createPlay(world, { plan, canvas, mode }): walk / fly / game / orbit over a built world.
+// createPlay(world, { plan, canvas, mode, fit }): walk / fly / game / orbit over a built world.
 //
 //   walk   WASD or arrows, mouse looks (click to capture the pointer, or drag), Shift runs, Space jumps
 //   fly    F toggles (WASD, Space / E up, C / Q down, Shift fast)
@@ -210,11 +210,12 @@ export function createPlay(world, opts = {}) {
   }
   function frame(now) {
     if (!running) return;
-    const dt = Math.min((now - last) / 1000, 0.1); last = now;
+    const dt = Math.max(0, Math.min((now - last) / 1000, 0.1)); last = now;   // a rAF stamp can precede `last`
     step(dt);
     const { cam } = view();
     cam.updateMatrixWorld();
-    const key = cam.matrixWorld.elements.map((v) => v.toFixed(5)).join(',') + (cam.isOrthographicCamera ? cam.top.toFixed(4) : cam.fov) + figure.userData.body.position.y.toFixed(4);
+    const key = cam.matrixWorld.elements.map((v) => v.toFixed(5)).join(',') + (cam.isOrthographicCamera ? cam.top.toFixed(4) : cam.fov) + figure.userData.body.position.y.toFixed(4) +
+      `@${world.pipeline.w}x${world.pipeline.h}`;   // a resize clears the canvas: draw again even when still
     let moving = key !== lastKey || orbiting || changed;
     changed = false;
     lastKey = key;
@@ -232,6 +233,12 @@ export function createPlay(world, opts = {}) {
     ui.stats(`${mode} · ${walker.pos.map((v) => v.toFixed(2)).join(', ')} · ${still ? 'still ' + still : 'moving'}`);
     requestAnimationFrame(frame);
   }
+
+  // opts.fit: the canvas follows the window (pages without a fixed ?w= / ?h=)
+  if (opts.fit) window.addEventListener('resize', () => {
+    canvas.style.width = innerWidth + 'px'; canvas.style.height = innerHeight + 'px';
+    world.resize(innerWidth, innerHeight);
+  });
 
   place(spawn.eye, spawn.look, mode);
   requestAnimationFrame(frame);

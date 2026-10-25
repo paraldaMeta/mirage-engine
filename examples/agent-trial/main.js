@@ -27,13 +27,13 @@ const spp = +Q.get('spp') || 6, mode = Q.get('mode') || 'walk';
 let play, g = null;
 if (only) {   // a module owner's self-test: the world alone, walk / fly / game / orbit
   await world.prepare();
-  play = createPlay(world, { plan: built.plan, canvas, mode, spp, ui: Q.get('ui') !== '0', shadowRadius });
+  play = createPlay(world, { plan: built.plan, canvas, mode, spp, ui: Q.get('ui') !== '0', shadowRadius, fit: !Q.get('w') });
 } else {
   const S = { timber: 'wood', post: 'wood', railWood: 'wood' };   // footsteps by material
   for (const [k, m] of Object.entries(shared.mats || {})) m.userData.surface = S[k] || 'stone';
   g = await startGame(world, {
     built, canvas, id: plan.name, version: 1, title: 'The Pier Light', subtitle: 'Walk out to the lighthouse · pull the lever',
-    spp, shadowRadius, setup: (ctx) => setupGame(ctx, { built, mats: shared.mats }), objective,
+    spp, shadowRadius, fit: !Q.get('w'), setup: (ctx) => setupGame(ctx, { built, mats: shared.mats }), objective,
   });
   if (Q.has('start')) g.ui.begin();
   play = g.play;

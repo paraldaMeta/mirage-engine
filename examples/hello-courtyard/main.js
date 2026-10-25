@@ -34,7 +34,7 @@ await tex.ready();
 await world.prepare();
 const spp = +Q.get('spp') || 6;
 const mode = Q.get('mode') || 'orbit';
-const play = createPlay(world, { plan: built.plan, canvas, mode, spp, ui: Q.get('ui') !== '0' });
+const play = createPlay(world, { plan: built.plan, canvas, mode, spp, ui: Q.get('ui') !== '0', fit: !Q.get('w') });
 if (mode === 'orbit' || Q.has('view')) {
   const v = plan.viewpoints.find((p) => p.name === (Q.get('view') || 'hero')) || plan.viewpoints[0];
   play.place(v.eye, v.look, mode);

@@ -27,13 +27,13 @@ const spp = +Q.get('spp') || 6, mode = Q.get('mode') || 'walk';
 let play, g = null;
 if (only) {   // a module owner's self-test: the world alone, walk / fly / game / orbit
   await world.prepare();
-  play = createPlay(world, { plan: built.plan, canvas, mode, spp, ui: Q.get('ui') !== '0', shadowRadius });
+  play = createPlay(world, { plan: built.plan, canvas, mode, spp, ui: Q.get('ui') !== '0', shadowRadius, fit: !Q.get('w') });
 } else {
   const S = { log: 'wood', post: 'wood', snow: 'gravel' };   // footsteps by material (snow crunches like gravel)
   for (const [k, m] of Object.entries(shared.mats || {})) m.userData.surface = S[k] || 'stone';
   g = await startGame(world, {
     built, canvas, id: plan.name, version: 1, title: 'The Snow Hut', subtitle: 'Walk in out of the snow · light the stove',
-    spp, shadowRadius, setup: (ctx) => setupGame(ctx, { built }), objective,
+    spp, shadowRadius, fit: !Q.get('w'), setup: (ctx) => setupGame(ctx, { built }), objective,
   });
   if (Q.has('start')) g.ui.begin();
   play = g.play;
