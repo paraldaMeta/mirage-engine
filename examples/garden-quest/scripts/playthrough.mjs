@@ -121,6 +121,14 @@ if (PARTS.includes('main')) {
     await S.page.click('.mg-menu button[data-save="1"]'); await sleep(200);
   }, (s) => s.paused && s.dialog === 'mg-menu');
   const savedJSON = await S.page.evaluate(() => localStorage.getItem('mirage:garden-quest:1'));
+  // a full or blocked storage: the menu says so (was: an uncaught page error, the menu silent)
+  const errs0 = S.errors.length;
+  await S.step('save-fails-visibly', async () => {
+    await S.page.evaluate(() => { window.__setItem = Storage.prototype.setItem; Storage.prototype.setItem = () => { throw new DOMException('The quota has been exceeded.', 'QuotaExceededError'); }; });
+    await S.page.click('.mg-menu button[data-save="2"]'); await sleep(200);
+    await S.page.evaluate(() => { Storage.prototype.setItem = window.__setItem; });
+  }, async (s) => s.dialog === 'mg-menu' && S.errors.length === errs0 &&
+    /could not save/i.test(await S.page.evaluate(() => document.querySelector('.mg-menu .mg-note').textContent)));
   await S.step('resume', async () => { await S.press('Escape'); await sleep(200); }, (s) => !s.paused && !s.dialog);
   // reload: a fresh page, then load slot 1 from the menu
   const before = { pos: saved.pos, flags: saved.flags, inv: saved.inv, door: saved.door };

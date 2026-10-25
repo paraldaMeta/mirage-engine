@@ -155,7 +155,9 @@ export function createUI({ game, input, audio, title = 'Mirage', subtitle = '', 
     if (t.dataset.p) { panel = t.dataset.p; renderMenu(); const f = menu.querySelector('button'); if (f) f.focus(); }
     if (t.dataset.do === 'resume') menu.close();
     if (t.dataset.do === 'restart' && onRestart) { menu.close(); onRestart(); }
-    if (t.dataset.save) { onSave(+t.dataset.save); renderMenu(); note(`Saved to slot ${t.dataset.save}.`); toast(`Saved (slot ${t.dataset.save})`); }
+    if (t.dataset.save) {
+      try { onSave(+t.dataset.save); renderMenu(); note(`Saved to slot ${t.dataset.save}.`); toast(`Saved (slot ${t.dataset.save})`); } catch (err) { note('Could not save: ' + (err.message || err)); }
+    }
     if (t.dataset.load) { try { onLoad(+t.dataset.load); menu.close(); toast(`Loaded slot ${t.dataset.load}`); } catch (err) { note(String(err.message || err)); } }
     if (t.dataset.do === 'export') {
       const a = document.createElement('a');
