@@ -10,7 +10,7 @@ Mirage 用 three.js 把整个地方——院子、园林、码头、山间小屋
 
 [English](README.md) · [中文](README.zh-CN.md)
 
-> **状态：pre-alpha（0.1.0）。** 下面五个示例在作者的机器上能跑通。接口还会变，没有发到 npm，只在 Apple 芯片的桌面
+> **状态：pre-alpha（0.1.0）。** 下面五个示例在作者（灰叔 Racso）的机器上能跑通。接口还会变，没有发到 npm，只在 Apple 芯片的桌面
 > Chrome 上测过。见[现状与局限](#现状与局限)。
 
 ## 为什么
@@ -91,7 +91,7 @@ node ../../packages/tools/src/package.mjs .                               # rele
 | ![](docs/media/showcase/10-town-aerial.jpg) | ![](docs/media/showcase/11-golden-palms.jpg) |
 | ![](docs/media/showcase/12-night-roofs.jpg) | ![](docs/media/showcase/13-night-arcade.jpg) |
 
-*作者用这套方法的早期版本做的一座绿洲小城（不包含在本仓库中）。* 纯代码版 1.6 MB；七个 Agent 并行，不到四小时出了第一版。
+*灰叔 Racso 用这套方法的早期版本做的一座绿洲小城（不包含在本仓库中）。* 纯代码版 1.6 MB；七个 Agent 并行，不到四小时出了第一版。
 它的内容、代码和材质都不属于 Mirage。
 
 ## 现状与局限
@@ -121,6 +121,6 @@ MIT，见 [LICENSE](LICENSE)。Mirage 的渲染技术思路（物理天空、材
 [Golden Temple](https://github.com/Leonxlnx/golden-temple)（MIT）；仓库里没有 Golden Temple 的代码，[NOTICE](NOTICE)
 里保留它的许可原文以示致谢。第三方代码和素材见 [CREDITS.md](CREDITS.md)（three.js MIT、Rapier Apache-2.0、Poly Haven 的五套 CC0 贴图）。
 
-致谢：Mirage 由作者与 AI 编程 Agent（Claude Code、Cursor）一起写成；感谢 Leon Lin 的 Golden Temple、three.js 和 Rapier 团队、Poly Haven 的 CC0 作者们。
+致谢：Mirage 由灰叔 Racso 与 AI 编程 Agent（Claude Code、Cursor）一起写成；感谢 Leon Lin 的 Golden Temple、three.js 和 Rapier 团队、Poly Haven 的 CC0 作者们。
 
 参与贡献：[CONTRIBUTING.md](CONTRIBUTING.md) · 变更记录：[CHANGELOG.md](CHANGELOG.md)

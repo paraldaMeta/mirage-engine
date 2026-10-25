@@ -23,5 +23,6 @@
   },
   "scripts": {
     "test": "node check.mjs"
-  }
+  },
+  "author": "灰叔 Racso"
 }

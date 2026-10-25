@@ -12,7 +12,17 @@
     "mirage-perf": "./src/perf.mjs",
     "mirage-deploy": "./src/deploy.mjs"
   },
-  "files": ["src", "tex", "README.md"],
-  "dependencies": { "puppeteer-core": "25.13.0", "vite": "8.3.4" },
-  "engines": { "node": ">=22" }
+  "files": [
+    "src",
+    "tex",
+    "README.md"
+  ],
+  "dependencies": {
+    "puppeteer-core": "25.13.0",
+    "vite": "8.3.4"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "author": "灰叔 Racso"
 }

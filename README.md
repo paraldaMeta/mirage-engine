@@ -11,7 +11,7 @@ few megabytes that opens from disk.
 
 [English](README.md) · [中文](README.zh-CN.md)
 
-> **Status: pre-alpha (0.1.0).** It works for the five examples below on the author's machine. APIs will change,
+> **Status: pre-alpha (0.1.0).** It works for the five examples below on the author's (灰叔 Racso's) machine. APIs will change,
 > nothing is published to npm, and it has only been tested in desktop Chrome on Apple silicon. See
 > [Status and limits](#status-and-limits).
 
@@ -101,7 +101,7 @@ from the repository root with `node packages/tools/src/package.mjs examples/demo
 | ![](docs/media/showcase/10-town-aerial.jpg) | ![](docs/media/showcase/11-golden-palms.jpg) |
 | ![](docs/media/showcase/12-night-roofs.jpg) | ![](docs/media/showcase/13-night-arcade.jpg) |
 
-*An oasis town built by the author with an earlier version of this approach (not included in this repository).*
+*An oasis town built by 灰叔 Racso with an earlier version of this approach (not included in this repository).*
 Its code-only version was 1.6 MB; seven agents working in parallel produced the first version in under four
 hours. None of its content, code or materials is part of Mirage.
 
@@ -143,7 +143,7 @@ sub-frame accumulation, the material patch system) were learnt from
 and [NOTICE](NOTICE) reproduces its licence as an acknowledgement. Third-party code and assets: [CREDITS.md](CREDITS.md)
 (three.js MIT, Rapier Apache-2.0, five CC0 texture sets from Poly Haven).
 
-Credits: Mirage was written by its author with AI coding agents (Claude Code, Cursor); thanks to Leon Lin for
+Credits: Mirage was written by 灰叔 Racso with AI coding agents (Claude Code, Cursor); thanks to Leon Lin for
 Golden Temple, to the three.js and Rapier teams, and to Poly Haven's CC0 artists.
 
 Contributing: [CONTRIBUTING.md](CONTRIBUTING.md) · Changes: [CHANGELOG.md](CHANGELOG.md)

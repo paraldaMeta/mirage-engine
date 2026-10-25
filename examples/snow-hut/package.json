@@ -12,6 +12,15 @@
     "snap": "node ../../packages/tools/src/snap.mjs dist --out out/snap --game",
     "package": "node ../../packages/tools/src/package.mjs ."
   },
-  "dependencies": { "@mirage/core": "0.1.0", "@mirage/game": "0.1.0", "@mirage/play": "0.1.0", "@mirage/world": "0.1.0", "three": "0.186.1" },
-  "devDependencies": { "vite": "8.3.4" }
+  "dependencies": {
+    "@mirage/core": "0.1.0",
+    "@mirage/game": "0.1.0",
+    "@mirage/play": "0.1.0",
+    "@mirage/world": "0.1.0",
+    "three": "0.186.1"
+  },
+  "devDependencies": {
+    "vite": "8.3.4"
+  },
+  "author": "灰叔 Racso"
 }

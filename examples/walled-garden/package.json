@@ -21,5 +21,6 @@
   },
   "devDependencies": {
     "vite": "8.3.4"
-  }
+  },
+  "author": "灰叔 Racso"
 }
