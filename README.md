@@ -2,7 +2,9 @@
 
 **A code-only world engine for AI agents.**
 
-![A log hut on a snowy slope at blue hour, built entirely in code (examples/snow-hut)](docs/media/hero.jpg)
+![An oasis town — every building, palm, wall and water channel generated in code with the Mirage approach](docs/media/hero.jpg)
+
+<sub>An oasis town built by 灰叔 Racso with an earlier version of the Mirage approach: every building, palm, wall and water channel is generated in code. The scene itself is not part of this repository; see the [examples](#examples) for what ships here.</sub>
 
 Mirage builds whole places — courtyards, gardens, piers, mountain huts — in three.js **as code**: no Blender, no
 model files, no editor. A world is a site plan plus a handful of modules; several agents can build those modules
