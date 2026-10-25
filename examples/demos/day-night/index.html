@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <link rel="icon" href="data:,">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mirage · day-night</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #000; overflow: hidden; font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; color: #e8e4dc; }
+    canvas { display: block; }
+    #hud { position: fixed; left: 16px; top: 14px; text-shadow: 0 1px 3px #000; white-space: pre; pointer-events: none; }
+    #hud b { font-size: 28px; font-weight: 600; letter-spacing: 0.02em; }
+    #log { position: fixed; left: 16px; bottom: 14px; max-width: min(92vw, 640px); white-space: pre-wrap; text-shadow: 0 1px 3px #000; pointer-events: none; }
+    #log .bad { color: #ff9a80; } #log .ok { color: #b8e6a8; } #log .dim { opacity: 0.7; }
+  </style>
+</head>
+<body>
+  <canvas></canvas><div id="hud"></div><div id="log"></div>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

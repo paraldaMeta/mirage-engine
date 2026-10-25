@@ -1,0 +1,25 @@
+{
+  "name": "walled-garden",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Mirage example: a terraced walled garden (~80 x 80 m) with stairs, a gate and a pavilion with an interior, built by six modules on one site plan; walk, fly, game view.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 5182 --strictPort",
+    "build": "vite build",
+    "preview": "vite preview --port 5183 --strictPort",
+    "walktest": "node ../../packages/tools/src/walktest.mjs scenarios/walk.json dist --out out/walktest",
+    "playtest": "node ../../packages/tools/src/playtest.mjs scenarios/walk.json dist --out out/playtest",
+    "package": "node ../../packages/tools/src/package.mjs ."
+  },
+  "dependencies": {
+    "@mirage/core": "0.1.0",
+    "@mirage/play": "0.1.0",
+    "@mirage/world": "0.1.0",
+    "three": "0.186.1"
+  },
+  "devDependencies": {
+    "vite": "8.3.4"
+  }
+}

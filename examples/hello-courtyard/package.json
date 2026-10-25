@@ -1,0 +1,27 @@
+{
+  "name": "hello-courtyard",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Mirage minimal example: a procedural courtyard built entirely in code.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 5180 --strictPort",
+    "build": "vite build",
+    "preview": "vite preview --port 5181 --strictPort",
+    "verify": "node scripts/verify.mjs",
+    "walktest": "node ../../packages/tools/src/walktest.mjs scenarios/walk.json dist --out out/walktest",
+    "playtest": "node ../../packages/tools/src/playtest.mjs scenarios/walk.json dist --out out/playtest",
+    "package": "node ../../packages/tools/src/package.mjs ."
+  },
+  "dependencies": {
+    "@mirage/core": "0.1.0",
+    "@mirage/play": "0.1.0",
+    "@mirage/world": "0.1.0",
+    "three": "0.186.1"
+  },
+  "devDependencies": {
+    "puppeteer-core": "25.13.0",
+    "vite": "8.3.4"
+  }
+}

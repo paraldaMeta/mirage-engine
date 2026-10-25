@@ -1,0 +1,21 @@
+{
+  "title": "hello-courtyard walk",
+  "query": "mode=walk&ui=0",
+  "w": 1440, "h": 900,
+  "steps": [
+    { "name": "spawn", "place": { "eye": [0.4, 1.62, 5.4], "look": [0, 1.5, -6], "mode": "walk" }, "expect": { "y": "~ 0 0.02", "onGround": "== true" } },
+    { "name": "gate-passes", "place": { "eye": [0, 1.62, 3], "look": [0, 1.62, 20], "mode": "walk" }, "keys": ["KeyW"], "ms": 4500, "expect": { "z": "> 8.6", "y": "~ 0 0.1" } },
+    { "name": "wall-blocks", "place": { "eye": [3, 1.62, 3], "look": [10, 1.62, 3], "mode": "walk" }, "keys": ["KeyW"], "ms": 3500, "expect": { "x": "~ 6.9 0.15" } },
+    { "name": "arcade-passes", "place": { "eye": [-4, 1.62, -1.4], "look": [-12, 1.62, -1.4], "mode": "walk" }, "keys": ["KeyW"], "ms": 3500, "expect": { "x": "< -8.2" } },
+    { "name": "basin-blocks", "place": { "eye": [0, 1.62, 4.5], "look": [0, 1.6, 0], "mode": "walk" }, "keys": ["KeyW"], "ms": 3000, "expect": { "z": "~ 2.15 0.15", "y": "~ 0 0.02" } },
+    { "name": "bench-blocks", "place": { "eye": [0, 1.62, -5], "look": [0, 1.6, -9], "mode": "walk" }, "keys": ["KeyW"], "ms": 2000, "expect": { "z": "~ -6.42 0.15", "y": "~ 0 0.02" } },
+    { "name": "jump-onto-bench", "tap": "Space", "keys": ["KeyW"], "ms": 1500, "expect": { "y": "~ 0.45 0.04", "maxY": "> 0.85" } },
+    { "name": "jump-in-place", "place": { "eye": [2, 1.62, 2], "look": [5, 1.62, 2], "mode": "walk" }, "tap": "Space", "ms": 1500, "expect": { "maxY": "> 0.8", "y": "~ 0 0.02" } },
+    { "name": "run", "place": { "eye": [-5, 1.62, 5], "look": [5, 1.62, 5], "mode": "walk" }, "keys": ["KeyW", "ShiftLeft"], "ms": 1500, "expect": { "dist": "> 4.5" } },
+    { "name": "game-view", "place": { "eye": [1.5, 1.62, 4], "look": [0, 1.6, 0], "mode": "game" }, "keys": ["KeyW"], "ms": 1200, "expect": { "mode": "== game", "dist": "> 1" } },
+    { "name": "fly", "place": { "eye": [0, 1.62, 5], "look": [0, 1.6, -6], "mode": "fly" }, "keys": ["KeyS", "KeyE"], "ms": 2500, "expect": { "y": "> 6", "mode": "== fly" } },
+    { "name": "flicker-walk", "flicker": { "path": [[0.4, 12], [0.4, 5], [-3, 0], [-3, -4]] }, "expect": { "flicker": "< 8" } },
+    { "name": "frame-cost", "place": { "eye": [0.4, 1.62, 5.4], "look": [0, 1.5, -6], "mode": "walk" }, "keys": ["KeyW"], "perf": { "frames": 90 }, "expect": { "frameMs": "< 16.7" } },
+    { "name": "viewpoint-hero", "viewpoint": 0, "mode": "orbit" }
+  ]
+}

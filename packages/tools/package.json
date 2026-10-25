@@ -1,0 +1,18 @@
+{
+  "name": "@mirage/tools",
+  "version": "0.1.0",
+  "description": "Mirage tools: the playtest runner (scripted inputs, expectations, flicker along a path, frame cost, markdown report, contact sheet), single-file packager, multi-view snapshots, a frame-cost sweep, a static-deploy folder, the texture packer.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "mirage-playtest": "./src/playtest.mjs",
+    "mirage-package": "./src/package.mjs",
+    "mirage-walktest": "./src/walktest.mjs",
+    "mirage-snap": "./src/snap.mjs",
+    "mirage-perf": "./src/perf.mjs",
+    "mirage-deploy": "./src/deploy.mjs"
+  },
+  "files": ["src", "tex", "README.md"],
+  "dependencies": { "puppeteer-core": "25.13.0", "vite": "8.3.4" },
+  "engines": { "node": ">=22" }
+}

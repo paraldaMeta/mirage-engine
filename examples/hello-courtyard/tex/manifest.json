@@ -1,0 +1,126 @@
+{
+ "sets": {
+  "plaster": {
+   "tile": 3.0,
+   "mean": [
+    0.2111,
+    0.1473,
+    0.086
+   ],
+   "hMean": 0.609,
+   "rough": 0.666,
+   "roughSlope": -0.01,
+   "files": {
+    "c": "plaster_c.webp",
+    "n": "plaster_n.webp"
+   },
+   "src": {
+    "site": "Poly Haven",
+    "id": "beige_wall_002",
+    "url": "https://polyhaven.com/a/beige_wall_002",
+    "authors": [
+     "Dimitrios Savva",
+     "Rico Cilliers"
+    ],
+    "licence": "CC0 1.0"
+   }
+  },
+  "ashlar": {
+   "tile": 3.0,
+   "mean": [
+    0.366,
+    0.2805,
+    0.1713
+   ],
+   "hMean": 0.665,
+   "rough": 0.506,
+   "roughSlope": -0.005,
+   "files": {
+    "c": "ashlar_c.webp",
+    "n": "ashlar_n.webp"
+   },
+   "src": {
+    "site": "Poly Haven",
+    "id": "sandstone_blocks_08",
+    "url": "https://polyhaven.com/a/sandstone_blocks_08",
+    "authors": [
+     "Rob Tuytel"
+    ],
+    "licence": "CC0 1.0"
+   }
+  },
+  "paving": {
+   "tile": 1.5,
+   "mean": [
+    0.2133,
+    0.1746,
+    0.1174
+   ],
+   "hMean": 0.547,
+   "rough": 0.627,
+   "roughSlope": -0.133,
+   "files": {
+    "c": "paving_c.webp",
+    "n": "paving_n.webp"
+   },
+   "src": {
+    "site": "Poly Haven",
+    "id": "cobblestone_floor_04",
+    "url": "https://polyhaven.com/a/cobblestone_floor_04",
+    "authors": [
+     "Rob Tuytel"
+    ],
+    "licence": "CC0 1.0"
+   }
+  },
+  "planks": {
+   "tile": 2.0,
+   "mean": [
+    0.0746,
+    0.0531,
+    0.0404
+   ],
+   "hMean": 0.821,
+   "rough": 0.736,
+   "roughSlope": -0.034,
+   "files": {
+    "c": "planks_c.webp",
+    "n": "planks_n.webp"
+   },
+   "src": {
+    "site": "Poly Haven",
+    "id": "weathered_planks",
+    "url": "https://polyhaven.com/a/weathered_planks",
+    "authors": [
+     "Dario Barresi",
+     "Dimitrios Savva"
+    ],
+    "licence": "CC0 1.0"
+   }
+  },
+  "ground": {
+   "tile": 4.0,
+   "mean": [
+    0.1354,
+    0.114,
+    0.0849
+   ],
+   "hMean": 0.604,
+   "rough": 0.829,
+   "roughSlope": 0.011,
+   "files": {
+    "c": "ground_c.webp",
+    "n": "ground_n.webp"
+   },
+   "src": {
+    "site": "Poly Haven",
+    "id": "dry_ground_01",
+    "url": "https://polyhaven.com/a/dry_ground_01",
+    "authors": [
+     "Rob Tuytel"
+    ],
+    "licence": "CC0 1.0"
+   }
+  }
+ }
+}

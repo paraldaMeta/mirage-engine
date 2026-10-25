@@ -1,0 +1,14 @@
+{
+  "name": "@mirage/play",
+  "version": "0.1.0",
+  "description": "Mirage play: walk, fly, an isometric game view and orbit over a built world; collision from a walk grid baked from the geometry; progressive refinement when still; an embed API for games.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": { ".": "./src/index.js", "./*": "./src/*.js", "./package.json": "./package.json" },
+  "files": ["src", "README.md"],
+  "sideEffects": false,
+  "peerDependencies": { "three": "0.186.1", "@mirage/core": "0.1.0", "@mirage/world": "0.1.0" },
+  "engines": { "node": ">=22" },
+  "scripts": { "test": "node check.mjs" }
+}

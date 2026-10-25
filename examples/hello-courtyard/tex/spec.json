@@ -1,0 +1,7 @@
+{
+ "plaster": { "polyhaven": "beige_wall_002", "tile": 3.0 },
+ "ashlar":  { "polyhaven": "sandstone_blocks_08", "tile": 3.0 },
+ "paving":  { "polyhaven": "cobblestone_floor_04", "tile": 1.5 },
+ "planks":  { "polyhaven": "weathered_planks", "tile": 2.0 },
+ "ground":  { "polyhaven": "dry_ground_01", "tile": 4.0 }
+}

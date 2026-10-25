@@ -1,0 +1,27 @@
+{
+  "name": "@mirage/core",
+  "version": "0.1.0",
+  "description": "Mirage rendering core: physical sky, aerial perspective, sun and soft shadows, image-based light, sub-frame accumulation post, the patch() material system and day/night for any place on Earth.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./*": "./src/*.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "sideEffects": false,
+  "peerDependencies": {
+    "three": "0.186.1"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node check.mjs"
+  }
+}

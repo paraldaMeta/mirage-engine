@@ -1,0 +1,16 @@
+{
+  "title": "garden-quest: find the key",
+  "query": "start=1&grain=0",
+  "w": 1440, "h": 900,
+  "steps": [
+    { "name": "start", "ms": 500, "expect": { "paused": "== false", "onGround": "== true", "inventory.length": "== 0" } },
+    { "name": "walk-to-the-key", "walkTo": [[0, 33.5], [-4.6, 28], [-4.6, 16.4], [-21.6, 16.4]], "run": true, "expect": { "x": "~ -21.6 0.6", "z": "~ 16.4 0.6" } },
+    { "name": "see-the-prompt", "lookAt": "key", "expect": { "near": "== key", "prompt": "has Pick up the key" } },
+    { "name": "pick-up-the-key", "tap": "KeyE", "expect": { "inventory": "has key" } },
+    { "name": "walk-up-to-the-pavilion", "walkTo": [[-4.6, 16.4], [0, 13.2], [0, -6], [0, -10], [0, -16], [0, -19.9]], "run": true, "expect": { "y": "> 3.4", "z": "< -19.5" } },
+    { "name": "door-prompt", "lookAt": "door", "expect": { "near": "== door", "prompt": "has Unlock the door" } },
+    { "name": "door-opens", "tap": "KeyE", "ms": 1600, "expect": { "flags.doorOpen": "== true" } },
+    { "name": "flicker-walk", "flicker": { "path": "lowerAxis", "y": 0 }, "expect": { "flicker": "< 8" } },
+    { "name": "frame-cost", "place": { "eye": [0, 1.62, 45], "look": [0, 1.62, 30], "mode": "walk" }, "keys": ["KeyW"], "perf": { "frames": 90 }, "expect": { "frameMs": "< 16.7" } }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "name": "@mirage/game",
+  "version": "0.1.0",
+  "description": "Mirage game layer: entities and systems, Rapier physics (lazy WASM) with a kinematic character controller and doors, an action-mapped input (keyboard, mouse, gamepad, touch), a Web Audio mixer with procedural sounds, interactables, inventory, flags, events, save/load, pause and an accessible HTML overlay.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": { ".": "./src/index.js", "./*": "./src/*.js", "./package.json": "./package.json" },
+  "files": ["src", "README.md"],
+  "sideEffects": false,
+  "dependencies": { "@dimforge/rapier3d-compat": "0.19.3" },
+  "peerDependencies": { "three": "0.186.1", "@mirage/core": "0.1.0", "@mirage/world": "0.1.0", "@mirage/play": "0.1.0" },
+  "engines": { "node": ">=22" },
+  "scripts": { "test": "node check.mjs" }
+}

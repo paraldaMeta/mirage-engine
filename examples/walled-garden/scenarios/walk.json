@@ -1,0 +1,25 @@
+{
+  "title": "walled-garden walk",
+  "query": "mode=walk&ui=0",
+  "w": 1440, "h": 900,
+  "steps": [
+    { "name": "spawn-outside", "place": { "eye": [0, 1.62, 45], "look": [0, 1.62, 30], "mode": "walk" }, "expect": { "y": "~ 0.05 0.03", "onGround": "== true" } },
+    { "name": "gate-passes", "place": { "eye": [0, 1.62, 42], "look": [0, 1.62, 20], "mode": "walk" }, "keys": ["KeyW"], "ms": 5000, "expect": { "z": "< 35", "y": "~ 0.05 0.04" } },
+    { "name": "wall-blocks", "place": { "eye": [33, 1.62, 33.2], "look": [33, 1.62, 45], "mode": "walk" }, "keys": ["KeyW"], "ms": 3500, "expect": { "z": "~ 35.38 0.15" } },
+    { "name": "retaining-wall-blocks", "place": { "eye": [4, 1.62, 13], "look": [4, 1.62, 0], "mode": "walk" }, "keys": ["KeyW"], "ms": 3500, "expect": { "z": "~ 8.58 0.15", "y": "~ 0 0.03" } },
+    { "name": "stairs-climb-one-flight", "place": { "eye": [0, 1.62, 13.5], "look": [0, 1.62, 0], "mode": "walk" }, "keys": ["KeyW"], "ms": 4000, "expect": { "y": "~ 1.6 0.06", "z": "< 8" } },
+    { "name": "stairs-climb-to-the-top", "place": { "eye": [0, 1.62, 13.5], "look": [0, 1.62, 0], "mode": "walk" }, "keys": ["KeyW", "ShiftLeft"], "ms": 7000, "expect": { "y": "~ 3.25 0.06", "z": "< -14.5" } },
+    { "name": "stairs-descend", "place": { "eye": [0, 3.22, 6], "look": [0, 3.22, 20], "mode": "walk" }, "keys": ["KeyW"], "ms": 4000, "expect": { "y": "~ 0.05 0.04", "z": "> 11.5" } },
+    { "name": "parapet-blocks", "place": { "eye": [10, 3.22, 5], "look": [10, 3.22, 20], "mode": "walk" }, "keys": ["KeyW"], "ms": 3000, "expect": { "z": "~ 7.46 0.15", "y": "~ 1.6 0.03" } },
+    { "name": "hedge-blocks", "place": { "eye": [8, 1.62, 16], "look": [8, 1.62, 30], "mode": "walk" }, "keys": ["KeyW"], "ms": 3000, "expect": { "z": "~ 18.12 0.15", "y": "~ 0.02 0.04" } },
+    { "name": "pool-blocks", "place": { "eye": [9.5, 3.22, -4.6], "look": [9.5, 3.22, 5], "mode": "walk" }, "keys": ["KeyW"], "ms": 3000, "expect": { "z": "~ -3.03 0.15", "y": "~ 1.65 0.05" } },
+    { "name": "plinth-blocks", "place": { "eye": [6.5, 4.82, -25], "look": [0, 4.82, -25], "mode": "walk" }, "keys": ["KeyW"], "ms": 2500, "expect": { "x": "~ 5.08 0.15", "y": "~ 3.2 0.03" } },
+    { "name": "jump-onto-plinth", "tap": "Space", "keys": ["KeyW"], "ms": 1500, "expect": { "y": "~ 3.65 0.03", "maxY": "> 4.0" } },
+    { "name": "pavilion-interior", "place": { "eye": [0, 4.82, -17], "look": [0, 4.82, -30], "mode": "walk" }, "keys": ["KeyW"], "ms": 4500, "expect": { "z": "< -21.5", "y": "~ 3.67 0.03" } },
+    { "name": "jump-in-place", "place": { "eye": [-10, 1.62, 16], "look": [0, 1.62, 16], "mode": "walk" }, "tap": "Space", "ms": 1500, "expect": { "maxY": "> 0.85", "y": "~ 0.05 0.04" } },
+    { "name": "game-view-climbs", "place": { "eye": [0.5, 1.62, 13.5], "look": [0, 1.62, 0], "mode": "game" }, "keys": ["KeyW", "KeyD"], "ms": 5000, "expect": { "mode": "== game", "y": "> 1.5" } },
+    { "name": "fly", "place": { "eye": [0, 1.62, 40], "look": [0, 1.62, 0], "mode": "fly" }, "keys": ["KeyW", "KeyE"], "ms": 3000, "expect": { "mode": "== fly", "y": "> 12" } },
+    { "name": "flicker-walk", "flicker": { "path": [[0, 46], [0, 30], [-4.6, 24], [-4.6, 16.4], [-20, 16.4]], "y": 0 }, "expect": { "flicker": "< 8" } },
+    { "name": "frame-cost", "place": { "eye": [0, 1.62, 45], "look": [0, 1.62, 30], "mode": "walk" }, "keys": ["KeyW"], "perf": { "frames": 90 }, "expect": { "frameMs": "< 16.7" } }
+  ]
+}

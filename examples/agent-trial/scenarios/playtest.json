@@ -1,0 +1,24 @@
+{
+  "title": "agent-trial: the whole world (route, barriers, the lever)",
+  "query": "start=1&grain=0",
+  "w": 1440, "h": 900,
+  "steps": [
+    { "name": "spawn", "ms": 500, "expect": { "onGround": "== true", "y": "~ 2.4 0.05", "paused": "== false", "errors": "== 0" } },
+    { "name": "to-the-pier-entrance", "walkTo": [[0, 0]], "run": true, "expect": { "x": "~ 0 0.4", "z": "~ 0 0.4", "y": "~ 2.4 0.05" } },
+    { "name": "parapet-blocks-with-a-jump", "place": { "eye": [-0.5, 4.02, 8], "look": [-10, 4.02, 8], "mode": "walk" }, "tap": "Space", "keys": ["KeyW"], "ms": 2500, "expect": { "x": "> -1.6", "y": "~ 2.4 0.05" } },
+    { "name": "out-along-the-pier", "place": { "eye": [0, 4.02, 0], "look": [-10, 4.02, 0], "mode": "walk" }, "walkTo": [[-2, 0], [-57, 0], [-60.3, 1.4]], "run": true, "expect": { "x": "~ -60.3 0.4", "z": "~ 1.4 0.4", "y": "~ 2.4 0.05" } },
+    { "name": "lever-prompt", "lookAt": "lever", "expect": { "near": "== lever", "prompt": "has Pull the lever" } },
+    { "name": "pull-the-lever", "tap": "KeyE", "ms": 800, "expect": { "flags.lit": "== true", "flags.done": "== true" } },
+    { "name": "close-the-message", "tap": "Enter", "ms": 300, "expect": { "paused": "== false", "flags.lit": "== true" } },
+    { "name": "rail-blocks-with-a-jump", "place": { "eye": [-30, 4.02, 0], "look": [-30, 4.02, 10], "mode": "walk" }, "tap": "Space", "keys": ["KeyW"], "ms": 2500, "expect": { "z": "< 1.8", "y": "~ 2.4 0.05" } },
+    { "name": "tower-blocks", "place": { "eye": [-59, 4.02, -0.5], "look": [-70, 4.02, -0.5], "mode": "walk" }, "keys": ["KeyW"], "ms": 2500, "expect": { "x": "> -61.3", "y": "~ 2.4 0.35" } },
+    { "name": "head-rail-blocks", "place": { "eye": [-64, 4.02, 4], "look": [-64, 4.02, 12], "mode": "walk" }, "keys": ["KeyW"], "ms": 2500, "expect": { "z": "< 5.7", "y": "~ 2.4 0.05" } },
+    { "name": "flicker-on-the-route", "flicker": { "path": "route", "y": 2.4, "speed": 4.2 }, "expect": { "flicker": "< 8" } },
+    { "name": "frame-cost", "place": { "eye": [6, 4.02, 8], "look": [-64, 4.02, 0], "mode": "walk" }, "keys": ["KeyW"], "perf": { "frames": 90 }, "expect": { "frameMs": "< 8", "triangles": "< 600000" } },
+    { "name": "view-promenade", "viewpoint": 0 },
+    { "name": "view-pier-head", "viewpoint": 3 },
+    { "name": "view-looking-back", "viewpoint": 5 },
+    { "name": "view-from-the-sea", "viewpoint": 6 },
+    { "name": "view-aerial", "viewpoint": 7, "expect": { "errors": "== 0" } }
+  ]
+}
