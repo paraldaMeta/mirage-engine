@@ -1,6 +1,7 @@
 // Node checks of @mirage/game: the character controller on a hand-made scene (floor, wall with a gap, stairs, a
 // 0.6 m box, a hinged door, a crate), and the game state (inventory, flags, events, save / load, migration).
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { createPhysics } from './src/physics.js';
 import { createGame } from './src/game.js';
 
@@ -74,6 +75,37 @@ run(w, 0.5, {});
 w.place([0, 0, -4]); run(w, 3, { z: -1 });
 ok(cb.pos[2] < -6.3, `pushes a crate (z ${cb.pos[2].toFixed(2)})`);
 ok(phys.ray([0, 5, 10], [0, -1, 0], 10)?.distance > 4.9, 'ray down hits the floor');
+
+// ---- small risers (B16): 5-13 cm, alone or behind a 17 cm step, square / bevelled / one merged mesh, straight
+// and at 22 degrees, at 60 / 20 / 10 fps: the character goes up without slowing below 80 % of its walk
+{
+  const lane = async ({ step = 0, riser, bevel = 0, merge = false, dir = [0, -1], dt = 1 / 60 }) => {
+    const sc = new THREE.Scene(), geos = [];
+    const put = (w, h, d, x, y, z) => {
+      let gg = new THREE.BoxGeometry(w, h, d).translate(x, y, z);
+      if (bevel) { gg = gg.toNonIndexed(); const p = gg.attributes.position;   // chamfer the top front edge
+        for (let i = 0; i < p.count; i++) if (p.getY(i) > y + h / 2 - 1e-6 && p.getZ(i) > z + d / 2 - 1e-6) p.setZ(i, p.getZ(i) - bevel); }
+      if (merge) geos.push(gg.index ? gg.toNonIndexed() : gg); else sc.add(new THREE.Mesh(gg, M));
+    };
+    put(40, 1, 40, 0, -0.5, 0);
+    if (step) put(8, step + 0.2, 0.5, 0, (step - 0.2) / 2, -2.25);
+    const top = step + riser, z0 = step ? -2.5 : -2;
+    put(8, top + 0.2, 6, 0, (top - 0.2) / 2, z0 - 3);
+    if (merge) sc.add(new THREE.Mesh(mergeGeometries(geos.map((gg) => { gg.deleteAttribute('uv'); gg.deleteAttribute('normal'); return gg; })), M));
+    const ph = await createPhysics(sc); ph.addStatic(sc);
+    const c = ph.character({ pos: [0, 0, 0] }), n = Math.hypot(...dir);
+    let t = 0;
+    for (; t < 6 && c.pos[2] > z0 - 2; t += dt) { c.update(dt, { x: dir[0] / n, z: dir[1] / n }); ph.step(dt); }
+    const speed = Math.abs(c.pos[2]) / t / Math.abs(dir[1] / n) / c.body.walk;
+    return { up: Math.abs(c.pos[1] - top) < 0.05 && c.pos[2] <= z0 - 2, y: c.pos[1], speed };
+  };
+  const cases = [];
+  for (const riser of [0.05, 0.08, 0.13]) for (const dt of [1 / 60, 1 / 20, 1 / 10]) cases.push({ riser, dt });
+  for (const o of [{}, { bevel: 0.03 }, { merge: true }, { bevel: 0.03, merge: true }, { dir: [0.4, -1] }]) cases.push({ step: 0.17, riser: 0.13, ...o }, { riser: 0.05, ...o });
+  let worst = 1, fails = [];
+  for (const k of cases) { const r = await lane(k); worst = Math.min(worst, r.speed); if (!r.up || r.speed < 0.8) fails.push({ ...k, ...r }); }
+  ok(!fails.length, `small risers: ${cases.length - fails.length} / ${cases.length} lanes up, slowest at ${(worst * 100).toFixed(0)} % of the walk` + (fails.length ? ' ' + JSON.stringify(fails) : ''));
+}
 
 // ---- game state without a renderer
 const store = new Map();
