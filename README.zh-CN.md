@@ -80,14 +80,16 @@ node ../../packages/tools/src/package.mjs .                               # rele
 
 ## 用 Mirage 的方法做的作品
 
-![](docs/media/showcase/01-palm-grove.jpg)
+![](docs/media/showcase/01-valley.jpg)
 
 | | |
 |---|---|
-| ![](docs/media/showcase/02-domes.jpg) | ![](docs/media/showcase/03-mountain-village.jpg) |
-| ![](docs/media/showcase/04-arcade.jpg) | ![](docs/media/showcase/05-market-dusk.jpg) |
-
-![](docs/media/showcase/06-market-people.jpg)
+| ![](docs/media/showcase/02-pottery-court.jpg) | ![](docs/media/showcase/03-palm-grove.jpg) |
+| ![](docs/media/showcase/04-covered-lane.jpg) | ![](docs/media/showcase/05-round-tower.jpg) |
+| ![](docs/media/showcase/06-castle-walls.jpg) | ![](docs/media/showcase/07-courtyard-lamps.jpg) |
+| ![](docs/media/showcase/08-sunset-street.jpg) | ![](docs/media/showcase/09-water-channel.jpg) |
+| ![](docs/media/showcase/10-town-aerial.jpg) | ![](docs/media/showcase/11-golden-palms.jpg) |
+| ![](docs/media/showcase/12-night-roofs.jpg) | ![](docs/media/showcase/13-night-arcade.jpg) |
 
 *作者用这套方法的早期版本做的一座绿洲小城（不包含在本仓库中）。* 纯代码版 1.6 MB；七个 Agent 并行，不到四小时出了第一版。
 它的内容、代码和材质都不属于 Mirage。

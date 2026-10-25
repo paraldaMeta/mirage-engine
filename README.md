@@ -90,14 +90,16 @@ from the repository root with `node packages/tools/src/package.mjs examples/demo
 
 ## Made with the Mirage approach
 
-![](docs/media/showcase/01-palm-grove.jpg)
+![](docs/media/showcase/01-valley.jpg)
 
 | | |
 |---|---|
-| ![](docs/media/showcase/02-domes.jpg) | ![](docs/media/showcase/03-mountain-village.jpg) |
-| ![](docs/media/showcase/04-arcade.jpg) | ![](docs/media/showcase/05-market-dusk.jpg) |
-
-![](docs/media/showcase/06-market-people.jpg)
+| ![](docs/media/showcase/02-pottery-court.jpg) | ![](docs/media/showcase/03-palm-grove.jpg) |
+| ![](docs/media/showcase/04-covered-lane.jpg) | ![](docs/media/showcase/05-round-tower.jpg) |
+| ![](docs/media/showcase/06-castle-walls.jpg) | ![](docs/media/showcase/07-courtyard-lamps.jpg) |
+| ![](docs/media/showcase/08-sunset-street.jpg) | ![](docs/media/showcase/09-water-channel.jpg) |
+| ![](docs/media/showcase/10-town-aerial.jpg) | ![](docs/media/showcase/11-golden-palms.jpg) |
+| ![](docs/media/showcase/12-night-roofs.jpg) | ![](docs/media/showcase/13-night-arcade.jpg) |
 
 *An oasis town built by the author with an earlier version of this approach (not included in this repository).*
 Its code-only version was 1.6 MB; seven agents working in parallel produced the first version in under four
