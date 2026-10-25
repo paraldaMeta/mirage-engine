@@ -13,7 +13,8 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "npm test -ws --if-present && node agent/check.mjs"
+    "test": "npm test -ws --if-present && node agent/check.mjs",
+    "test:e2e": "node packages/tools/src/e2e.mjs"
   },
   "author": "灰叔 Racso"
 }
