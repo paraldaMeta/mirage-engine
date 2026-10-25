@@ -19,12 +19,13 @@ const { camera } = world;
 camera.aspect = W / H; camera.fov = 50; camera.near = 0.1; camera.far = 3000; camera.updateProjectionMatrix();
 await world.prepare();
 
-let last = performance.now(), T = 0;
+let last = null, T = 0;
 function frame(now) {
-  const dt = Math.min((now - last) / 1000, 0.1); last = now; T += dt;
+  const dt = last === null ? 0 : Math.min((now - last) / 1000, 0.1); last = now; T += dt;   // the first frame is ?from=
   date = new Date(date.getTime() + dt * rate * 60000);
   if (date.getTime() > t1) date = new Date(t0);                      // loop the day
-  world.setTime(new Date(date), { ease: true }); world.tick(dt);
+  // exposure adaptation and the light cross-fade run on clock time: in wall seconds they trail a 40 min/s clock
+  world.setTime(new Date(date), { ease: true }); world.tick(dt * rate * 60);
   if (built.modules.ground) built.modules.ground.snow.value = T;
   const a = 0.35 + T * 0.03, r = 9.5;                               // a slow circle round the hut, inside the pines
   camera.position.set(Math.sin(a) * r, 2.6 + 0.6 * Math.sin(T * 0.07), -3 + Math.cos(a) * r);
