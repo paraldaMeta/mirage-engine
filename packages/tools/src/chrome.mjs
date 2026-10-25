@@ -9,7 +9,8 @@ export const CHROME = process.env.CHROME || '/Applications/Google Chrome.app/Con
 export function launch({ w = 1440, h = 900, args = [] } = {}) {
   return puppeteer.launch({
     executablePath: CHROME, headless: true, defaultViewport: { width: w, height: h, deviceScaleFactor: 1 }, protocolTimeout: 900000,
-    args: ['--enable-gpu', '--ignore-gpu-blocklist', '--disable-gpu-watchdog', `--window-size=${w},${h}`, ...args],
+    // --disable-audio-output: Web Audio runs against a null sink, so the host's sound device cannot fail a test
+    args: ['--enable-gpu', '--ignore-gpu-blocklist', '--disable-gpu-watchdog', '--disable-audio-output', `--window-size=${w},${h}`, ...args],
   });
 }
 
