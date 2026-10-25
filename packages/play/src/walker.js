@@ -11,8 +11,9 @@
 
 export const BODY = { radius: 0.28, head: 1.8, eye: 1.62, step: 0.4, airStep: 0.12, walk: 1.5, run: 4.2, gravity: 9.81, jump: 4.2 };
 const SUB = 0.05;   // metres per sub-step: nothing thinner than ~2 sub-steps can be skipped
-// ponytail: axis-separated sliding (full move, else x, else z) instead of sweeping the disc along the wall's normal;
-// it stalls in sharp inside corners against a diagonal wall, which the grid's 0.125 m staircase makes rare.
+const RIM = Array.from({ length: 16 }, (_, i) => [Math.cos((i * Math.PI) / 8), Math.sin((i * Math.PI) / 8)]);
+// ponytail: sliding takes the move minus its part into the wall, the wall's normal guessed from which of 16 cells on
+// a ring two cells outside the disc are blocked, else falls back to axis-separated moves (x, else z); no swept disc.
 
 export function createWalker(grid, opts = {}) {
   const B = { ...BODY, ...opts.body };
@@ -38,6 +39,23 @@ export function createWalker(grid, opts = {}) {
     return g;
   }
   w.fits = (x, z, y = pos[1]) => fits(x, z, y, B.step) !== null;
+  /** the move (sx, sz) slid along whatever blocks it, or null */
+  function slide(sx, sz, step) {
+    let nx = 0, nz = 0;
+    const r = B.radius + 2 * grid.cell, y = pos[1];
+    for (const [dx, dz] of RIM) {
+      const s = grid.support(pos[0] + dx * r, pos[2] + dz * r, y, step);
+      if (!s || s[1] < Math.max(y, s[0]) + B.head) { nx -= dx; nz -= dz; }
+    }
+    const l = Math.hypot(nx, nz), k = l ? (sx * nx + sz * nz) / l / l : 0;
+    if (k >= 0) return null;
+    // along the wall, else a little away from it too (the grid makes a diagonal wall a staircase of cells)
+    for (const out of [0, 0.25, 0.5, 1]) {
+      const tx = sx - k * nx + (out * Math.hypot(sx, sz) * nx) / l, tz = sz - k * nz + (out * Math.hypot(sx, sz) * nz) / l;
+      if (fits(pos[0] + tx, pos[2] + tz, y, step) !== null) return [tx, tz];
+    }
+    return null;
+  }
 
   w.update = (dt, input = {}) => {
     dt = Math.min(dt, 0.1);
@@ -48,10 +66,12 @@ export function createWalker(grid, opts = {}) {
     w.blocked = false;
     for (let s = 0; s < subs; s++) {
       const sx = mx / subs, sz = mz / subs;
-      // full move, else slide along x, else along z
+      // full move, else slide along the wall, else along x, else along z
       if (fits(pos[0] + sx, pos[2] + sz, pos[1], step) !== null) { pos[0] += sx; pos[2] += sz; continue; }
       w.blocked = true;
-      if (sx && fits(pos[0] + sx, pos[2], pos[1], step) !== null) pos[0] += sx;
+      const t = slide(sx, sz, step);
+      if (t) { pos[0] += t[0]; pos[2] += t[1]; }
+      else if (sx && fits(pos[0] + sx, pos[2], pos[1], step) !== null) pos[0] += sx;
       else if (sz && fits(pos[0], pos[2] + sz, pos[1], step) !== null) pos[2] += sz;
     }
     // vertical
