@@ -40,6 +40,7 @@ export async function createPhysics(scene, { gravity = 9.81 } = {}) {
   const info = new Map();        // collider handle -> { surface, object }
   const moving = [];             // { body, obj } synced every step
   const hinges = [];
+  const characters = new Set();  // character collider handles
   const stats = { colliders: 0, triangles: 0, buildMs: 0 };
   const _m = new THREE.Matrix4(), _v = new THREE.Vector3(), _q = new THREE.Quaternion();
 
@@ -91,7 +92,7 @@ export async function createPhysics(scene, { gravity = 9.81 } = {}) {
     const b = world.createRigidBody(R.RigidBodyDesc.kinematicPositionBased().setTranslation(obj.position.x, obj.position.y, obj.position.z).setRotation(base));
     const col = world.createCollider(R.ColliderDesc.cuboid(...half).setTranslation(...offset), b);
     info.set(col.handle, { surface: 'wood', object: obj });
-    const h = { body: b, obj, angle: 0, target: 0, swing, speed, base,
+    const h = { body: b, obj, angle: 0, target: 0, swing, speed, base, offset: new THREE.Vector3(...offset),
       open() { h.target = swing; }, close() { h.target = 0; }, toggle() { h.target = h.target ? 0 : swing; },
       get isOpen() { return h.target !== 0; },
       /** jump to a state (load) */
@@ -108,13 +109,24 @@ export async function createPhysics(scene, { gravity = 9.81 } = {}) {
   }
   function sync(b, obj) { const t = b.translation(), r = b.rotation(); obj.position.set(t.x, t.y, t.z); obj.quaternion.set(r.x, r.y, r.z, r.w); }
 
+  // a kinematic leaf does not push the kinematic character: it waits while its next pose would overlap one
+  const _p = new THREE.Vector3(), _o = new THREE.Vector3();
+  const isCharacter = (c) => characters.has(c.handle);
+  function pinches(h, angle) {
+    _q.setFromAxisAngle(_up, angle).premultiply(h.base);
+    const t = h.body.translation(), c = h.body.collider(0);
+    _p.set(t.x, t.y, t.z).add(_o.copy(h.offset).applyQuaternion(_q));
+    return !!world.intersectionWithShape(_p, _q, c.shape, undefined, undefined, c, h.body, isCharacter);
+  }
   /** one step; returns true while something moved */
   function step(dt) {
     let moved = false;
     for (const h of hinges) {
       if (h.angle === h.target) continue;
       const d = h.target - h.angle, s = h.speed * dt;
-      h.angle = Math.abs(d) <= s ? h.target : h.angle + Math.sign(d) * s;
+      const next = Math.abs(d) <= s ? h.target : h.angle + Math.sign(d) * s;
+      if (characters.size && pinches(h, next)) continue;
+      h.angle = next;
       apply(h, false); moved = true;
     }
     world.timestep = Math.min(Math.max(dt, 1 / 240), 1 / 30);
@@ -140,6 +152,7 @@ export async function createPhysics(scene, { gravity = 9.81 } = {}) {
     const lift = B.head / 2, OFF = 0.02;
     const rb = world.createRigidBody(R.RigidBodyDesc.kinematicPositionBased().setTranslation(pos[0], pos[1] + lift, pos[2]));
     const col = world.createCollider(R.ColliderDesc.cylinder(lift, B.radius), rb);
+    characters.add(col.handle);
     const kcc = world.createCharacterController(OFF);
     kcc.setUp({ x: 0, y: 1, z: 0 });
     kcc.enableAutostep(B.step, 0.15, false);      // the walk grid's step: 0.4 m risers, treads >= 0.15 m

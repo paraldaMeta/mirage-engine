@@ -49,6 +49,22 @@ w.place([0, 0, 0]); door.open(); run(w, 1.5, {});
 ok(Math.abs(door.angle - 1.45) < 1e-6, `door turns open (${door.angle.toFixed(2)} rad)`);
 run(w, 4, { z: 1 });
 ok(w.pos[2] > 4, `open door lets through (z ${w.pos[2].toFixed(2)})`);
+// closing on the player (A5). In the open the controller steps out of the leaf's way; pinned against a block behind
+// the doorway it cannot, and the leaf must stop instead of closing through the body
+const inLeaf = () => {   // how deep the leaf (half thickness 0.04) is inside the body (r 0.28), metres
+  const a = door.angle, px = w.pos[0] + 1, pz = w.pos[2] - 3, along = px * Math.cos(a) - pz * Math.sin(a);
+  return along > -0.28 && along < 2.28 ? Math.max(0, 0.32 - Math.abs(px * Math.sin(a) + pz * Math.cos(a))) : 0;
+};
+w.place([0, 0, 3]); run(w, 0.3, {}); door.close(); run(w, 3, {});
+ok(door.angle === 0 && w.pos[2] > 3.3 && inLeaf() < 0.005, `closing door pushes the player out of the doorway (z ${w.pos[2].toFixed(2)})`);
+door.open(); run(w, 1.5, {});
+phys.addStatic(box(3, 2, 0.3, 0, 1, 3.75));
+w.place([0, 0, 3]); run(w, 0.3, {}); door.close();
+let deepest = 0; for (let t = 0; t < 3; t += 1 / 60) { run(w, 1 / 60, {}); deepest = Math.max(deepest, inLeaf()); }
+ok(door.angle > 0.02 && deepest < 0.005, `pinned against a block, the closing door stops at the player (${door.angle.toFixed(2)} rad, deepest ${(deepest * 100).toFixed(1)} cm)`);
+door.open(); run(w, 1.5, {}); run(w, 2, { z: -1 }); door.close(); run(w, 2, {});
+ok(door.angle === 0 && w.pos[2] < 2.5, `reopened, the player walks out and it closes (${door.angle.toFixed(2)} rad, z ${w.pos[2].toFixed(2)})`);
+door.open(); run(w, 1.5, {});
 
 // a crate the character pushes
 const crate = box(0.8, 0.8, 0.8, 0, 0.4, -6);
