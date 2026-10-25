@@ -162,7 +162,12 @@ if (PARTS.includes('pad')) {
   const set = (o) => S.page.evaluate((o) => { if (o.axes) window.__pad.axes = o.axes; if (o.b) for (const [i, v] of Object.entries(o.b)) window.__pad.buttons[i] = v; }, o);
   const tap = async (i) => { await set({ b: { [i]: 1 } }); await sleep(120); await set({ b: { [i]: 0 } }); await sleep(250); };
   const p0 = (await S.state()).pos;
-  await S.step('a-starts', () => tap(0), (s) => s.audioState === 'running' && !s.dialog);
+  let startY = -Infinity;   // A held on the start screen starts the game and must not also jump (B10)
+  await S.step('a-starts', async () => {
+    await set({ b: { 0: 1 } });
+    for (let t = 0; t < 15; t++) { startY = Math.max(startY, (await S.state()).pos[1]); await sleep(40); }
+    await set({ b: { 0: 0 } }); await sleep(250);
+  }, (s) => s.audioState === 'running' && !s.dialog && startY - p0[1] < 0.05);
   await S.step('left-stick-walks', async () => { await set({ axes: [0, -1, 0, 0] }); await sleep(2000); await set({ axes: [0, 0, 0, 0] }); await sleep(200); }, (s) => p0[2] - s.pos[2] > 2.2);
   const y0 = (await S.state()).yaw;
   await S.step('right-stick-looks', async () => { await set({ axes: [0, 0, 1, 0] }); await sleep(500); await set({ axes: [0, 0, 0, 0] }); await sleep(200); }, (s) => s.yaw - y0 > 0.6);
