@@ -115,6 +115,20 @@ if (PARTS.includes('main')) {
   await S.step('walk-to-the-pavilion', () => S.walk([[-4.6, 16.4], [0, 13.2], [0, -6], [0, -10], [0, -16], [0, -19.9]]), (s) => s.pos[1] > 3.4 && s.pos[2] < -19.5);
   await S.step('door-prompt', async () => { await S.look(await S.where('door')); await sleep(300); }, (s) => s.near === 'door' && /Unlock the door/.test(s.prompt || ''));
   await S.step('door-opens', async () => { await S.press('KeyE'); await sleep(1600); }, (s) => s.flags.doorOpen && Math.abs(s.door[0]) > 1.4 && Math.abs(s.door[1]) > 1.4 && s.audio.door === 1);
+  // A5: close the door on the player standing in the doorway: no leaf inside the body, not stuck, then open again
+  const inLeaves = () => S.page.evaluate(() => {
+    const { g, quest } = window.__mirage, me = g.character.collider.handle;
+    return quest.leaves.filter((l) => { const c = l.body.collider(0); return g.physics.world.intersectionWithShape(c.translation(), c.rotation(), c.shape, undefined, undefined, c, l.body, (k) => k.handle === me); }).length;
+  });
+  await S.step('door-closes-on-the-player', async () => {
+    await S.page.evaluate(() => { const { play, built } = window.__mirage, d = built.anchors.doors[0].pos; play.place([d[0], d[1] + 1.62, d[2]], [d[0], d[1] + 1.3, d[2] + 3], 'walk'); });
+    await sleep(400); await S.look(await S.where('door')); await sleep(300); await S.press('KeyE');
+    let worst = 0; for (let t = 0; t < 40; t++) { worst = Math.max(worst, await inLeaves()); await sleep(50); }
+    S.pinch = worst;
+  }, (s) => !s.flags.doorOpen && S.pinch === 0);
+  await S.step('walks-off-after-the-door', () => S.walk([[0, -18.5]], { run: false }), (s) => Math.hypot(s.pos[0], s.pos[2] + 18.5) < 0.5);
+  await S.step('door-opens-again', async () => { await S.walk([[0, -19.9]], { run: false }); await S.look(await S.where('door')); await sleep(300); await S.press('KeyE'); await sleep(1600); },
+    (s) => s.flags.doorOpen && Math.abs(s.door[0]) > 1.4 && Math.abs(s.door[1]) > 1.4);
   const saved = await S.step('save-slot-1', async () => {
     await S.press('Escape'); await sleep(300);
     await S.page.click('.mg-menu button[data-p="save"]'); await sleep(200);
