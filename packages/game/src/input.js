@@ -20,11 +20,20 @@ const LOOK_SPEED = 2.6;   // rad/s at full right-stick deflection
 
 export function createInput({ target = globalThis, bindings = DEFAULT_BINDINGS, deadzone = 0.18 } = {}) {
   const keys = new Set(), edges = new Set(), queued = new Set(), held = new Set();
+  const spent = new Set();   // keys / pad buttons held when input was switched on: ignored until released
   const touch = { x: 0, z: 0, look: [0, 0] };
-  let padPrev = [], pad = null, capturing = null;
+  let padPrev = [], pad = null, capturing = null, enabled = true;
   const inp = {
-    bindings: structuredClone(bindings), source: 'keyboard', pad: null, enabled: true,
-    down: (a) => inp.enabled && ((inp.bindings[a] || []).some((c) => keys.has(c)) || held.has(a) || padDown(a)),
+    bindings: structuredClone(bindings), source: 'keyboard', pad: null,
+    get enabled() { return enabled; },
+    set enabled(v) { if (v && !enabled) inp.spend(); enabled = !!v; },
+    /** ignore what is held now (and `code`, a key being pressed right now) until it is released */
+    spend(code) {
+      for (const k of keys) spent.add(k);
+      if (code) spent.add(code);
+      padPrev.forEach((p, i) => { if (p) spent.add('pad' + i); });
+    },
+    down: (a) => inp.enabled && ((inp.bindings[a] || []).some((c) => keys.has(c) && !spent.has(c)) || held.has(a) || padDown(a)),
     pressed: (a) => edges.has(a),
     /** pad buttons' edges this frame (menus use them: 12 up, 13 down, 0 A, 1 B) */
     padPressed: (i) => edges.has('pad' + i),
@@ -49,7 +58,7 @@ export function createInput({ target = globalThis, bindings = DEFAULT_BINDINGS, 
       pad = inp.pad = pads.find((p) => p.connected !== false) || null;
       if (pad) {
         const now = pad.buttons.map((b) => b.pressed || b.value > 0.5);
-        now.forEach((p, i) => { if (p && !padPrev[i]) { edges.add('pad' + i); inp.source = 'gamepad'; for (const [a, l] of Object.entries(PAD)) if (l.includes(i)) edges.add(a); } });
+        now.forEach((p, i) => { if (!p) spent.delete('pad' + i); if (p && !padPrev[i]) { edges.add('pad' + i); inp.source = 'gamepad'; for (const [a, l] of Object.entries(PAD)) if (l.includes(i)) edges.add(a); } });
         if (Math.hypot(pad.axes[0] || 0, pad.axes[1] || 0) > 0.5) inp.source = 'gamepad';
         padPrev = now;
       }
@@ -74,9 +83,9 @@ export function createInput({ target = globalThis, bindings = DEFAULT_BINDINGS, 
       if (inp.source === 'touch') return { interact: 'Use', jump: 'Jump', menu: '☰', inventory: 'Bag' }[a] || a;
       return keyName((inp.bindings[a] || [])[0] || '?');
     },
-    clear() { keys.clear(); held.clear(); touch.x = touch.z = 0; },
+    clear() { keys.clear(); held.clear(); spent.clear(); touch.x = touch.z = 0; },
   };
-  const padDown = (a) => !!(inp.enabled && pad && PAD[a] && PAD[a].some((i) => pad.buttons[i] && (pad.buttons[i].pressed || pad.buttons[i].value > 0.5)));
+  const padDown = (a) => !!(inp.enabled && pad && PAD[a] && PAD[a].some((i) => pad.buttons[i] && !spent.has('pad' + i) && (pad.buttons[i].pressed || pad.buttons[i].value > 0.5)));
   const stick = (x = 0, y = 0) => { const l = Math.hypot(x, y); if (l < deadzone) return [0, 0]; const k = Math.min(1, (l - deadzone) / (1 - deadzone)) / l; return [x * k, y * k]; };
   const inField = (e) => e.target && /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName);
   if (target.addEventListener) {
@@ -91,7 +100,7 @@ export function createInput({ target = globalThis, bindings = DEFAULT_BINDINGS, 
       keys.add(e.code);
       if (!inDialog && ['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault();
     });
-    target.addEventListener('keyup', (e) => keys.delete(e.code));
+    target.addEventListener('keyup', (e) => { keys.delete(e.code); spent.delete(e.code); });
     target.addEventListener('blur', () => inp.clear());
   }
   return inp;

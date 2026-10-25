@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { createPhysics } from './src/physics.js';
 import { createGame } from './src/game.js';
+import { createInput } from './src/input.js';
 
 const ok = (c, m) => { if (!c) { console.error('FAIL', m); process.exit(1); } console.log('  ok', m); };
 const scene = new THREE.Scene(), M = new THREE.MeshBasicMaterial();
@@ -134,4 +135,24 @@ store.set('mirage:check:3', JSON.stringify({ ...saved, v: 9 }));
 let threw = false; try { game.load(3); } catch { threw = true; }
 ok(threw, 'a newer save is refused');
 ok(game.importJSON(game.exportJSON()) && game.inventory.has('key'), 'export / import round trip');
+
+// ---- input: a button or key held when input is switched on (the start screen, a dialog closing) does not act
+const pad = { connected: true, axes: [0, 0, 0, 0], buttons: Array.from({ length: 17 }, () => ({ pressed: false, value: 0 })) };
+const A = (on) => { pad.buttons[0] = { pressed: on, value: +on }; };
+Object.defineProperty(globalThis.navigator, 'getGamepads', { value: () => [pad], configurable: true });
+const keyTarget = new EventTarget(), press = (type, code) => keyTarget.dispatchEvent(Object.assign(new Event(type), { code }));
+const input = createInput({ target: keyTarget });
+input.enabled = false; input.poll();
+A(true); input.poll(); input.enabled = true;          // A starts the game (ui.update runs after the frame's poll)
+let jumps = 0; for (let f = 0; f < 30; f++) { input.poll(); jumps += input.down('jump'); }
+ok(jumps === 0, `pad A held through the start screen does not jump (${jumps} frames)`);
+A(false); input.poll(); A(true); input.poll();
+ok(input.down('jump') && input.pressed('jump'), 'pad A pressed again jumps');
+A(false); input.poll();
+input.enabled = false; press('keydown', 'Space'); input.enabled = true; input.spend('Space');   // a key that starts it
+jumps = 0; for (let f = 0; f < 30; f++) { input.poll(); jumps += input.down('jump'); }
+ok(jumps === 0, `Space held through the start screen does not jump (${jumps} frames)`);
+press('keyup', 'Space'); press('keydown', 'Space'); input.poll();
+ok(input.down('jump'), 'Space pressed again jumps');
+press('keyup', 'Space');
 console.log('game check: ok');

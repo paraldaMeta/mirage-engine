@@ -83,7 +83,7 @@ export function createUI({ game, input, audio, title = 'Mirage', subtitle = '', 
   // ---- start screen: unlocks audio and captures the pointer
   function begin(e) {
     if (started) return;
-    started = true; start.hidden = true; audio.unlock(); input.enabled = true;
+    started = true; start.hidden = true; audio.unlock(); input.enabled = true; input.spend(e && e.code);
     if (e && e.type === 'click' && canvas && canvas.requestPointerLock && !touchOn) try { const r = canvas.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch { /* drag to look */ }
     game.emit('start');
   }
@@ -123,7 +123,7 @@ export function createUI({ game, input, audio, title = 'Mirage', subtitle = '', 
   look.addEventListener('pointerup', () => { lookId = null; });
   for (const b of touch.querySelectorAll('button[data-a]')) {
     const a = b.dataset.a;
-    b.addEventListener('pointerdown', (e) => { e.preventDefault(); if (!started) begin(e); if (a === 'jump') input.hold(a, true); else input.tap(a); });
+    b.addEventListener('pointerdown', (e) => { e.preventDefault(); if (!started) { begin(e); return; } if (a === 'jump') input.hold(a, true); else input.tap(a); });
     b.addEventListener('pointerup', () => input.hold(a, false));
     b.addEventListener('click', (e) => { if (e.detail === 0) input.tap(a); });   // keyboard / screen reader activation
   }
