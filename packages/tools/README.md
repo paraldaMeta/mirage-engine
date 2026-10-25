@@ -11,6 +11,7 @@ with the GPU on through puppeteer-core. Targets are a built `dist/` folder (serv
 | `src/walktest.mjs` | M2's walk tests: an alias of playtest (same scenario format) |
 | `src/snap.mjs <target> [--out dir] [--views all] [--spp 16] [--game]` | every plan viewpoint as a still (the core's still path), plus `sheet.png` (a contact sheet) and `snap.json` |
 | `src/perf.mjs <target> [--w 1440 --h 900]` (`mirage-perf`) | synchronous frame cost: walk, game view, fly (moving, TAA) and the still path at spp 6 / 16; draw calls, triangles |
+| `src/e2e.mjs [--only a,b] [--no-file]` (`npm run test:e2e` at the root) | every example with a `playtest` script, in sequence: build, playtest of `dist/`, the example's extra scripts (garden-quest's playthrough), package, playtest of the single file from file://; keeps going after a failure, prints a summary, writes `out/e2e/summary.json`; exit 1 if any step failed |
 | `src/deploy.mjs <example> [--out dir] [--multi]` | a folder any static host can serve (single file or Vite's dist, `.nojekyll`, `_headers`); checks it, prints how to publish. **Uploads nothing.** |
 | `tex/pack.py` | fetch CC0 texture sets from Poly Haven and pack them (M1b) |
 
