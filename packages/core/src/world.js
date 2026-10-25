@@ -253,6 +253,7 @@ export function createWorldRenderer(config = {}) {
     renderer.setSize(wd, ht, false);
     pipeline.setSize(wd * pixelRatio, ht * pixelRatio);
     camera.aspect = wd / ht; camera.updateProjectionMatrix();
+    taaValid = false;   // the history targets were reallocated (empty)
   }
 
   function dispose() {

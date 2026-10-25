@@ -34,7 +34,7 @@ await tex.ready();
 let quest;
 const g = await startGame(world, {
   built, canvas, id: 'garden-quest', version: VERSION, title: 'Garden Quest', subtitle: 'Find the key · open the pavilion · light the lanterns',
-  spp: +Q.get('spp') || 6, shadowRadius: 26,
+  spp: +Q.get('spp') || 6, shadowRadius: 26, fit: !Q.get('w'),
   setup: (ctx) => { quest = setupQuest(ctx, shared.mats); },
   objective: (game) => objective(game, quest.lamps.length), summary,
 });

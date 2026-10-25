@@ -30,7 +30,7 @@ camera.aspect = W / H; camera.fov = 55; camera.near = 0.1; camera.far = 3000; ca
 await tex.ready();
 await world.prepare();
 const spp = +Q.get('spp') || 6, mode = Q.get('mode') || 'walk';
-const play = createPlay(world, { plan: built.plan, canvas, mode, spp, ui: Q.get('ui') !== '0', shadowRadius: 26 });
+const play = createPlay(world, { plan: built.plan, canvas, mode, spp, ui: Q.get('ui') !== '0', shadowRadius: 26, fit: !Q.get('w') });
 const v = plan.viewpoints.find((p) => p.name === Q.get('view'));
 if (v) play.place(v.eye, v.look, mode);
 window.__mirage = { world, tex, built, play, render: (o = {}) => world.renderFrame(o.T ?? 0, { spp, frameIndex: 1, ...o }) };

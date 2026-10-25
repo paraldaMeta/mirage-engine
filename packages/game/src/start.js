@@ -61,7 +61,7 @@ export async function startGame(world, opts) {
   const cam = world.camera, dir = new THREE.Vector3();
   let near = null;
   play = createPlay(world, {
-    plan, canvas, mode: 'walk', walker: character, devKeys: false, spp: opts.spp || 6, ui: false, shadowRadius: opts.shadowRadius, grid: opts.grid,
+    plan, canvas, mode: 'walk', walker: character, devKeys: false, spp: opts.spp || 6, ui: false, shadowRadius: opts.shadowRadius, grid: opts.grid, fit: opts.fit,
     input(dt) {
       input.poll();
       const [lx, ly] = input.look(dt);
