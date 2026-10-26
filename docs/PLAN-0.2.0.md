@@ -13,6 +13,7 @@
 3. `fix/b3-walk-grid`、`fix/resize`、`fix/b19-day-night-clock`
 4. `fix/b21-gpu-load`（三条提交，含审查修复）
 5. `fix/lockfile-version`、`docs/test-report`
+6. `fix/playtest-warnings`、`fix/thin-railings`（0.2.0 第 2 步里已做完的两条）
 
 合完跑 `npm test`、`npm run test:e2e`、`npm run test:gpu-load`、院子的 `verify.mjs`。
 
@@ -23,9 +24,10 @@
 | 1 | **B1 停下时清晰度突变**：抗锯齿帧切到静止精细帧那一下 | 量出切换前后的差（均值、最大值），给出能重复跑的测量脚本；改了以后差明显变小，静止帧像素不变 |
 | 2 | **B5 走动时风和钟恢复**：走动用真实时间，停下冻结 | 走动时树和水在动；停下后的静止帧和现在逐像素一致；显卡负载测试照样通过 |
 | 3 | **B17 雪不再让 snow-hut 一直算「在动」** | 静止精细化能完成（B21 的闲置停绘已经兜住显卡，这条是画质） |
-| 4 | **Firefox 警告**（等所有者定规矩，见下） | 五个示例在 Firefox 上 playtest 通过 |
-| 5 | **细栏杆**（B3 剩下的，等所有者定方案，见下） | 一根 5 cm 的栏杆挡得住人，有测试 |
+| 4 | **Firefox 警告**：已做，`fix/playtest-warnings`（警告单独计数，只有错误判失败） | 四个示例在 Firefox 上全过；snow-hut 见第 7 条 |
+| 5 | **细栏杆**：已做，`fix/thin-railings`（作者加至少 0.2 m 厚的 `ctx.collider` 代理，写进文档，`bake-check.mjs`） | 5 cm 栏杆：无代理穿过，有代理停在 x −0.375 |
 | 6 | **A3 手机真机**（需要所有者拿手机） | 记机型、帧率、自动选的画质、触屏问题 |
+| 7 | **Firefox 里 snow-hut 卡在门口**：新发现，行走者停在 (1.3, 1.2) 进不了门；纯 `test/a2-browsers` 和加上 `fix/a5-door-pinch` 都复现，Chrome 不复现。A2 测的那次没出现 | 先查是不是 Firefox 的帧时间（走路时 fps 记为 0）让 walkTo 判成卡住，还是门的碰撞在 Firefox 里不同 |
 
 ## 第 3 步：发版
 
@@ -35,9 +37,7 @@
 
 ## 要所有者定的
 
-- **Firefox 警告算不算失败。** 现在 playtest 把 console 的 warning 也算进 `errors`。可选：分开计数，只有错误判失败；或者只放行几种已知的浏览器警告。
-- **细栏杆怎么修。** 作者给细东西加一个至少一格厚的碰撞代理（不改引擎，写进技能文档）；或者给烘焙加可选的加密采样（烘焙慢约 4 倍）。
-- **首发叫 0.1.0 还是直接 0.2.0。**
+已定：Firefox 警告分开计数；细栏杆用碰撞代理；先发 0.1.0，这一轮做完再发 0.2.0。
 
 ## 不放进 0.2.0
 
