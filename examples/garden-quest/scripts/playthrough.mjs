@@ -80,6 +80,7 @@ async function session(part, { query = '', mobile = false, pad = false, page: re
     async press(code, ms = 80) { await S.page.keyboard.down(code); await sleep(ms); await S.page.keyboard.up(code); await sleep(200); },
     async close() { if (browser) await browser.close(); },
     errorsAll: () => pages.flatMap((p) => p.errors),
+    warningsAll: () => pages.flatMap((p) => p.warnings),
   };
   return S;
 }
@@ -93,14 +94,14 @@ async function openPage(browser, url, { mobile, pad, W, H }) {
     navigator.getGamepads = () => [{ id: 'Mirage test pad (standard)', index: 0, connected: true, mapping: 'standard', timestamp: performance.now(),
       axes: window.__pad.axes.slice(), buttons: window.__pad.buttons.map((v) => ({ pressed: v > 0.5, touched: v > 0, value: v })) }];
   });
-  const errors = [];
-  page.on('console', (m) => { if (['error', 'warn', 'warning'].includes(m.type())) errors.push(m.type() + ': ' + m.text()); });
+  const errors = [], warnings = [];   // warnings are reported, not failures (Firefox prints driver ones; A2)
+  page.on('console', (m) => { if (m.type() === 'error') errors.push('error: ' + m.text()); else if (['warn', 'warning'].includes(m.type())) warnings.push('warning: ' + m.text()); });
   page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
   const t0 = Date.now();
   await page.goto(url, { waitUntil: 'load', timeout: 180000 });
   await page.waitForFunction('window.__READY === true', { timeout: 180000, polling: 100 });
   await sleep(600);
-  return { page, errors, loadMs: Date.now() - t0 };
+  return { page, errors, warnings, loadMs: Date.now() - t0 };
 }
 
 // ---------------------------------------------------------------------------
@@ -148,7 +149,7 @@ if (PARTS.includes('main')) {
   const last = await S.state();
   R.audio = Object.fromEntries([...new Set([...Object.keys(audio1), ...Object.keys(last.audio)])].map((k) => [k, (audio1[k] || 0) + (last.audio[k] || 0)]));   // both page loads
   R.surfaces = Object.fromEntries(Object.entries(R.audio).filter(([k]) => k.startsWith('step_')));
-  R.errors = S.errorsAll();
+  R.errors = S.errorsAll(); R.warnings = S.warningsAll();
   if (R.errors.length) { failed++; console.log('console errors:', R.errors); }
   if (!(R.surfaces.step_stone && R.surfaces.step_gravel)) { failed++; console.log('FAIL footsteps: expected stone and gravel', R.surfaces); }
   R.steps = S.steps;
@@ -182,7 +183,7 @@ if (PARTS.includes('pad')) {
   await S.step('dpad-moves-focus', async () => { await tap(13); await tap(13); }, async () => (await S.page.evaluate(() => document.activeElement.textContent)) === 'Load');
   await S.step('a-presses-focused', () => tap(0), async () => (await S.page.evaluate(() => document.querySelector('#mg-menu-h').textContent)) === 'Load');
   await S.step('b-resumes', () => tap(1), (s) => !s.dialog && !s.paused);
-  report.parts.pad = { steps: S.steps, errors: S.errorsAll() };
+  report.parts.pad = { steps: S.steps, errors: S.errorsAll(), warnings: S.warningsAll() };
   if (S.errorsAll().length) { failed++; console.log('console errors:', S.errorsAll()); }
   await S.close();
 }
@@ -216,7 +217,7 @@ if (PARTS.includes('touch')) {
   }, (s) => s.inv.includes('key'));
   await S.step('menu-button', () => tapEl('.mg-menubtn'), (s) => s.dialog === 'mg-menu' && s.paused);
   await S.step('resume-button', () => tapEl('.mg-menu button[data-do="resume"]'), (s) => !s.dialog && !s.paused);
-  report.parts.touch = { steps: S.steps, errors: S.errorsAll() };
+  report.parts.touch = { steps: S.steps, errors: S.errorsAll(), warnings: S.warningsAll() };
   if (S.errorsAll().length) { failed++; console.log('console errors:', S.errorsAll()); }
   await S.close();
 }
