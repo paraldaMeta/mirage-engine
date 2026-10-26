@@ -16,6 +16,7 @@
 import * as THREE from 'three';
 
 let RAPIER = null;
+const MIN_DT = 1 / 90;   // the shortest character move (see character())
 /** load and initialise Rapier once (the dynamic import keeps it out of pages that never call this) */
 export async function loadRapier() {
   if (!RAPIER) {
@@ -163,8 +164,15 @@ export async function createPhysics(scene, { gravity = 9.81 } = {}) {
     kcc.setCharacterMass(70);
     const notMe = (c) => c.handle !== col.handle && !c.isSensor();
     const w = { pos: pos.slice(), vy: 0, onGround: false, blocked: false, body: B, collider: col, controller: kcc, walked: 0, surface: 'default', onStride: null };
+    // Rapier's autostep needs a move longer than the controller's offset (2 cm): at 120 fps and up a walking step
+    // is 1.25 cm or less and the character stopped at snow-hut's bevelled door step (Firefox at 120 Hz). Frames
+    // shorter than MIN_DT are added up and moved as one.
+    // ponytail: above 90 fps the character moves on every other frame, no interpolation (play caps at 60 fps)
+    let acc = 0;
     w.update = (dt, input = {}) => {
-      dt = Math.min(dt, 0.1);
+      acc += dt;
+      if (acc < MIN_DT) return w;
+      dt = Math.min(acc, 0.1); acc = 0;
       const speed = input.run ? B.run : B.walk;
       if (w.onGround && input.jump) { w.vy = B.jump; w.onGround = false; }
       w.vy = w.onGround && w.vy <= 0 ? -1 : w.vy - B.gravity * dt;   // a little down force keeps it on stairs going down

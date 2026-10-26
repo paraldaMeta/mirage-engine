@@ -78,7 +78,8 @@ ok(cb.pos[2] < -6.3, `pushes a crate (z ${cb.pos[2].toFixed(2)})`);
 ok(phys.ray([0, 5, 10], [0, -1, 0], 10)?.distance > 4.9, 'ray down hits the floor');
 
 // ---- small risers (B16): 5-13 cm, alone or behind a 17 cm step, square / bevelled / one merged mesh, straight
-// and at 22 degrees, at 60 / 20 / 10 fps: the character goes up without slowing below 80 % of its walk
+// and at 22 degrees, at 60 / 20 / 10 fps and on fast displays (120 / 144 / 240 fps: a step of a few millimetres
+// used to stop at every riser, Firefox at 120 Hz in snow-hut's doorway): up without slowing below 80 % of the walk
 {
   const lane = async ({ step = 0, riser, bevel = 0, merge = false, dir = [0, -1], dt = 1 / 60 }) => {
     const sc = new THREE.Scene(), geos = [];
@@ -101,8 +102,10 @@ ok(phys.ray([0, 5, 10], [0, -1, 0], 10)?.distance > 4.9, 'ray down hits the floo
     return { up: Math.abs(c.pos[1] - top) < 0.05 && c.pos[2] <= z0 - 2, y: c.pos[1], speed };
   };
   const cases = [];
-  for (const riser of [0.05, 0.08, 0.13]) for (const dt of [1 / 60, 1 / 20, 1 / 10]) cases.push({ riser, dt });
+  for (const riser of [0.05, 0.08, 0.13]) for (const dt of [1 / 60, 1 / 20, 1 / 10, 1 / 120, 1 / 144, 1 / 240]) cases.push({ riser, dt });
   for (const o of [{}, { bevel: 0.03 }, { merge: true }, { bevel: 0.03, merge: true }, { dir: [0.4, -1] }]) cases.push({ step: 0.17, riser: 0.13, ...o }, { riser: 0.05, ...o });
+  // snow-hut's doorway: a 13.5 cm stone step (0.45 m tread) up to the 34 cm porch deck
+  for (const dt of [1 / 60, 1 / 30, 1 / 120, 1 / 144, 1 / 240]) for (const bevel of [0, 0.03]) cases.push({ step: 0.135, riser: 0.205, bevel, dt });
   let worst = 1, fails = [];
   for (const k of cases) { const r = await lane(k); worst = Math.min(worst, r.speed); if (!r.up || r.speed < 0.8) fails.push({ ...k, ...r }); }
   ok(!fails.length, `small risers: ${cases.length - fails.length} / ${cases.length} lanes up, slowest at ${(worst * 100).toFixed(0)} % of the walk` + (fails.length ? ' ' + JSON.stringify(fails) : ''));
