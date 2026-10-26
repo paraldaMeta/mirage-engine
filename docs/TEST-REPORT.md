@@ -259,6 +259,48 @@ loop takes B21's scheduling plus resize's dt clamp and size in the redraw key): 
 `resize-check.mjs` ok (800×500, refinements 2 → 4, 0 errors); `verify.mjs` five views, same frame index → max 0,
 0 pixels differ.
 
+## Adversarial review of the round's changes
+
+Every branch's diff was read again as someone else's code, looking for what the tests would miss.
+
+Fixed (`fix/b21-gpu-load`, commit `e69bc12`, each with a test that fails before):
+
+- **The frame cap was wrong on most displays that aren't 60 or 120 Hz.** A minimum gap of 1/60 s − 2 ms between
+  frames draws every other frame when the display's frame is shorter than that: 75 Hz gave 37.5 fps, 90 Hz 45,
+  100 Hz 50, 144 Hz 48, 165 Hz 55, and the power saver 25 at 75 Hz. This machine's 60 Hz hid it. Now a deadline per
+  frame: 60.1 fps at 75–165 Hz, 50 at 50 Hz, 30.1 in the power saver. Test: `packages/play/check.mjs` simulates
+  50–165 Hz with ±0.8 ms jitter.
+- **On a phone the corner covered the touch buttons.** It sat bottom right above the game's UI, over the lower edge
+  of Jump and of the stick, so a tap there switched the power saver on. On touch it now goes below the game's menu
+  button. Test: a "phone" check in `gpu-load.mjs` (390×844, touch): before "covers mg-stick, Jump", after clear in
+  all three games.
+- **iPads got medium:** their Safari sends a Macintosh user agent. `pickQuality` now uses the same touch test as
+  `deviceProfile`. Test: `packages/core/check.mjs` (an iPad gets low, a Mac medium).
+
+After the fixes: `npm test` ok, `npm run test:gpu-load` all pass, the five playtests pass, `verify.mjs` five
+views max 0 / 0 pixels.
+
+Looked at and fine: the door pinch (a leaf waits only when its next pose overlaps a character; loading a save sets
+the angle directly); spent keys and pad buttons (released keys and blur clear them; the pause menu keeps polling the
+pad); resize (the game-view camera's aspect is recomputed every frame); the save error message; B19's clock-time
+`tick` (it drives only exposure and the light cross-fade, not module animation); a saved quality is checked
+against the three levels, and no module reads `ctx.quality`.
+
+Worth knowing, not changed:
+
+- **The idle stop is time-based.** After 10 s without input, a game's scene changes that don't move the camera are
+  no longer drawn. Today nothing changes without input (doors move only after E, for about 1.2 s), but a future
+  timed event would freeze on screen until the next input. The game can call `play.wake()` for it.
+- **When still, the GPU is idle but the loop isn't:** animation callbacks still run at the display rate (input,
+  physics, the view key). That is CPU, not GPU.
+- **The 2 mm standing deadband** would also ignore a platform moving slower than 0.12 m/s (0.06 at 30 fps) under a
+  player who isn't pressing anything. There are no moving platforms yet.
+- **`?quality=` is not checked:** an unknown value renders as high (core's fallback) and the corner's select shows
+  the first level.
+- **`fit` doesn't follow a change of device pixel ratio** (a window dragged to a screen with another scale).
+- **Not measured on real devices:** a 75 / 144 Hz display, a laptop on battery, a phone or tablet, and B21 in Safari
+  and Firefox.
+
 ## Open issues (for the author to decide; not changed)
 
 1. **Thin railings in the walk grid**, under B3 above.
