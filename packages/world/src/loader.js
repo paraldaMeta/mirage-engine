@@ -21,7 +21,8 @@ import { definePlan } from './plan.js';
 // Randomness: ctx.R is this module's own seeded stream (plan.seed/name), ctx.rng(sub) forks more; one module's
 // draws never shift another's.
 // Layers: geometry on layer 0 is solid for the walk grid unless `userData.collide === false`; ctx.collider(mesh)
-// adds an invisible collision-only proxy (layer LAYER.COLLIDE) for open meshes (vertical tubes, water).
+// adds an invisible collision-only proxy (layer LAYER.COLLIDE) for open meshes (vertical tubes, water) and for
+// solids thinner than a walk-grid cell (railings: a proxy at least 0.2 m thick).
 // ---------------------------------------------------------------------------
 
 export const LAYER = { VIEW: 0, COLLIDE: 2 };

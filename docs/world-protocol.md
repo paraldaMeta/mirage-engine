@@ -82,6 +82,8 @@ The walk grid is baked from the real geometry seen from above, so modules declar
   mesh out: foliage, glass, water surfaces, the player's figure.
 - A solid is a **closed** mesh. Open meshes (a vertical tube without caps, a single plane over a pool) get
   `collide = false` and a closed proxy: `ctx.collider(new THREE.Mesh(geometry))` (invisible, layer 2).
+- The bake samples each 0.125 m cell at its centre, so a solid thinner than a cell (railings, posts, ropes) can be
+  missed. One that must block gets a proxy box at least 0.2 m thick around it.
 - A wall is a floor far above the walker's feet; a gate is a floor with a ceiling above head height; stairs are
   floors at most `step` (0.4 m) apart; anything 0.4–1.0 m high can be jumped onto.
 

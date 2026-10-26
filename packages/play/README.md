@@ -38,7 +38,9 @@ turns non-zero is a floor (exact height from the min depth), where it turns back
 column, each with its ceiling. `grid.layers(x, z)`, `grid.support(x, z, y, step)`, `grid.groundAt(x, z, y)`.
 
 Rules for modules: `userData.collide = false` leaves a mesh (and its children) out; open meshes need a closed
-proxy (`ctx.collider(mesh)`, layer 2): a vertical face is never seen from above.
+proxy (`ctx.collider(mesh)`, layer 2): a vertical face is never seen from above. Each 0.125 m cell is sampled at
+its centre, so a solid thinner than a cell (a railing, a post, a rope) can fall between samples: if it must block,
+give it a proxy box at least 0.2 m thick. `node packages/tools/bake-check.mjs` shows both (needs Chrome).
 
 ## The walker (`createWalker(grid, { pos, body })`)
 
