@@ -53,4 +53,13 @@ for (const deg of [0, 30, 60]) {
   ok(into < 1.8 && (deg ? along > 0.9 * ideal : Math.abs(along) < 0.05),
     `45° wall, ${deg}° off its normal: ${deg ? 'slides' : 'stops'} (${along.toFixed(2)} m along of ${ideal.toFixed(2)}, x + z ${into.toFixed(2)})`);
 }
+// the frame cap on any display rate (B21: it skipped every other frame at 75 Hz, 37.5 fps)
+const { frameGate } = await import('./src/play.js');
+for (const [hz, cap] of [[50, 60], [60, 60], [75, 60], [90, 60], [120, 60], [144, 60], [165, 60], [60, 30], [75, 30], [144, 30]]) {
+  const gate = frameGate(() => cap);
+  let n = 0;
+  for (let i = 0; i < hz * 10; i++) if (gate((i * 1000) / hz + (((i * 7919) % 3) - 1) * 0.8)) n++;   // ±0.8 ms jitter
+  const fps = n / 10, want = Math.min(hz, cap);
+  ok(fps <= want + 0.5 && fps >= want - 1, `frame cap ${cap} at ${hz} Hz: ${fps} fps`);
+}
 console.log('play check: ok');
