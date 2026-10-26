@@ -51,14 +51,17 @@ export function serve(dir, port = 0) {
   return new Promise((r) => server.listen(port, '127.0.0.1', () => r({ url: `http://127.0.0.1:${server.address().port}/`, close: () => server.close() })));
 }
 
-/** open a page, collect console errors / warnings and page errors, wait for window.__READY */
+/** open a page, collect console errors and page errors (errors), console warnings (warnings), wait for window.__READY */
 export async function open(browser, url, { timeout = 180000 } = {}) {
   const page = await browser.newPage();
-  const errors = [];
-  page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warn' || m.type() === 'warning') errors.push(m.type() + ': ' + m.text()); });
+  const errors = [], warnings = [];
+  page.on('console', (m) => {
+    if (m.type() === 'error') errors.push('error: ' + m.text());
+    else if (m.type() === 'warn' || m.type() === 'warning') warnings.push('warning: ' + m.text());
+  });
   page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
   const t0 = Date.now();
   await page.goto(url, { waitUntil: 'load', timeout });
   await page.waitForFunction('window.__READY === true', { timeout, polling: 100 });
-  return { page, errors, loadMs: Date.now() - t0 };
+  return { page, errors, warnings, loadMs: Date.now() - t0 };
 }
