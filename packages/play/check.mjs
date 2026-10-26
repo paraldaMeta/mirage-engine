@@ -40,4 +40,13 @@ for (let d = 0.3; d < 1.6; d += 0.05) {
   for (let t = 0; t < 1.5; t += 1 / 60) { w.update(1 / 60, { z: -1, jump: t < 0.05 }); low = Math.min(low, w.pos[1]); }
 }
 ok(low > -0.01, `jumps at an overhanging bench never fall through (lowest feet ${low.toFixed(2)})`);
+// the frame cap on any display rate (B21: it skipped every other frame at 75 Hz, 37.5 fps)
+const { frameGate } = await import('./src/play.js');
+for (const [hz, cap] of [[50, 60], [60, 60], [75, 60], [90, 60], [120, 60], [144, 60], [165, 60], [60, 30], [75, 30], [144, 30]]) {
+  const gate = frameGate(() => cap);
+  let n = 0;
+  for (let i = 0; i < hz * 10; i++) if (gate((i * 1000) / hz + (((i * 7919) % 3) - 1) * 0.8)) n++;   // ±0.8 ms jitter
+  const fps = n / 10, want = Math.min(hz, cap);
+  ok(fps <= want + 0.5 && fps >= want - 1, `frame cap ${cap} at ${hz} Hz: ${fps} fps`);
+}
 console.log('play check: ok');

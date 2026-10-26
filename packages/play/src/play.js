@@ -216,8 +216,7 @@ export function createPlay(world, opts = {}) {
     pending = false;
     if (!running || hidden) return;
     schedule();
-    if (power.maxFps && now - lastFrame < 1000 / power.maxFps - 2) return;   // at most maxFps (60; power saver 30)
-    lastFrame = now;
+    if (!gate(now)) return;   // at most maxFps (60; power saver 30)
     const dt = Math.min((now - last) / 1000, 0.1); last = now;
     step(dt);
     const { cam } = view();
@@ -253,10 +252,10 @@ export function createPlay(world, opts = {}) {
   // all while the tab is hidden, the quality / fps corner with the power saver (opts.quality: the page's level)
   const idleAfter = opts.idle ?? 10, draws = [];
   stats.draws = 0;
-  let lastInput = performance.now(), lastFrame = -1e9, hidden = typeof document !== 'undefined' && document.hidden;
+  let lastInput = performance.now(), hidden = typeof document !== 'undefined' && document.hidden;
   const wake = () => { lastInput = performance.now(); };
   for (const ev of ['keydown', 'pointerdown', 'pointermove', 'wheel', 'touchstart']) window.addEventListener(ev, wake, { passive: true });
-  const power = { saver: false, maxFps: opts.maxFps ?? 60 };
+  const power = { saver: false, maxFps: opts.maxFps ?? 60 }, gate = frameGate(() => power.maxFps);
   const setSaver = (on) => {
     power.saver = !!on; power.maxFps = on ? 30 : opts.maxFps ?? 60;
     try { localStorage.setItem(POWER_KEY, on ? '1' : '0'); } catch { /* no storage */ }
@@ -312,6 +311,19 @@ function makeFigure(world) {
   return g;
 }
 
+/** (now) -> whether an animation frame at `now` (ms) runs, keeping to at most fps() frames per second */
+export function frameGate(fps) {
+  let next = -1e9;
+  return (now) => {
+    const f = fps();
+    if (!f) return true;
+    if (now < next - 2) return false;   // 2 ms early still counts: rAF stamps jitter
+    // a deadline per frame, not a minimum gap: at 75 Hz a minimum gap of 1/60 s drew every other frame (37.5 fps)
+    next = Math.max(next + 1000 / f, now);
+    return true;
+  };
+}
+
 // the corner: quality (a choice is saved and applied on reload), frames drawn per second, the power saver
 const POWER_KEY = 'mirage:power-saver';
 function makeHud(on, { quality, power, setSaver }) {
@@ -327,6 +339,10 @@ function makeHud(on, { quality, power, setSaver }) {
   btn.addEventListener('click', () => { setSaver(!power.saver); btn.blur(); });   // no focus: Space must stay a jump
   for (const c of [sel, btn]) c.addEventListener('keydown', (e) => e.stopPropagation());
   document.body.appendChild(el);
+  // on touch the bottom corners hold a game's stick and buttons: go below its menu button (top 70 px, 52 px tall)
+  const up = () => { el.style.top = '132px'; el.style.right = '16px'; el.style.bottom = 'auto'; };
+  if (matchMedia('(pointer: coarse)').matches) up();
+  addEventListener('pointerdown', (e) => { if (e.pointerType === 'touch') up(); }, { capture: true, passive: true });
   let shown = -1;
   const hud = {
     show(n, settled) {
