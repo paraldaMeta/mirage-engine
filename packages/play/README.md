@@ -26,7 +26,9 @@ digits), `onStep(dt)` (runs after each step; truthy = the scene moved, so the fr
 Moving frames: one jittered sub-frame resolved by the core's temporal AA. When the view stops: the core's still
 path at `refine[0]` sub-frames, later `refine[1]`, then nothing until something moves. Each still frame fades in
 over 10 frames from the image before it, so stopping does not pop the image sharp; the last fade frame is the still
-frame itself. `npm run test:still-pop` measures the change per frame after stopping. Shadows follow the view,
+frame itself. `npm run test:still-pop` measures the change per frame after stopping. The scene clock (wind, water, clouds,
+`ctx.onUpdate`) runs on the frames the player drives (keys, stick, looking) and stands still with the view;
+`place()` sets it to 0, so a viewpoint looks as it always did (`play.clock`; `animate: true` runs it on real time). Shadows follow the view,
 their centre snapped to whole shadow texels.
 
 ## The walk grid (`bakeWalkGrid(world, { bounds, cell = 0.125, dy = 0.1, yMin, yMax })`)

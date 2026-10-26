@@ -5,6 +5,8 @@
 // "pop" is the largest change after the view stopped; before B1's fade it is the TAA -> still frame switch.
 // Fails when the view did not move or never settled, when a frame after the first still one changes by more than
 // --limit (mean, default 1), or when the image the loop ends on is not the still frame drawn directly.
+// B5, the scene clock (wind, water, clouds: world.G.uTime): it must run while walking (about --walk s), stand
+// still once the view is still, and go back to 0 when play.place() jumps to a viewpoint (fixed views stay as they were).
 //   node packages/tools/src/still-pop.mjs <dist dir>... [--walk 1.5] [--view 0] [--limit 1] [--out out/still-pop]
 import fs from 'node:fs';
 import path from 'node:path';
@@ -46,31 +48,39 @@ async function measure(dir) {
     await page.keyboard.press('KeyX');
     await page.evaluate(() => window.__pop.tick(5));
     const from = await page.evaluate(() => window.__mirage.play.state().pos);
+    const clock0 = await page.evaluate(() => window.__mirage.world.G.uTime.value);
     await page.keyboard.down('KeyW');
     await page.evaluate((n) => window.__pop.tick(n), Math.round(walk * 60));
     await page.keyboard.up('KeyW');
-    const R = await page.evaluate(({ from, FRAMES }) => {
+    const R = await page.evaluate(({ from, clock0, FRAMES }) => {
       const { play } = window.__mirage, P = window.__pop;
-      const to = play.state().pos;
+      const to = play.state().pos, G = window.__mirage.world.G;
+      const clockWalked = G.uTime.value;
+      let clockStill1 = null;
       const frames = [];
       let prev = P.grab(), first = null, last = null;
       for (let i = 0; i < FRAMES; i++) {
         P.tick();
         const L = P.grab(), still = play.still;
-        if (still === 1) first = L;
+        if (still === 1) { first = L; clockStill1 = G.uTime.value; }
         frames.push({ still, ...P.diff(prev, L) });
         prev = last = L;
       }
+      const clockEnd = play.clock, lastStill = play.still;
       const after = frames.filter((f) => f.still >= 1);
       const pop = after.reduce((a, f) => (f.mean > a.mean ? f : a), { mean: -1 });
       play.render({ moving: false, spp: play.refine[1], frameIndex: 1 });
       const direct = P.grab();
+      const vp = (window.__mirage.built?.plan?.viewpoints || [])[0];
+      if (vp) play.place(vp.eye, vp.look); P.tick(3);
+      const clockPlaced = play.clock;
       return {
-        size: [P.W, P.H], refine: play.refine, walked: +Math.hypot(to[0] - from[0], to[2] - from[2]).toFixed(2), lastStill: play.still,
+        size: [P.W, P.H], refine: play.refine, walked: +Math.hypot(to[0] - from[0], to[2] - from[2]).toFixed(2), lastStill,
         paused: window.__mirage.g ? window.__mirage.g.game.paused : null,
+        clock: { start: clock0, walked: +(+clockWalked).toFixed(3), still1: clockStill1 === null ? null : +clockStill1.toFixed(3), end: clockEnd === undefined ? null : +clockEnd.toFixed(3), placed: clockPlaced ?? null },
         pop, 'stop->final': first && P.diff(first, last), 'last frame vs direct final': P.diff(last, direct), frames,
       };
-    }, { from, FRAMES });
+    }, { from, clock0, FRAMES });
     R.errors = errors;
     return R;
   } finally {
@@ -95,6 +105,10 @@ for (const dir of targets) {
   if (big.length) fail.push(`a still frame switches in one step: ${big.map((f) => `still ${f.still} ${f.mean}`).join(', ')} > ${limit}`);
   if (R['last frame vs direct final'].max !== 0) fail.push(`the final image is not the still frame (max ${R['last frame vs direct final'].max})`);
   if (R.errors.length) fail.push(`console errors: ${R.errors.length}`);
+  const C = R.clock;
+  if (!(C.walked > walk * 0.8)) fail.push(`the scene clock did not run while walking (${C.walked} after ${walk} s)`);
+  if (C.end !== C.still1) fail.push(`the scene clock ran on while still (${C.still1} -> ${C.end})`);
+  if (C.placed !== 0) fail.push(`place() did not reset the scene clock (${C.placed})`);
   if (fail.length) failed++;
   console.log(fail.length ? `  FAIL\n    ${fail.join('\n    ')}` : '  ok');
 }

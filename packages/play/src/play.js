@@ -19,8 +19,10 @@ import { createWalker } from './walker.js';
 // `refine[0]` sub-frames, later `refine[1]`, then nothing until something moves (the canvas keeps the image).
 // Each still frame fades in over FADE frames from the image before it: TAA is softer while walking, and switching
 // in one frame popped the image sharp (B1). The last fade frame is the still frame itself (an exact copy).
-// ponytail: the animation clock stays at 0 unless `animate` (still frames stay bit-identical, as in M1b); the game
-// view has no occluder x-ray and the figure only bobs; mouse look has no smoothing.
+// The scene clock (wind, water, clouds, ctx.onUpdate) runs while the view moves and stands still with it, so still
+// frames stay deterministic (M1b); place() (a viewpoint, the spawn) sets it back to 0, so fixed views are what they
+// were (B5). `animate: true` runs it on real time instead.
+// ponytail: the game view has no occluder x-ray and the figure only bobs; mouse look has no smoothing.
 // ---------------------------------------------------------------------------
 
 const GAME_DIR = new THREE.Vector3(1, 1.15, 1).normalize(), GAME_DIST = 40;
@@ -57,6 +59,7 @@ export function createPlay(world, opts = {}) {
   /** put the viewer at `eye` looking at `look`; mode: 'walk' | 'fly' | 'game' | 'orbit' (default: keep) */
   function place(eye, lookAt, m = mode) {
     mode = m;
+    clock = 0;
     look(eye, lookAt);
     walker.place([eye[0], eye[1] - B.eye + 0.3, eye[2]]);
     eyeY = walker.pos[1] + B.eye;
@@ -114,7 +117,7 @@ export function createPlay(world, opts = {}) {
   window.addEventListener('keydown', onKey);
   window.addEventListener('keyup', (e) => keys.delete(e.code));
   window.addEventListener('blur', () => keys.clear());
-  const turn = (dx, dy, k) => { yaw += dx * k; pitch = THREE.MathUtils.clamp(pitch - dy * k, -1.45, 1.45); };
+  const turn = (dx, dy, k) => { turned = true; yaw += dx * k; pitch = THREE.MathUtils.clamp(pitch - dy * k, -1.45, 1.45); };
   document.addEventListener('mousemove', (e) => {
     if (mode === 'orbit' || mode === 'game') return;
     if (document.pointerLockElement === canvas) turn(e.movementX, e.movementY, 0.0022);
@@ -144,6 +147,7 @@ export function createPlay(world, opts = {}) {
   // ---- the frame
   let last = performance.now(), still = 0, lastKey = '', running = true;
   const t0 = performance.now();
+  let clock = 0;
   const stats = { frames: 0, moving: 0, refined: 0, lastMs: 0 };
   function keyInput() {
     const k = (...c) => c.some((x) => keys.has(x));
@@ -152,7 +156,7 @@ export function createPlay(world, opts = {}) {
       up: (k('KeyE') || (mode === 'fly' && k('Space'))) - k('KeyQ', 'KeyC'), run: k('ShiftLeft', 'ShiftRight'), jump: k('Space'),
     };
   }
-  let changed = false, acting = false;
+  let changed = false, acting = false, turned = false;
   function step(dt) {
     // opts.input(): { x (right), z (forward), up, run, jump } from a game's action map; default: the keys above
     const inp = opts.input ? opts.input(dt) : keyInput();
@@ -208,7 +212,7 @@ export function createPlay(world, opts = {}) {
   /** render the current view: moving -> temporal AA; still -> the still path (spp sub-frames) */
   function render({ moving = true, spp: n = spp, frameIndex, target } = {}) {
     const { cam, shadow } = view();
-    const T = animate ? (performance.now() - t0) / 1000 : 0;
+    const T = animate ? (performance.now() - t0) / 1000 : clock;
     const o = { camera: cam, ...(shadow ? { shadow } : {}), ...(frameIndex !== undefined ? { frameIndex } : {}) };
     world.renderFrame(T, moving ? { ...o, taa: true, target } : { ...o, spp: n, target });
   }
@@ -245,6 +249,10 @@ export function createPlay(world, opts = {}) {
     lastKey = key;
     if (world.tick(dt)) moving = true;
     const t = performance.now();
+    // the clock runs only on frames the player drives (keys, stick, looking): a camera easing in after place() or
+    // after letting go does not move it
+    if (moving && (acting || turned || orbiting)) clock += dt;
+    turned = false;
     if (moving) { still = 0; render({ moving: true }); stats.moving++; }
     else {
       still++;
@@ -305,6 +313,8 @@ export function createPlay(world, opts = {}) {
     lookAt: (p) => look(camera.position.toArray(), p),
     get yaw() { return yaw; }, set yaw(v) { yaw = v; }, get pitch() { return pitch; }, set pitch(v) { pitch = v; },
     get mode() { return mode; }, get still() { return still; },
+    /** the scene clock in seconds (see the top of this file) */
+    get clock() { return clock; },
     /** [sub-frames of the first still frame, of the final one] */
     get refine() { return refine.slice(); },
     get viewSize() { return viewSize; }, set viewSize(v) { viewSize = v; },
