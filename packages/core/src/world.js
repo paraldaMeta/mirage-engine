@@ -20,6 +20,7 @@ import { rng } from './rng.js';
 
 const QUALITY = {
   high: { shadowMap: 4096, aoSamples: 12, spp: 4, envSize: 256 },
+  medium: { shadowMap: 2048, aoSamples: 8, spp: 4, envSize: 256 },
   low: { shadowMap: 2048, aoSamples: 8, spp: 2, envSize: 128 },
 };
 

@@ -11,7 +11,8 @@
     "mirage-snap": "./src/snap.mjs",
     "mirage-perf": "./src/perf.mjs",
     "mirage-deploy": "./src/deploy.mjs",
-    "mirage-e2e": "./src/e2e.mjs"
+    "mirage-e2e": "./src/e2e.mjs",
+    "mirage-gpu-load": "./src/gpu-load.mjs"
   },
   "files": [
     "src",

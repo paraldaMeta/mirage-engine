@@ -14,7 +14,8 @@
   },
   "scripts": {
     "test": "npm test -ws --if-present && node agent/check.mjs",
-    "test:e2e": "node packages/tools/src/e2e.mjs"
+    "test:e2e": "node packages/tools/src/e2e.mjs",
+    "test:gpu-load": "node packages/tools/src/gpu-load.mjs examples/hello-courtyard/dist examples/walled-garden/dist examples/garden-quest/dist examples/agent-trial/dist examples/snow-hut/dist"
   },
   "author": "灰叔 Racso"
 }

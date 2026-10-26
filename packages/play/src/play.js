@@ -2,6 +2,7 @@
 // core's renderFrame (temporal AA while moving, the still sub-frame path once the view holds still).
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { QUALITY_KEY, QUALITY_LEVELS } from '@mirage/core';
 import { bakeWalkGrid } from './walkgrid.js';
 import { createWalker } from './walker.js';
 
@@ -149,11 +150,12 @@ export function createPlay(world, opts = {}) {
       up: (k('KeyE') || (mode === 'fly' && k('Space'))) - k('KeyQ', 'KeyC'), run: k('ShiftLeft', 'ShiftRight'), jump: k('Space'),
     };
   }
-  let changed = false;
+  let changed = false, acting = false;
   function step(dt) {
     // opts.input(): { x (right), z (forward), up, run, jump } from a game's action map; default: the keys above
     const inp = opts.input ? opts.input(dt) : keyInput();
     const fx = inp.x || 0, fz = inp.z || 0, up = inp.up || 0, run = !!inp.run;
+    acting = !!(fx || fz || up || inp.jump);
     const game = mode === 'game';
     // game view: up on the screen is away from the camera
     const fwd = game ? new THREE.Vector3(-GAME_DIR.x, 0, -GAME_DIR.z).normalize() : new THREE.Vector3(Math.cos(yaw), 0, Math.sin(yaw));
@@ -208,15 +210,26 @@ export function createPlay(world, opts = {}) {
     const o = { camera: cam, ...(shadow ? { shadow } : {}), ...(frameIndex !== undefined ? { frameIndex } : {}) };
     world.renderFrame(T, moving ? { ...o, taa: true } : { ...o, spp: n });
   }
+  let pending = false;
+  const schedule = () => { if (!pending) { pending = true; requestAnimationFrame(frame); } };
   function frame(now) {
-    if (!running) return;
+    pending = false;
+    if (!running || hidden) return;
+    schedule();
+    if (power.maxFps && now - lastFrame < 1000 / power.maxFps - 2) return;   // at most maxFps (60; power saver 30)
+    lastFrame = now;
     const dt = Math.max(0, Math.min((now - last) / 1000, 0.1)); last = now;   // a rAF stamp can precede `last`
     step(dt);
     const { cam } = view();
     cam.updateMatrixWorld();
     const key = cam.matrixWorld.elements.map((v) => v.toFixed(5)).join(',') + (cam.isOrthographicCamera ? cam.top.toFixed(4) : cam.fov) + figure.userData.body.position.y.toFixed(4) +
       `@${world.pipeline.w}x${world.pipeline.h}`;   // a resize clears the canvas: draw again even when still
-    let moving = key !== lastKey || orbiting || changed;
+    const viewMoved = key !== lastKey || orbiting;
+    if (viewMoved || acting) wake();
+    // scene animation (snow, a flickering fire) keeps drawing only while someone is there; a clock / light change
+    // (world.tick) always does
+    const idle = idleAfter > 0 && performance.now() - lastInput > idleAfter * 1000;
+    let moving = viewMoved || (changed && !idle);
     changed = false;
     lastKey = key;
     if (world.tick(dt)) moving = true;
@@ -228,10 +241,13 @@ export function createPlay(world, opts = {}) {
       else if (still === 45 && refine[1] > refine[0]) { render({ moving: false, spp: refine[1], frameIndex: 1 }); stats.refined++; }
       else if (still === 1) render({ moving: true });
     }
+    const drew = moving || still === 1 || still === 2 || (still === 45 && refine[1] > refine[0]);
     stats.lastMs = performance.now() - t;
     stats.frames++;
+    if (drew) { stats.draws++; draws.push(now); }
+    while (draws.length && now - draws[0] > 1000) draws.shift();
     ui.stats(`${mode} · ${walker.pos.map((v) => v.toFixed(2)).join(', ')} · ${still ? 'still ' + still : 'moving'}`);
-    requestAnimationFrame(frame);
+    hud.show(draws.length, still > 45 || (still > 2 && refine[1] <= refine[0]));
   }
 
   // opts.fit: the canvas follows the window (pages without a fixed ?w= / ?h=)
@@ -240,8 +256,30 @@ export function createPlay(world, opts = {}) {
     world.resize(innerWidth, innerHeight);
   });
 
+  // ---- GPU load: idle (scene animation stops drawing after opts.idle s without input), a frame cap, nothing at
+  // all while the tab is hidden, the quality / fps corner with the power saver (opts.quality: the page's level)
+  const idleAfter = opts.idle ?? 10, draws = [];
+  stats.draws = 0;
+  let lastInput = performance.now(), lastFrame = -1e9, hidden = typeof document !== 'undefined' && document.hidden;
+  const wake = () => { lastInput = performance.now(); };
+  for (const ev of ['keydown', 'pointerdown', 'pointermove', 'wheel', 'touchstart']) window.addEventListener(ev, wake, { passive: true });
+  const power = { saver: false, maxFps: opts.maxFps ?? 60 };
+  const setSaver = (on) => {
+    power.saver = !!on; power.maxFps = on ? 30 : opts.maxFps ?? 60;
+    try { localStorage.setItem(POWER_KEY, on ? '1' : '0'); } catch { /* no storage */ }
+    if (opts.onPowerSaver) opts.onPowerSaver(power.saver);
+    hud.update(); wake();
+  };
+  const hud = makeHud(opts.hud !== false, { quality: opts.quality || world.ctx.quality, power, setSaver });
+  try { if (localStorage.getItem(POWER_KEY) === '1') setSaver(true); } catch { /* no storage */ }
+  document.addEventListener('visibilitychange', () => {
+    hidden = document.hidden;
+    if (opts.onVisibility) opts.onVisibility(!hidden);
+    if (!hidden && running) { last = performance.now(); keys.clear(); wake(); schedule(); }
+  });
+
   place(spawn.eye, spawn.look, mode);
-  requestAnimationFrame(frame);
+  schedule();
 
   return {
     world, grid, walker, keys, figure, gameCam, controls, stats, render, place, viewpoint, setMode, turn,
@@ -255,7 +293,10 @@ export function createPlay(world, opts = {}) {
     /** advance input, walker and cameras by dt without rendering (tools drive frames themselves after stop()) */
     step,
     stop() { running = false; },
-    start() { if (!running) { running = true; last = performance.now(); requestAnimationFrame(frame); } },
+    start() { if (!running) { running = true; last = performance.now(); schedule(); } },
+    /** the power saver (30 fps cap) and the frame-rate cap; wake(): count as input (restarts scene animation) */
+    get powerSaver() { return power.saver; }, set powerSaver(v) { setSaver(v); },
+    get maxFps() { return power.maxFps; }, wake, get idleFor() { return (performance.now() - lastInput) / 1000; },
   };
 }
 
@@ -276,6 +317,33 @@ function makeFigure(world) {
   g.name = 'figure';
   g.userData.body = body; g.userData.phase = 0;
   return g;
+}
+
+// the corner: quality (a choice is saved and applied on reload), frames drawn per second, the power saver
+const POWER_KEY = 'mirage:power-saver';
+function makeHud(on, { quality, power, setSaver }) {
+  if (!on) return { show() {}, update() {} };
+  const el = document.createElement('div');
+  el.className = 'mirage-hud';
+  el.style.cssText = 'position:fixed;right:10px;bottom:10px;z-index:20;display:flex;gap:6px;align-items:center;font:11px/1.2 ui-monospace,monospace;color:#f3e6cc;background:rgba(12,10,8,.55);padding:4px 6px;border-radius:6px;';
+  const ctl = 'font:inherit;color:inherit;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.25);border-radius:4px;padding:2px 5px;cursor:pointer;';
+  el.innerHTML = `<select title="Quality (reloads the page)" style="${ctl}">${QUALITY_LEVELS.map((q) => `<option${q === quality ? ' selected' : ''}>${q}</option>`).join('')}</select>` +
+    `<span class="f" style="min-width:7ch;text-align:right"></span><button type="button" style="${ctl}">Power saver</button>`;
+  const sel = el.querySelector('select'), fps = el.querySelector('.f'), btn = el.querySelector('button');
+  sel.addEventListener('change', () => { try { localStorage.setItem(QUALITY_KEY, sel.value); } catch { /* no storage */ } location.reload(); });
+  btn.addEventListener('click', () => { setSaver(!power.saver); btn.blur(); });   // no focus: Space must stay a jump
+  for (const c of [sel, btn]) c.addEventListener('keydown', (e) => e.stopPropagation());
+  document.body.appendChild(el);
+  let shown = -1;
+  const hud = {
+    show(n, settled) {
+      const s = settled ? 'idle' : `${n} fps`;
+      if (s !== shown) { fps.textContent = s; shown = s; }
+    },
+    update() { btn.style.background = power.saver ? 'rgba(120,200,120,.35)' : 'rgba(255,255,255,.08)'; btn.setAttribute('aria-pressed', String(power.saver)); },
+  };
+  hud.update();
+  return hud;
 }
 
 function makeUI(on, plan) {
