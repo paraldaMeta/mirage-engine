@@ -1,7 +1,7 @@
 {
   "name": "hello-courtyard",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Mirage minimal example: a procedural courtyard built entirely in code.",
   "license": "MIT",
   "type": "module",
@@ -15,9 +15,9 @@
     "package": "node ../../packages/tools/src/package.mjs ."
   },
   "dependencies": {
-    "@mirage/core": "0.1.0",
-    "@mirage/play": "0.1.0",
-    "@mirage/world": "0.1.0",
+    "@mirage/core": "0.2.0",
+    "@mirage/play": "0.2.0",
+    "@mirage/world": "0.2.0",
     "three": "0.186.1"
   },
   "devDependencies": {

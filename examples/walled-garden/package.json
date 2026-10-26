@@ -1,7 +1,7 @@
 {
   "name": "walled-garden",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Mirage example: a terraced walled garden (~80 x 80 m) with stairs, a gate and a pavilion with an interior, built by six modules on one site plan; walk, fly, game view.",
   "license": "MIT",
   "type": "module",
@@ -14,9 +14,9 @@
     "package": "node ../../packages/tools/src/package.mjs ."
   },
   "dependencies": {
-    "@mirage/core": "0.1.0",
-    "@mirage/play": "0.1.0",
-    "@mirage/world": "0.1.0",
+    "@mirage/core": "0.2.0",
+    "@mirage/play": "0.2.0",
+    "@mirage/world": "0.2.0",
     "three": "0.186.1"
   },
   "devDependencies": {

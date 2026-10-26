@@ -1,7 +1,7 @@
 {
   "name": "garden-quest",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Mirage example: a small game in the walled garden — find the key, open the pavilion, light the lanterns. Physics, a character controller, gamepad and touch, procedural sound, save / load.",
   "license": "MIT",
   "type": "module",
@@ -14,10 +14,10 @@
     "package": "node ../../packages/tools/src/package.mjs ."
   },
   "dependencies": {
-    "@mirage/core": "0.1.0",
-    "@mirage/game": "0.1.0",
-    "@mirage/play": "0.1.0",
-    "@mirage/world": "0.1.0",
+    "@mirage/core": "0.2.0",
+    "@mirage/game": "0.2.0",
+    "@mirage/play": "0.2.0",
+    "@mirage/world": "0.2.0",
     "three": "0.186.1"
   },
   "devDependencies": {

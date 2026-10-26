@@ -1,7 +1,7 @@
 {
   "name": "mirage-engine",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A code-only world engine for AI agents: build whole towns and landscapes in three.js, in parallel, as code.",
   "license": "MIT",
   "type": "module",

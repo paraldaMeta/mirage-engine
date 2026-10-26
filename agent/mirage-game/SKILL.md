@@ -12,7 +12,7 @@ Modules stay pure world (geometry + anchors). The game is one lead-owned file, `
 ## 1. Switch main.js to startGame
 
 ```js
-import { startGame } from '@mirage/game';                 // add "@mirage/game": "0.1.0" to package.json
+import { startGame } from '@mirage/game';                 // add "@mirage/game": "0.2.0" to package.json
 import { setupGame, objective } from './game.js';
 // ... createWorldRenderer, buildWorld, camera as before; remove world.prepare() and createPlay (startGame does both)
 const g = await startGame(world, {

@@ -13,7 +13,7 @@ few megabytes that opens from disk.
 
 [English](README.md) · [中文](README.zh-CN.md)
 
-> **Status: pre-alpha (0.1.0).** It works for the five examples below on the author's (灰叔 Racso's) machine. APIs will change,
+> **Status: pre-alpha (0.2.0).** It works for the five examples below on the author's (灰叔 Racso's) machine. APIs will change,
 > nothing is published to npm, and it has only been tested in desktop Chrome on Apple silicon. See
 > [Status and limits](#status-and-limits).
 
