@@ -157,7 +157,10 @@ export async function createPhysics(scene, { gravity = 9.81 } = {}) {
       w.vy = w.onGround && w.vy <= 0 ? -1 : w.vy - B.gravity * dt;   // a little down force keeps it on stairs going down
       const want = { x: (input.x || 0) * speed * dt, y: w.vy * dt, z: (input.z || 0) * speed * dt };
       kcc.computeColliderMovement(col, want, R.QueryFilterFlags.EXCLUDE_SENSORS, undefined, notMe);
-      const m = kcc.computedMovement();
+      let m = kcc.computedMovement();
+      // standing still on the ground: the solver's sub-millimetre drift (0.3 mm/s down a gentle slope, +-0.1 mm
+      // up and down) is dropped, so a still view stays still; a real push (a door) is centimetres per step
+      if (!want.x && !want.z && w.onGround && w.vy <= 0 && Math.hypot(m.x, m.y, m.z) < 0.002) m = { x: 0, y: 0, z: 0 };
       w.pos[0] += m.x; w.pos[1] += m.y; w.pos[2] += m.z;
       rb.setNextKinematicTranslation({ x: w.pos[0], y: w.pos[1] + lift, z: w.pos[2] });
       const h = Math.hypot(want.x, want.z), got = Math.hypot(m.x, m.z);

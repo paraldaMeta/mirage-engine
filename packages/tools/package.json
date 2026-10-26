@@ -10,7 +10,8 @@
     "mirage-walktest": "./src/walktest.mjs",
     "mirage-snap": "./src/snap.mjs",
     "mirage-perf": "./src/perf.mjs",
-    "mirage-deploy": "./src/deploy.mjs"
+    "mirage-deploy": "./src/deploy.mjs",
+    "mirage-gpu-load": "./src/gpu-load.mjs"
   },
   "files": [
     "src",

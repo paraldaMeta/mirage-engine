@@ -7,6 +7,7 @@
 // audio.play('pickup', { at: [x, y, z], bus: 'sfx', gain, rate })      audio.footstep('gravel', run)
 // audio.loop('water', { at, bus: 'ambience', gain, ref })              a 3D loop; without `at` a flat one
 // audio.listen(camera)                once per frame; audio.volume('music', 0.5); audio.volumes; audio.stats
+// audio.suspend(true | false)         the device off / on again (a hidden tab)
 // ponytail: PannerNode + buffers made in JS instead of three's PositionalAudio (which wraps the same nodes and
 // needs the camera in the scene graph); no reverb, no occlusion; sounds are generated once (~0.2 s) on unlock.
 // ---------------------------------------------------------------------------
@@ -37,6 +38,12 @@ export function createAudio({ volumes = {} } = {}) {
       ctx.onstatechange = resumed; resumed();
       if (ctx.state === 'suspended') ctx.resume();
       for (const l of pendingLoops.splice(0)) l.start();
+    },
+    /** stop the device while the page is hidden (play's onVisibility); resumes on false */
+    suspend(on) {
+      if (!ctx) return;
+      const p = on ? ctx.suspend() : ctx.resume();
+      if (p && p.catch) p.catch(() => {});
     },
     volume(bus, v) { vol[bus] = v; if (buses && buses[bus]) buses[bus].gain.setTargetAtTime(v, ctx.currentTime, 0.05); },
     play(name, { at, bus = 'sfx', gain = 1, rate = 1, ref = 2 } = {}) {

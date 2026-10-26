@@ -14,5 +14,5 @@ export { rng, hash32, sfc32, valueNoise2, fbm2 } from './rng.js';
 export { createLod } from './lod.js';
 export { createTextures, TEX_GLSL } from './textures.js';
 export { createEnvLight } from './envlight.js';
-export { deviceProfile } from './device.js';
+export { deviceProfile, pickQuality, QUALITY_LEVELS, QUALITY_KEY } from './device.js';
 export * as geom from './geom.js';
