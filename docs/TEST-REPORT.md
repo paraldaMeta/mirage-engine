@@ -166,8 +166,13 @@ still), with another tab in front (3 s), with W held (3 s) and with the power sa
   when still) and a "Power saver" button. `?hud=0` hides it.
 - **Unchanged images:** hello-courtyard `verify.mjs`, five views, same frame index �? max 0, 0 pixels differ. `main` vs
   the branch with `?quality=high&hud=0`, settled frame: hello-courtyard 59 pixels differ by 1 and walled-garden 42 by
-  1, exactly the same as `main` vs `main` (run-to-run noise). The games' settled frames differ even `main` vs `main`
-  (the game clock runs on wall time), so they were not compared this way.
+  1, exactly the same as `main` vs `main` (run-to-run noise).
+- **Games, unchanged images:** the camera follows the physics character, whose resting place varies by fractions of
+  a millimetre from run to run (variable physics step), so the frames were taken from the plan's first viewpoint in
+  fly mode, once settled (`still > 60`). `main` vs the branch with `?quality=high&hud=0`: garden-quest 47 pixels
+  differ by 1 and agent-trial 339 by 1, again exactly `main` vs `main`. snow-hut has no settled frame on `main` (the
+  drift above). On the branch it settles; branch vs branch differs only in the snowfall (whose clock is game time and
+  stops wherever the view settles): 22,979 pixels, and with the flakes hidden 454 pixels by 1.
 - `npm test` ok; the five playtests all pass on the branch.
 - **Behaviour choice for the author:** at the default medium, the images differ from `main` by design (smaller shadow
   map, fewer AO samples and spp). Use `quality: 'high'` where the look matters more than the load.
@@ -248,6 +253,12 @@ stopping early (`retaining-wall-blocks` at z 11.68, `stairs-descend`, `game-view
   sequences per case: 0 failures, the same as `main`'s walker.
 So I count it with open issue 7 (playtests steer in real time and fail under heavy GPU sharing), not as a B3 bug.
 
+**With B21 merged** (`26d3bcb`; the conflicts were both sides adding options next to each other, and `play.js`'s frame
+loop takes B21's scheduling plus resize's dt clamp and size in the redraw key): `npm test` ok; `npm run test:e2e`
+21 / 21 again (24.5 min for the whole sequence below); `npm run test:gpu-load` all pass (walking 60.0–60.3 fps);
+`resize-check.mjs` ok (800×500, refinements 2 → 4, 0 errors); `verify.mjs` five views, same frame index → max 0,
+0 pixels differ.
+
 ## Open issues (for the author to decide; not changed)
 
 1. **Thin railings in the walk grid**, under B3 above.
@@ -282,5 +293,5 @@ So I count it with open issue 7 (playtests steer in real time and fail under hea
 `fix/tools-audio-output` · `test/a4-e2e` · `fix/a5-door-pinch` · `fix/b16-small-risers` · `fix/b3-walk-grid` ·
 `fix/b10-start-jump` · `fix/b19-day-night-clock` · `test/a2-browsers` (on top of the audio fix) ·
 `fix/save-error-shown` · `fix/resize` · `fix/b21-gpu-load` (on `main` 183614b, which added task 7b) ·
-`docs/test-report` (this file) · `test/round1-integration` (merges the round-1 branches, for the combined run only;
-B21 came later and is not in it).
+`docs/test-report` (this file) · `test/round1-integration` (merges all of them, B21 included, for the combined run
+only).
