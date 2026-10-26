@@ -1,0 +1,44 @@
+# 0.2.0 计划：真机上稳着玩，不再一直烧显卡
+
+起点：`main` 183614b（0.1.0，还没公开）。第一轮的修复都在各自的分支上，已推到 origin，`test/round1-integration` 把它们合在一起跑过：e2e 21 / 21。详情见 `docs/TEST-REPORT.md`（分支 `docs/test-report`）。
+
+规矩照旧：一个问题一个分支一条提交；先写会失败的测试；不推 main、不强推、不改仓库设置；静止帧像素必须一致；拿不准的写进报告，不写进代码。
+
+## 第 1 步：把第一轮合进 main（所有者来做）
+
+按这个顺序合，冲突已经在合并分支上解过一遍（`play.js` 的帧循环、示例的 `createPlay` 参数、根 `package.json` 的脚本）：
+
+1. `fix/tools-audio-output`、`test/a4-e2e`、`test/a2-browsers`（测试工具）
+2. `fix/a5-door-pinch`、`fix/b16-small-risers`、`fix/b10-start-jump`、`fix/save-error-shown`（游戏）
+3. `fix/b3-walk-grid`、`fix/resize`、`fix/b19-day-night-clock`
+4. `fix/b21-gpu-load`（三条提交，含审查修复）
+5. `fix/lockfile-version`、`docs/test-report`
+
+合完跑 `npm test`、`npm run test:e2e`、`npm run test:gpu-load`、院子的 `verify.mjs`。
+
+## 第 2 步：0.2.0 的新工作（Cursor 来做，按顺序）
+
+| # | 任务 | 验收 |
+|---|---|---|
+| 1 | **B1 停下时清晰度突变**：抗锯齿帧切到静止精细帧那一下 | 量出切换前后的差（均值、最大值），给出能重复跑的测量脚本；改了以后差明显变小，静止帧像素不变 |
+| 2 | **B5 走动时风和钟恢复**：走动用真实时间，停下冻结 | 走动时树和水在动；停下后的静止帧和现在逐像素一致；显卡负载测试照样通过 |
+| 3 | **B17 雪不再让 snow-hut 一直算「在动」** | 静止精细化能完成（B21 的闲置停绘已经兜住显卡，这条是画质） |
+| 4 | **Firefox 警告**（等所有者定规矩，见下） | 五个示例在 Firefox 上 playtest 通过 |
+| 5 | **细栏杆**（B3 剩下的，等所有者定方案，见下） | 一根 5 cm 的栏杆挡得住人，有测试 |
+| 6 | **A3 手机真机**（需要所有者拿手机） | 记机型、帧率、自动选的画质、触屏问题 |
+
+## 第 3 步：发版
+
+- `CHANGELOG.md` 加 0.2.0 一节。写明行为变化：**默认画质从 high 改成 medium**，要原来的画面用 `quality: "high"`；角落多了画质和帧率（`?hud=0` 关掉）。
+- 六个 `package.json` 改成 0.2.0，重新生成锁文件。
+- 打 tag、Release 由所有者做（见 `docs/RELEASE.md`）。
+
+## 要所有者定的
+
+- **Firefox 警告算不算失败。** 现在 playtest 把 console 的 warning 也算进 `errors`。可选：分开计数，只有错误判失败；或者只放行几种已知的浏览器警告。
+- **细栏杆怎么修。** 作者给细东西加一个至少一格厚的碰撞代理（不改引擎，写进技能文档）；或者给烘焙加可选的加密采样（烘焙慢约 4 倍）。
+- **首发叫 0.1.0 还是直接 0.2.0。**
+
+## 不放进 0.2.0
+
+植被工具包、人物、触发区和碰撞事件、npm 发包、体积光、中文界面、室内局部光照、单文件里 Rapier 再压缩。这些是离 1.0 还差的，见 `docs/RELEASE.md` 第 4 节。
