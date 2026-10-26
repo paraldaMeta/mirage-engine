@@ -17,6 +17,8 @@ import { createWalker } from './walker.js';
 // Collision and ground come from the walk grid baked from the geometry (walkgrid.js). Every moving frame is one
 // jittered sub-frame resolved by the core's temporal AA; when the view stops, the core's still path renders
 // `refine[0]` sub-frames, later `refine[1]`, then nothing until something moves (the canvas keeps the image).
+// Each still frame fades in over FADE frames from the image before it: TAA is softer while walking, and switching
+// in one frame popped the image sharp (B1). The last fade frame is the still frame itself (an exact copy).
 // ponytail: the animation clock stays at 0 unless `animate` (still frames stay bit-identical, as in M1b); the game
 // view has no occluder x-ray and the figure only bobs; mouse look has no smoothing.
 // ---------------------------------------------------------------------------
@@ -204,12 +206,22 @@ export function createPlay(world, opts = {}) {
     return { cam: camera, shadow: shadowAround(c, shadowR) };
   }
   /** render the current view: moving -> temporal AA; still -> the still path (spp sub-frames) */
-  function render({ moving = true, spp: n = spp, frameIndex } = {}) {
+  function render({ moving = true, spp: n = spp, frameIndex, target } = {}) {
     const { cam, shadow } = view();
     const T = animate ? (performance.now() - t0) / 1000 : 0;
     const o = { camera: cam, ...(shadow ? { shadow } : {}), ...(frameIndex !== undefined ? { frameIndex } : {}) };
-    world.renderFrame(T, moving ? { ...o, taa: true } : { ...o, spp: n });
+    world.renderFrame(T, moving ? { ...o, taa: true, target } : { ...o, spp: n, target });
   }
+  const FADE = 10;
+  let fadeRT = null;
+  const fadeTargets = () => {
+    const { w, h } = world.pipeline;
+    if (!fadeRT || fadeRT[0].width !== w || fadeRT[0].height !== h) {
+      if (fadeRT) for (const t of fadeRT) t.dispose();
+      fadeRT = [0, 1].map(() => new THREE.WebGLRenderTarget(w, h, { depthBuffer: false }));
+    }
+    return fadeRT;
+  };
   let pending = false;
   const schedule = () => { if (!pending) { pending = true; requestAnimationFrame(frame); } };
   function frame(now) {
@@ -236,17 +248,24 @@ export function createPlay(world, opts = {}) {
     if (moving) { still = 0; render({ moving: true }); stats.moving++; }
     else {
       still++;
-      if (still === 2) { render({ moving: false, spp: refine[0], frameIndex: 1 }); stats.refined++; }
-      else if (still === 45 && refine[1] > refine[0]) { render({ moving: false, spp: refine[1], frameIndex: 1 }); stats.refined++; }
-      else if (still === 1) render({ moving: true });
+      if (still === 1) { const [a] = fadeTargets(); render({ moving: true, target: a }); world.pipeline.blend(a, a, 0); }
+      else if (still <= FADE + 1) {
+        const [a, b] = fadeTargets();
+        if (still === 2) { render({ moving: false, spp: refine[0], frameIndex: 1, target: b }); stats.refined++; }
+        world.pipeline.blend(a, b, (still - 1) / FADE);
+      } else if (still >= 45 && still < 45 + FADE && refine[1] > refine[0]) {
+        const [a, b] = fadeTargets();
+        if (still === 45) { render({ moving: false, spp: refine[1], frameIndex: 1, target: a }); stats.refined++; }
+        world.pipeline.blend(b, a, (still - 44) / FADE);
+      }
     }
-    const drew = moving || still === 1 || still === 2 || (still === 45 && refine[1] > refine[0]);
+    const drew = moving || still <= FADE + 1 || (still >= 45 && still < 45 + FADE && refine[1] > refine[0]);
     stats.lastMs = performance.now() - t;
     stats.frames++;
     if (drew) { stats.draws++; draws.push(now); }
     while (draws.length && now - draws[0] > 1000) draws.shift();
     ui.stats(`${mode} · ${walker.pos.map((v) => v.toFixed(2)).join(', ')} · ${still ? 'still ' + still : 'moving'}`);
-    hud.show(draws.length, still > 45 || (still > 2 && refine[1] <= refine[0]));
+    hud.show(draws.length, still >= 44 + FADE || (still > FADE + 1 && refine[1] <= refine[0]));
   }
 
   // opts.fit: the canvas follows the window (pages without a fixed ?w= / ?h=)
@@ -286,6 +305,8 @@ export function createPlay(world, opts = {}) {
     lookAt: (p) => look(camera.position.toArray(), p),
     get yaw() { return yaw; }, set yaw(v) { yaw = v; }, get pitch() { return pitch; }, set pitch(v) { pitch = v; },
     get mode() { return mode; }, get still() { return still; },
+    /** [sub-frames of the first still frame, of the final one] */
+    get refine() { return refine.slice(); },
     get viewSize() { return viewSize; }, set viewSize(v) { viewSize = v; },
     /** a plain snapshot for tests: feet, eye, mode, yaw */
     state: () => ({ mode, pos: (mode === 'fly' ? [flyPos.x, flyPos.y - B.eye, flyPos.z] : walker.pos).map((v) => +v.toFixed(3)), eye: camera.position.toArray().map((v) => +v.toFixed(3)), onGround: walker.onGround, blocked: walker.blocked, yaw: +yaw.toFixed(3), still }),

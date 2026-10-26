@@ -24,7 +24,9 @@ digits), `onStep(dt)` (runs after each step; truthy = the scene moved, so the fr
 `play`: `place(eye, look, mode)`, `viewpoint(i)`, `setMode(m)`, `state()`, `render({ moving, spp, frameIndex })`,
 `step(dt)`, `stop()`, `start()`, `turn(dx, dy, k)`, `lookAt(p)`, `yaw` / `pitch`, `keys` (a Set of held `KeyboardEvent.code`s), `grid`, `walker`, `stats`.
 Moving frames: one jittered sub-frame resolved by the core's temporal AA. When the view stops: the core's still
-path at `refine[0]` sub-frames, later `refine[1]`, then nothing until something moves. Shadows follow the view,
+path at `refine[0]` sub-frames, later `refine[1]`, then nothing until something moves. Each still frame fades in
+over 10 frames from the image before it, so stopping does not pop the image sharp; the last fade frame is the still
+frame itself. `npm run test:still-pop` measures the change per frame after stopping. Shadows follow the view,
 their centre snapped to whole shadow texels.
 
 ## The walk grid (`bakeWalkGrid(world, { bounds, cell = 0.125, dy = 0.1, yMin, yMax })`)
