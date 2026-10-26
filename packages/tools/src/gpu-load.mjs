@@ -2,7 +2,8 @@
 // GPU load of a built example in headless Chrome: how many frames it draws when nothing happens, while the tab is
 // hidden, and while walking (against the display's rate and the cap), with and without the power saver.
 // usage: node gpu-load.mjs <dist dir | page.html> [<dist dir> ...] [--idle s]   exit 1 if any check fails
-//   still     after the page's idle time (10 s) and the still refinement: 0 frames drawn in the next 10 s
+//   still     after the page's idle time (10 s) and the still refinement: 0 frames drawn in the next 10 s, and the
+//             final still frame was drawn (snow-hut's snow kept the view moving for ever before B21's idle; B17)
 //   hidden    another tab in front for 3 s: 0 frames, 0 animation callbacks (games: audio suspended)
 //   walking   W held 3 s: frames drawn per second <= the display's rate and <= 60 (power saver: <= 30)
 //   phone     390x844 with touch: the quality / fps corner covers none of a game's touch controls
@@ -46,6 +47,8 @@ for (const t of targets) {
   await sleep((IDLE + 3) * 1000);                       // the idle time, then the still refinement
   const s0 = await count(); await sleep(10000); const s1 = await count();
   check('still: 0 frames in 10 s', s1.draws - s0.draws === 0, `${s1.draws - s0.draws} drawn, ${s1.raf - s0.raf} callbacks`);
+  const r = await page.evaluate(() => { const p = window.__mirage.play; return { still: p.still, refined: p.stats.refined }; });
+  check('still: refined to the final still frame', r.still >= 45 && r.refined >= 2, `still ${r.still}, ${r.refined} still frames drawn`);
 
   const other = await b.newPage(); await other.goto('about:blank'); await other.bringToFront(); await sleep(300);
   const h0 = await count(); await sleep(3000); const h1 = await count();

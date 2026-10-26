@@ -64,6 +64,9 @@ playtest of the single file from file://, one still):
 - **Snow keeps the view "moving"**: the flakes advance with game time and mark the scene dirty every frame, so the
   still-path refinement never runs while the game is open (B17). The still-frame identity check was run on the
   courtyard only, not on snow-hut.
+  Since B21: after 10 s without input the snow stops drawing (it freezes) and the refinement runs to the final
+  still frame; `npm run test:gpu-load` checks it for every example. Refining while the snow keeps falling would
+  need the flakes drawn over the refined image (its depth kept): not done.
 - **Lights**: no shadows from the interior lights (they reach ~1 m past the walls); window panes are a constant
   emissive, not light passing through (B18). The look is stylised: tiered cone pines, flat snow without sparkle or
   footprints, fog doing much of the depth.
