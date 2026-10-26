@@ -1,4 +1,4 @@
-# Test report â€? round 1 (CURSOR-ROUND1)
+# Test report â€” round 1 (CURSOR-ROUND1)
 
 Machine: Mac mini, Apple M4 Pro, macOS 26 (darwin 25.6), Node 22.23.1, local Google Chrome headless with the GPU
 (ANGLE Metal). Code under test: `main` at `aee74a8`. Every fix is its own local branch with one commit (nothing
@@ -8,22 +8,22 @@ pushed, `main` untouched); `test/round1-integration` merges them all for the com
 
 | Task | Result | Branch |
 |---|---|---|
-| Baseline | `npm test` ok. All walk / collision steps pass in all five examples, built and single file. Failures came only from the host's audio device (fixed) and from snow-hut's frame-cost step, which was a side effect of that audio error | â€? |
+| Baseline | `npm test` ok. All walk / collision steps pass in all five examples, built and single file. Failures came only from the host's audio device (fixed) and from snow-hut's frame-cost step, which was a side effect of that audio error | â€” |
 | (found) audio device error | fixed: headless Chrome gets a null audio sink | `fix/tools-audio-output` |
 | 1 Â· A4 e2e | `npm run test:e2e` builds, playtests, packages and re-playtests every example, plus the garden-quest playthrough; exit 1 on any failure | `test/a4-e2e` |
 | 2 Â· A5 door pinch | fixed: a leaf that would overlap the player waits; in the open the player is pushed out (that already worked) | `fix/a5-door-pinch` |
 | 3 Â· B16 small risers | does not reproduce with the released controller (cylinder); regression test added (19 lanes); a capsule reproduces it | `fix/b16-small-risers` |
 | 4 Â· B3 walk grid | 45Â° wall sliding fixed; thin railings (< 0.125 m) still missed by the bake: open, see below | `fix/b3-walk-grid` |
 | 5 Â· B10 start jump | fixed (pad A, Space, touch Jump) | `fix/b10-start-jump` |
-| 6 Â· B19 day-night clock | fixed: first frame = `?from=`, image lag 17.8 â†? 0.0 clock minutes | `fix/b19-day-night-clock` |
-| 7b Â· B21 GPU load | still: 0 frames in 10 s, hidden tab: 0 frames, walking â‰? 60 and â‰? the display rate, power saver 30, medium by default with automatic low, corner HUD. Before: 9 checks failing (snow-hut drew 60 fps forever) | `fix/b21-gpu-load` |
+| 6 Â· B19 day-night clock | fixed: first frame = `?from=`, image lag 17.8 â†’ 0.0 clock minutes | `fix/b19-day-night-clock` |
+| 7b Â· B21 GPU load | still: 0 frames in 10 s, hidden tab: 0 frames, walking â‰¤ 60 and â‰¤ the display rate, power saver 30, medium by default with automatic low, corner HUD. Before: 9 checks failing (snow-hut drew 60 fps forever) | `fix/b21-gpu-load` |
 | 7 Â· A2 Safari / Firefox | WebKit: 5 / 5 examples pass, 0 messages. Firefox: every step passes; the `errors == 0` check fails on WebGL / autoplay warnings (no errors) | `test/a2-browsers` |
 | 8 Â· review | fixed: an unguarded save click; window resize (canvas, still redraw, TAA history); negative first-frame dt in play. The rest is listed under open issues | `fix/save-error-shown`, `fix/resize` |
 
 ## Baseline (main, before any fix)
 
 `npm install`; `npm test`: core, game, play, world checks ok, 7 skills ok, exit 0. For each example: `vite build`
-(all ok, 120â€?380 ms), playtest on `dist/` (http), `package.mjs` â†? `release/<name>.html`, and the playtest on that
+(all ok, 120â€“380 ms), playtest on `dist/` (http), `package.mjs` â†’ `release/<name>.html`, and the playtest on that
 file (file://). The run was serial on an otherwise idle machine.
 
 | example | steps (dist / file) | console messages | frameMs (p95), dist / file | load to ready, dist / file | flicker mean / max | single file |
@@ -46,7 +46,7 @@ Load times for dist include the vite asset fetches on the first open; file:// lo
 
 ## Per task
 
-### A4 â€? `npm run test:e2e`
+### A4 â€” `npm run test:e2e`
 
 `packages/tools/src/e2e.mjs` (also the bin `mirage-e2e`) runs these steps, in order, for every example whose
 `package.json` has a `playtest` script:
@@ -54,13 +54,13 @@ Load times for dist include the vite asset fetches on the first open; file:// lo
 1. `vite build`
 2. playtest on `dist/`
 3. garden-quest only: the scripted playthrough
-4. `package.mjs` â†? `release/<name>.html`
+4. `package.mjs` â†’ `release/<name>.html`
 5. the playtest on that file
 
 Options: `--only a,b` and `--no-file`. It writes `out/e2e/summary.json`, prints one line per step, and exits 1 if
 any step fails (2 for an unknown example name). Combined run on `test/round1-integration`: see "Combined run" below.
 
-### A5 â€? a door closing on the player
+### A5 â€” a door closing on the player
 
 - **Found:** in the open, the character controller already steps the player out of the closing leaf (pushed 0.40 m
   out of the doorway, 0 overlap).
@@ -74,25 +74,25 @@ any step fails (2 for an unknown example name). Combined run on `test/round1-int
   - garden-quest playthrough: new steps `door-closes-on-the-player`, `walks-off-after-the-door` and
     `door-opens-again`.
 
-### B16 â€? Rapier character on 5â€?13 cm risers
+### B16 â€” Rapier character on 5â€“13 cm risers
 
 I could not reproduce it with the controller as released (a cylinder collider, radius 0.28; autostep 0.4 m with
-treads â‰? 0.15 m; snap 0.3 m).
+treads â‰¥ 0.15 m; snap 0.3 m).
 
 - **Node, box lanes:** a 17 cm step then a 13 cm riser; 5, 8 and 13 cm risers alone; a 3 cm chamfer; everything
-  merged into one trimesh; straight and 22Â° off; treads 0.16â€?0.5 m; walking and running; dt 1/60, 1/30, 1/20, 1/10.
+  merged into one trimesh; straight and 22Â° off; treads 0.16â€“0.5 m; walking and running; dt 1/60, 1/30, 1/20, 1/10.
   Every lane climbs.
 - **The built snow-hut page:** 12 lanes added at runtime on the snow terrain trimesh (the same step / riser /
   threshold sets, separate and merged, straight and diagonal). All go up and none stall.
 - **Likely cause:** the collider shape at the time. With the collider swapped for a capsule of the same size, the
-  new test fails 14 / 19: step plus riser at 74â€?79 % of the walk, 30 % on the diagonal. The comment in `physics.js`
+  new test fails 14 / 19: step plus riser at 74â€“79 % of the walk, 30 % on the diagonal. The comment in `physics.js`
   records the switch to a flat-bottomed cylinder.
 - **Regression test** (`packages/game/check.mjs`, "small risers"): 19 lanes, each of which must end on top at
-  â‰? 80 % of walking speed. Now: 19 / 19, slowest 93 %. With autostep cut to 6 cm the test fails (13 cm risers at
+  â‰¥ 80 % of walking speed. Now: 19 / 19, slowest 93 %. With autostep cut to 6 cm the test fails (13 cm risers at
   19 %, 8 cm at 46 %), so it does catch a stall.
 - **Engine:** unchanged; the hut's one-slab porch can stay.
 
-### B3 â€? walk grid: 45Â° walls and thin railings
+### B3 â€” walk grid: 45Â° walls and thin railings
 
 - **45Â° walls (fixed,** `packages/play/src/walker.js`): sliding was axis-separated. Against a diagonal wall both
   axis moves point into it, so the walker stalled. At 30Â° off the normal it moved 0.17 m in 2 s where sliding gives
@@ -101,17 +101,17 @@ treads â‰? 0.15 m; snap 0.3 m).
     the body and moves along the tangent, with a small outward push for the grid's 0.125 m staircase. Every
     candidate position still passes `fits()`.
   - `packages/play/check.mjs`: 0Â° (straight in) stops; 30Â° slides 1.51 m of 1.50; 60Â° slides 2.62 of 2.60. The body
-    centre stays â‰? 0.19 m from the wall.
+    centre stays â‰¥ 0.19 m from the wall.
   - hello-courtyard and walled-garden playtests pass on the branch and on the integration branch (see "Combined
     run", including a failure under GPU sharing that did not reproduce).
 - **Thin railings (open, not changed):** the bake samples each 0.125 m cell at its centre, so a solid thinner than
   about a cell can fall between samples. Fixing it in the bake means supersampling each cell (about 4Ã— the bake
-  CPU: walled-garden 0.27 s â†? about 1 s), which is a design choice for the author. Two options:
+  CPU: walled-garden 0.27 s â†’ about 1 s), which is a design choice for the author. Two options:
   - authors give thin solids a `ctx.collider(...)` proxy at least one cell thick (no engine change; document it in
     the world skill); or
   - an optional `walk.subsample` in `bakeWalkGrid`.
 
-### B10 â€? gamepad A on the start screen also jumped
+### B10 â€” gamepad A on the start screen also jumped
 
 - **Cause:** the start screen turns input on in the frame the button goes down. Jump reads a held button, so the
   next frame jumped.
@@ -121,14 +121,14 @@ treads â‰? 0.15 m; snap 0.3 m).
   0 jump frames (was 30); pressing A again jumps; the same for Space. The garden-quest playthrough's pad part
   `a-starts` now holds A for 600 ms and requires the feet to stay within 5 cm.
 
-### B19 â€? the day-night demo started about 10 minutes early
+### B19 â€” the day-night demo started about 10 minutes early
 
 Measured in Chrome:
 
-- The HUD clock was fine apart from the first frame (06:29â€?06:34 for `?from=06:30`: the first dt was the gap since
+- The HUD clock was fine apart from the first frame (06:29â€“06:34 for `?from=06:30`: the first dt was the gap since
   the module ran, capped at 0.1 s = 4 clock minutes, or slightly negative).
 - The image lagged: exposure adaptation (time constant about 1 s) and the light cross-fade (1.5 s) run in wall-clock
-  seconds, which at 40 clock min/s is a steady 10â€?18 clock minutes behind (9.5 at 07:11, 12.5 at 07:51, 17.7 at
+  seconds, which at 40 clock min/s is a steady 10â€“18 clock minutes behind (9.5 at 07:11, 12.5 at 07:51, 17.7 at
   08:31).
 
 Fix (the demo only; the core is unchanged): `world.tick(dt * rate * 60)`, so easing runs on clock time, and the
@@ -138,10 +138,10 @@ Test: `node examples/demos/day-night/clock-check.mjs`.
 
 | | first frame vs `?from=` | exposure lag | fps | console errors |
 |---|---|---|---|---|
-| before | âˆ?1 min | 17.83 clock min | â€? | â€? |
+| before | âˆ’1 min | 17.83 clock min | â€” | â€” |
 | after | +0 min | 0.00 clock min | 60 | 0 |
 
-### 7b / B21 â€? GPU load ("does it hurt the graphics card")
+### 7b / B21 â€” GPU load ("does it hurt the graphics card")
 
 Test: `npm run test:gpu-load` (`packages/tools/src/gpu-load.mjs`, headless Chrome with the GPU, 60 Hz display). It
 counts `renderFrame` calls and animation callbacks per example: after the idle time and the still refinement (10 s
@@ -150,21 +150,21 @@ still), with another tab in front (3 s), with W held (3 s) and with the power sa
 | | still, 10 s | hidden tab, 3 s | walking | power saver | quality |
 |---|---|---|---|---|---|
 | main | 0 frames; **snow-hut 600** (60 fps forever) | 0 frames, 0 callbacks; **games: audio keeps running** | 60 fps (no cap of its own) | none | high |
-| `fix/b21-gpu-load` | 0 frames, all five | 0 frames, 0 callbacks, audio suspended (running again on return) | 60.0â€?60.3 fps | 30.0 fps | medium (auto low) |
+| `fix/b21-gpu-load` | 0 frames, all five | 0 frames, 0 callbacks, audio suspended (running again on return) | 60.0â€“60.3 fps | 30.0 fps | medium (auto low) |
 
 - **Why snow-hut never stopped:** its character drifted 0.3 mm/s on the snow (residual movement of the Rapier
   controller), so the view changed every frame. A 2 mm deadband when standing on the ground with no input stops it.
-- **â‘? still:** after 10 s without input (`idle` option) a changing scene (sky, animated props) no longer keeps play
+- **â‘  still:** after 10 s without input (`idle` option) a changing scene (sky, animated props) no longer keeps play
   moving, the still refinement finishes and nothing is drawn; keys, pointer, wheel, touch and gamepad wake it.
-- **â‘? cap:** frames are capped at 60 (`maxFps`), never above the display rate (it follows rAF); the power saver caps
+- **â‘¡ cap:** frames are capped at 60 (`maxFps`), never above the display rate (it follows rAF); the power saver caps
   at 30. Not measured on a 120 Hz display (this machine's headless Chrome runs at 60).
-- **â‘? hidden:** `visibilitychange` stops scheduling animation frames altogether and suspends the game's audio.
-- **â‘? quality:** a new `medium` preset (shadow map 2048, 8 AO samples, 4 spp, env 256) is the default.
+- **â‘¢ hidden:** `visibilitychange` stops scheduling animation frames altogether and suspends the game's audio.
+- **â‘£ quality:** a new `medium` preset (shadow map 2048, 8 AO samples, 4 spp, env 256) is the default.
   `pickQuality()` picks `low` on battery (Battery API), on mobile, or on a weak / software GPU (renderer string), and
   a saved choice wins. `?quality=` still overrides. Limit: a laptop at 100 % on its charger reads as a desktop.
-- **â‘? HUD:** bottom right, DOM (not in the canvas): quality select (saved, reloads), frames drawn per second ("idle"
+- **â‘¤ HUD:** bottom right, DOM (not in the canvas): quality select (saved, reloads), frames drawn per second ("idle"
   when still) and a "Power saver" button. `?hud=0` hides it.
-- **Unchanged images:** hello-courtyard `verify.mjs`, five views, same frame index â†? max 0, 0 pixels differ. `main` vs
+- **Unchanged images:** hello-courtyard `verify.mjs`, five views, same frame index â†’ max 0, 0 pixels differ. `main` vs
   the branch with `?quality=high&hud=0`, settled frame: hello-courtyard 59 pixels differ by 1 and walled-garden 42 by
   1, exactly the same as `main` vs `main` (run-to-run noise).
 - **Games, unchanged images:** the camera follows the physics character, whose resting place varies by fractions of
@@ -177,7 +177,7 @@ still), with another tab in front (3 s), with W held (3 s) and with the power sa
 - **Behaviour choice for the author:** at the default medium, the images differ from `main` by design (smaller shadow
   map, fewer AO samples and spp). Use `quality: 'high'` where the look matters more than the load.
 
-### A2 â€? Safari (WebKit) and Firefox
+### A2 â€” Safari (WebKit) and Firefox
 
 - **Setup:** Playwright installed outside the repo (`/tmp/pw`, not a dependency). Builds: webkit-2370 and Firefox
   157 (playwright firefox-1555). `MIRAGE_BROWSER=webkit|firefox` with `MIRAGE_PLAYWRIGHT=<playwright/index.js>`
@@ -201,7 +201,7 @@ ours to fix:
 
 The other two are worth noting:
 
-- "Depth texture comparison requests LINEAR filtering â€? implementation-defined": shadow-map filtering may look
+- "Depth texture comparison requests LINEAR filtering â€¦ implementation-defined": shadow-map filtering may look
   harder on some Firefox systems.
 - "An AudioContext was prevented from starting automatically" (garden-quest): expected before the first click. The
   game resumes the context on the start click.
@@ -212,12 +212,12 @@ it unchanged.
 The garden-quest playthrough (keyboard, gamepad shim, touch emulation) was not run in WebKit or Firefox; it uses
 Chrome-only puppeteer features (touch emulation, `evaluateOnNewDocument`).
 
-### 8 â€? code review
+### 8 â€” code review
 
 Fixed, each with a test:
 
 - **The save click had no try/catch** (`packages/game/src/ui.js`). With storage full or blocked the menu said
-  nothing, and a QuotaExceededError reached the page. Now the menu says "Could not save: â€?". New playthrough step
+  nothing, and a QuotaExceededError reached the page. Now the menu says "Could not save: â€¦". New playthrough step
   `save-fails-visibly`: FAIL before, pass after; all 20 main steps pass.
 - **Window resize** (`play`, `core`, all five examples):
   - The canvas kept its load-time size.
@@ -226,9 +226,9 @@ Fixed, each with a test:
   - `world.resize()` didn't invalidate the TAA history.
   - Now `createPlay({ fit })` follows the window (the examples pass `fit` unless `?w=` is given, so the tools are
     unaffected), the redraw key includes the drawing size, and `resize()` resets TAA.
-  - `examples/hello-courtyard/scripts/resize-check.mjs`: 1000Ã—700 â†? 800Ã—500 gives an 800Ã—500 canvas, refinements
-    2 â†? 4 and a non-blank image (before: canvas still 1000Ã—700, no redraw, FAIL).
-  - Still-frame identity (`hello-courtyard verify.mjs`, five views): same frame index â†? max difference 0, 0 pixels
+  - `examples/hello-courtyard/scripts/resize-check.mjs`: 1000Ã—700 â†’ 800Ã—500 gives an 800Ã—500 canvas, refinements
+    2 â†’ 4 and a non-blank image (before: canvas still 1000Ã—700, no redraw, FAIL).
+  - Still-frame identity (`hello-courtyard verify.mjs`, five views): same frame index â†’ max difference 0, 0 pixels
     differ.
 - **Negative first-frame dt in play's loop:** a rAF timestamp can be earlier than the `performance.now()` taken
   before it. Clamped at 0 (in the resize commit). The same pattern in the day-night demo is fixed in B19.
@@ -272,7 +272,7 @@ loop takes B21's scheduling plus resize's dt clamp and size in the redraw key): 
 5. **`AudioContext.resume()` promises are not handled** in `@mirage/game` audio's start path. A rejection (rare,
    e.g. a permissions policy) would be an unhandled rejection. (B21's suspend / resume catches its own.)
 6. **Firefox warnings fail the playtest's `errors == 0`** (A2). Decide whether warnings count.
-7. **Flaky under load:** the garden-quest playthrough got stuck once on the way to the pavilion (at âˆ?0.58, 0.20,
+7. **Flaky under load:** the garden-quest playthrough got stuck once on the way to the pavilion (at âˆ’0.58, 0.20,
    11.17), and walled-garden's walk steps stopped early in one e2e run, both while other headless runs shared the GPU. Alone it passes every time I ran it (3 runs). The steering uses
    real time, so low frame rates (dt capped at 0.1 s) change the path. e2e runs the examples one at a time for this
    reason.
