@@ -158,4 +158,34 @@ ok(jumps === 0, `Space held through the start screen does not jump (${jumps} fra
 press('keyup', 'Space'); press('keydown', 'Space'); input.poll();
 ok(input.down('jump'), 'Space pressed again jumps');
 press('keyup', 'Space');
+
+// zones: enter / exit as the player crosses them, once-only zones, and a load that lands inside does not re-fire
+{
+  const store = new Map(), st = { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, String(v)) };
+  const z = createGame({ id: 'zones', storage: st }), log = [];
+  z.zone({ id: 'gate', box: [[0, 0, 0], [2, 3, 2]], enter: (g, e) => log.push('in ' + e.id), exit: (g, e) => log.push('out ' + e.id) });
+  z.zone({ id: 'well', sphere: [[10, 0, 0], 1.5], once: true, enter: (g) => { log.push('well'); g.set('wellSeen'); } });
+  const events = [];
+  z.on('zone', (d) => events.push(`${d.id}:${d.inside}`));
+  const walk = (...ps) => { for (const p of ps) { z.player = p; z.tick(1 / 60); } };
+  walk([-1, 0, 1], [1, 0, 1], [1, 1, 1], [3, 0, 1]);
+  ok(log.join() === 'in gate,out gate' && events.join() === 'gate:true,gate:false', `box zone enters and exits once each (${log.join()})`);
+  walk([9, 0, 0.5], [12, 0, 0], [10, 0, 0]);
+  ok(log.filter((l) => l === 'well').length === 1 && z.flags.wellSeen, `a once zone fires one time (${log.join()})`);
+  ok(z.zones.get('gate').inside === false && z.zones.get('well').fired, 'zone state readable');
+  walk([1, 0, 1]);
+  z.save(1);
+  z.player = [5, 0, 5]; z.tick(1 / 60);
+  log.length = 0;
+  z.load(1); z.player = [1, 0, 1]; z.tick(1 / 60);
+  ok(log.length === 0, `loading a save made inside a zone does not fire it again (${log.join()})`);
+  z.player = [5, 0, 5]; z.tick(1 / 60);
+  ok(log.join() === 'out gate', `and leaving it afterwards still fires exit (${log.join()})`);
+  const z2 = createGame({ id: 'zones', storage: st }), log2 = [];
+  z2.zone({ id: 'well', sphere: [[10, 0, 0], 1.5], once: true, enter: () => log2.push('well') });
+  z2.load(1); z2.player = [10, 0, 0]; z2.tick(1 / 60);
+  ok(log2.length === 0, 'a once zone fired before the save stays spent after loading');
+  z.player = [1, 0, 1]; z.paused = true; z.tick(1 / 60);
+  ok(log.join() === 'out gate', 'a paused game fires no zones');
+}
 console.log('game check: ok');
