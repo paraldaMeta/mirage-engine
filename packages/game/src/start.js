@@ -80,6 +80,7 @@ export async function startGame(world, opts) {
       near = game.nearest(cam.position.toArray(), dir.toArray());
       if (ui) ui.prompt(near);
       if (near && input.pressed('interact')) game.interact(near);
+      game.player = character.pos;
       game.tick(dt);
       const moved = physics.step(dt);
       audio.listen(cam);

@@ -5,7 +5,9 @@
 // game.add({ id, pos | object, interact: { label, can?(game), use(game, e) }, update?(dt, game), save?() -> data, load?(data) })
 // game.spawn(anchors.lamps, (a, i) => ({ id: 'lamp' + i, pos: a.pos, ... }))   entities from a module's anchors
 // game.system((dt, game) => ...)   runs every tick after the entities' update
-// game.on('flag' | 'inventory' | 'interact' | 'spawn' | 'remove' | 'pause' | 'load' | <your own>, fn); game.emit(type, data)
+// game.zone({ id, box: [[x,y,z], [x,y,z]] | sphere: [[x,y,z], r], enter?(game, z), exit?(game, z), once? })   fires as
+//   game.player (the character's feet) crosses it, then emits 'zone' { id, inside }; saves keep who is inside
+// game.on('flag' | 'inventory' | 'interact' | 'zone' | 'spawn' | 'remove' | 'pause' | 'load' | <your own>, fn); game.emit(type, data)
 // game.set(flag, value); game.flags; game.inventory.add({ id, name }) / has(id) / remove(id)
 // game.save(slot, extra) / load(slot) / slots() / exportJSON(extra) / importJSON(text)
 //
@@ -40,7 +42,19 @@ export function createGame({ id = 'mirage', version = 1, migrate = {}, storage =
       g.time += dt;
       for (const e of g.entities.values()) if (e.update) e.update(dt, g);
       for (const fn of g.systems) fn(dt, g);
+      if (g.player) for (const z of g.zones.values()) {
+        if (z.fired) continue;
+        const inside = inZone(z, g.player);
+        if (inside === z.inside) continue;
+        z.inside = inside;
+        if (inside) { if (z.once) z.fired = true; if (z.enter) z.enter(g, z); } else if (z.exit) z.exit(g, z);
+        g.emit('zone', { id: z.id, inside });
+      }
     },
+
+    // ---- zones: a box [[min], [max]] or a sphere [[centre], r] around g.player (startGame sets it every tick)
+    zones: new Map(), player: null,
+    zone(z) { const s = { inside: false, fired: false, ...z }; g.zones.set(z.id, s); return s; },
     pause(on = !g.paused) { if (g.paused === on) return; g.paused = on; g.emit('pause', on); },
 
     // ---- interactables: the closest one within reach, inside a cone around the view direction
@@ -77,8 +91,10 @@ export function createGame({ id = 'mirage', version = 1, migrate = {}, storage =
     snapshot(extra = {}) {
       const entities = {};
       for (const e of g.entities.values()) if (e.save) entities[e.id] = e.save(g);
+      const zones = {};
+      for (const z of g.zones.values()) if (z.inside || z.fired) zones[z.id] = { inside: z.inside, fired: z.fired };
       return { v: version, id, at: new Date().toISOString(), time: +g.time.toFixed(2), flags: { ...g.flags }, inventory: g.inventory.items.map((i) => ({ ...i })),
-        removed: [...g.removed], entities, settings: g.settings, ...extra };
+        removed: [...g.removed], entities, zones, settings: g.settings, ...extra };
     },
     restore(s) {
       if (!s || typeof s !== 'object' || typeof s.v !== 'number') throw new Error('not a save');
@@ -90,6 +106,7 @@ export function createGame({ id = 'mirage', version = 1, migrate = {}, storage =
       for (const [rid, { e, parent }] of grave) if (!gone.has(rid)) { grave.delete(rid); g.removed.delete(rid); if (parent) parent.add(e.object); g.add(e); }
       for (const rid of gone) { g.remove(rid); g.removed.add(rid); }
       for (const [eid, data] of Object.entries(s.entities || {})) { const e = g.entities.get(eid); if (e && e.load) e.load(data, g); }
+      for (const z of g.zones.values()) Object.assign(z, { inside: false, fired: false }, (s.zones || {})[z.id]);
       if (s.settings) g.settings = s.settings;
       g.emit('inventory', {}); g.emit('load', s);
       return s;
@@ -105,7 +122,13 @@ export function createGame({ id = 'mirage', version = 1, migrate = {}, storage =
     importJSON: (text) => g.restore(JSON.parse(text)),
     saveSettings() { try { storage.setItem(key('settings'), JSON.stringify(g.settings)); } catch { /* private mode */ } },
     loadSettings() { try { return (g.settings = JSON.parse(storage.getItem(key('settings'))) || g.settings); } catch { return g.settings; } },
-    reset() { g.flags = {}; g.inventory.items = []; g.removed.clear(); g.time = 0; },
+    reset() { g.flags = {}; g.inventory.items = []; g.removed.clear(); g.time = 0; for (const z of g.zones.values()) Object.assign(z, { inside: false, fired: false }); },
   };
   return g;
+}
+
+function inZone(z, p) {
+  if (z.box) { const [a, b] = z.box; return p[0] >= a[0] && p[0] <= b[0] && p[1] >= a[1] && p[1] <= b[1] && p[2] >= a[2] && p[2] <= b[2]; }
+  const [c, r] = z.sphere;
+  return (p[0] - c[0]) ** 2 + (p[1] - c[1]) ** 2 + (p[2] - c[2]) ** 2 <= r * r;
 }
