@@ -36,6 +36,7 @@ const CSS = `
 .mg-file input{position:absolute;opacity:0;width:1px;height:1px}
 .mg-touch{position:absolute;inset:0;pointer-events:auto;touch-action:none}
 .mg-stick{position:absolute;left:24px;bottom:28px;width:132px;height:132px;border-radius:50%;background:#ffffff1c;border:2px solid #ffffff44}
+.mg-stick.run{border-color:#ffcf6ecc}
 .mg-knob{position:absolute;left:50%;top:50%;width:58px;height:58px;margin:-29px;border-radius:50%;background:#f6ecd8aa}
 .mg-btns{position:absolute;right:18px;bottom:24px;display:grid;grid-template-columns:repeat(2,72px);gap:12px}
 .mg-btns button{width:72px;height:72px;border-radius:50%;margin:0;background:#f6ecd8cc;font-weight:600}
@@ -76,7 +77,7 @@ export function createUI({ game, input, audio, title = 'Mirage', subtitle = '', 
     d.addEventListener('close', () => { if (!open()) resume(); });
     d.addEventListener('click', (e) => { if (e.target.closest('[data-close]')) d.close(); });
   }
-  function pause() { game.pause(true); input.enabled = false; input.clear(); if (document.pointerLockElement) document.exitPointerLock(); }
+  function pause() { game.pause(true); input.enabled = false; input.clear(); setRun(false); if (document.pointerLockElement) document.exitPointerLock(); }
   function resume() { if (open()) return; game.pause(false); input.enabled = true; }
   function show(d) { for (const o of [menu, inv, msg]) if (o !== d && o.open) o.close(); pause(); if (!d.open) d.showModal(); }
 
@@ -108,7 +109,9 @@ export function createUI({ game, input, audio, title = 'Mirage', subtitle = '', 
   let stickId = null, lookId = null, last = null;
   stick.addEventListener('pointerdown', (e) => { stickId = e.pointerId; stick.setPointerCapture(e.pointerId); moveStick(e); e.preventDefault(); });
   stick.addEventListener('pointermove', (e) => { if (e.pointerId === stickId) moveStick(e); });
-  const endStick = (e) => { if (e.pointerId !== stickId) return; stickId = null; knob.style.transform = ''; input.stick(0, 0); };
+  let running = false;
+  const setRun = (on) => { if (on !== running) { running = on; input.hold('run', on); stick.classList.toggle('run', on); } };
+  const endStick = (e) => { if (e.pointerId !== stickId) return; stickId = null; knob.style.transform = ''; input.stick(0, 0); setRun(false); };
   stick.addEventListener('pointerup', endStick); stick.addEventListener('pointercancel', endStick);
   function moveStick(e) {
     const r = stick.getBoundingClientRect(), R = r.width / 2;
@@ -116,6 +119,7 @@ export function createUI({ game, input, audio, title = 'Mirage', subtitle = '', 
     const l = Math.hypot(dx, dy); if (l > R) { dx *= R / l; dy *= R / l; }
     knob.style.transform = `translate(${dx}px,${dy}px)`;
     input.stick(dx / R, -dy / R);
+    setRun(l > R * 1.25);   // pushed out past the rim: run
   }
   const look = $('.mg-look');
   look.addEventListener('pointerdown', (e) => { if (!started) begin(e); lookId = e.pointerId; last = [e.clientX, e.clientY]; look.setPointerCapture(e.pointerId); });

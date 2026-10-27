@@ -16,6 +16,7 @@
     "test": "npm test -ws --if-present && node agent/check.mjs",
     "test:e2e": "node packages/tools/src/e2e.mjs",
     "test:still-pop": "node packages/tools/src/still-pop.mjs examples/hello-courtyard/dist examples/walled-garden/dist examples/garden-quest/dist examples/agent-trial/dist",
+    "test:touch": "node packages/tools/src/touch-check.mjs examples/hello-courtyard/dist examples/walled-garden/dist examples/garden-quest/dist examples/agent-trial/dist examples/snow-hut/dist",
     "test:gpu-load": "node packages/tools/src/gpu-load.mjs examples/hello-courtyard/dist examples/walled-garden/dist examples/garden-quest/dist examples/agent-trial/dist examples/snow-hut/dist"
   },
   "author": "灰叔 Racso"

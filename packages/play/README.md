@@ -15,6 +15,7 @@ const play = createPlay(world, { plan, canvas, mode: 'walk', spp: 6, refine: [6,
 | G | game view: orthographic, from the south-east, following a figure; WASD relative to the screen; wheel zooms |
 | O | orbit (three's OrbitControls; the stills view) |
 | 1–9, R, H | the plan's viewpoints, back to the spawn, hide the help |
+| touch | a finger on the left half is a stick around where it went down (dragged past 80 px it runs); one on the right half looks; buttons top left: Walk / Orbit and View (the next viewpoint). Orbit keeps OrbitControls' touch. `touch: false` turns it off; games (`opts.input`) use their own overlay |
 
 Options for games (`@mirage/game` uses them): `walker` (any object with the walker's shape — `pos`, `onGround`,
 `blocked`, `body`, `update(dt, input)`, `place(p)` — replaces the grid walker; the grid stays for ground queries),
