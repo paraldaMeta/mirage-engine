@@ -51,9 +51,11 @@ export function serve(dir, port = 0) {
   return new Promise((r) => server.listen(port, '127.0.0.1', () => r({ url: `http://127.0.0.1:${server.address().port}/`, close: () => server.close() })));
 }
 
-/** open a page, collect console errors and page errors (errors), console warnings (warnings), wait for window.__READY */
-export async function open(browser, url, { timeout = 180000 } = {}) {
+/** open a page, collect console errors and page errors (errors), console warnings (warnings), wait for window.__READY.
+ *  viewport: set before loading (e.g. { width, height, hasTouch: true } for a touch screen) */
+export async function open(browser, url, { timeout = 180000, viewport } = {}) {
   const page = await browser.newPage();
+  if (viewport) await page.setViewport(viewport);
   const errors = [], warnings = [];
   page.on('console', (m) => {
     if (m.type() === 'error') errors.push('error: ' + m.text());

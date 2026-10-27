@@ -100,7 +100,11 @@ export function createPlay(world, opts = {}) {
   // ---- input
   const keys = new Set();
   let drag = null;
-  const ui = makeUI(opts.ui !== false, plan);
+  let viewIndex = -1;
+  const ui = makeUI(opts.ui !== false, plan, {
+    toggleOrbit: () => setMode(mode === 'orbit' ? 'walk' : 'orbit'),
+    nextView: () => viewpoint((viewIndex = (viewIndex + 1) % plan.viewpoints.length)),
+  });
   const onKey = (e) => {
     if (e.repeat) return;
     keys.add(e.code);
@@ -123,12 +127,39 @@ export function createPlay(world, opts = {}) {
     if (document.pointerLockElement === canvas) turn(e.movementX, e.movementY, 0.0022);
     else if (drag) { turn(e.clientX - drag[0], e.clientY - drag[1], 0.004); drag = [e.clientX, e.clientY]; }
   });
+  let touchAt = -1e9;   // a tap also fires mousedown: no pointer lock for it (touch fingers need pointer capture)
   canvas.addEventListener('mousedown', (e) => {
-    if (mode === 'orbit' || mode === 'game') return;
+    if (mode === 'orbit' || mode === 'game' || performance.now() - touchAt < 1000) return;
     drag = [e.clientX, e.clientY];
     if (canvas.requestPointerLock && opts.pointerLock !== false) try { const r = canvas.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch { /* drag instead */ }
   });
   window.addEventListener('mouseup', () => { drag = null; });
+  // touch (when no game overlay takes it): a finger going down on the left half is a stick around that point,
+  // dragged past STICK_RUN px it runs; one on the right half looks. Orbit keeps OrbitControls' own touch.
+  const STICK = 50, STICK_RUN = 80, fingers = new Map(), pad = { x: 0, z: 0, run: false };
+  if (!opts.input && opts.touch !== false) {
+    canvas.style.touchAction = 'none';
+    const padFrom = (f, e) => {
+      const dx = e.clientX - f.at[0], dy = e.clientY - f.at[1], l = Math.hypot(dx, dy), k = l > STICK ? STICK / l : 1;
+      pad.x = (dx * k) / STICK; pad.z = (-dy * k) / STICK; pad.run = l > STICK_RUN;
+    };
+    canvas.addEventListener('pointerdown', (e) => {
+      if (e.pointerType !== 'touch') return;
+      touchAt = performance.now();
+      if (mode === 'orbit') return;
+      const r = canvas.getBoundingClientRect(), stick = e.clientX < r.left + r.width / 2 && ![...fingers.values()].some((f) => f.stick);
+      fingers.set(e.pointerId, { stick, at: [e.clientX, e.clientY] });
+      canvas.setPointerCapture(e.pointerId);
+    });
+    canvas.addEventListener('pointermove', (e) => {
+      const f = fingers.get(e.pointerId);
+      if (!f) return;
+      if (f.stick) padFrom(f, e);
+      else if (mode !== 'game') { turn(e.clientX - f.at[0], e.clientY - f.at[1], 0.005); f.at = [e.clientX, e.clientY]; }
+    });
+    const up = (e) => { const f = fingers.get(e.pointerId); if (!f) return; fingers.delete(e.pointerId); if (f.stick) Object.assign(pad, { x: 0, z: 0, run: false }); };
+    canvas.addEventListener('pointerup', up); canvas.addEventListener('pointercancel', up);
+  }
   canvas.addEventListener('wheel', (e) => { if (mode === 'game') { viewSize = THREE.MathUtils.clamp(viewSize * Math.exp(e.deltaY * 0.0012), 3, 60); e.preventDefault(); } }, { passive: false });
 
   // ---- shadows follow the view, the centre snapped to whole shadow texels (the map never swims)
@@ -152,8 +183,8 @@ export function createPlay(world, opts = {}) {
   function keyInput() {
     const k = (...c) => c.some((x) => keys.has(x));
     return {
-      x: k('KeyD', 'ArrowRight') - k('KeyA', 'ArrowLeft'), z: k('KeyW', 'ArrowUp') - k('KeyS', 'ArrowDown'),
-      up: (k('KeyE') || (mode === 'fly' && k('Space'))) - k('KeyQ', 'KeyC'), run: k('ShiftLeft', 'ShiftRight'), jump: k('Space'),
+      x: k('KeyD', 'ArrowRight') - k('KeyA', 'ArrowLeft') + pad.x, z: k('KeyW', 'ArrowUp') - k('KeyS', 'ArrowDown') + pad.z,
+      up: (k('KeyE') || (mode === 'fly' && k('Space'))) - k('KeyQ', 'KeyC'), run: k('ShiftLeft', 'ShiftRight') || pad.run, jump: k('Space'),
     };
   }
   let changed = false, acting = false, turned = false;
@@ -393,15 +424,35 @@ function makeHud(on, { quality, power, setSaver }) {
   return hud;
 }
 
-function makeUI(on, plan) {
+function makeUI(on, plan, { toggleOrbit, nextView }) {
   const root = document.createElement('div');
   root.style.cssText = 'position:fixed;left:14px;bottom:12px;font:12px/1.5 system-ui,sans-serif;color:#f3e6cc;text-shadow:0 1px 2px #000;pointer-events:none;';
   const vps = plan.viewpoints.slice(0, 9).map((v, i) => `${i + 1} ${v.name}`).join(' · ');
-  root.innerHTML = `<div class="m" style="font-weight:600;letter-spacing:.08em"></div><div>WASD walk · mouse look · Shift run · Space jump · F fly · G game view · O orbit · R spawn · H hide</div><div style="opacity:.8">${vps}</div><div class="s" style="opacity:.6;font-family:ui-monospace,monospace"></div>`;
-  if (on) document.body.appendChild(root);
+  root.innerHTML = `<div class="m" style="font-weight:600;letter-spacing:.08em"></div><div class="k">WASD walk · mouse look · Shift run · Space jump · F fly · G game view · O orbit · R spawn · H hide</div><div style="opacity:.8">${vps}</div><div class="s" style="opacity:.6;font-family:ui-monospace,monospace"></div>`;
+  // touch has no keys: buttons for walk / orbit and the next viewpoint
+  const bar = document.createElement('div');
+  bar.className = 'mirage-touchbar';
+  bar.style.cssText = 'position:fixed;left:12px;top:12px;z-index:20;display:none;gap:8px;font:14px system-ui,sans-serif;';
+  const b = 'min-height:40px;padding:0 14px;color:#f3e6cc;background:rgba(12,10,8,.55);border:1px solid rgba(255,255,255,.3);border-radius:8px;';
+  bar.innerHTML = `<button type="button" data-t="mode" style="${b}"></button>` + (plan.viewpoints.length ? `<button type="button" data-t="view" style="${b}">View</button>` : '');
+  const modeBtn = bar.querySelector('[data-t=mode]');
+  modeBtn.addEventListener('click', toggleOrbit);
+  if (plan.viewpoints.length) bar.querySelector('[data-t=view]').addEventListener('click', nextView);
+  const touchOn = () => {
+    bar.style.display = 'flex';
+    root.querySelector('.k').textContent = 'left half: drag to walk, far to run · right half: drag to look';
+  };
+  if (on) {
+    document.body.appendChild(root); document.body.appendChild(bar);
+    if (matchMedia('(pointer: coarse)').matches) touchOn();
+    addEventListener('pointerdown', (e) => { if (e.pointerType === 'touch') touchOn(); }, { capture: true, passive: true });
+  }
   let shown = on;
   return {
-    mode: (m) => { root.querySelector('.m').textContent = { walk: 'WALK', fly: 'FLY', game: 'GAME VIEW', orbit: 'ORBIT' }[m] || m; },
+    mode: (m) => {
+      root.querySelector('.m').textContent = { walk: 'WALK', fly: 'FLY', game: 'GAME VIEW', orbit: 'ORBIT' }[m] || m;
+      modeBtn.textContent = m === 'orbit' ? 'Walk' : 'Orbit';
+    },
     toggle: () => { shown = !shown; root.style.display = shown ? '' : 'none'; },
     stats: (s) => { if (shown) root.querySelector('.s').textContent = s; },
   };

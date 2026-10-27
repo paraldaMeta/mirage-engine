@@ -58,7 +58,7 @@ also kept on their own (`mirage:<id>:settings`). Loading an earlier save brings 
 | | keyboard / mouse | gamepad | touch |
 |---|---|---|---|
 | move, look | WASD / arrows, mouse (click captures the pointer) | left stick, right stick | stick bottom-left, drag elsewhere |
-| run, jump | Shift, Space | LB or L3, A | —, Jump |
+| run, jump | Shift, Space | LB or L3, A | stick pushed out past its rim, Jump |
 | interact, bag, menu | E or Enter, I, Esc or P | X, Y, Start (menus: d-pad, A, B) | Use, Bag, ☰ |
 
 Licence and size: Rapier is Apache-2.0; `@dimforge/rapier3d-compat` 0.19.3 inlines its 1.57 MB WASM as base64
