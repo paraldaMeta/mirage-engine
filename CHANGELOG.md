@@ -2,7 +2,7 @@
 
 All notable changes. Versions follow semver once published; before 1.0 anything may change.
 
-## 0.2.0 — unreleased (pre-alpha)
+## 0.2.0 — 2026-10-27 (pre-alpha)
 
 Lighter on the GPU, steadier to play, tested in more browsers. Not published.
 
@@ -40,7 +40,7 @@ Lighter on the GPU, steadier to play, tested in more browsers. Not published.
   `bake-check.mjs` (need Chrome).
 - Docs: solids thinner than a walk-grid cell (railings) need a `ctx.collider` proxy at least 0.2 m thick.
 
-## 0.1.0 — unreleased (pre-alpha)
+## 0.1.0 — 2026-10-27 (pre-alpha)
 
 First complete cut; not published.
 
