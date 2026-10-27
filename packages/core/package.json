@@ -1,6 +1,6 @@
 {
   "name": "@mirage/core",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Mirage rendering core: physical sky, aerial perspective, sun and soft shadows, image-based light, sub-frame accumulation post, the patch() material system and day/night for any place on Earth.",
   "license": "MIT",
   "type": "module",

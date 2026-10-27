@@ -21,7 +21,8 @@ import { LAYER } from '@mirage/world';
 // Walls are simply floors far above your feet, gates are floors with a ceiling above head height, stairs are
 // floors a step apart. Rules for modules: meshes with `userData.collide === false` are ignored (foliage, glass,
 // the figure); open vertical tubes and water need a closed proxy (ctx.collider) because a vertical face is never
-// seen from above.
+// seen from above, and so do solids thinner than a cell (railings): cells are sampled at their centres, so give
+// them a proxy at least 0.2 m thick (packages/tools/bake-check.mjs).
 // ponytail: one bake at load (0.1-1 s); no streaming, no moving obstacles (doors that swing need a re-bake).
 // ---------------------------------------------------------------------------
 

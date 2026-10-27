@@ -20,6 +20,7 @@ import { rng } from './rng.js';
 
 const QUALITY = {
   high: { shadowMap: 4096, aoSamples: 12, spp: 4, envSize: 256 },
+  medium: { shadowMap: 2048, aoSamples: 8, spp: 4, envSize: 256 },
   low: { shadowMap: 2048, aoSamples: 8, spp: 2, envSize: 128 },
 };
 
@@ -253,6 +254,7 @@ export function createWorldRenderer(config = {}) {
     renderer.setSize(wd, ht, false);
     pipeline.setSize(wd * pixelRatio, ht * pixelRatio);
     camera.aspect = wd / ht; camera.updateProjectionMatrix();
+    taaValid = false;   // the history targets were reallocated (empty)
   }
 
   function dispose() {

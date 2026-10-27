@@ -1,6 +1,6 @@
 {
   "name": "@mirage/tools",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Mirage tools: the playtest runner (scripted inputs, expectations, flicker along a path, frame cost, markdown report, contact sheet), single-file packager, multi-view snapshots, a frame-cost sweep, a static-deploy folder, the texture packer.",
   "license": "MIT",
   "type": "module",
@@ -10,7 +10,10 @@
     "mirage-walktest": "./src/walktest.mjs",
     "mirage-snap": "./src/snap.mjs",
     "mirage-perf": "./src/perf.mjs",
-    "mirage-deploy": "./src/deploy.mjs"
+    "mirage-deploy": "./src/deploy.mjs",
+    "mirage-e2e": "./src/e2e.mjs",
+    "mirage-gpu-load": "./src/gpu-load.mjs",
+    "mirage-still-pop": "./src/still-pop.mjs"
   },
   "files": [
     "src",

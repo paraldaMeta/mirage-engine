@@ -40,4 +40,26 @@ for (let d = 0.3; d < 1.6; d += 0.05) {
   for (let t = 0; t < 1.5; t += 1 / 60) { w.update(1 / 60, { z: -1, jump: t < 0.05 }); low = Math.min(low, w.pos[1]); }
 }
 ok(low > -0.01, `jumps at an overhanging bench never fall through (lowest feet ${low.toFixed(2)})`);
+
+// a 45° wall (x + z > 2): walking into it at an angle slides along it (B3: axis-separated sliding stalled here)
+const f45 = new Float32Array(nx * nz * MAXL * 2), c45 = new Uint8Array(nx * nz).fill(1);
+for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) { f45[(j * nx + i) * MAXL * 2] = x0 + (i + 0.5) * cell + z0 + (j + 0.5) * cell > 2 ? 3.5 : 0; f45[(j * nx + i) * MAXL * 2 + 1] = Infinity; }
+const g45 = makeGrid({ nx, nz, x0, z0, cell, floors: f45, count: c45 });
+const n45 = [Math.SQRT1_2, Math.SQRT1_2], t45 = [Math.SQRT1_2, -Math.SQRT1_2];
+for (const deg of [0, 30, 60]) {
+  const a = (deg * Math.PI) / 180, d = [n45[0] * Math.cos(a) + t45[0] * Math.sin(a), n45[1] * Math.cos(a) + t45[1] * Math.sin(a)];
+  w = run(createWalker(g45, { pos: [0.6, 0, 0.6] }), 2, { x: d[0], z: d[1] });
+  const along = (w.pos[0] - 0.6) * t45[0] + (w.pos[2] - 0.6) * t45[1], ideal = 1.5 * 2 * Math.sin(a), into = w.pos[0] + w.pos[2];
+  ok(into < 1.8 && (deg ? along > 0.9 * ideal : Math.abs(along) < 0.05),
+    `45° wall, ${deg}° off its normal: ${deg ? 'slides' : 'stops'} (${along.toFixed(2)} m along of ${ideal.toFixed(2)}, x + z ${into.toFixed(2)})`);
+}
+// the frame cap on any display rate (B21: it skipped every other frame at 75 Hz, 37.5 fps)
+const { frameGate } = await import('./src/play.js');
+for (const [hz, cap] of [[50, 60], [60, 60], [75, 60], [90, 60], [120, 60], [144, 60], [165, 60], [60, 30], [75, 30], [144, 30]]) {
+  const gate = frameGate(() => cap);
+  let n = 0;
+  for (let i = 0; i < hz * 10; i++) if (gate((i * 1000) / hz + (((i * 7919) % 3) - 1) * 0.8)) n++;   // ±0.8 ms jitter
+  const fps = n / 10, want = Math.min(hz, cap);
+  ok(fps <= want + 0.5 && fps >= want - 1, `frame cap ${cap} at ${hz} Hz: ${fps} fps`);
+}
 console.log('play check: ok');

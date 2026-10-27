@@ -3,7 +3,7 @@
 // Textures: the courtyard's five CC0 sets (../hello-courtyard/tex).
 // URL: ?mode=walk (default) | fly | game | orbit   ?view=<viewpoint name>   ?time=golden | HH:MM [&date=YYYY-MM-DD]
 //      ?spp=N  ?w=&h=  ?grain=0  ?broken=1  ?ui=0
-import { createWorldRenderer, createTextures, placeDate } from '@mirage/core';
+import { createWorldRenderer, createTextures, placeDate, pickQuality } from '@mirage/core';
 import { buildWorld } from '@mirage/world';
 import { createPlay } from '@mirage/play';
 import manifest from '../hello-courtyard/tex/manifest.json';
@@ -16,7 +16,8 @@ const place = { lat: 37.18, lon: -3.59, height: 700, tzHours: 1 };   // a generi
 const t = Q.get('time') || 'golden';
 const canvas = document.querySelector('canvas');
 canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
-const world = createWorldRenderer({
+const quality = Q.get('quality') || (await pickQuality()).quality, hud = Q.get('hud') !== '0';   // ?quality=low|medium|high
+const world = createWorldRenderer({ quality,
   canvas, width: W, height: H, place, time: t === 'golden' ? 'golden' : placeDate(Q.get('date') || '2026-10-25', t, place.tzHours), preserveDrawingBuffer: true,
   shadow: { center: [0, 2, 0], radius: 42 }, envProbe: [0, 4, 6],
   fog: { groundDensity: 0.0018, height: 40 },
@@ -30,7 +31,7 @@ camera.aspect = W / H; camera.fov = 55; camera.near = 0.1; camera.far = 3000; ca
 await tex.ready();
 await world.prepare();
 const spp = +Q.get('spp') || 6, mode = Q.get('mode') || 'walk';
-const play = createPlay(world, { plan: built.plan, canvas, mode, spp, ui: Q.get('ui') !== '0', shadowRadius: 26 });
+const play = createPlay(world, { plan: built.plan, canvas, mode, spp, ui: Q.get('ui') !== '0', shadowRadius: 26, fit: !Q.get('w'), quality, hud });
 const v = plan.viewpoints.find((p) => p.name === Q.get('view'));
 if (v) play.place(v.eye, v.look, mode);
 window.__mirage = { world, tex, built, play, render: (o = {}) => world.renderFrame(o.T ?? 0, { spp, frameIndex: 1, ...o }) };

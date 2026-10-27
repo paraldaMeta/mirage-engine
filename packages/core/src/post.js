@@ -133,6 +133,7 @@ export class Pipeline {
         gl_FragColor = vec4(unsquash(mix(h, cur, a)), 1.0);
       }`, { tCur: { value: null }, tHist: { value: null }, tDepth: { value: null }, uInvVP: { value: new THREE.Matrix4() }, uPrevVP: { value: new THREE.Matrix4() }, uTexel: { value: new THREE.Vector2() }, uAlpha: { value: 1 } });
     this.copyMat = quadMat('varying vec2 vUv; uniform sampler2D tColor; void main(){ gl_FragColor = texture2D(tColor, vUv); }', { tColor: { value: null } });
+    this.blendMat = quadMat('varying vec2 vUv; uniform sampler2D tA, tB; uniform float uT; void main(){ gl_FragColor = mix(texture2D(tA, vUv), texture2D(tB, vUv), uT); }', { tA: { value: null }, tB: { value: null }, uT: { value: 0 } });
     this.setSize(width, height);
   }
 
@@ -213,9 +214,16 @@ export class Pipeline {
     this._draw(this.grade, target);
   }
 
+  /** Show mix(a, b, t) of two finished frames (render targets that end() drew into) on `target` (null = the canvas). */
+  blend(a, b, t, target = null) {
+    const u = this.blendMat.uniforms;
+    u.tA.value = a.texture; u.tB.value = b.texture; u.uT.value = t;
+    this._draw(this.blendMat, target);
+  }
+
   dispose() {
     for (const t of [this.sceneRT, this.aoRT, this.accRT, this.histA, this.histB]) t.dispose();
     this.bloomPass.dispose(); this.quad.dispose();
-    for (const m of [this.ao, this.acc, this.grade, this.taaMat, this.copyMat]) m.dispose();
+    for (const m of [this.ao, this.acc, this.grade, this.taaMat, this.copyMat, this.blendMat]) m.dispose();
   }
 }

@@ -80,6 +80,7 @@ async function session(part, { query = '', mobile = false, pad = false, page: re
     async press(code, ms = 80) { await S.page.keyboard.down(code); await sleep(ms); await S.page.keyboard.up(code); await sleep(200); },
     async close() { if (browser) await browser.close(); },
     errorsAll: () => pages.flatMap((p) => p.errors),
+    warningsAll: () => pages.flatMap((p) => p.warnings),
   };
   return S;
 }
@@ -93,14 +94,14 @@ async function openPage(browser, url, { mobile, pad, W, H }) {
     navigator.getGamepads = () => [{ id: 'Mirage test pad (standard)', index: 0, connected: true, mapping: 'standard', timestamp: performance.now(),
       axes: window.__pad.axes.slice(), buttons: window.__pad.buttons.map((v) => ({ pressed: v > 0.5, touched: v > 0, value: v })) }];
   });
-  const errors = [];
-  page.on('console', (m) => { if (['error', 'warn', 'warning'].includes(m.type())) errors.push(m.type() + ': ' + m.text()); });
+  const errors = [], warnings = [];   // warnings are reported, not failures (Firefox prints driver ones; A2)
+  page.on('console', (m) => { if (m.type() === 'error') errors.push('error: ' + m.text()); else if (['warn', 'warning'].includes(m.type())) warnings.push('warning: ' + m.text()); });
   page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
   const t0 = Date.now();
   await page.goto(url, { waitUntil: 'load', timeout: 180000 });
   await page.waitForFunction('window.__READY === true', { timeout: 180000, polling: 100 });
   await sleep(600);
-  return { page, errors, loadMs: Date.now() - t0 };
+  return { page, errors, warnings, loadMs: Date.now() - t0 };
 }
 
 // ---------------------------------------------------------------------------
@@ -115,12 +116,34 @@ if (PARTS.includes('main')) {
   await S.step('walk-to-the-pavilion', () => S.walk([[-4.6, 16.4], [0, 13.2], [0, -6], [0, -10], [0, -16], [0, -19.9]]), (s) => s.pos[1] > 3.4 && s.pos[2] < -19.5);
   await S.step('door-prompt', async () => { await S.look(await S.where('door')); await sleep(300); }, (s) => s.near === 'door' && /Unlock the door/.test(s.prompt || ''));
   await S.step('door-opens', async () => { await S.press('KeyE'); await sleep(1600); }, (s) => s.flags.doorOpen && Math.abs(s.door[0]) > 1.4 && Math.abs(s.door[1]) > 1.4 && s.audio.door === 1);
+  // A5: close the door on the player standing in the doorway: no leaf inside the body, not stuck, then open again
+  const inLeaves = () => S.page.evaluate(() => {
+    const { g, quest } = window.__mirage, me = g.character.collider.handle;
+    return quest.leaves.filter((l) => { const c = l.body.collider(0); return g.physics.world.intersectionWithShape(c.translation(), c.rotation(), c.shape, undefined, undefined, c, l.body, (k) => k.handle === me); }).length;
+  });
+  await S.step('door-closes-on-the-player', async () => {
+    await S.page.evaluate(() => { const { play, built } = window.__mirage, d = built.anchors.doors[0].pos; play.place([d[0], d[1] + 1.62, d[2]], [d[0], d[1] + 1.3, d[2] + 3], 'walk'); });
+    await sleep(400); await S.look(await S.where('door')); await sleep(300); await S.press('KeyE');
+    let worst = 0; for (let t = 0; t < 40; t++) { worst = Math.max(worst, await inLeaves()); await sleep(50); }
+    S.pinch = worst;
+  }, (s) => !s.flags.doorOpen && S.pinch === 0);
+  await S.step('walks-off-after-the-door', () => S.walk([[0, -18.5]], { run: false }), (s) => Math.hypot(s.pos[0], s.pos[2] + 18.5) < 0.5);
+  await S.step('door-opens-again', async () => { await S.walk([[0, -19.9]], { run: false }); await S.look(await S.where('door')); await sleep(300); await S.press('KeyE'); await sleep(1600); },
+    (s) => s.flags.doorOpen && Math.abs(s.door[0]) > 1.4 && Math.abs(s.door[1]) > 1.4);
   const saved = await S.step('save-slot-1', async () => {
     await S.press('Escape'); await sleep(300);
     await S.page.click('.mg-menu button[data-p="save"]'); await sleep(200);
     await S.page.click('.mg-menu button[data-save="1"]'); await sleep(200);
   }, (s) => s.paused && s.dialog === 'mg-menu');
   const savedJSON = await S.page.evaluate(() => localStorage.getItem('mirage:garden-quest:1'));
+  // a full or blocked storage: the menu says so (was: an uncaught page error, the menu silent)
+  const errs0 = S.errors.length;
+  await S.step('save-fails-visibly', async () => {
+    await S.page.evaluate(() => { window.__setItem = Storage.prototype.setItem; Storage.prototype.setItem = () => { throw new DOMException('The quota has been exceeded.', 'QuotaExceededError'); }; });
+    await S.page.click('.mg-menu button[data-save="2"]'); await sleep(200);
+    await S.page.evaluate(() => { Storage.prototype.setItem = window.__setItem; });
+  }, async (s) => s.dialog === 'mg-menu' && S.errors.length === errs0 &&
+    /could not save/i.test(await S.page.evaluate(() => document.querySelector('.mg-menu .mg-note').textContent)));
   await S.step('resume', async () => { await S.press('Escape'); await sleep(200); }, (s) => !s.paused && !s.dialog);
   // reload: a fresh page, then load slot 1 from the menu
   const before = { pos: saved.pos, flags: saved.flags, inv: saved.inv, door: saved.door };
@@ -148,7 +171,7 @@ if (PARTS.includes('main')) {
   const last = await S.state();
   R.audio = Object.fromEntries([...new Set([...Object.keys(audio1), ...Object.keys(last.audio)])].map((k) => [k, (audio1[k] || 0) + (last.audio[k] || 0)]));   // both page loads
   R.surfaces = Object.fromEntries(Object.entries(R.audio).filter(([k]) => k.startsWith('step_')));
-  R.errors = S.errorsAll();
+  R.errors = S.errorsAll(); R.warnings = S.warningsAll();
   if (R.errors.length) { failed++; console.log('console errors:', R.errors); }
   if (!(R.surfaces.step_stone && R.surfaces.step_gravel)) { failed++; console.log('FAIL footsteps: expected stone and gravel', R.surfaces); }
   R.steps = S.steps;
@@ -162,7 +185,12 @@ if (PARTS.includes('pad')) {
   const set = (o) => S.page.evaluate((o) => { if (o.axes) window.__pad.axes = o.axes; if (o.b) for (const [i, v] of Object.entries(o.b)) window.__pad.buttons[i] = v; }, o);
   const tap = async (i) => { await set({ b: { [i]: 1 } }); await sleep(120); await set({ b: { [i]: 0 } }); await sleep(250); };
   const p0 = (await S.state()).pos;
-  await S.step('a-starts', () => tap(0), (s) => s.audioState === 'running' && !s.dialog);
+  let startY = -Infinity;   // A held on the start screen starts the game and must not also jump (B10)
+  await S.step('a-starts', async () => {
+    await set({ b: { 0: 1 } });
+    for (let t = 0; t < 15; t++) { startY = Math.max(startY, (await S.state()).pos[1]); await sleep(40); }
+    await set({ b: { 0: 0 } }); await sleep(250);
+  }, (s) => s.audioState === 'running' && !s.dialog && startY - p0[1] < 0.05);
   await S.step('left-stick-walks', async () => { await set({ axes: [0, -1, 0, 0] }); await sleep(2000); await set({ axes: [0, 0, 0, 0] }); await sleep(200); }, (s) => p0[2] - s.pos[2] > 2.2);
   const y0 = (await S.state()).yaw;
   await S.step('right-stick-looks', async () => { await set({ axes: [0, 0, 1, 0] }); await sleep(500); await set({ axes: [0, 0, 0, 0] }); await sleep(200); }, (s) => s.yaw - y0 > 0.6);
@@ -182,7 +210,7 @@ if (PARTS.includes('pad')) {
   await S.step('dpad-moves-focus', async () => { await tap(13); await tap(13); }, async () => (await S.page.evaluate(() => document.activeElement.textContent)) === 'Load');
   await S.step('a-presses-focused', () => tap(0), async () => (await S.page.evaluate(() => document.querySelector('#mg-menu-h').textContent)) === 'Load');
   await S.step('b-resumes', () => tap(1), (s) => !s.dialog && !s.paused);
-  report.parts.pad = { steps: S.steps, errors: S.errorsAll() };
+  report.parts.pad = { steps: S.steps, errors: S.errorsAll(), warnings: S.warningsAll() };
   if (S.errorsAll().length) { failed++; console.log('console errors:', S.errorsAll()); }
   await S.close();
 }
@@ -216,7 +244,7 @@ if (PARTS.includes('touch')) {
   }, (s) => s.inv.includes('key'));
   await S.step('menu-button', () => tapEl('.mg-menubtn'), (s) => s.dialog === 'mg-menu' && s.paused);
   await S.step('resume-button', () => tapEl('.mg-menu button[data-do="resume"]'), (s) => !s.dialog && !s.paused);
-  report.parts.touch = { steps: S.steps, errors: S.errorsAll() };
+  report.parts.touch = { steps: S.steps, errors: S.errorsAll(), warnings: S.warningsAll() };
   if (S.errorsAll().length) { failed++; console.log('console errors:', S.errorsAll()); }
   await S.close();
 }

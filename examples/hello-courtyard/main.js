@@ -3,7 +3,7 @@
 // URL: ?mode=orbit (default) | walk | fly | game   ?time=golden | HH:MM [&date=YYYY-MM-DD] [&lat=..&lon=..&tz=..]
 //      ?clock=N (N minutes per second)  ?spp=N  ?w=&h=  ?grain=0  ?dof=1  ?view=hero | corner | <viewpoint name>
 //      ?broken=1 (adds a module that throws)  ?ui=0
-import { createWorldRenderer, createTextures, placeDate } from '@mirage/core';
+import { createWorldRenderer, createTextures, placeDate, pickQuality } from '@mirage/core';
 import { buildWorld } from '@mirage/world';
 import { createPlay } from '@mirage/play';
 import manifest from './tex/manifest.json';
@@ -18,7 +18,8 @@ let date = t === 'golden' ? null : placeDate(Q.get('date') || '2026-10-25', t, p
 
 const canvas = document.querySelector('canvas');
 canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
-const world = createWorldRenderer({
+const quality = Q.get('quality') || (await pickQuality()).quality, hud = Q.get('hud') !== '0';   // ?quality=low|medium|high
+const world = createWorldRenderer({ quality,
   canvas, width: W, height: H, place, time: date || 'golden', preserveDrawingBuffer: true,
   shadow: { center: [0, 2, 0], radius: 17 }, envProbe: [0, 2.2, 0],
   fog: { groundDensity: 0.0022, height: 30 },
@@ -34,7 +35,7 @@ await tex.ready();
 await world.prepare();
 const spp = +Q.get('spp') || 6;
 const mode = Q.get('mode') || 'orbit';
-const play = createPlay(world, { plan: built.plan, canvas, mode, spp, ui: Q.get('ui') !== '0' });
+const play = createPlay(world, { plan: built.plan, canvas, mode, spp, ui: Q.get('ui') !== '0', fit: !Q.get('w'), quality, hud });
 if (mode === 'orbit' || Q.has('view')) {
   const v = plan.viewpoints.find((p) => p.name === (Q.get('view') || 'hero')) || plan.viewpoints[0];
   play.place(v.eye, v.look, mode);

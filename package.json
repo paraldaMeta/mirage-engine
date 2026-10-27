@@ -1,7 +1,7 @@
 {
   "name": "mirage-engine",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A code-only world engine for AI agents: build whole towns and landscapes in three.js, in parallel, as code.",
   "license": "MIT",
   "type": "module",
@@ -13,7 +13,10 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "npm test -ws --if-present && node agent/check.mjs"
+    "test": "npm test -ws --if-present && node agent/check.mjs",
+    "test:e2e": "node packages/tools/src/e2e.mjs",
+    "test:still-pop": "node packages/tools/src/still-pop.mjs examples/hello-courtyard/dist examples/walled-garden/dist examples/garden-quest/dist examples/agent-trial/dist",
+    "test:gpu-load": "node packages/tools/src/gpu-load.mjs examples/hello-courtyard/dist examples/walled-garden/dist examples/garden-quest/dist examples/agent-trial/dist examples/snow-hut/dist"
   },
   "author": "灰叔 Racso"
 }

@@ -61,9 +61,13 @@ export async function startGame(world, opts) {
   const cam = world.camera, dir = new THREE.Vector3();
   let near = null;
   play = createPlay(world, {
-    plan, canvas, mode: 'walk', walker: character, devKeys: false, spp: opts.spp || 6, ui: false, shadowRadius: opts.shadowRadius, grid: opts.grid,
+    plan, canvas, mode: 'walk', walker: character, devKeys: false, spp: opts.spp || 6, ui: false, shadowRadius: opts.shadowRadius, grid: opts.grid, fit: opts.fit,
+    quality: opts.quality, hud: opts.hud, idle: opts.idle,
+    onVisibility: (shown) => audio.suspend(!shown),
     input(dt) {
       input.poll();
+      const p = input.pad;   // a pad has no DOM events: any button or stick counts as someone being there
+      if (p && (p.buttons.some((b) => b.pressed) || p.axes.some((v) => Math.abs(v) > 0.2))) play.wake();
       const [lx, ly] = input.look(dt);
       if (lx || ly) play.turn(lx, ly, 1);
       const m = input.move();

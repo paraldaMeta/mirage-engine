@@ -7,7 +7,7 @@
 // The page must set window.__READY = true and window.__mirage = { play, built, g? } (every example does; g is
 // @mirage/game's startGame result, which adds near / prompt / flags / inventory to the state).
 //
-// scenario: { "title", "query": "mode=walk&ui=0", "w": 1440, "h": 900, "errors": 0 (allowed console errors), "steps": [step] }
+// scenario: { "title", "query": "mode=walk&ui=0", "w": 1440, "h": 900, "errors": 0 (allowed console / page errors; warnings are listed, never counted), "steps": [step] }
 // step (fields run in this order; any combination):
 //   "place": { "eye": [x,y,z], "look": [x,y,z], "mode": "walk|fly|game|orbit" }   "mode": "fly"   "viewpoint": 2
 //   "walkTo": [[x,z], ...]  hold W and steer through the points (with "run": true, "tol": 0.35, "timeout": 30000);
@@ -25,7 +25,7 @@
 //       -> frameMs (mean), p95Ms, calls, triangles
 //   "expect": { "<value>": "<op> <operand> [tolerance]" }   ops: < > <= >= ~ == != has
 //       values: x y z maxY dist onGround blocked mode fps | near prompt inventory paused flags.<name> (games)
-//               | flicker meanAbsDiff flickerMax | frameMs p95Ms calls triangles | errors (console errors so far)
+//               | flicker meanAbsDiff flickerMax | frameMs p95Ms calls triangles | errors warnings (console errors / warnings so far)
 //       dist = horizontal distance moved in the step; maxY = highest feet height seen in it; has = substring / member
 //   "shot": false  (default true)
 import fs from 'node:fs';
@@ -60,7 +60,7 @@ const results = [], wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const report = { title: sc.title || path.basename(scenarioFile), url, scenario: path.resolve(scenarioFile), at: new Date().toISOString(), w: W, h: H };
 let failed = 0;
 try {
-  const { page, errors, loadMs } = await open(browser, url);
+  const { page, errors, warnings, loadMs } = await open(browser, url);
   Object.assign(report, { loadMs, ...(await page.evaluate(() => {
     const { play, built } = window.__mirage, gl = play.world.renderer.getContext(), x = gl.getExtension('WEBGL_debug_renderer_info');
     return { gpu: x ? gl.getParameter(x.UNMASKED_RENDERER_WEBGL) : '?', grid: play.grid.stats, build: built && built.report ? { ms: built.report.ms, failed: built.report.failed, modules: built.report.modules.map((m) => ({ name: m.name, ok: m.ok, ms: m.ms, tris: m.tris })), anchors: built.report.anchors } : null };
@@ -198,7 +198,7 @@ try {
       shot = `${String(idx).padStart(2, '0')}-${s.name}.png`;
       await page.screenshot({ path: path.join(OUT, shot) });
     }
-    const vals = { ...st, x: st.pos[0], y: st.pos[1], z: st.pos[2], maxY, errors: errors.length, fps: +(frames / (heldMs / 1000)).toFixed(1),
+    const vals = { ...st, x: st.pos[0], y: st.pos[1], z: st.pos[2], maxY, errors: errors.length, warnings: warnings.length, fps: +(frames / (heldMs / 1000)).toFixed(1),
       dist: start ? Math.hypot(st.pos[0] - start.pos[0], st.pos[2] - start.pos[2]) : NaN, ...metrics };
     const get = (k) => k.split('.').reduce((o, p) => (o == null ? undefined : o[p]), vals);
     const checks = Object.entries(s.expect || {}).map(([k, e]) => { const v = get(k); return { k, e, v: typeof v === 'number' ? +v.toFixed(3) : v, ok: check(e, v) }; });
@@ -209,7 +209,7 @@ try {
     console.log(JSON.stringify(row));
   }
   const allowed = sc.errors || 0;
-  report.errors = errors;
+  report.errors = errors; report.warnings = warnings;
   if (errors.length > allowed) { console.log('console errors:', errors); failed++; }
   // the contact sheet: every step's screenshot with its name and verdict
   const items = results.filter((r) => r.shot).map((r) => ({ label: `${r.step}  ${r.pass ? 'pass' : 'FAIL'}`, ok: r.pass, data: 'data:image/png;base64,' + fs.readFileSync(path.join(OUT, r.shot)).toString('base64') }));
@@ -250,7 +250,7 @@ function markdown(r) {
 - GPU: ${r.gpu}; load to ready ${r.loadMs} ms; world build ${r.build ? r.build.ms + ' ms, failed modules: ' + (r.build.failed.map((f) => f.name + ' (' + f.phase + ')').join(', ') || 'none') : '?'}
 - modules (build order): ${r.build ? r.build.modules.map((m) => `${m.name} ${m.ok ? '' : '**failed** '}${(m.tris / 1000).toFixed(1)} k tris ${(+m.ms).toFixed(0)} ms`).join(' · ') : '?'}; anchors: ${r.build ? JSON.stringify(r.build.anchors) : '?'}
 - walk grid: ${r.grid ? JSON.stringify(r.grid) : '?'}
-- steps: ${r.steps.filter((s) => s.pass).length} / ${r.steps.length} pass; console errors and warnings: ${r.errors ? r.errors.length : '?'}
+- steps: ${r.steps.filter((s) => s.pass).length} / ${r.steps.length} pass; console errors: ${r.errors ? r.errors.length : '?'}, warnings: ${r.warnings ? r.warnings.length : '?'}
 
 | # | step | result | checks (value) | feet at end | fps | shot |
 |---|---|---|---|---|---|---|
@@ -258,7 +258,7 @@ ${rows.join('\n')}
 ${metrics.length ? '\n## Metrics\n\n' + metrics.join('\n') + '\n' : ''}
 ## Console
 
-${r.errors && r.errors.length ? r.errors.map((e) => '- `' + e.replace(/`/g, "'") + '`').join('\n') : 'No errors or warnings.'}
+${(r.errors || []).concat(r.warnings || []).map((e) => '- `' + e.replace(/`/g, "'") + '`').join('\n') || 'No errors or warnings.'}
 
 Contact sheet: [sheet.png](sheet.png)
 `;

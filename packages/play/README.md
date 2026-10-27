@@ -24,7 +24,11 @@ digits), `onStep(dt)` (runs after each step; truthy = the scene moved, so the fr
 `play`: `place(eye, look, mode)`, `viewpoint(i)`, `setMode(m)`, `state()`, `render({ moving, spp, frameIndex })`,
 `step(dt)`, `stop()`, `start()`, `turn(dx, dy, k)`, `lookAt(p)`, `yaw` / `pitch`, `keys` (a Set of held `KeyboardEvent.code`s), `grid`, `walker`, `stats`.
 Moving frames: one jittered sub-frame resolved by the core's temporal AA. When the view stops: the core's still
-path at `refine[0]` sub-frames, later `refine[1]`, then nothing until something moves. Shadows follow the view,
+path at `refine[0]` sub-frames, later `refine[1]`, then nothing until something moves. Each still frame fades in
+over 10 frames from the image before it, so stopping does not pop the image sharp; the last fade frame is the still
+frame itself. `npm run test:still-pop` measures the change per frame after stopping. The scene clock (wind, water, clouds,
+`ctx.onUpdate`) runs on the frames the player drives (keys, stick, looking) and stands still with the view;
+`place()` sets it to 0, so a viewpoint looks as it always did (`play.clock`; `animate: true` runs it on real time). Shadows follow the view,
 their centre snapped to whole shadow texels.
 
 ## The walk grid (`bakeWalkGrid(world, { bounds, cell = 0.125, dy = 0.1, yMin, yMax })`)
@@ -38,7 +42,9 @@ turns non-zero is a floor (exact height from the min depth), where it turns back
 column, each with its ceiling. `grid.layers(x, z)`, `grid.support(x, z, y, step)`, `grid.groundAt(x, z, y)`.
 
 Rules for modules: `userData.collide = false` leaves a mesh (and its children) out; open meshes need a closed
-proxy (`ctx.collider(mesh)`, layer 2): a vertical face is never seen from above.
+proxy (`ctx.collider(mesh)`, layer 2): a vertical face is never seen from above. Each 0.125 m cell is sampled at
+its centre, so a solid thinner than a cell (a railing, a post, a rope) can fall between samples: if it must block,
+give it a proxy box at least 0.2 m thick. `node packages/tools/bake-check.mjs` shows both (needs Chrome).
 
 ## The walker (`createWalker(grid, { pos, body })`)
 

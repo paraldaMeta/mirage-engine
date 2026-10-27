@@ -16,6 +16,7 @@
 import * as THREE from 'three';
 
 let RAPIER = null;
+const MIN_DT = 1 / 90;   // the shortest character move (see character())
 /** load and initialise Rapier once (the dynamic import keeps it out of pages that never call this) */
 export async function loadRapier() {
   if (!RAPIER) {
@@ -40,6 +41,7 @@ export async function createPhysics(scene, { gravity = 9.81 } = {}) {
   const info = new Map();        // collider handle -> { surface, object }
   const moving = [];             // { body, obj } synced every step
   const hinges = [];
+  const characters = new Set();  // character collider handles
   const stats = { colliders: 0, triangles: 0, buildMs: 0 };
   const _m = new THREE.Matrix4(), _v = new THREE.Vector3(), _q = new THREE.Quaternion();
 
@@ -91,7 +93,7 @@ export async function createPhysics(scene, { gravity = 9.81 } = {}) {
     const b = world.createRigidBody(R.RigidBodyDesc.kinematicPositionBased().setTranslation(obj.position.x, obj.position.y, obj.position.z).setRotation(base));
     const col = world.createCollider(R.ColliderDesc.cuboid(...half).setTranslation(...offset), b);
     info.set(col.handle, { surface: 'wood', object: obj });
-    const h = { body: b, obj, angle: 0, target: 0, swing, speed, base,
+    const h = { body: b, obj, angle: 0, target: 0, swing, speed, base, offset: new THREE.Vector3(...offset),
       open() { h.target = swing; }, close() { h.target = 0; }, toggle() { h.target = h.target ? 0 : swing; },
       get isOpen() { return h.target !== 0; },
       /** jump to a state (load) */
@@ -108,13 +110,24 @@ export async function createPhysics(scene, { gravity = 9.81 } = {}) {
   }
   function sync(b, obj) { const t = b.translation(), r = b.rotation(); obj.position.set(t.x, t.y, t.z); obj.quaternion.set(r.x, r.y, r.z, r.w); }
 
+  // a kinematic leaf does not push the kinematic character: it waits while its next pose would overlap one
+  const _p = new THREE.Vector3(), _o = new THREE.Vector3();
+  const isCharacter = (c) => characters.has(c.handle);
+  function pinches(h, angle) {
+    _q.setFromAxisAngle(_up, angle).premultiply(h.base);
+    const t = h.body.translation(), c = h.body.collider(0);
+    _p.set(t.x, t.y, t.z).add(_o.copy(h.offset).applyQuaternion(_q));
+    return !!world.intersectionWithShape(_p, _q, c.shape, undefined, undefined, c, h.body, isCharacter);
+  }
   /** one step; returns true while something moved */
   function step(dt) {
     let moved = false;
     for (const h of hinges) {
       if (h.angle === h.target) continue;
       const d = h.target - h.angle, s = h.speed * dt;
-      h.angle = Math.abs(d) <= s ? h.target : h.angle + Math.sign(d) * s;
+      const next = Math.abs(d) <= s ? h.target : h.angle + Math.sign(d) * s;
+      if (characters.size && pinches(h, next)) continue;
+      h.angle = next;
       apply(h, false); moved = true;
     }
     world.timestep = Math.min(Math.max(dt, 1 / 240), 1 / 30);
@@ -140,6 +153,7 @@ export async function createPhysics(scene, { gravity = 9.81 } = {}) {
     const lift = B.head / 2, OFF = 0.02;
     const rb = world.createRigidBody(R.RigidBodyDesc.kinematicPositionBased().setTranslation(pos[0], pos[1] + lift, pos[2]));
     const col = world.createCollider(R.ColliderDesc.cylinder(lift, B.radius), rb);
+    characters.add(col.handle);
     const kcc = world.createCharacterController(OFF);
     kcc.setUp({ x: 0, y: 1, z: 0 });
     kcc.enableAutostep(B.step, 0.15, false);      // the walk grid's step: 0.4 m risers, treads >= 0.15 m
@@ -150,14 +164,24 @@ export async function createPhysics(scene, { gravity = 9.81 } = {}) {
     kcc.setCharacterMass(70);
     const notMe = (c) => c.handle !== col.handle && !c.isSensor();
     const w = { pos: pos.slice(), vy: 0, onGround: false, blocked: false, body: B, collider: col, controller: kcc, walked: 0, surface: 'default', onStride: null };
+    // Rapier's autostep needs a move longer than the controller's offset (2 cm): at 120 fps and up a walking step
+    // is 1.25 cm or less and the character stopped at snow-hut's bevelled door step (Firefox at 120 Hz). Frames
+    // shorter than MIN_DT are added up and moved as one.
+    // ponytail: above 90 fps the character moves on every other frame, no interpolation (play caps at 60 fps)
+    let acc = 0;
     w.update = (dt, input = {}) => {
-      dt = Math.min(dt, 0.1);
+      acc += dt;
+      if (acc < MIN_DT) return w;
+      dt = Math.min(acc, 0.1); acc = 0;
       const speed = input.run ? B.run : B.walk;
       if (w.onGround && input.jump) { w.vy = B.jump; w.onGround = false; }
       w.vy = w.onGround && w.vy <= 0 ? -1 : w.vy - B.gravity * dt;   // a little down force keeps it on stairs going down
       const want = { x: (input.x || 0) * speed * dt, y: w.vy * dt, z: (input.z || 0) * speed * dt };
       kcc.computeColliderMovement(col, want, R.QueryFilterFlags.EXCLUDE_SENSORS, undefined, notMe);
-      const m = kcc.computedMovement();
+      let m = kcc.computedMovement();
+      // standing still on the ground: the solver's sub-millimetre drift (0.3 mm/s down a gentle slope, +-0.1 mm
+      // up and down) is dropped, so a still view stays still; a real push (a door) is centimetres per step
+      if (!want.x && !want.z && w.onGround && w.vy <= 0 && Math.hypot(m.x, m.y, m.z) < 0.002) m = { x: 0, y: 0, z: 0 };
       w.pos[0] += m.x; w.pos[1] += m.y; w.pos[2] += m.z;
       rb.setNextKinematicTranslation({ x: w.pos[0], y: w.pos[1] + lift, z: w.pos[2] });
       const h = Math.hypot(want.x, want.z), got = Math.hypot(m.x, m.z);

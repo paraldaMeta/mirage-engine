@@ -1,6 +1,6 @@
 {
   "name": "@mirage/world",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Mirage world protocol: the site plan (single source of positions), the module interface, the loader (order, failure isolation, anchors, ambient volumes) and seeded randomness per module.",
   "license": "MIT",
   "type": "module",
@@ -18,7 +18,7 @@
   "sideEffects": false,
   "peerDependencies": {
     "three": "0.186.1",
-    "@mirage/core": "0.1.0"
+    "@mirage/core": "0.2.0"
   },
   "engines": {
     "node": ">=22"

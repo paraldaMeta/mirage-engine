@@ -12,7 +12,7 @@ Mirage 用 three.js 把整个地方——院子、园林、码头、山间小屋
 
 [English](README.md) · [中文](README.zh-CN.md)
 
-> **状态：pre-alpha（0.1.0）。** 下面五个示例在作者（灰叔 Racso）的机器上能跑通。接口还会变，没有发到 npm，只在 Apple 芯片的桌面
+> **状态：pre-alpha（0.2.0）。** 下面五个示例在作者（灰叔 Racso）的机器上能跑通。接口还会变，没有发到 npm，只在 Apple 芯片的桌面
 > Chrome 上测过。见[现状与局限](#现状与局限)。
 
 ## 为什么
