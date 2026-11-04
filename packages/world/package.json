@@ -8,6 +8,7 @@
   "exports": {
     ".": "./src/index.js",
     "./plan.schema.json": "./plan.schema.json",
+    "./kits/vegetation": "./src/kits/vegetation.js",
     "./*": "./src/*.js",
     "./package.json": "./package.json"
   },
@@ -26,7 +27,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "node check.mjs"
+    "test": "node check.mjs && node vegetation.check.mjs"
   },
   "author": "灰叔 Racso"
 }

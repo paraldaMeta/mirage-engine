@@ -77,6 +77,9 @@ integration ([TRIAL.md](examples/agent-trial/TRIAL.md)).
 
 ## Examples
 
+The development branch also includes [Woodland Path](examples/woodland-path), a procedural forest edge for
+checking the vegetation kit. It awaits its first test-machine run. The five v0.2.0 examples follow.
+
 | | | |
 |---|---|---|
 | ![](docs/media/examples/hello-courtyard.jpg) **hello-courtyard** — a walled courtyard with a basin, a pergola and a palm; four modules, five CC0 texture sets, a running clock | ![](docs/media/examples/walled-garden.jpg) **walled-garden** — three terraces, stairs, pools, a pavilion; six modules (plus one that fails on purpose) | ![](docs/media/examples/garden-quest.jpg) **garden-quest** — the garden as a small game: find the key, open the pavilion, light the lanterns; saves, gamepad, touch |

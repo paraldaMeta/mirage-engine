@@ -69,6 +69,8 @@ node ../../packages/tools/src/package.mjs .                               # rele
 
 ## 示例
 
+开发分支新增独立的[林缘小径](examples/woodland-path)，用来检验程序化树冠、近景草和树干碰撞，待测试机首次验收。下面五个是 v0.2.0 的发布示例。
+
 | | | |
 |---|---|---|
 | ![](docs/media/examples/hello-courtyard.jpg) **hello-courtyard**：带水池、花架和棕榈的围合院子；四个模块、五套 CC0 贴图、运行时钟 | ![](docs/media/examples/walled-garden.jpg) **walled-garden**：三层台地、台阶、水池、亭子；六个模块（外加一个故意报错的） | ![](docs/media/examples/garden-quest.jpg) **garden-quest**：把园林做成小游戏：找钥匙、开亭子、点灯笼；存档、手柄、触屏 |

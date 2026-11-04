@@ -27,3 +27,23 @@ Module: `{ name, build(ctx), finalize?(ctx), anchors?: object | (ctx, built) => 
 
 `NOTES.template.md`: the per-world notes file modules use to talk to each other. `npm test -w @mirage/world` runs
 `check.mjs` (plan checks, order, anchors, failure isolation, per-module rng; no GPU).
+
+## Vegetation
+
+Import `addTreeCanopies` and `addGrass` from `@mirage/world/kits/vegetation` inside a world module.
+
+```js
+const trees = addTreeCanopies(ctx, {
+  trees: [{ pos: [2.5, 0, 0], height: 8.2, trunkRadius: 0.46 }], cardsPerTree: 96,
+});
+const grass = addGrass(ctx, {
+  bounds: [-8, -12, 8, 12], count: 1200, height: 0.42,
+  include: (x, z) => Math.abs(x) > 1, heightAt: (x, z) => 0,
+});
+```
+
+Both functions attach instanced meshes to `ctx.root`. Tree positions are the bases of the trunks in metres.
+Capped trunks collide. Boughs, leaf cards and grass allow passage. Grass returns its mesh, or `null` if the
+area yields no tufts. Placement makes at most eight attempts per requested tuft. Use its actual `count` on
+heavily excluded terrain. An optional `seed` names the RNG stream within the world module. See the
+[Woodland Path example](../../examples/woodland-path) for a path exclusion and camera positions.
