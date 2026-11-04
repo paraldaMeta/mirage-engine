@@ -62,11 +62,16 @@ export function createPlay(world, opts = {}) {
     clock = 0;
     look(eye, lookAt);
     walker.place([eye[0], eye[1] - B.eye + 0.3, eye[2]]);
-    eyeY = walker.pos[1] + B.eye;
+    syncWalkerView();
     flyPos.set(...eye); flyVel.set(0, 0, 0);
-    gameTarget.set(walker.pos[0], walker.pos[1] + 0.9, walker.pos[2]);
     if (mode === 'orbit') { camera.position.set(...eye); controls.target.set(...lookAt); controls.update(); }
     setMode(mode);
+  }
+  function syncWalkerView() {
+    const [x, y, z] = walker.pos;
+    eyeY = y + B.eye;
+    gameTarget.set(x, y + 0.9, z);
+    if (mode === 'walk') camera.position.set(x, eyeY, z);
   }
   function viewpoint(i) {
     const v = plan.viewpoints[i];
@@ -199,9 +204,13 @@ export function createPlay(world, opts = {}) {
     const right = new THREE.Vector3(-fwd.z, 0, fwd.x);
     const want = new THREE.Vector3().addScaledVector(fwd, fz).addScaledVector(right, fx);
     if (want.lengthSq() > 1) want.normalize();
-    if (mode === 'walk' || game) {
-      walker.update(dt, { x: want.x, z: want.z, run, jump: !!inp.jump });
-      const p = walker.pos;
+    const walking = mode === 'walk' || game;
+    const motion = walking ? { x: want.x, z: want.z, run, jump: !!inp.jump, jumpPressed: !!inp.jumpPressed } : null;
+    if (opts.simulation) {
+      if (opts.simulation.advance(dt, motion)) changed = true;
+    } else if (walking) walker.update(dt, motion);
+    if (walking) {
+      const p = opts.simulation?.viewPosition ?? walker.pos;
       if (game && want.lengthSq() > 1e-4) { let d = Math.atan2(want.z, want.x) - yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); yaw += d * Math.min(1, dt * 10); pitch = 0; }
       const target = p[1] + B.eye;
       eyeY += (target - eyeY) * Math.min(1, dt * (Math.abs(target - eyeY) > 0.5 ? 30 : 14));   // eased over steps
@@ -339,7 +348,7 @@ export function createPlay(world, opts = {}) {
   schedule();
 
   return {
-    world, grid, walker, keys, figure, gameCam, controls, stats, render, place, viewpoint, setMode, turn,
+    world, grid, walker, keys, figure, gameCam, controls, stats, render, place, viewpoint, setMode, turn, syncWalkerView,
     /** turn the view toward a world point without moving */
     lookAt: (p) => look(camera.position.toArray(), p),
     get yaw() { return yaw; }, set yaw(v) { yaw = v; }, get pitch() { return pitch; }, set pitch(v) { pitch = v; },

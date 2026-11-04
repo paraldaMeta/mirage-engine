@@ -32,6 +32,10 @@ export function createInput({ target = globalThis, bindings = DEFAULT_BINDINGS, 
       for (const k of keys) spent.add(k);
       if (code) spent.add(code);
       padPrev.forEach((p, i) => { if (p) spent.add('pad' + i); });
+      inp.discardActions();
+    },
+    discardActions() {
+      for (const action of ['jump', 'interact']) { queued.delete(action); edges.delete(action); }
     },
     down: (a) => inp.enabled && ((inp.bindings[a] || []).some((c) => keys.has(c) && !spent.has(c)) || held.has(a) || padDown(a)),
     pressed: (a) => edges.has(a),
@@ -83,7 +87,7 @@ export function createInput({ target = globalThis, bindings = DEFAULT_BINDINGS, 
       if (inp.source === 'touch') return { interact: 'Use', jump: 'Jump', menu: '☰', inventory: 'Bag' }[a] || a;
       return keyName((inp.bindings[a] || [])[0] || '?');
     },
-    clear() { keys.clear(); held.clear(); spent.clear(); touch.x = touch.z = 0; },
+    clear() { keys.clear(); held.clear(); spent.clear(); edges.clear(); queued.clear(); touch.x = touch.z = 0; touch.look = [0, 0]; },
   };
   const padDown = (a) => !!(inp.enabled && pad && PAD[a] && PAD[a].some((i) => pad.buttons[i] && !spent.has('pad' + i) && (pad.buttons[i].pressed || pad.buttons[i].value > 0.5)));
   const stick = (x = 0, y = 0) => { const l = Math.hypot(x, y); if (l < deadzone) return [0, 0]; const k = Math.min(1, (l - deadzone) / (1 - deadzone)) / l; return [x * k, y * k]; };
@@ -96,7 +100,7 @@ export function createInput({ target = globalThis, bindings = DEFAULT_BINDINGS, 
       // a key pressed inside a dialog belongs to the dialog (Enter on "Continue" must not also interact once it
       // closes); only the menu / inventory toggles pass, the UI closes dialogs through them
       const inDialog = e.target && e.target.closest && e.target.closest('dialog');
-      if (!e.repeat) for (const a of ACTIONS) if ((inp.bindings[a] || []).includes(e.code) && (!inDialog || a === 'menu' || a === 'inventory')) queued.add(a);
+      if (!e.repeat && !spent.has(e.code)) for (const a of ACTIONS) if ((inp.bindings[a] || []).includes(e.code) && (!inDialog || a === 'menu' || a === 'inventory')) queued.add(a);
       keys.add(e.code);
       if (!inDialog && ['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault();
     });

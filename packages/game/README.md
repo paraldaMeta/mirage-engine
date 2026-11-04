@@ -27,8 +27,13 @@ const g = await startGame(world, {
 
 `startGame` does, in order: Rapier colliders from the modules' geometry, a `game` group for entities
 (`collide = false`: the baked walk grid leaves moving things out), your `setup`, `world.prepare()`, the character,
-the overlay, then `createPlay` with the character as its walker, the action map as its input and the game tick as
-its `onStep` (interaction prompt, `game.tick`, `physics.step`, the audio listener).
+the overlay, then `createPlay` with the character and action map.
+
+The game advances the character, Rapier and trigger zones together at 60 Hz. The camera interpolates between the
+previous and current feet positions. `character.pos`, `play.state().pos` in walk mode and saved coordinates
+remain physical positions. UI, interaction and audio update once per display frame. A short jump press survives
+a frame with no physics tick. Pausing, returning to a tab, placing the player and loading a save reset interpolation.
+Hosts using `createPhysics` directly can still drive `character.update(dt, input)` and `physics.step(dt)` explicitly.
 
 ## Parts
 

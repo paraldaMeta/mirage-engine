@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { createPhysics } from './src/physics.js';
+import { createSimulation } from './src/simulation.js';
 import { createGame } from './src/game.js';
 import { createInput } from './src/input.js';
 
@@ -81,7 +82,7 @@ ok(phys.ray([0, 5, 10], [0, -1, 0], 10)?.distance > 4.9, 'ray down hits the floo
 // and at 22 degrees, at 60 / 20 / 10 fps and on fast displays (120 / 144 / 240 fps: a step of a few millimetres
 // used to stop at every riser, Firefox at 120 Hz in snow-hut's doorway): up without slowing below 80 % of the walk
 {
-  const lane = async ({ step = 0, riser, bevel = 0, merge = false, dir = [0, -1], dt = 1 / 60 }) => {
+  const lane = async ({ step = 0, riser, bevel = 0, merge = false, dir = [0, -1], dt = 1 / 60 }, fixed) => {
     const sc = new THREE.Scene(), geos = [];
     const put = (w, h, d, x, y, z) => {
       let gg = new THREE.BoxGeometry(w, h, d).translate(x, y, z);
@@ -96,9 +97,15 @@ ok(phys.ray([0, 5, 10], [0, -1, 0], 10)?.distance > 4.9, 'ray down hits the floo
     if (merge) sc.add(new THREE.Mesh(mergeGeometries(geos.map((gg) => { gg.deleteAttribute('uv'); gg.deleteAttribute('normal'); return gg; })), M));
     const ph = await createPhysics(sc); ph.addStatic(sc);
     const c = ph.character({ pos: [0, 0, 0] }), n = Math.hypot(...dir);
+    const motion = { x: dir[0] / n, z: dir[1] / n };
+    const simulation = fixed && createSimulation(ph, c, createGame());
     let t = 0;
-    for (; t < 6 && c.pos[2] > z0 - 2; t += dt) { c.update(dt, { x: dir[0] / n, z: dir[1] / n }); ph.step(dt); }
+    for (; t < 6 && c.pos[2] > z0 - 2; t += dt) {
+      if (simulation) simulation.advance(dt, motion);
+      else { c.update(dt, motion); ph.step(dt); }
+    }
     const speed = Math.abs(c.pos[2]) / t / Math.abs(dir[1] / n) / c.body.walk;
+    ph.world.free();
     return { up: Math.abs(c.pos[1] - top) < 0.05 && c.pos[2] <= z0 - 2, y: c.pos[1], speed };
   };
   const cases = [];
@@ -106,9 +113,11 @@ ok(phys.ray([0, 5, 10], [0, -1, 0], 10)?.distance > 4.9, 'ray down hits the floo
   for (const o of [{}, { bevel: 0.03 }, { merge: true }, { bevel: 0.03, merge: true }, { dir: [0.4, -1] }]) cases.push({ step: 0.17, riser: 0.13, ...o }, { riser: 0.05, ...o });
   // snow-hut's doorway: a 13.5 cm stone step (0.45 m tread) up to the 34 cm porch deck
   for (const dt of [1 / 60, 1 / 30, 1 / 120, 1 / 144, 1 / 240]) for (const bevel of [0, 0.03]) cases.push({ step: 0.135, riser: 0.205, bevel, dt });
-  let worst = 1, fails = [];
-  for (const k of cases) { const r = await lane(k); worst = Math.min(worst, r.speed); if (!r.up || r.speed < 0.8) fails.push({ ...k, ...r }); }
-  ok(!fails.length, `small risers: ${cases.length - fails.length} / ${cases.length} lanes up, slowest at ${(worst * 100).toFixed(0)} % of the walk` + (fails.length ? ' ' + JSON.stringify(fails) : ''));
+  for (const fixed of [false, true]) {
+    let worst = 1, fails = [];
+    for (const k of cases) { const r = await lane(k, fixed); worst = Math.min(worst, r.speed); if (!r.up || r.speed < 0.8) fails.push({ ...k, ...r }); }
+    ok(!fails.length, `small risers (${fixed ? 'game clock' : 'explicit step'}): ${cases.length - fails.length} / ${cases.length} lanes up, slowest at ${(worst * 100).toFixed(0)} %` + (fails.length ? ' ' + JSON.stringify(fails) : ''));
+  }
 }
 
 // ---- game state without a renderer
@@ -158,6 +167,8 @@ ok(jumps === 0, `Space held through the start screen does not jump (${jumps} fra
 press('keyup', 'Space'); press('keydown', 'Space'); input.poll();
 ok(input.down('jump'), 'Space pressed again jumps');
 press('keyup', 'Space');
+press('keydown', 'Space'); press('keyup', 'Space'); input.poll();
+ok(input.pressed('jump') && !input.down('jump'), 'short keyboard tap survives until the next poll');
 
 // zones: enter / exit as the player crosses them, once-only zones, and a load that lands inside does not re-fire
 {

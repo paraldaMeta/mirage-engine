@@ -9,9 +9,7 @@
 //   phys.step(dt)               one Rapier step; true while anything moved (props awake, a door turning)
 //   phys.ray(from, dir, max)    -> { point, distance, surface, object } | null
 // Surfaces (footsteps): `userData.surface` on the mesh or its material, else 'default'.
-// ponytail: one variable-length step per frame (dt clamped to 1/30), no interpolation; a fixed step with an
-// accumulator when determinism or replays matter. Sensors / contact events are not wired (interactables use
-// distance); add an EventQueue when a game needs triggers.
+// startGame drives the character and step() together at 60 Hz. Low-level callers may still step explicitly.
 // ---------------------------------------------------------------------------
 import * as THREE from 'three';
 
@@ -146,7 +144,7 @@ export async function createPhysics(scene, { gravity = 9.81 } = {}) {
   }
 
   /** a cylinder on a kinematic character controller with the @mirage/play walker's interface */
-  function character({ pos = [0, 0, 0], body: B0 = {} } = {}) {
+  function character({ pos = [0, 0, 0], body: B0 = {}, onPlace } = {}) {
     const B = { radius: 0.28, head: 1.8, eye: 1.62, step: 0.4, walk: 1.5, run: 4.2, gravity, jump: 4.2, stride: 0.75, ...B0 };
     // a cylinder like the walk grid's body: a capsule's round bottom climbs 0.18 m risers at a third of the walking
     // speed under Rapier's autostep (measured), a flat bottom at ~92 %
@@ -167,7 +165,7 @@ export async function createPhysics(scene, { gravity = 9.81 } = {}) {
     // Rapier's autostep needs a move longer than the controller's offset (2 cm): at 120 fps and up a walking step
     // is 1.25 cm or less and the character stopped at snow-hut's bevelled door step (Firefox at 120 Hz). Frames
     // shorter than MIN_DT are added up and moved as one.
-    // ponytail: above 90 fps the character moves on every other frame, no interpolation (play caps at 60 fps)
+    // Only variable-step low-level callers accumulate here. Each game tick is already longer than MIN_DT.
     let acc = 0;
     w.update = (dt, input = {}) => {
       acc += dt;
@@ -204,9 +202,12 @@ export async function createPhysics(scene, { gravity = 9.81 } = {}) {
     w.place = (p, { exact = false } = {}) => {
       const g = exact ? null : ray([p[0], (p[1] ?? 0) + 0.5, p[2]], [0, -1, 0], 50, col);
       w.pos = [p[0], g ? g.point[1] + OFF : p[1] ?? 0, p[2]];
-      rb.setTranslation({ x: w.pos[0], y: w.pos[1] + lift, z: w.pos[2] }, true);
+      const centre = { x: w.pos[0], y: w.pos[1] + lift, z: w.pos[2] };
+      rb.setTranslation(centre, true);
+      rb.setNextKinematicTranslation(centre);
       world.propagateModifiedBodyPositionsToColliders();
-      w.vy = 0; w.onGround = true; w.walked = 0;
+      acc = 0; w.vy = 0; w.onGround = true; w.blocked = false; w.walked = 0;
+      onPlace?.();
       return w;
     };
     w.place(pos);

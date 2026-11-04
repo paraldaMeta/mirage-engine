@@ -11,6 +11,7 @@
 import * as THREE from 'three';
 import { createPlay } from '@mirage/play';
 import { createPhysics } from './physics.js';
+import { createSimulation } from './simulation.js';
 import { createGame } from './game.js';
 import { createInput } from './input.js';
 import { createAudio } from './audio.js';
@@ -34,9 +35,18 @@ export async function startGame(world, opts) {
   if (setup) await setup(ctx);
   await world.prepare();                                // compiles every program once, entities included
   const sp = plan.spawn;
-  const character = physics.character({ pos: [sp.eye[0], sp.eye[1] - 1.62, sp.eye[2]] });
+  let play = null, simulation;
+  const character = physics.character({
+    pos: [sp.eye[0], sp.eye[1] - 1.62, sp.eye[2]],
+    onPlace() {
+      simulation?.reset();
+      input.discardActions();
+      play?.syncWalkerView();
+    },
+  });
+  simulation = createSimulation(physics, character, game);
+  game.on('pause', () => { input.discardActions(); play?.syncWalkerView(); });
   character.onStride = (surface, run) => audio.footstep(surface, run);
-  let play = null;
   const save = (slot) => {
     const extra = { player: { pos: character.pos.map((v) => +v.toFixed(3)), yaw: +play.yaw.toFixed(4), pitch: +play.pitch.toFixed(4) }, summary: summary ? summary(game) : '' };
     return slot === 'export' ? game.exportJSON(extra) : game.save(slot, extra);
@@ -44,6 +54,8 @@ export async function startGame(world, opts) {
   const load = (slot) => {
     const s = typeof slot === 'string' ? game.importJSON(slot) : game.load(slot);
     if (!s) throw new Error('empty slot');
+    simulation.reset();
+    input.clear();
     if (s.player) { character.place(s.player.pos, { exact: true }); play.yaw = s.player.yaw; play.pitch = s.player.pitch; }
     apply();
     return s;
@@ -62,30 +74,27 @@ export async function startGame(world, opts) {
   let near = null;
   play = createPlay(world, {
     plan, canvas, mode: 'walk', walker: character, devKeys: false, spp: opts.spp || 6, ui: false, shadowRadius: opts.shadowRadius, grid: opts.grid, fit: opts.fit,
-    quality: opts.quality, hud: opts.hud, idle: opts.idle,
-    onVisibility: (shown) => audio.suspend(!shown),
+    quality: opts.quality, hud: opts.hud, idle: opts.idle, simulation,
+    onVisibility(shown) { simulation.reset(); input.clear(); audio.suspend(!shown); },
     input(dt) {
       input.poll();
+      if (ui) ui.update();
       const p = input.pad;   // a pad has no DOM events: any button or stick counts as someone being there
       if (p && (p.buttons.some((b) => b.pressed) || p.axes.some((v) => Math.abs(v) > 0.2))) play.wake();
       const [lx, ly] = input.look(dt);
       if (lx || ly) play.turn(lx, ly, 1);
       const m = input.move();
-      return { x: m.x, z: m.z, run: input.down('run'), jump: input.down('jump') };
+      return { x: m.x, z: m.z, run: input.down('run'), jump: input.down('jump'), jumpPressed: input.pressed('jump') };
     },
-    onStep(dt) {
-      if (ui) ui.update();
+    onStep() {
       if (game.paused) { if (ui) ui.prompt(null); return false; }
       cam.getWorldDirection(dir);
       near = game.nearest(cam.position.toArray(), dir.toArray());
       if (ui) ui.prompt(near);
       if (near && input.pressed('interact')) game.interact(near);
-      game.player = character.pos;
-      game.tick(dt);
-      const moved = physics.step(dt);
       audio.listen(cam);
       const d = game.dirty; game.dirty = false;
-      return moved || d;
+      return d;
     },
   });
   const stats = { setupMs: +(performance.now() - t0).toFixed(1), colliders: physics.stats.colliders, triangles: physics.stats.triangles, collidersMs: +physics.stats.buildMs.toFixed(1) };
