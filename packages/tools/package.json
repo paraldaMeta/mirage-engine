@@ -5,6 +5,7 @@
   "license": "MIT",
   "type": "module",
   "bin": {
+    "mirage-validate-plan": "./src/validate-plan.mjs",
     "mirage-playtest": "./src/playtest.mjs",
     "mirage-package": "./src/package.mjs",
     "mirage-walktest": "./src/walktest.mjs",
@@ -21,11 +22,15 @@
     "README.md"
   ],
   "dependencies": {
+    "@mirage/world": "0.2.0",
     "puppeteer-core": "25.13.0",
     "vite": "8.3.4"
   },
   "engines": {
     "node": ">=22"
+  },
+  "scripts": {
+    "test": "node validate-plan.check.mjs"
   },
   "author": "灰叔 Racso"
 }

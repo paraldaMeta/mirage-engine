@@ -10,6 +10,13 @@ ok(contains(plan.regions.c, 0.5, 0.5) && !contains(plan.regions.c, 1, 1), 'circl
 ok(contains(plan.regions.p, 1, 1) && !contains(plan.regions.p, 3, 3), 'poly');
 ok(pathLength(plan.paths.m) === 11 && Math.abs(along(plan.paths.m, 5).z - 4) < 1e-9, 'path');
 let threw = false; try { definePlan({ name: 'x', bounds: [1, 1, 0, 0], regions: { r: {} } }); } catch (e) { threw = /bounds/.test(e.message) && /regions\.r/.test(e.message); } ok(threw, 'plan errors listed');
+const custom = { variant: 3 };
+const partial = definePlan({ name: 'partial', bounds: [0, 0, 1, 1], walk: { yMax: 5 }, custom });
+ok(partial.seed === 'partial' && partial.walk.yMin === -1 && partial.custom === custom, 'defaults and custom fields');
+for (const invalid of [null, [], 'text']) {
+  let message = ''; try { definePlan(invalid); } catch (error) { message = error.message; }
+  ok(message.includes('<plan>'), 'invalid root gets a field diagnostic');
+}
 
 const scene = new THREE.Scene(), updates = [];
 const world = { scene, ctx: { THREE, onUpdate: (f) => updates.push(f) }, setAmbientVolumes: (v) => { world.vols = v; } };

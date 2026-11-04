@@ -16,6 +16,12 @@ main.js            createWorldRenderer -> buildWorld(world, { plan, modules }) -
 
 A plain object (JSON-able), checked by `definePlan()`; errors list every problem at once.
 
+Use the exported JSON Schema `@mirage/world/plan.schema.json` in an editor. From a workspace checkout,
+`node packages/tools/src/validate-plan.mjs examples/garden-quest/plan.js` checks the actual layout after
+its imports and computed coordinates have resolved. The same command accepts a JSON file. Both the engine
+and CLI also check that rectangle endpoints and walk heights are ordered. Extra fields on a world or a shape
+belong to its modules and are preserved. Bounds describe the walk grid, so scenery can extend beyond them.
+
 | field | meaning |
 |---|---|
 | `name`, `seed` | the world; `seed` (default `name`) seeds every module's randomness |

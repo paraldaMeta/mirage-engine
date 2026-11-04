@@ -7,11 +7,13 @@
   "main": "./src/index.js",
   "exports": {
     ".": "./src/index.js",
+    "./plan.schema.json": "./plan.schema.json",
     "./*": "./src/*.js",
     "./package.json": "./package.json"
   },
   "files": [
     "src",
+    "plan.schema.json",
     "README.md",
     "NOTES.template.md"
   ],

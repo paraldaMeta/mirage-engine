@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Mirage site plan",
+  "description": "Shared geometry uses metres. Worlds can add their own fields. Runtime checks also order rectangle endpoints and the walk height range.",
+  "type": "object",
+  "required": ["name", "bounds"],
+  "properties": {
+    "name": { "type": "string", "minLength": 1 },
+    "units": { "const": "m" },
+    "seed": { "type": ["string", "number", "null"] },
+    "axes": {
+      "type": "object",
+      "properties": { "x": { "const": "east" }, "y": { "const": "up" }, "z": { "const": "south" } }
+    },
+    "bounds": { "$ref": "#/$defs/rect" },
+    "walk": {
+      "type": "object",
+      "properties": { "yMin": { "type": "number" }, "yMax": { "type": "number" } }
+    },
+    "regions": { "$ref": "#/$defs/shapes" },
+    "footprints": { "$ref": "#/$defs/shapes" },
+    "points": { "type": "object", "additionalProperties": { "$ref": "#/$defs/xyz" } },
+    "paths": { "type": "object", "additionalProperties": { "$ref": "#/$defs/path" } },
+    "viewpoints": { "type": "array", "items": { "$ref": "#/$defs/view" } },
+    "spawn": { "$ref": "#/$defs/view" },
+    "gameView": { "$ref": "#/$defs/view" }
+  },
+  "$defs": {
+    "xz": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" } },
+    "xyz": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number" } },
+    "rect": { "type": "array", "minItems": 4, "maxItems": 4, "items": { "type": "number" } },
+    "circle": {
+      "type": "array", "minItems": 3, "maxItems": 3,
+      "prefixItems": [{ "type": "number" }, { "type": "number" }, { "type": "number", "exclusiveMinimum": 0 }]
+    },
+    "shapes": { "type": "object", "additionalProperties": { "$ref": "#/$defs/shape" } },
+    "shape": {
+      "type": "object",
+      "oneOf": [{ "required": ["rect"] }, { "required": ["circle"] }, { "required": ["poly"] }],
+      "properties": {
+        "rect": { "$ref": "#/$defs/rect" }, "circle": { "$ref": "#/$defs/circle" },
+        "poly": { "type": "array", "minItems": 3, "items": { "$ref": "#/$defs/xz" } }, "y": { "type": "number" }
+      }
+    },
+    "path": {
+      "type": "object", "required": ["points"],
+      "properties": {
+        "points": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/xz" } },
+        "width": { "type": "number", "exclusiveMinimum": 0 }, "y": { "type": "number" }
+      }
+    },
+    "view": {
+      "type": "object", "required": ["eye", "look"],
+      "properties": {
+        "eye": { "$ref": "#/$defs/xyz" }, "look": { "$ref": "#/$defs/xyz" },
+        "name": { "type": "string" }, "mode": { "enum": ["walk", "fly", "game", "orbit"] }
+      }
+    }
+  }
+}
