@@ -1,0 +1,19 @@
+{
+  "title": "River Ford · descend, wade and reach the opposite bank",
+  "query": "mode=walk&quality=medium&ui=0&hud=0",
+  "w": 1440, "h": 900,
+  "steps": [
+    { "name": "west-bank-ground", "place": { "eye": [-10,3.1,0], "look": [0,1.5,0], "mode": "walk" },
+      "expect": { "y": "~ 1.15 0.16", "onGround": "== true" } },
+    { "name": "riverbed-below-water", "walkTo": [[-5,0], [0,0]], "tol": 0.28,
+      "expect": { "x": "~ 0 0.34", "y": "~ -0.65 0.16", "onGround": "== true" } },
+    { "name": "opposite-bank", "walkTo": [[5,0], [10,0]], "tol": 0.28,
+      "expect": { "x": "~ 10 0.34", "y": "~ 1.15 0.16", "onGround": "== true" } },
+    { "name": "medium-frame-cost", "viewpoint": 0, "perf": { "frames": 90 },
+      "expect": { "frameMs": "> 0", "p95Ms": "> 0", "calls": "> 0", "triangles": "> 0" } },
+    { "name": "west-bank", "viewpoint": 0 },
+    { "name": "waterline", "viewpoint": 1 },
+    { "name": "east-shingle", "viewpoint": 2 },
+    { "name": "river-bend", "viewpoint": 3, "expect": { "errors": "== 0" } }
+  ]
+}

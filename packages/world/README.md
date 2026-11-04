@@ -49,3 +49,30 @@ Capped trunks collide. Boughs, leaf cards and grass allow passage. Grass returns
 area yields no tufts. Placement makes at most eight attempts per requested tuft. Use its actual `count` on
 heavily excluded terrain. An optional `seed` names the RNG stream within the world module. See the
 [Woodland Path example](../../examples/woodland-path) for a path exclusion and camera positions.
+
+## Terrain and water
+
+```js
+import { addTerrain } from '@mirage/world/kits/terrain';
+import { addWater } from '@mirage/world/kits/water';
+
+// Inside build(ctx).
+const bed = addTerrain(ctx, {
+  bounds: [-12, -8, 12, 8], segments: [96, 64],
+  sample: (x, z) => Math.min(1.1, -0.7 + 0.13 * x * x), surface: 'gravel',
+});
+const creek = addWater(ctx, {
+  outline: [[-5,-8], [5,-8], [5,8], [-5,8]], level: 0, flow: [0, 0.25],
+});
+```
+
+`addTerrain` attaches a static mesh to the module root. Bounds are metres in the XZ plane. Segments are cell
+counts on those axes, with a limit of 1,048,576 vertices per mesh. Each grid vertex samples the supplied function
+once. Use the returned `heightAt(x,z)` to place vegetation and props on the same triangles the walker and Rapier
+see. It includes the outer edges and returns `null` outside. Keep the terrain's transform fixed after construction.
+The optional `material` supplies the ground surface material.
+
+`addWater` returns a level mesh from one simple polygon without holes. Supply shoreline vertices in XZ order,
+a surface height in metres and a flow velocity in metres per second. Its normal ripples use the world's existing
+clock. `color`, `ripple` and `opacity` adjust its appearance. Terrain above the waterline occludes the surface.
+The water contributes no ground or Rapier collision. The bed sets wading depth. See [River Ford](../../examples/river-ford).

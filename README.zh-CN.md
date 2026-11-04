@@ -69,6 +69,8 @@ node ../../packages/tools/src/package.mjs .                               # rele
 
 ## 示例
 
+开发分支新增[河湾浅滩](examples/river-ford)。从一岸涉水走到另一岸，用于验收共用地形与水面，首次画面和性能实测待测试机执行。
+
 开发分支新增独立的[林缘小径](examples/woodland-path)，用来检验程序化树冠、近景草和树干碰撞，待测试机首次验收。下面五个是 v0.2.0 的发布示例。
 
 | | | |

@@ -2,6 +2,7 @@
 
 | What | Source | Licence |
 |---|---|---|
+| River Ford heightfield, creek outline, shingle and water material | Original procedural code by Mirage contributors in the [world kits](packages/world/src/kits) and [example](examples/river-ford) | MIT |
 | Woodland Path trees, grass blades and ground surfaces | [Mirage vegetation kit](packages/world/src/kits/vegetation.js) and [example modules](examples/woodland-path/modules), original procedural geometry and materials by Mirage contributors | MIT |
 | Physics (dependency, bundled into builds that use `@mirage/game`) | Rapier by Dimforge — https://rapier.rs, `@dimforge/rapier3d-compat` 0.19.3 | Apache-2.0 (licence text in the npm package) |
 | Rendering core (origin) | Golden Temple by Leon Lin — https://github.com/Leonxlnx/golden-temple | MIT (see NOTICE) |

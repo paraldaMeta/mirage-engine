@@ -77,6 +77,9 @@ integration ([TRIAL.md](examples/agent-trial/TRIAL.md)).
 
 ## Examples
 
+[River Ford](examples/river-ford) crosses a sampled riverbed beneath a flowing water surface. Its source and
+test-machine acceptance procedure are on this development branch.
+
 The development branch also includes [Woodland Path](examples/woodland-path), a procedural forest edge for
 checking the vegetation kit. It awaits its first test-machine run. The five v0.2.0 examples follow.
 

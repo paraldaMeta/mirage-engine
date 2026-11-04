@@ -6,6 +6,9 @@ import { createPhysics } from './src/physics.js';
 import { createSimulation } from './src/simulation.js';
 import { createGame } from './src/game.js';
 import { createInput } from './src/input.js';
+import { createEnv, createMaterials } from '@mirage/core';
+import { addTerrain } from '@mirage/world/kits/terrain';
+import { addWater } from '@mirage/world/kits/water';
 
 const ok = (c, m) => { if (!c) { console.error('FAIL', m); process.exit(1); } console.log('  ok', m); };
 const scene = new THREE.Scene(), M = new THREE.MeshBasicMaterial();
@@ -19,6 +22,19 @@ box(1, 0.6, 1, -3, 0.3, -3);                                          // a box t
 const phys = await createPhysics(scene);
 phys.addStatic(scene);
 ok(phys.stats.colliders === 15, `static colliders from meshes (${phys.stats.colliders}, ${phys.stats.triangles} tris)`);
+
+// Wading uses the actual bed triangle in Rapier, including under fully opaque water.
+{
+  const root = new THREE.Scene(), ctx = { root, mat: createMaterials(createEnv().G) };
+  const bed = addTerrain(ctx, { bounds: [-3, -2, 3, 2], segments: [3, 2], sample: (x, z) => -1 + x * z * 0.05, surface: 'gravel' });
+  addWater(ctx, { outline: [[-3,-2], [3,-2], [3,2], [-3,2]], level: 0.4, opacity: 1 });
+  const riverPhysics = await createPhysics(root);
+  riverPhysics.addStatic(root);
+  const hit = riverPhysics.ray([0.37, 3, -0.6], [0, -1, 0]);
+  ok(riverPhysics.stats.colliders === 1 && hit?.surface === 'gravel' &&
+    Math.abs(hit.point[1] - bed.heightAt(0.37, -0.6)) < 1e-5, 'Rapier ray hits the sampled bed beneath water');
+  riverPhysics.world.free();
+}
 
 const run = (w, secs, input) => { for (let t = 0; t < secs; t += 1 / 60) { w.update(1 / 60, input); phys.step(1 / 60); } return w; };
 const steps = [];
