@@ -32,6 +32,23 @@ frame itself. `npm run test:still-pop` measures the change per frame after stopp
 `place()` sets it to 0, so a viewpoint looks as it always did (`play.clock`; `animate: true` runs it on real time). Shadows follow the view,
 their centre snapped to whole shadow texels.
 
+## The player character
+
+Game view shows an original low-poly traveller with a cropped jacket, scarf and backpack. It uses one
+vertex-coloured skinned mesh and one material. Walk, fly and orbit hide the figure. The walker or Rapier
+character supplies the feet and collision. Actual distance drives the gait. A stopped player settles into a
+repeatable pose so progressive rendering can finish.
+
+`createPlay(world, { plan, appearance: { palette: { scarf: 0xd98645 } } })` selects colours; `startGame`
+accepts the same appearance option. The palette also accepts `jacket`, `trousers`, `leather`, `skin` and
+`hair`. `play.figure` is the existing Three.js group. `play.avatar.state` exposes `idle`, `walk`, `run`,
+`jump`, `fall` or `land`.
+
+Hosts can import `createCharacter` from `@mirage/play` and attach its `root` to their own scene. The origin
+is at the soles in metres and forward is +Z. Call `update(dt, { distance, run, onGround, verticalSpeed })`
+with horizontal displacement since the previous frame, seconds and vertical speed in m/s. `reset()` settles
+the pose after a teleport. `dispose()` detaches the root and releases its owned resources.
+
 ## The walk grid (`bakeWalkGrid(world, { bounds, cell = 0.125, dy = 0.1, yMin, yMax })`)
 
 Baked in the page at load (~0.06 s for the courtyard, ~0.27 s for the 80 × 94 m garden on an M4 Pro). The height

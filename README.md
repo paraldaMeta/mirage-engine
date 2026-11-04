@@ -123,7 +123,7 @@ Pre-alpha. Honestly:
   moving views use temporal AA, which smears fast-moving things a little.
 - Collision comes from a walk grid baked at load (0.125 m cells) and, in games, Rapier trimeshes; very thin or
   sloped geometry needs proxy boxes, and small risers can still catch the character.
-- Vegetation, terrain and water are written per world (no shared kits yet); characters are placeholders.
+- This development branch includes shared vegetation, terrain and water kits and a procedurally rigged traveller in game view. Appearance and performance await test-machine review. [Character review](docs/CHARACTER-REVIEW.md)
 - The skill pack was validated by one trial (one lead, three workers, Claude Code). Codex and Cursor setups are
   documented, not run.
 - Not on npm; package names and APIs will change. Open issues: [docs/CURSOR-TASKS.md](docs/CURSOR-TASKS.md).

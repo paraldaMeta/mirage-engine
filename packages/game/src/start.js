@@ -74,7 +74,7 @@ export async function startGame(world, opts) {
   let near = null;
   play = createPlay(world, {
     plan, canvas, mode: 'walk', walker: character, devKeys: false, spp: opts.spp || 6, ui: false, shadowRadius: opts.shadowRadius, grid: opts.grid, fit: opts.fit,
-    quality: opts.quality, hud: opts.hud, idle: opts.idle, simulation,
+    quality: opts.quality, hud: opts.hud, idle: opts.idle, appearance: opts.appearance, simulation,
     onVisibility(shown) { simulation.reset(); input.clear(); audio.suspend(!shown); },
     input(dt) {
       input.poll();

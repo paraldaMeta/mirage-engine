@@ -5,6 +5,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { QUALITY_KEY, QUALITY_LEVELS } from '@mirage/core';
 import { bakeWalkGrid } from './walkgrid.js';
 import { createWalker } from './walker.js';
+import { createCharacter } from './character.js';
 
 // ---------------------------------------------------------------------------
 // createPlay(world, { plan, canvas, mode, fit }): walk / fly / game / orbit over a built world.
@@ -22,7 +23,7 @@ import { createWalker } from './walker.js';
 // The scene clock (wind, water, clouds, ctx.onUpdate) runs while the view moves and stands still with it, so still
 // frames stay deterministic (M1b); place() (a viewpoint, the spawn) sets it back to 0, so fixed views are what they
 // were (B5). `animate: true` runs it on real time instead.
-// ponytail: the game view has no occluder x-ray and the figure only bobs; mouse look has no smoothing.
+// The game view animates the visible traveller using actual displacement. Its root follows the walker.
 // ---------------------------------------------------------------------------
 
 const GAME_DIR = new THREE.Vector3(1, 1.15, 1).normalize(), GAME_DIST = 40;
@@ -42,7 +43,7 @@ export function createPlay(world, opts = {}) {
   const flyPos = new THREE.Vector3(), flyVel = new THREE.Vector3(), gameTarget = new THREE.Vector3();
   const gameCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 400);
   const orbitLens = { fov: camera.fov, near: camera.near, far: camera.far };   // the stills view keeps the world's lens
-  const figure = makeFigure(world);
+  const avatar = createCharacter(world, opts.appearance), figure = avatar.root;
   figure.visible = false;
   scene.add(figure);
   const controls = new OrbitControls(camera, canvas);
@@ -70,6 +71,7 @@ export function createPlay(world, opts = {}) {
   function syncWalkerView() {
     const [x, y, z] = walker.pos;
     eyeY = y + B.eye;
+    figure.position.set(x, y, z); figure.rotation.y = Math.PI / 2 - yaw; avatar.reset();
     gameTarget.set(x, y + 0.9, z);
     if (mode === 'walk') camera.position.set(x, eyeY, z);
   }
@@ -93,7 +95,10 @@ export function createPlay(world, opts = {}) {
       camera.position.copy(mode === 'fly' ? flyPos : new THREE.Vector3(walker.pos[0], eyeY, walker.pos[2]));
       controls.target.copy(camera.position).addScaledVector(forward(), 8);
     }
+    if (mode !== m && m === 'game') syncWalkerView();
+    if (mode === 'game' && m !== 'game') avatar.reset();
     mode = m;
+    figure.visible = mode === 'game';
     controls.enabled = mode === 'orbit';
     if (mode === 'game') gameTarget.set(walker.pos[0], walker.pos[1] + 0.9, walker.pos[2]);
     if (mode === 'game' && document.pointerLockElement) document.exitPointerLock();
@@ -222,10 +227,11 @@ export function createPlay(world, opts = {}) {
         gameCam.left = -viewSize * a; gameCam.right = viewSize * a; gameCam.top = viewSize; gameCam.bottom = -viewSize;
         gameCam.updateProjectionMatrix();
         gameCam.position.copy(gameTarget).addScaledVector(GAME_DIR, GAME_DIST); gameCam.lookAt(gameTarget);
-        figure.position.set(p[0], p[1], p[2]); figure.rotation.y = -yaw + Math.PI / 2;
-        const sp = Math.hypot(want.x, want.z) * (walker.blocked ? 0.3 : 1);
-        figure.userData.phase += dt * (sp > 0.05 ? (run ? 11 : 7) : 0);
-        figure.userData.body.position.y = sp > 0.05 && walker.onGround ? Math.abs(Math.sin(figure.userData.phase)) * 0.04 : 0;
+        const distance = Math.hypot(p[0] - figure.position.x, p[2] - figure.position.z);
+        const heading = Math.PI / 2 - yaw;
+        if (figure.rotation.y !== heading) changed = true;
+        if (avatar.update(dt, { distance, run, onGround: walker.onGround, verticalSpeed: walker.vy })) changed = true;
+        figure.position.set(p[0], p[1], p[2]); figure.rotation.y = heading;
       } else camera.position.set(p[0], eyeY, p[2]);
     } else if (mode === 'fly') {
       const target = new THREE.Vector3().addScaledVector(fwd, fz).addScaledVector(right, fx).setY(up).multiplyScalar(run ? FLY_FAST : FLY);
@@ -235,7 +241,6 @@ export function createPlay(world, opts = {}) {
       if (!Number.isNaN(g) && flyPos.y < g + 0.6) flyPos.y = g + 0.6;
       camera.position.copy(flyPos);
     }
-    figure.visible = game;
     if (mode === 'orbit') controls.update();
     else { const f = forward(); camera.lookAt(camera.position.x + f.x, camera.position.y + f.y, camera.position.z + f.z); }
     Object.assign(camera, mode === 'orbit' ? orbitLens : { fov, near: 0.08, far: 3000 });
@@ -277,7 +282,7 @@ export function createPlay(world, opts = {}) {
     step(dt);
     const { cam } = view();
     cam.updateMatrixWorld();
-    const key = cam.matrixWorld.elements.map((v) => v.toFixed(5)).join(',') + (cam.isOrthographicCamera ? cam.top.toFixed(4) : cam.fov) + figure.userData.body.position.y.toFixed(4) +
+    const key = cam.matrixWorld.elements.map((v) => v.toFixed(5)).join(',') + (cam.isOrthographicCamera ? cam.top.toFixed(4) : cam.fov) +
       `@${world.pipeline.w}x${world.pipeline.h}`;   // a resize clears the canvas: draw again even when still
     const viewMoved = key !== lastKey || orbiting;
     if (viewMoved || acting) wake();
@@ -348,7 +353,7 @@ export function createPlay(world, opts = {}) {
   schedule();
 
   return {
-    world, grid, walker, keys, figure, gameCam, controls, stats, render, place, viewpoint, setMode, turn, syncWalkerView,
+    world, grid, walker, keys, figure, avatar, gameCam, controls, stats, render, place, viewpoint, setMode, turn, syncWalkerView,
     /** turn the view toward a world point without moving */
     lookAt: (p) => look(camera.position.toArray(), p),
     get yaw() { return yaw; }, set yaw(v) { yaw = v; }, get pitch() { return pitch; }, set pitch(v) { pitch = v; },
@@ -368,25 +373,6 @@ export function createPlay(world, opts = {}) {
     get powerSaver() { return power.saver; }, set powerSaver(v) { setSaver(v); },
     get maxFps() { return power.maxFps; }, wake, get idleFor() { return (performance.now() - lastInput) / 1000; },
   };
-}
-
-// a simple figure for the game view: robe, head, arms (three built-ins, the world's materials and shadows)
-function makeFigure(world) {
-  const { mat } = world;
-  const g = new THREE.Group(), body = new THREE.Group();
-  g.add(body);
-  const cloth = mat.std({ color: new THREE.Color(0.62, 0.12, 0.06), roughness: 0.8 });
-  const skin = mat.std({ color: new THREE.Color(0.45, 0.3, 0.2), roughness: 0.7 });
-  const robe = new THREE.Mesh(new THREE.LatheGeometry([[0, 0.02], [0.22, 0.02], [0.2, 0.6], [0.19, 1.2], [0.15, 1.38], [0.06, 1.45], [0, 1.46]].map(([r, y]) => new THREE.Vector2(r, y)), 20), cloth);
-  robe.scale.z = 0.75;
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.11, 16, 12), skin);
-  head.position.y = 1.58;
-  body.add(robe, head);
-  for (const s of [-1, 1]) { const a = new THREE.Mesh(new THREE.CapsuleGeometry(0.045, 0.5, 4, 8), cloth); a.position.set(s * 0.21, 1.05, 0); a.rotation.z = s * 0.08; body.add(a); }
-  g.traverse((o) => { o.userData.collide = false; if (o.isMesh) o.castShadow = o.receiveShadow = true; });
-  g.name = 'figure';
-  g.userData.body = body; g.userData.phase = 0;
-  return g;
 }
 
 /** (now) -> whether an animation frame at `now` (ms) runs, keeping to at most fps() frames per second */
