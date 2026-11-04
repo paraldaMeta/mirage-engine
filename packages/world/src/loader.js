@@ -7,12 +7,13 @@ import { definePlan } from './plan.js';
 // buildWorld(world, { plan, modules, shared }) builds the modules in order into `world.scene`.
 //
 // A module is a plain object:
-//   { name, build(ctx), finalize?(ctx), anchors?, ambientVolumes? }
+//   { name, build(ctx), finalize?(ctx), anchors?, consumes?, ambientVolumes? }
 //   build(ctx)        make geometry; add it to ctx.root (ctx.scene is the same group). May return anything:
 //                     it is kept as world.modules[name] for later modules and for the module's own hooks.
 //   anchors           object, or (ctx, built) => object: { key: [{ pos: [x, y, z], rotY, ...extra }] } this
 //                     module offers others (lamps, seats, doors). Entries get `from: name`.
 //   finalize(ctx)     runs after every build; ctx.anchors holds every module's anchors (consume them here).
+//   consumes          optional { required: ['lamps'], optional: ['seats'] }. Resolved after all builds.
 //   ambientVolumes    array, or (ctx, built) => array: [{ min, max, factor, soft }] interiors (core dims the
 //                     image-based light inside).
 //
@@ -34,6 +35,27 @@ const colliderFor = (root) => (mesh) => {
   mesh.material = proxyMat; mesh.layers.set(LAYER.COLLIDE); mesh.castShadow = mesh.receiveShadow = false;
   mesh.userData.collider = true; root.add(mesh); return mesh;
 };
+
+function readConsumption(declaration) {
+  if (declaration === undefined) return;
+  if (declaration === null || typeof declaration !== 'object' || Array.isArray(declaration) ||
+      Object.keys(declaration).some(key => key !== 'required' && key !== 'optional')) {
+    throw new Error('consumes must be an object with required and/or optional lists');
+  }
+  const seen = new Set(), requests = [];
+  for (const group of ['required', 'optional']) {
+    if (!Object.hasOwn(declaration, group)) continue;
+    const list = declaration[group];
+    if (!Array.isArray(list)) throw new Error('consumes.' + group + ' must be an array');
+    for (const key of list) {
+      if (typeof key !== 'string' || !key.trim()) throw new Error('consumes.' + group + ' needs nonempty anchor names');
+      if (seen.has(key)) throw new Error('duplicate anchor in consumes: ' + key);
+      seen.add(key);
+      requests.push({ key, required: group === 'required' });
+    }
+  }
+  return requests;
+}
 
 export async function buildWorld(world, { plan, modules, shared = {}, log = console } = {}) {
   plan = definePlan(plan);
@@ -67,27 +89,45 @@ export async function buildWorld(world, { plan, modules, shared = {}, log = cons
     report.modules.push(row);
     try {
       if (!m.name || typeof m.build !== 'function') throw new Error('a module needs a name and build(ctx)');
+      const requests = readConsumption(m.consumes);
       const out = (await m.build(ctx)) ?? {};
       const a = typeof m.anchors === 'function' ? m.anchors(ctx, out) : m.anchors;
       const v = typeof m.ambientVolumes === 'function' ? m.ambientVolumes(ctx, out) : m.ambientVolumes;
-      for (const [k, list] of Object.entries(a || {})) {
-        anchors[k] = (anchors[k] || []).concat(list.map((e) => ({ ...e, from: m.name })));
-        row.anchors[k] = list.length;
-      }
-      if (v) report.ambientVolumes.push(...v.map((e) => ({ ...e, from: m.name })));
-      built[m.name] = out;
+      // Stage the whole offer. A malformed later list or volume must not satisfy another module's contract.
+      const offers = Object.entries(a || {}).map(([key, list]) => {
+        if (!Array.isArray(list)) throw new Error('anchors.' + key + ' must be an array');
+        return [key, list.map(entry => ({ ...entry, from: m.name }))];
+      });
+      const volumes = v ? v.map(entry => ({ ...entry, from: m.name })) : [];
       commit(root, updates);
-      live.push({ m, ctx });
+      for (const [key, entries] of offers) {
+        const prior = Object.hasOwn(anchors, key) ? anchors[key] : [];
+        Object.defineProperty(anchors, key, { value: prior.concat(entries), enumerable: true, configurable: true, writable: true });
+      }
+      row.anchors = Object.fromEntries(offers.map(([key, entries]) => [key, entries.length]));
+      report.ambientVolumes.push(...volumes);
+      built[m.name] = out;
+      live.push({ m, ctx, row, requests });
       row.ok = true;
     } catch (e) { fail(m, 'build', e); }
     row.ms = +(now() - ts).toFixed(1);
   }
   // ---- finalize: every anchor is known now
-  for (const { m, ctx } of live) {
+  for (const { m, ctx, row, requests } of live) {
+    if (requests) {
+      row.consumes = requests.map(request => ({
+        ...request, count: Object.hasOwn(anchors, request.key) ? anchors[request.key].length : 0,
+      }));
+      const missing = row.consumes.filter(request => request.required && !request.count);
+      if (missing.length) {
+        fail(m, 'consumes', new Error('missing required anchors: ' + missing.map(request => request.key).join(', ')));
+        row.ok = false;
+        continue;
+      }
+    }
     if (typeof m.finalize !== 'function') continue;
     const ts = now(), root = new THREE.Group(), updates = [];
     root.name = m.name + ':finalize';
-    const row = report.modules.find((r) => r.name === m.name);
     try {
       await m.finalize({ ...ctx, root, scene: root, onUpdate: (fn) => updates.push(fn), collider: colliderFor(root) });
       commit(root, updates);

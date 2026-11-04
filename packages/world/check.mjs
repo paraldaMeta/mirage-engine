@@ -36,4 +36,29 @@ ok(out.anchors.lamps.length === 1 && out.anchors.lamps[0].from === 'walls', 'anc
 ok(scene.getObjectByName('props:finalize').children.length === 1, 'finalize consumed anchors');
 ok(world.vols.length === 1 && world.vols[0].from === 'room', 'ambient volumes');
 ok(out.modules.walls.r === rng('t/walls').float(), 'per-module rng');
+
+// A consumer may precede its producers. Failed or empty offers cannot satisfy it.
+{
+  const ctxWorld = { scene: new THREE.Scene(), ctx: { onUpdate() {} } };
+  const ran = [], build = () => {};
+  const consumer = (name, consumes) => ({ name, consumes, build, finalize() { ran.push(name); } });
+  const modules = [
+    consumer('lighting', { required: ['lamps'], optional: ['seats'] }),
+    consumer('locked', { required: ['doors', 'ghost', 'toString'] }),
+    consumer('plain', undefined),
+    consumer('bad', { required: ['same'], optional: ['same'] }),
+    { name: 'gate', build, anchors: { lamps: [{ pos: [1, 0, 2] }], doors: [] } },
+    { name: 'wall', build, anchors: { lamps: [{ pos: [3, 0, 2] }] } },
+    { name: 'partial', build, anchors: { ghost: [{}], invalid: 42 } },
+  ];
+  const { report, anchors, modules: outputs } = await buildWorld(ctxWorld, { plan, modules, log: quiet });
+  const row = report.modules.find(m => m.name === 'lighting');
+  ok(row.ok && row.consumes[0].count === 2 && row.consumes[1].count === 0, 'counts across later producers and absent optional key');
+  ok(ran.join() === 'lighting,plain', 'unaffected finalizers still run in order');
+  const failure = report.failed.find(f => f.name === 'locked');
+  ok(failure?.phase === 'consumes' && failure.error.includes('doors, ghost, toString'), 'all empty or missing requirements reported');
+  ok(Object.hasOwn(outputs, 'locked') && !ctxWorld.scene.getObjectByName('locked:finalize'), 'successful build kept when consumption fails');
+  ok(!Object.hasOwn(anchors, 'ghost') && !Object.hasOwn(outputs, 'partial'), 'no partial offers escape a failed build');
+  ok(report.failed.some(f => f.name === 'bad' && f.phase === 'build') && !Object.hasOwn(outputs, 'bad'), 'invalid declarations are isolated');
+}
 console.log('world check: ok');

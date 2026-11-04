@@ -15,6 +15,11 @@ Reads from the plan: `…`. Owns in the plan: `…` (other modules read these, a
 | key | pos is | extra fields | count |
 |---|---|---|---|
 
+### Anchors consumed
+
+List the anchor keys consumed by your finalizer in `consumes.required` and `consumes.optional`. Name the
+expected producers and the fallback for absent optional entries in your notes.
+
 ### Keep clear
 
 Footprints / volumes other modules must not build into (plan names or numbers).

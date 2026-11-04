@@ -63,7 +63,8 @@ export default {
 6. **No coplanar faces.** Two surfaces at the same height or plane z-fight and flicker: offset 1–2 cm.
 7. **Anchors**: `{ pos: [x, y, z], rotY, ...extra }` in world metres; local +Z = `(sin rotY, 0, cos rotY)` points
    out into the open air. Document each key in NOTES (what `pos` is exactly). Consume others' anchors only in
-   `finalize`, and handle `ctx.anchors.key` being missing (`|| []`): the producer may have failed.
+   `finalize`. Declare keys in `consumes.required` if the finalizer needs them, or in `consumes.optional`
+   if an empty list is a valid fallback. Read optional keys with `ctx.anchors.key || []`, including in module-only previews.
 8. **Budget**: stay inside your brief's share (default ≤ 150 k triangles, ≤ 8 materials). Distant scenery
    coarse: lathe 8–12 segments, terrain ≤ 256² vertices, no detail under 2 px at its nearest view.
    `built.report.modules` (in the page: `__mirage.built.report`) lists `tris` and `ms` per module.

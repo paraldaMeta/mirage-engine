@@ -22,7 +22,9 @@ await world.prepare();
 | `contains(shape, x, z)`, `bbox(shape)`, `pathLength(path)`, `along(path, s)` | plan geometry helpers |
 | `LAYER` | `{ VIEW: 0, COLLIDE: 2 }` (collision-only proxies live on layer 2) |
 
-Module: `{ name, build(ctx), finalize?(ctx), anchors?: object | (ctx, built) => object, ambientVolumes?: array | (ctx, built) => array }`.
+Module: `{ name, build(ctx), finalize?(ctx), anchors?, consumes?, ambientVolumes? }`.
+Use `consumes: { required: ['lamps'], optional: ['seats'] }` to report available anchors before finalization.
+Both lists can be omitted. See [the world protocol](../../docs/world-protocol.md#3-anchors) for examples and failure behavior.
 `ctx` adds to the core's `world.ctx`: `plan, name, root (= scene), R, rng(sub), anchors, modules, shared, onUpdate, collider(mesh), log, world`.
 
 `NOTES.template.md`: the per-world notes file modules use to talk to each other. `npm test -w @mirage/world` runs
