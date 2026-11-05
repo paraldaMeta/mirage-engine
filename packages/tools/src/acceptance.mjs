@@ -120,6 +120,9 @@ try {
   result.lockSha256 = createHash('sha256').update(fs.readFileSync(path.join(workspace, 'package-lock.json'))).digest('hex');
   result.examples = discoverExamples(workspace);
   await run('install', 'npm', ['ci', '--include=dev', '--include=optional', '--no-audit', '--no-fund']);
+  await node('types-consumer', 'packages/tools/src/typecheck.mjs', ['--out', path.join(out, 'types')]);
+  result.types = JSON.parse(fs.readFileSync(path.join(out, 'types/summary.json'), 'utf8'));
+  if (result.types.status !== 'passed') throw new Error('Packed type consumer did not pass');
   await run('unit-and-protocol', 'npm', ['test']);
   // npm test includes real JS plans, inherited layouts, JSON and negative diagnostics.
   await node('e2e', 'packages/tools/src/e2e.mjs', [], { minutes: 90 });

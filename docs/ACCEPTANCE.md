@@ -9,12 +9,12 @@
 暂不支持此入口在 Windows 运行。`CHROME` 是可执行文件的绝对路径，默认 macOS 标准安装位置。
 机器上一次只运行一个验收任务，关闭其他 GPU 作业，记录供电、节能与显示器刷新率。
 
-从开发分支 `codex/mirage-acceptance` 的干净 checkout 开始。无需先在源 checkout 安装依赖。
+从累计开发分支 `codex/mirage-world-types` 的干净 checkout 开始。无需先在源 checkout 安装依赖。
 在仓库外的持久目录放机器资料，使用 [MACHINE.template.json](acceptance/MACHINE.template.json)，把 null 全部换成实际值。
 目录示例不含空格，以兼容已有单文件工具。`--out` 的父目录必须存在，最终目录必须尚不存在。
 
 ```sh
-git switch codex/mirage-acceptance
+git switch codex/mirage-world-types
 mkdir -p "$HOME/mirage-acceptance"
 cp docs/acceptance/MACHINE.template.json "$HOME/mirage-acceptance/machine.json"
 # 填好 machine.json 后，在测试机执行：
@@ -33,6 +33,7 @@ Node/npm/Chrome、操作系统架构、填写的硬件信息，以及场景报�
 
 | 顺序 | 检查与输出 |
 |---|---|
+| 0 | 打包后的[类型消费者检查](TYPES.md)：world 与 core 辅助子路径，NodeNext／Bundler 两种方式。新增类型门槛已准备、未执行。 |
 | 1 | 安装锁定依赖，`npm test`：各包检查、场景 schema/真实 JS 导入/错误诊断、挂点、人物动作、技能包。 |
 | 2 | 全部带 playtest 的示例按目录发现并串行执行 e2e；当前七个。构建、网页试玩、garden-quest 通关、打包、离线试玩。 |
 | 3 | 雪屋 30–165 Hz 固定步长；已有触屏模拟、静止淡入与时钟、GPU 空闲／隐藏／节能检查。 |
@@ -47,6 +48,7 @@ Node/npm/Chrome、操作系统架构、填写的硬件信息，以及场景报�
 
 - `summary.json` 每步落盘，记录开始／结束、返回码、耗时、日志路径、原始报告位置与待办门槛。
 - `logs/*.log` 保留完整输出，包含只有终端输出的雪屋、触屏和 GPU 检查。
+- `types/` 保存打包消费者的编译日志、tarball、工具链与安装锁文件；该子目录的 node_modules 可在交接时移除。
 - `workspace/out/e2e/summary.json` 是整包明细；各示例 `out/` 里有拼图、逐步图和指标，`release/` 有本次生成的 HTML。
 - `workspace/examples/hello-courtyard/out/verify/` 保存五个光照机位。
 - `workspace/examples/river-ford/out/character-http/` 和 `character-file/` 保存人物图与对照数据。

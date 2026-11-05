@@ -4,6 +4,11 @@ The world protocol: a site plan as the single source of positions, a module inte
 modules in order with failure isolation, merged anchors, ambient volumes and seeded randomness per module.
 Full convention (for agents and humans): [docs/world-protocol.md](../../docs/world-protocol.md).
 
+This development branch ships candidate declarations for plans, modules, anchors and the three kits.
+`definePlan()` retains inferred custom fields; `WorldModule<Plan, Shared>` types module contexts.
+TypeScript consumers need Three's declarations. Coverage, nullable results and the deferred packed-consumer
+checks are described in [the type handoff](../../docs/TYPES.md). These declarations have not been compiled on the development Air.
+
 ```js
 import { createWorldRenderer } from '@mirage/core';
 import { buildWorld } from '@mirage/world';

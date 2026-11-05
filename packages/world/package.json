@@ -5,8 +5,9 @@
   "license": "MIT",
   "type": "module",
   "main": "./src/index.js",
+  "types": "./src/index.d.ts",
   "exports": {
-    ".": "./src/index.js",
+    ".": { "types": "./src/index.d.ts", "default": "./src/index.js" },
     "./plan.schema.json": "./plan.schema.json",
     "./kits/vegetation": "./src/kits/vegetation.js",
     "./kits/terrain": "./src/kits/terrain.js",
