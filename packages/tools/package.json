@@ -30,7 +30,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "node validate-plan.check.mjs"
+    "test": "node validate-plan.check.mjs && node acceptance.check.mjs"
   },
   "author": "灰叔 Racso"
 }

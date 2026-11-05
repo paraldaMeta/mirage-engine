@@ -1,0 +1,11 @@
+{
+  "label": null,
+  "model": null,
+  "cpu": null,
+  "gpu": null,
+  "memoryGB": null,
+  "os": null,
+  "powerMode": null,
+  "displayHz": null,
+  "notes": "填写实际测试机信息；label 是本次机器代号，powerMode 包含供电和节能设置。不要填 MacBook Air 的开发记录。"
+}

@@ -13,6 +13,7 @@
     "node": ">=22"
   },
   "scripts": {
+    "acceptance": "node packages/tools/src/acceptance.mjs",
     "test": "npm test -ws --if-present && node agent/check.mjs",
     "test:e2e": "node packages/tools/src/e2e.mjs",
     "test:fixed-step": "node packages/tools/src/fixed-step-check.mjs examples/snow-hut/dist",

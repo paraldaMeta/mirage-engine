@@ -6,6 +6,7 @@ with the GPU on through puppeteer-core. Targets are a built `dist/` folder (serv
 
 | tool | |
 |---|---|
+| `src/acceptance.mjs --run --machine <json> --out <new-dir>` (`npm run acceptance -- ...` at the root) | Test-machine-only serial acceptance of a clean HEAD archive: install, CPU checks, every example, physics, touch, stillness, GPU load, five still views, kit metrics and character review. Keeps logs, screenshots, source hashes and a pending human review; never certifies 1.0. See [the handoff](../../docs/ACCEPTANCE.md). |
 | `mirage-validate-plan <file>` | Validate a local JS module's default export or a JSON plan with the same rules used by the loader. Prints all invalid field paths. Exits 0 for a valid plan, 1 for an invalid or unreadable file and 2 for incorrect usage. |
 | `src/package.mjs <example> [--out f.html]` | one standalone HTML file: Vite build, every asset inlined, no code splitting, workers as Blob URLs started classic (file:// cannot start module workers from Blobs) |
 | `src/playtest.mjs <scenario.json> <target> [--out dir]` | the agent self-test loop: a JSON scenario of placements, held keys, taps, `walkTo` routes, `lookAt` (points or game entities), `flicker` along a path, `perf` (frame cost); expectations on position, collision, game state (`near prompt inventory flags.*`), flicker, frame time, console errors; writes `report.md`, `report.json`, one screenshot per step, `sheet.png` (contact sheet) and the worst flicker triple (`-worst.png`, `-worst-diff.png`); exit 1 on any failure |

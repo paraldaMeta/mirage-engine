@@ -117,9 +117,11 @@ hours. None of its content, code or materials is part of Mirage.
 
 Pre-alpha. Honestly:
 
-- Tested in desktop Chrome (headless and windowed) on an Apple M4 Pro only. Safari, Firefox and phones are untested.
+Current development and outstanding 1.0 gates: [status](docs/STATUS-1.0.md). The new [serial acceptance runner](docs/ACCEPTANCE.md) is prepared for a separate test machine and has not been run.
+
+- Historical 0.2.0 checks covered desktop Chrome on an Apple M4 Pro and Playwright Firefox / WebKit. The current development candidate needs fresh checks; real Safari and phones remain pending.
 - Frame cost is 3–6 ms per walking frame on that machine; there is no tuning for weaker GPUs beyond a `low` quality tier.
-- The engine favours still frames: the clock and wind freeze while walking so still views are bit-identical;
+- The engine favours still frames: the scene clock advances while moving and freezes when stationary so still views are bit-identical;
   moving views use temporal AA, which smears fast-moving things a little.
 - Collision comes from a walk grid baked at load (0.125 m cells) and, in games, Rapier trimeshes; very thin or
   sloped geometry needs proxy boxes, and small risers can still catch the character.
