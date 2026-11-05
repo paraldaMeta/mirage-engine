@@ -9,12 +9,12 @@
 暂不支持此入口在 Windows 运行。`CHROME` 是可执行文件的绝对路径，默认 macOS 标准安装位置。
 机器上一次只运行一个验收任务，关闭其他 GPU 作业，记录供电、节能与显示器刷新率。
 
-从累计开发分支 `codex/mirage-world-types` 的干净 checkout 开始。无需先在源 checkout 安装依赖。
+从累计开发分支 `codex/mirage-runtime-types` 的干净 checkout 开始。无需先在源 checkout 安装依赖。
 在仓库外的持久目录放机器资料，使用 [MACHINE.template.json](acceptance/MACHINE.template.json)，把 null 全部换成实际值。
 目录示例不含空格，以兼容已有单文件工具。`--out` 的父目录必须存在，最终目录必须尚不存在。
 
 ```sh
-git switch codex/mirage-world-types
+git switch codex/mirage-runtime-types
 mkdir -p "$HOME/mirage-acceptance"
 cp docs/acceptance/MACHINE.template.json "$HOME/mirage-acceptance/machine.json"
 # 填好 machine.json 后，在测试机执行：
@@ -33,7 +33,7 @@ Node/npm/Chrome、操作系统架构、填写的硬件信息，以及场景报�
 
 | 顺序 | 检查与输出 |
 |---|---|
-| 0 | 打包后的[类型消费者检查](TYPES.md)：world 与 core 辅助子路径，NodeNext／Bundler 两种方式。新增类型门槛已准备、未执行。 |
+| 0 | 打包后的[类型消费者检查](TYPES.md)：core／world／play／game 四包全部现有 JS 入口，NodeNext／Bundler 两种方式；先记录两者结果，再判定失败。已准备、未执行。 |
 | 1 | 安装锁定依赖，`npm test`：各包检查、场景 schema/真实 JS 导入/错误诊断、挂点、人物动作、技能包。 |
 | 2 | 全部带 playtest 的示例按目录发现并串行执行 e2e；当前七个。构建、网页试玩、garden-quest 通关、打包、离线试玩。 |
 | 3 | 雪屋 30–165 Hz 固定步长；已有触屏模拟、静止淡入与时钟、GPU 空闲／隐藏／节能检查。 |
@@ -43,6 +43,9 @@ Node/npm/Chrome、操作系统架构、填写的硬件信息，以及场景报�
 
 现有测试参数与阈值保持不变；详细含义见[第一批](FIRST-BATCH.md)、[河湾](../examples/river-ford/README.md)、[人物](CHARACTER-REVIEW.md)。
 触屏模拟和无头帧计时不代替手机、集显热机和真浏览器的手动实测。软件渲染器不能作为硬件预算验收通过。
+
+当前存在 [Rapier NodeNext 类型阻断](TYPES.md#已知的发布阻断rapier-的-nodenext-声明)，完整入口预计会在第 0 步停止。
+建议测试机先单独运行 `npm run test:types -- --out <新目录>` 保存两种诊断，修复并提交后再运行整包；不绕过类型门槛。
 
 ## 如何读取结果
 

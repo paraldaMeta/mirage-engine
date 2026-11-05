@@ -1,8 +1,6 @@
 import type * as THREE from 'three';
-import type * as geom from '@mirage/core/geom';
-import type { RandomStream, rng } from '@mirage/core/rng';
-import type { MaterialKit } from '@mirage/core/materials';
-import type { EnvironmentUniforms } from '@mirage/core/env';
+import type { RandomStream } from '@mirage/core/rng';
+import type { WorldContext } from '@mirage/core/world';
 import type { PlanInput, DefinedPlan, XYZ } from './plan.js';
 
 export interface AmbientVolume { min: XYZ; max: XYZ; factor?: number; soft?: number; [custom: string]: unknown }
@@ -12,20 +10,7 @@ export type ResolvedAnchor = Anchor & { from: string };
 /** Missing keys really can be absent, including required keys during the build phase. */
 export type AnchorTable = Record<string, ResolvedAnchor[] | undefined>;
 export interface Consumption { required?: readonly string[]; optional?: readonly string[] }
-export interface CoreModuleContext {
-  THREE: typeof THREE;
-  renderer: THREE.WebGLRenderer;
-  scene: THREE.Scene;
-  camera: THREE.PerspectiveCamera;
-  G: EnvironmentUniforms;
-  keyDir: THREE.Vector3;
-  mat: MaterialKit;
-  geom: typeof geom;
-  rng: typeof rng;
-  quality: string;
-  place: { lat: number; lon: number; height?: number; tzHours?: number };
-  onUpdate(callback: (seconds: number) => void): number;
-}
+export type CoreModuleContext = WorldContext;
 /** Minimal loader host, not a declaration of the full @mirage/core renderer API. */
 export interface WorldHost<C extends object = CoreModuleContext> {
   scene: THREE.Object3D;

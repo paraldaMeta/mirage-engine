@@ -80,3 +80,9 @@ mw.update(dt); mw.render(hostCamera, { target, moving });
 ```
 The host camera is never modified (the core jitters its projection and restores it). The core takes over the
 shared renderer's tone mapping (off) and shadow settings. Example: `examples/hello-courtyard/embed.html`.
+
+## Type declarations (candidate)
+
+The root and current JS subpaths ship adjacent declarations; compilation is pending on the test machine.
+See [consumer checks](../../docs/TYPES.md) and [lifecycle / ownership](../../docs/LIFECYCLE.md).
+Stopping play is not disposal; no aggregate play or game-session dispose method is implemented yet.

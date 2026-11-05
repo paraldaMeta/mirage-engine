@@ -69,3 +69,10 @@ also kept on their own (`mirage:<id>:settings`). Loading an earlier save brings 
 Licence and size: Rapier is Apache-2.0; `@dimforge/rapier3d-compat` 0.19.3 inlines its 1.57 MB WASM as base64
 (2.24 MB JS, 0.84 MB gzip), loaded by a dynamic `import()` only when `createPhysics` runs. `npm test -w @mirage/game`
 runs `check.mjs` (the character on a hand-made scene, doors, a crate, game state, saves) in node.
+
+## Type declarations (candidate)
+
+The root and current JS subpaths ship adjacent declarations; compilation is pending on the test machine.
+See [consumer checks](../../docs/TYPES.md) and [lifecycle / ownership](../../docs/LIFECYCLE.md).
+Stopping play is not disposal; no aggregate play or game-session dispose method is implemented yet.
+The pinned Rapier 0.19.3 declarations have a known NodeNext resolution issue; the strict consumer gate remains blocked until resolved.

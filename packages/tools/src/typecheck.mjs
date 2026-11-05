@@ -27,7 +27,7 @@ const save = () => {
   fs.writeFileSync(path.join(out, 'summary.json.tmp'), JSON.stringify(result, null, 2) + '\n');
   fs.renameSync(path.join(out, 'summary.json.tmp'), path.join(out, 'summary.json'));
 };
-function run(id, command, argv, cwd = out) {
+function run(id, command, argv, cwd = out, required = true) {
   const step = { id, command, args: argv, log: id + '.log', status: 'running' };
   result.steps.push(step); save();
   const t0 = Date.now();
@@ -36,24 +36,28 @@ function run(id, command, argv, cwd = out) {
   Object.assign(step, { code: r.status, signal: r.signal, seconds: +((Date.now() - t0) / 1000).toFixed(1),
     status: r.status === 0 ? 'passed' : 'failed', error: r.error?.message });
   save();
-  if (r.status !== 0) throw new Error(id + ' failed; see ' + step.log);
+  if (r.status !== 0 && required) throw new Error(id + ' failed; see ' + step.log);
   return r.stdout;
 }
 try {
   if (process.env.NODE_OPTIONS) throw new Error('Unset NODE_OPTIONS before the compiler acceptance run.');
   result.npm = run('npm-version', 'npm', ['--version']).trim();
   const dependencies = { three: result.toolchain.three };
-  const expected = {
-    core: ['env', 'geom', 'materials', 'rng'],
-    world: ['index', 'plan', 'plan-validation', 'loader', 'kits/vegetation', 'kits/terrain', 'kits/water'],
-  };
-  for (const name of ['core', 'world']) {
+  for (const name of ['core', 'world', 'play', 'game']) {
     const dir = path.join(root, 'packages', name), manifest = read(path.join(dir, 'package.json'));
     const packs = JSON.parse(run('pack-' + name, 'npm', ['pack', '.', '--workspaces=false', '--ignore-scripts', '--json',
       '--pack-destination', path.join(out, 'tarballs')], dir));
     if (packs.length !== 1) throw new Error('Expected exactly one tarball for ' + name);
     const pack = packs[0];
-    for (const entry of expected[name]) {
+    // All current .js files are reachable through the wildcard exports. Derive the inventory from source
+    // rather than maintaining a second registry whenever a module is added.
+    const entries = fs.readdirSync(path.join(dir, 'src'), { recursive: true })
+      .filter(file => file.endsWith('.js')).map(file => file.replaceAll(path.sep, '/').slice(0, -3)).sort();
+    if (!entries.includes('index')) throw new Error(name + ': missing root entry');
+    if (manifest.types !== './src/index.d.ts' || manifest.exports['.']?.types !== manifest.types) {
+      throw new Error(name + ': root types condition does not match the declaration entry');
+    }
+    for (const entry of entries) {
       for (const extension of ['.js', '.d.ts']) {
         if (!pack.files.some(f => f.path === 'src/' + entry + extension)) throw new Error(name + ': missing shipped entry ' + entry + extension);
       }
@@ -63,7 +67,7 @@ try {
       sha256: hash(path.join(out, 'tarballs', pack.filename)), files: pack.files.map(f => f.path) });
   }
   const fixtureDir = path.join(root, 'docs/types');
-  for (const name of ['world-authoring.mts', 'world-js.js', 'tsconfig.nodenext.json', 'tsconfig.bundler.json']) {
+  for (const name of fs.readdirSync(fixtureDir).filter(name => /\.(mts|js|json)$/.test(name)).sort()) {
     fs.copyFileSync(path.join(fixtureDir, name), path.join(out, name));
   }
   fs.writeFileSync(path.join(out, 'package.json'), JSON.stringify({ name: 'mirage-types-consumer', private: true, type: 'module',
@@ -75,8 +79,12 @@ try {
     if (read(path.join(out, 'node_modules', name, 'package.json')).version !== version) throw new Error('Unexpected installed version: ' + name);
   }
   for (const mode of ['nodenext', 'bundler']) {
-    run(mode, process.execPath, [path.join(out, 'node_modules/typescript/bin/tsc'), '-p', 'tsconfig.' + mode + '.json']);
+    // Always collect both results, even when Rapier's published extensionless .d.ts imports reject NodeNext.
+    // Keep the strict gate: this known upstream issue is not a waived or expected success.
+    run(mode, process.execPath, [path.join(out, 'node_modules/typescript/bin/tsc'), '-p', 'tsconfig.' + mode + '.json'], out, false);
   }
+  const failed = result.steps.filter(step => step.status === 'failed');
+  if (failed.length) throw new Error(failed.map(step => step.id + ' failed; see ' + step.log).join('; '));
   result.status = 'passed';
 } catch (e) {
   result.status = 'failed'; result.error = e.message; process.exitCode = 1;

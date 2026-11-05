@@ -6,7 +6,10 @@
   "type": "module",
   "main": "./src/index.js",
   "exports": {
-    ".": "./src/index.js",
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    },
     "./*": "./src/*.js",
     "./package.json": "./package.json"
   },
@@ -30,5 +33,6 @@
   "scripts": {
     "test": "node check.mjs"
   },
-  "author": "灰叔 Racso"
+  "author": "灰叔 Racso",
+  "types": "./src/index.d.ts"
 }

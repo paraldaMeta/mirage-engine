@@ -12,9 +12,9 @@
 | world `/kits/vegetation`、`/kits/terrain`、`/kits/water` | `addTreeCanopies`、`addGrass`、`addTerrain`、`addWater` | 已写声明，待验证。 |
 | world `/plan.schema.json` | 编辑器与校验器共用的 JSON Schema | 保持 JSON 导出；消费者用 resolveJsonModule 读取。 |
 | core `/rng`、`/geom`、`/materials`、`/env` | 随机流、几何辅助、材质钩子和环境 uniforms | 已写相邻声明，供模块上下文与工具包使用，待验证。 |
-| `@mirage/core` 根入口与其他子路径 | 渲染器、天空／昼夜、大气、雾、星空、后期、材质、随机、LOD、纹理、环境光、设备画质、geom 命名空间 | 根入口、渲染生命周期等尚未声明，不能称为 core 全包有类型。 |
-| `@mirage/play` | `createPlay`、`createCharacter`、`bakeWalkGrid`、`makeGrid`、`MAXL`、`createWalker`、`BODY`、`mountWorld` | 尚未声明；后续需覆盖人物、相机与宿主销毁接口。 |
-| `@mirage/game` | `startGame`、`createPhysics`、`loadRapier`、`createGame`、`createInput`、输入常量、`createAudio`、`SURFACES`、`createUI` | 尚未声明；后续需覆盖保存格式、实体／触发区、固定步长与输入消费。 |
+| `@mirage/core` 根入口与其他子路径 | 渲染器、天空／昼夜、大气、雾、星空、后期、材质、随机、LOD、纹理、环境光、设备画质、geom 命名空间 | 根入口及所有现有 JS 子路径已写声明；含生命周期、光照空值、后期、环境光、纹理与 LOD，待异机编译。 |
+| `@mirage/play` | `createPlay`、`createCharacter`、`bakeWalkGrid`、`makeGrid`、`MAXL`、`createWalker`、`BODY`、`mountWorld` | 根入口及子路径已写声明；含人物、相机、grid／Rapier walker、嵌入与现有停止／销毁边界，待验证。 |
+| `@mirage/game` | `startGame`、`createPhysics`、`loadRapier`、`createGame`、`createInput`、输入常量、`createAudio`、`SURFACES`、`createUI` | 根入口及子路径已写声明；含保存、实体／触发区、固定时钟、输入、UI 与音频。待验证；Rapier 的 NodeNext 问题阻断发布。 |
 | `@mirage/tools` | 场景校验、试玩、打包、截图、性能、静态交付和回归命令 | CLI 参数／返回状态为文档约定；无运行时库入口。 |
 
 四个运行时包目前都有 `./* → ./src/*.js` 通配导出，因此许多实现文件也可被消费者导入。
@@ -28,15 +28,18 @@
 - build 与 finalize 可异步，anchors 与 ambientVolumes 回调是同步的。挂点在 build 期间可能缺失，声明不把 required 名称当作已经存在。
 - 第三方模块的返回值和自定义挂点字段用 unknown，读取前收窄；没有把整个上下文或输出声明为 any。
 - grass 可能为 null，空树列表的三个实例批次均为 null，terrain.heightAt 范围外为 null；随机 pick 空列表为 undefined。
-- `WorldHost` 只是 loader 使用的结构契约。它不冒充完整 renderer，也不把未声明的 core／play／game 包变成已类型化。
+- `WorldHost` 保留 loader 的最小结构契约，默认上下文直接引用 core 的 WorldContext，避免两份渲染器上下文漂移。
+- 真实渲染器贯通 buildWorld、mountWorld、createPlay 和 startGame；外接 walker 保留具体类型，startGame 要求 spawn。
+- game 自定义事件、实体读取的存档数据及导入 JSON 的额外字段为 unknown；已知事件载荷、互斥触发区、空值与快照覆盖行为有明确声明。
+- 当前资源归属及未实现的统一销毁见 [LIFECYCLE.md](LIFECYCLE.md)，不会凭空声明 dispose 方法。
 
-声明随现有 src 一起进入包，JavaScript 默认出口保持原指向。root world 显式给出 types 条件；
+声明随现有 src 一起进入包，JavaScript 默认出口保持原指向。四包根入口显式给出 types 条件；
 已有子路径通过同目录的 `.d.ts` 解析。设计依据见 TypeScript 的[模块解析](https://www.typescriptlang.org/docs/handbook/modules/reference.html)
 与[声明发布](https://www.typescriptlang.org/docs/handbook/declaration-files/publishing.html)说明。实际解析要通过[打包消费者验收](TYPES.md)。
 
 ## 到冻结前仍要完成
 
-1. 补齐 core 渲染生命周期、play 和 game 的声明，包含资源归属、销毁、事件、存档迁移和低层物理步进的边界。
+1. 解决 [Rapier NodeNext 声明兼容问题](TYPES.md#已知的发布阻断rapier-的-nodenext-声明)，取得四包消费者编译结果；补统一会话销毁与重复挂载的实现和验收。
 2. 每批声明通过真实打包后的消费者编译，并在完整运行时回归中确认包出口没有改变行为。
 3. 根据 A1、设备实测和使用反馈修正接口；逐项说明哪些字段可变、哪些默认值属于兼容承诺。
 4. 决定最终 npm 包名、Three 类型依赖的交付方式、子路径白名单与发布文件；补新项目安装和升级示例。

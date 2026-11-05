@@ -14,5 +14,5 @@
     "types": [],
     "lib": ["ES2022", "DOM", "DOM.Iterable"]
   },
-  "include": ["world-authoring.mts", "world-js.js"]
+  "include": ["*.mts", "*.js"]
 }

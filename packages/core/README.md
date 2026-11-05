@@ -7,8 +7,8 @@ moving cameras, tone mapping and grade, an optional world-space texture layer fo
 `patch()` material-hook system with a GLSL noise library, seeded randomness, geometry helpers, an LOD helper and
 day/night for any place and time. Peer dependency: `three@0.186.1`. ES modules, no build step.
 
-Candidate declarations now accompany `/rng`, `/geom`, `/materials` and `/env` for typed world modules.
-The core root and renderer lifecycle are still untyped. [Coverage and off-machine validation](../../docs/TYPES.md).
+The root renderer lifecycle and all current JS subpaths have candidate declarations, pending off-machine compilation.
+See [coverage and off-machine validation](../../docs/TYPES.md) and [resource ownership](../../docs/LIFECYCLE.md).
 
 ```js
 import { createWorldRenderer, PROC } from '@mirage/core';
