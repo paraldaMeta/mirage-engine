@@ -9,12 +9,12 @@
 暂不支持此入口在 Windows 运行。`CHROME` 是可执行文件的绝对路径，默认 macOS 标准安装位置。
 机器上一次只运行一个验收任务，关闭其他 GPU 作业，记录供电、节能与显示器刷新率。
 
-从累计开发分支 `codex/mirage-session-cleanup` 的干净 checkout 开始。无需先在源 checkout 安装依赖。
+从累计开发分支 `codex/mirage-gpu-ci` 的干净 checkout 开始。无需先在源 checkout 安装依赖。
 在仓库外的持久目录放机器资料，使用 [MACHINE.template.json](acceptance/MACHINE.template.json)，把 null 全部换成实际值。
 目录示例不含空格，以兼容已有单文件工具。`--out` 的父目录必须存在，最终目录必须尚不存在。
 
 ```sh
-git switch codex/mirage-session-cleanup
+git switch codex/mirage-gpu-ci
 mkdir -p "$HOME/mirage-acceptance"
 cp docs/acceptance/MACHINE.template.json "$HOME/mirage-acceptance/machine.json"
 # 填好 machine.json 后，在测试机执行：
@@ -29,10 +29,13 @@ npm run acceptance -- --run --machine "$HOME/mirage-acceptance/machine.json" --o
 随后在快照内执行 `npm ci`，需要包源可达或 npm 缓存已预热。记录提交、源码归档与锁文件 SHA-256、
 Node/npm/Chrome、操作系统架构、填写的硬件信息，以及场景报告中实际返回的 GPU 名称。
 
+GPU CI 已通过同一入口接入，runner 配置和 artifact 下载见 [GPU-CI.md](GPU-CI.md)。
+
 ## 固定顺序
 
 | 顺序 | 检查与输出 |
 |---|---|
+| 前置 | 安装后检查 Chrome 实际硬件 WebGL2、GPU 设备、驱动和像素读回，保存 `gpu.json`；通过后再进入类型门槛。 |
 | 0 | 打包后的[类型消费者检查](TYPES.md)：core／world／play／game 四包全部现有 JS 入口，NodeNext／Bundler 两种方式；先记录两者结果，再判定失败。已准备、未执行。 |
 | 1 | 安装锁定依赖，`npm test`：各包检查、场景 schema/真实 JS 导入/错误诊断、挂点、人物动作、技能包。 |
 | 2 | 全部带 playtest 的示例按目录发现并串行执行 e2e；当前七个。构建、网页试玩、garden-quest 通关、同一画布三轮会话销毁与挂载、打包、离线试玩。 |
@@ -48,6 +51,7 @@ Node/npm/Chrome、操作系统架构、填写的硬件信息，以及场景报�
 
 ## 如何读取结果
 
+- `gpu.json` 保存硬件 WebGL2 预检查，无可用硬件时在此停止。
 - `summary.json` 每步落盘，记录开始／结束、返回码、耗时、日志路径、原始报告位置与待办门槛。
 - `logs/*.log` 保留完整输出，包含只有终端输出的雪屋、触屏和 GPU 检查。
 - `types/` 保存打包消费者的编译日志、tarball、工具链与安装锁文件；该子目录的 node_modules 可在交接时移除。
@@ -69,4 +73,4 @@ Node/npm/Chrome、操作系统架构、填写的硬件信息，以及场景报�
 2. 用同一修订在集显测试机再次运行，并记录真手机走／跑／转视角／交互、横竖屏与后台恢复。帧预算按预先约定的画质和分辨率记录。
 3. 按既有浏览器方法复查 Firefox / WebKit；真 Safari 由设备持有人试玩。0.2.0 的历史报告不替当前修订背书。
 4. 参考场景通过后再由主持人执行 A1。A1 固定 `db0759a` 的引擎输入与原控制器版本；若有修复要进入盲测，双方一起换新基线、新题卡版本并开新场次，不能一边热补丁。
-5. 再接实际 GPU runner，并收敛公开 API、类型与 npm 发布准备。此入口不注册 CI runner、不发布包、不自动冻结 API。
+5. 取得实际 GPU CI 首跑和失败归档证据，继续收敛公开 API、类型与 npm 发布准备。[CI 接入](GPU-CI.md)

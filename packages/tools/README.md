@@ -6,6 +6,7 @@ with the GPU on through puppeteer-core. Targets are a built `dist/` folder (serv
 
 | tool | |
 |---|---|
+| `src/gpu-ci.mjs run` / `collect` | GPU runner adapter for serial acceptance, hardware preflight, partial evidence and Actions artifacts. [Runner setup](../../docs/GPU-CI.md). |
 | `src/typecheck.mjs --out <new-dir>` (`npm run test:types -- ...`) | Test machine only: pack core/world/play/game, install the tarballs and a pinned compiler in a separate consumer, compare the Rapier declarations, then compile TypeScript and checked JavaScript with NodeNext and Bundler. Keeps package contents, hashes, lock and logs; no rendering. [Type handoff](../../docs/TYPES.md). |
 | `src/acceptance.mjs --run --machine <json> --out <new-dir>` (`npm run acceptance -- ...` at the root) | Test-machine-only serial acceptance of a clean HEAD archive: install, CPU checks, every example, physics, touch, stillness, GPU load, five still views, kit metrics and character review. Keeps logs, screenshots, source hashes and a pending human review; never certifies 1.0. See [the handoff](../../docs/ACCEPTANCE.md). |
 | `mirage-validate-plan <file>` | Validate a local JS module's default export or a JSON plan with the same rules used by the loader. Prints all invalid field paths. Exits 0 for a valid plan, 1 for an invalid or unreadable file and 2 for incorrect usage. |

@@ -120,6 +120,9 @@ try {
   result.lockSha256 = createHash('sha256').update(fs.readFileSync(path.join(workspace, 'package-lock.json'))).digest('hex');
   result.examples = discoverExamples(workspace);
   await run('install', 'npm', ['ci', '--include=dev', '--include=optional', '--no-audit', '--no-fund']);
+  await node('gpu-preflight', 'packages/tools/src/gpu-preflight.mjs', [path.join(out, 'gpu.json')]);
+  result.gpu = JSON.parse(fs.readFileSync(path.join(out, 'gpu.json'), 'utf8'));
+  if (result.gpu.status !== 'passed') throw new Error('Hardware GPU preflight did not pass');
   await node('types-consumer', 'packages/tools/src/typecheck.mjs', ['--out', path.join(out, 'types')]);
   result.types = JSON.parse(fs.readFileSync(path.join(out, 'types/summary.json'), 'utf8'));
   if (result.types.status !== 'passed') throw new Error('Packed type consumer did not pass');

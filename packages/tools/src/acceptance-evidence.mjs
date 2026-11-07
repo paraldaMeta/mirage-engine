@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { assertHardwareGpu } from './hardware-gpu.mjs';
 
 export function discoverExamples(root) {
   const dir = path.join(root, 'examples');
@@ -62,8 +63,7 @@ export function auditEvidence(root, names) {
       assert.ok(r.steps?.length && r.steps.every(s => s.pass === true), `${name}: missing or failed scenario steps`);
       assert.deepEqual(r.errors, [], `${name}: browser errors`);
       assert.deepEqual(r.build?.failed, [], `${name}: failed modules`);
-      assert.ok(typeof r.gpu === 'string' && r.gpu !== '?' && r.gpu.trim(), `${name}: missing GPU identity`);
-      assert.ok(!/swiftshader|llvmpipe|softpipe|software rasterizer/i.test(r.gpu), `${name}: software renderer cannot certify the hardware budget`);
+      assertHardwareGpu(r.gpu);
       nonempty(base + '/' + dir + '/sheet.png');
       targets.push({ protocol, gpu: r.gpu, report: base + '/' + dir + '/report.json' });
     }
