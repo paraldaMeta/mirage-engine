@@ -1,4 +1,5 @@
 {
+  "include": ["*.mts", "*.js", "bundler-identity.ts"],
   "extends": "./tsconfig.nodenext.json",
   "compilerOptions": { "module": "ESNext", "moduleResolution": "Bundler" }
 }

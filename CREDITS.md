@@ -5,7 +5,7 @@
 | Traveller model, vertex colours, skeleton and procedural poses | Original [character source](packages/play/src/character-model.js) and [motion controller](packages/play/src/character.js) by Mirage contributors | MIT |
 | River Ford heightfield, creek outline, shingle and water material | Original procedural code by Mirage contributors in the [world kits](packages/world/src/kits) and [example](examples/river-ford) | MIT |
 | Woodland Path trees, grass blades and ground surfaces | [Mirage vegetation kit](packages/world/src/kits/vegetation.js) and [example modules](examples/woodland-path/modules), original procedural geometry and materials by Mirage contributors | MIT |
-| Physics (dependency, bundled into builds that use `@mirage/game`) | Rapier by Dimforge — https://rapier.rs, `@dimforge/rapier3d-compat` 0.19.3 | Apache-2.0 (licence text in the npm package) |
+| Physics (dependency, bundled into builds that use `@mirage/game`) | Rapier by Dimforge — https://rapier.rs, `@dimforge/rapier3d-compat` 0.19.3 | Apache-2.0 ([license accompanying the bundled declarations](packages/game/types/rapier/LICENSE)) |
 | Rendering core (origin) | Golden Temple by Leon Lin — https://github.com/Leonxlnx/golden-temple | MIT (see NOTICE) |
 | Texture `plaster` (example only, `examples/hello-courtyard/tex/plaster_c.webp`, `plaster_n.webp`) | Poly Haven "beige_wall_002" by Dimitrios Savva, Rico Cilliers — https://polyhaven.com/a/beige_wall_002 | CC0 1.0 |
 | Texture `ashlar` (example only, `examples/hello-courtyard/tex/ashlar_c.webp`, `ashlar_n.webp`) | Poly Haven "sandstone_blocks_08" by Rob Tuytel — https://polyhaven.com/a/sandstone_blocks_08 | CC0 1.0 |

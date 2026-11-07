@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 // Mirage original code. Test-machine-only package consumer checks. No browser, rendering or emitted JS.
 import { spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
+import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -42,7 +44,9 @@ function run(id, command, argv, cwd = out, required = true) {
 try {
   if (process.env.NODE_OPTIONS) throw new Error('Unset NODE_OPTIONS before the compiler acceptance run.');
   result.npm = run('npm-version', 'npm', ['--version']).trim();
-  const dependencies = { three: result.toolchain.three };
+  const rapier = '@dimforge/rapier3d-compat';
+  const pinnedRapier = read(path.join(root, 'packages/game/package.json')).dependencies[rapier];
+  const dependencies = { three: result.toolchain.three, [rapier]: pinnedRapier };
   for (const name of ['core', 'world', 'play', 'game']) {
     const dir = path.join(root, 'packages', name), manifest = read(path.join(dir, 'package.json'));
     const packs = JSON.parse(run('pack-' + name, 'npm', ['pack', '.', '--workspaces=false', '--ignore-scripts', '--json',
@@ -67,7 +71,7 @@ try {
       sha256: hash(path.join(out, 'tarballs', pack.filename)), files: pack.files.map(f => f.path) });
   }
   const fixtureDir = path.join(root, 'docs/types');
-  for (const name of fs.readdirSync(fixtureDir).filter(name => /\.(mts|js|json)$/.test(name)).sort()) {
+  for (const name of fs.readdirSync(fixtureDir).filter(name => /\.(mts|ts|js|json)$/.test(name)).sort()) {
     fs.copyFileSync(path.join(fixtureDir, name), path.join(out, name));
   }
   fs.writeFileSync(path.join(out, 'package.json'), JSON.stringify({ name: 'mirage-types-consumer', private: true, type: 'module',
@@ -78,9 +82,20 @@ try {
   for (const [name, version] of Object.entries(result.toolchain)) {
     if (read(path.join(out, 'node_modules', name, 'package.json')).version !== version) throw new Error('Unexpected installed version: ' + name);
   }
+  const gameDir = path.join(out, 'node_modules/@mirage/game');
+  const requireFromGame = createRequire(path.join(gameDir, 'package.json'));
+  const upstream = path.dirname(requireFromGame.resolve(rapier));
+  const shipped = path.join(gameDir, 'types/rapier');
+  assert.equal(read(path.join(upstream, 'package.json')).version, pinnedRapier);
+  const declarationFiles = dir => fs.readdirSync(dir, { recursive: true }).filter(f => f.endsWith('.d.ts')).sort();
+  const originals = declarationFiles(upstream);
+  assert.ok(originals.includes('rapier.d.ts'));
+  assert.deepEqual(declarationFiles(shipped), originals, 'Rapier declaration inventory differs from the installed runtime');
+  for (const file of originals) assert.equal(hash(path.join(shipped, file)), hash(path.join(upstream, file)), file);
+  result.rapier = { version: pinnedRapier, identicalDeclarations: originals.length };
+  save();
   for (const mode of ['nodenext', 'bundler']) {
-    // Always collect both results, even when Rapier's published extensionless .d.ts imports reject NodeNext.
-    // Keep the strict gate: this known upstream issue is not a waived or expected success.
+    // Collect both compiler logs before deciding the result.
     run(mode, process.execPath, [path.join(out, 'node_modules/typescript/bin/tsc'), '-p', 'tsconfig.' + mode + '.json'], out, false);
   }
   const failed = result.steps.filter(step => step.status === 'failed');

@@ -3,7 +3,7 @@
 状态：**已实现，待异机验证**。MacBook Air 未运行编译、npm pack、安装或测试。
 覆盖 core、world、play、game 四个运行时包的根入口及现有 JS 子路径。
 包含渲染生命周期、模块与工具包、游走／嵌入、人物、物理、输入、音频、UI、事件与存档。
-资源归属和当前销毁缺口见 [LIFECYCLE.md](LIFECYCLE.md)，完整入口见[边界盘点](API-CANDIDATE.md)。
+资源归属和会话销毁顺序见 [LIFECYCLE.md](LIFECYCLE.md)，完整入口见[边界盘点](API-CANDIDATE.md)。
 
 ## 怎样编写模块
 
@@ -47,7 +47,7 @@ export const terrain: WorldModule<typeof plan> = {
 
 ## 测试机编译验收
 
-在累计分支 `codex/mirage-runtime-types` 的仓库根目录，Node 22.12+ 的 22.x 和 npm 可用后执行。
+在累计分支 `codex/mirage-session-cleanup` 的仓库根目录，Node 22.12+ 的 22.x 和 npm 可用后执行。
 目标父目录须先存在，最终目录必须是新目录且位于 checkout 外。此检查会联网取得依赖，编译 noEmit，且不启动浏览器。
 
 ```sh
@@ -61,10 +61,10 @@ npm run test:types -- --out "$HOME/mirage-type-review/run-001"
 安装忽略包脚本；不会执行示例 TS／JS 的内容，也不会发包。
 
 正例覆盖自定义字段、默认值、模块共享参数、异步 build、挂点、材质、几何、工具包、JSON Schema 和 JS 检查。
-新增 renderer-play.mts、game-authoring.mts、runtime-js.js 覆盖实际渲染器贯通 buildWorld／mountWorld／startGame，
+新增 renderer-play.mts、game-authoring.mts、runtime-js.js 覆盖实际渲染器贯通 buildWorld／mountWorld／startGame、会话销毁、
 以及宿主渲染器、人物、射线、暂停、动作边沿、退订、存档扩展和未知数据收窄。
 负例用 `@ts-expect-error` 明确要求错误：坐标长度、未知视角、双重形状、异步挂点、未收窄输出与空值误用；
-还覆盖渲染目标、质量等级、互斥触发区、事件载荷、空槽位、取消按键绑定、缺少 spawn 与不存在的 dispose 方法；
+还覆盖渲染目标、质量等级、互斥触发区、事件载荷、空槽位、取消按键绑定、缺少 spawn 与物理方法的错误参数；
 错误若意外消失，编译也必须失败。
 
 `summary.json` 记录返回码、耗时、工具链、tarball SHA-256、打包文件清单和安装锁文件 SHA-256。
@@ -76,13 +76,10 @@ npm run test:types -- --out "$HOME/mirage-type-review/run-001"
 累计分支的[整包串行验收](ACCEPTANCE.md)已在运行时检查之前接入此项，证据保存在整包目录下 `types/`。
 本批源码没有新增运行时依赖，也没有将编译器放进世界的单文件 HTML。
 
-## 已知的发布阻断：Rapier 的 NodeNext 声明
+## Rapier 与 NodeNext
 
-静态读取 `@dimforge/rapier3d-compat@0.19.3` 的已发布 package.json 和 rapier.d.ts 确认：
-包是 ESM，类型仍用 `./exports` 等无扩展名路径。上游登记了 [NodeNext 兼容问题 #369](https://github.com/dimforge/rapier.js/issues/369)。
-完整 game 入口现在引用真实的 World、RigidBody、Collider 和控制器类型，所以 NodeNext 检查预计会在这条依赖链失败。
-这是源码与包元数据判断，**本机未运行编译，当前候选的实际诊断仍待测试机采集**；也不能因此推定 Bundler 已通过。
+游戏运行时继续使用 `@dimforge/rapier3d-compat@0.19.3`。原包的 ESM 声明使用无扩展名的文件和目录导入，在 NodeNext 下遇到上游记录的解析问题。[上游问题 #369](https://github.com/dimforge/rapier.js/issues/369)
 
-本轮保留固定依赖版本、原始声明和 `skipLibCheck: false`，不修改消费者 node_modules，不把物理对象变成 any，
-也不将预期失败计作通过。整包串行入口会在类型门槛失败处停止。先收集两个编译日志，随后选择经验证的上游修复版本
-或单独审阅的声明修补方案；修复后重新运行本检查与物理回归，再推进发布。最终支持的解析模式尚未冻结。
+Mirage 的物理声明通过包内 `#rapier` 条件入口取类型。NodeNext 在局部 CommonJS 声明作用域读取同版本官方 .d.ts，Bundler 直接读取 npm 依赖的声明。两条路径都提供真实的 World、Collider、RigidBody 和控制器类型。使用 NodeNext 时可从 `@mirage/game/physics` 导入这些类型，运行时经 `await loadRapier()` 取构造器。该适配只覆盖 Mirage 的入口；直接导入上游包仍由其自身的清单决定解析方式。[声明来源与许可证](../packages/game/types/rapier/README.md)
+
+异机门槛要求已安装的游戏包所带声明与实际 Rapier 依赖逐文件哈希一致，两种严格编译均以 0 退出。Bundler 另检查物理句柄可直接赋给原包类型；NodeNext 通过 loadRapier 的构造器和物理句柄检查类型。证据保存在 `summary.json` 的 `rapier` 字段、`nodenext.log` 和 `bundler.log`。当前等待首次异机结果。

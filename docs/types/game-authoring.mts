@@ -116,3 +116,8 @@ type IsAny<T> = 0 extends (1 & T) ? true : false;
 const worldIsTyped: IsAny<typeof world> = false;
 const gameIsTyped: IsAny<typeof game> = false;
 const bodyIsTyped: IsAny<typeof prop.body> = false;
+const colliderIsTyped: IsAny<typeof character.collider> = false;
+const versionIsTyped: IsAny<typeof R.version> = false;
+const nativeWorld: InstanceType<typeof R.World> = physics.world;
+// @ts-expect-error the upstream body requires a vector for linear velocity
+prop.body.setLinvel('invalid velocity', true);

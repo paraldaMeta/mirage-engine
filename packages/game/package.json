@@ -13,7 +13,17 @@
     "./*": "./src/*.js",
     "./package.json": "./package.json"
   },
+  "imports": {
+    "#rapier": {
+      "types": {
+        "node": "./types/rapier/rapier.d.ts",
+        "default": "@dimforge/rapier3d-compat"
+      },
+      "default": "@dimforge/rapier3d-compat"
+    }
+  },
   "files": [
+    "types/rapier",
     "src",
     "README.md"
   ],

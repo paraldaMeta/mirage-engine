@@ -14,7 +14,7 @@
 | core `/rng`、`/geom`、`/materials`、`/env` | 随机流、几何辅助、材质钩子和环境 uniforms | 已写相邻声明，供模块上下文与工具包使用，待验证。 |
 | `@mirage/core` 根入口与其他子路径 | 渲染器、天空／昼夜、大气、雾、星空、后期、材质、随机、LOD、纹理、环境光、设备画质、geom 命名空间 | 根入口及所有现有 JS 子路径已写声明；含生命周期、光照空值、后期、环境光、纹理与 LOD，待异机编译。 |
 | `@mirage/play` | `createPlay`、`createCharacter`、`bakeWalkGrid`、`makeGrid`、`MAXL`、`createWalker`、`BODY`、`mountWorld` | 根入口及子路径已写声明；含人物、相机、grid／Rapier walker、嵌入与现有停止／销毁边界，待验证。 |
-| `@mirage/game` | `startGame`、`createPhysics`、`loadRapier`、`createGame`、`createInput`、输入常量、`createAudio`、`SURFACES`、`createUI` | 根入口及子路径已写声明；含保存、实体／触发区、固定时钟、输入、UI 与音频。待验证；Rapier 的 NodeNext 问题阻断发布。 |
+| `@mirage/game` | `startGame`、`createPhysics`、`loadRapier`、`createGame`、`createInput`、输入常量、`createAudio`、`SURFACES`、`createUI` | 根入口及子路径已写声明；含保存、实体／触发区、固定时钟、输入、UI 与音频。会话销毁与 Rapier 双模式类型适配待验证。 |
 | `@mirage/tools` | 场景校验、试玩、打包、截图、性能、静态交付和回归命令 | CLI 参数／返回状态为文档约定；无运行时库入口。 |
 
 四个运行时包目前都有 `./* → ./src/*.js` 通配导出，因此许多实现文件也可被消费者导入。
@@ -31,7 +31,7 @@
 - `WorldHost` 保留 loader 的最小结构契约，默认上下文直接引用 core 的 WorldContext，避免两份渲染器上下文漂移。
 - 真实渲染器贯通 buildWorld、mountWorld、createPlay 和 startGame；外接 walker 保留具体类型，startGame 要求 spawn。
 - game 自定义事件、实体读取的存档数据及导入 JSON 的额外字段为 unknown；已知事件载荷、互斥触发区、空值与快照覆盖行为有明确声明。
-- 当前资源归属及未实现的统一销毁见 [LIFECYCLE.md](LIFECYCLE.md)，不会凭空声明 dispose 方法。
+- `play.dispose()` 同步清理游走控制器，`await session.dispose()` 等待音频关闭后完成。[生命周期](LIFECYCLE.md)
 
 声明随现有 src 一起进入包，JavaScript 默认出口保持原指向。四包根入口显式给出 types 条件；
 已有子路径通过同目录的 `.d.ts` 解析。设计依据见 TypeScript 的[模块解析](https://www.typescriptlang.org/docs/handbook/modules/reference.html)
@@ -39,7 +39,7 @@
 
 ## 到冻结前仍要完成
 
-1. 解决 [Rapier NodeNext 声明兼容问题](TYPES.md#已知的发布阻断rapier-的-nodenext-声明)，取得四包消费者编译结果；补统一会话销毁与重复挂载的实现和验收。
+1. 取得四包 NodeNext／Bundler 的严格编译结果，并验收统一会话销毁与同画布重复挂载。[类型交接](TYPES.md)
 2. 每批声明通过真实打包后的消费者编译，并在完整运行时回归中确认包出口没有改变行为。
 3. 根据 A1、设备实测和使用反馈修正接口；逐项说明哪些字段可变、哪些默认值属于兼容承诺。
 4. 决定最终 npm 包名、Three 类型依赖的交付方式、子路径白名单与发布文件；补新项目安装和升级示例。

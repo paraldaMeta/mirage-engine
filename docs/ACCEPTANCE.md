@@ -1,6 +1,6 @@
 # Mirage 测试机串行验收
 
-截至 2026-11-06，入口和证据检查**已实现，待异机验证**。本轮只写源码、审阅差异；MacBook Air 不运行下面的命令。
+截至 2026-11-07，入口和证据检查**已实现，待异机验证**。本轮只写源码、审阅差异；MacBook Air 不运行下面的命令。
 当前开发状态见 [1.0 状态表](STATUS-1.0.md)。A1 仍是[单独主持的盲测](trials/a1/README.md)，不会被此入口启动。
 
 ## 准备
@@ -9,12 +9,12 @@
 暂不支持此入口在 Windows 运行。`CHROME` 是可执行文件的绝对路径，默认 macOS 标准安装位置。
 机器上一次只运行一个验收任务，关闭其他 GPU 作业，记录供电、节能与显示器刷新率。
 
-从累计开发分支 `codex/mirage-runtime-types` 的干净 checkout 开始。无需先在源 checkout 安装依赖。
+从累计开发分支 `codex/mirage-session-cleanup` 的干净 checkout 开始。无需先在源 checkout 安装依赖。
 在仓库外的持久目录放机器资料，使用 [MACHINE.template.json](acceptance/MACHINE.template.json)，把 null 全部换成实际值。
 目录示例不含空格，以兼容已有单文件工具。`--out` 的父目录必须存在，最终目录必须尚不存在。
 
 ```sh
-git switch codex/mirage-runtime-types
+git switch codex/mirage-session-cleanup
 mkdir -p "$HOME/mirage-acceptance"
 cp docs/acceptance/MACHINE.template.json "$HOME/mirage-acceptance/machine.json"
 # 填好 machine.json 后，在测试机执行：
@@ -35,7 +35,7 @@ Node/npm/Chrome、操作系统架构、填写的硬件信息，以及场景报�
 |---|---|
 | 0 | 打包后的[类型消费者检查](TYPES.md)：core／world／play／game 四包全部现有 JS 入口，NodeNext／Bundler 两种方式；先记录两者结果，再判定失败。已准备、未执行。 |
 | 1 | 安装锁定依赖，`npm test`：各包检查、场景 schema/真实 JS 导入/错误诊断、挂点、人物动作、技能包。 |
-| 2 | 全部带 playtest 的示例按目录发现并串行执行 e2e；当前七个。构建、网页试玩、garden-quest 通关、打包、离线试玩。 |
+| 2 | 全部带 playtest 的示例按目录发现并串行执行 e2e；当前七个。构建、网页试玩、garden-quest 通关、同一画布三轮会话销毁与挂载、打包、离线试玩。 |
 | 3 | 雪屋 30–165 Hz 固定步长；已有触屏模拟、静止淡入与时钟、GPU 空闲／隐藏／节能检查。 |
 | 4 | 院子五个光照机位静帧；均要求 sameFrameIndex 的 max 与 differing 为 0，缺一机位也失败。 |
 | 5 | 林缘与河湾 medium 指标；人物 HTTP 与 file 各八张截图、显隐同机位性能对照。 |
@@ -44,8 +44,7 @@ Node/npm/Chrome、操作系统架构、填写的硬件信息，以及场景报�
 现有测试参数与阈值保持不变；详细含义见[第一批](FIRST-BATCH.md)、[河湾](../examples/river-ford/README.md)、[人物](CHARACTER-REVIEW.md)。
 触屏模拟和无头帧计时不代替手机、集显热机和真浏览器的手动实测。软件渲染器不能作为硬件预算验收通过。
 
-当前存在 [Rapier NodeNext 类型阻断](TYPES.md#已知的发布阻断rapier-的-nodenext-声明)，完整入口预计会在第 0 步停止。
-建议测试机先单独运行 `npm run test:types -- --out <新目录>` 保存两种诊断，修复并提交后再运行整包；不绕过类型门槛。
+第 0 步对照已安装的 Rapier 0.19.3 官方声明，并要求 NodeNext 和 Bundler 均通过。可先独立运行 `npm run test:types -- --out <新目录>` 定位类型问题。整包步骤 2 的 garden-quest playthrough 会记录三轮生命周期数据，步骤 6 核对记录。详情见[类型交接](TYPES.md)和[资源归属](LIFECYCLE.md)。
 
 ## 如何读取结果
 
