@@ -31,7 +31,9 @@ export interface Play<W extends WalkerLike = GridWalker> {
   readonly maxFps: number; readonly idleFor: number;
   state(): { mode: ViewMode; pos: [number, number, number]; eye: [number, number, number]; onGround: boolean; blocked: boolean; yaw: number; still: number };
   step(dt: number): void;
-  /** Stops the animation loop only. Listeners, UI and owned resources remain; there is currently no dispose(). */
+  /** Terminal, idempotent cleanup. The caller owns the world and any injected walker or simulation. */
+  dispose(): void;
+  /** Pauses automatic frames. start() resumes and step() still works. */
   stop(): void;
   start(): void; wake(): void;
 }

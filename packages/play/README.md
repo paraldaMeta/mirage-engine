@@ -85,4 +85,4 @@ shared renderer's tone mapping (off) and shadow settings. Example: `examples/hel
 
 The root and current JS subpaths ship adjacent declarations; compilation is pending on the test machine.
 See [consumer checks](../../docs/TYPES.md) and [lifecycle / ownership](../../docs/LIFECYCLE.md).
-Stopping play is not disposal; no aggregate play or game-session dispose method is implemented yet.
+Use `play.stop()` to pause and `play.dispose()` to release the controls, overlays, character and render targets. The host retains the world.

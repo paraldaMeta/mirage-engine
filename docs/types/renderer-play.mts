@@ -94,8 +94,6 @@ play.stop(); play.step(1 / 60); play.render({ target }); play.render(); play.sta
 play.walker.fits(0, 0); play.turn(0.1, 0, 1); play.place([0, 2, 6], [0, 1, 0], 'walk');
 play.setMode('orbit'); play.viewpoint(0); play.lookAt([0, 0, 0]); play.syncWalkerView();
 play.yaw += 0.1; play.pitch = 0.2; play.viewSize = 12; play.powerSaver = true; play.wake(); play.state().pos[0].toFixed();
-// @ts-expect-error stopping play is not aggregate disposal
-play.dispose();
 // @ts-expect-error createPlay requires a plan with viewpoints (definePlan supplies them)
 createPlay(world, { plan: { name: 'raw', bounds: [-1, -1, 1, 1] } });
 // @ts-expect-error unknown mode
@@ -110,4 +108,4 @@ mounted.plan.trail.width.toFixed(); mounted.walker().fits(0, 0); mounted.update(
 mounted.render(camera, { moving: false, target, shadow: { center: [0, 0, 0], radius: 12 } });
 mounted.setSize(800, 600); mounted.dispose(); frameGate(() => 60)(1000);
 // These are separate fixtures of ownership. Real applications stop loops before disposing a world.
-play.stop(); world.dispose(); target.dispose(); sharedRenderer.dispose();
+custom.dispose(); play.dispose(); world.dispose(); target.dispose(); sharedRenderer.dispose();

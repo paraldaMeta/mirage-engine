@@ -8,6 +8,8 @@
 //   touch: input.stick(x, z), input.hold(action, on), input.tap(action), input.addLook(dx, dy)
 // ---------------------------------------------------------------------------
 
+import { createLifetime } from '@mirage/core/lifetime';
+
 export const ACTIONS = ['forward', 'back', 'left', 'right', 'run', 'jump', 'interact', 'inventory', 'menu'];
 export const DEFAULT_BINDINGS = {
   forward: ['KeyW', 'ArrowUp'], back: ['KeyS', 'ArrowDown'], left: ['KeyA', 'ArrowLeft'], right: ['KeyD', 'ArrowRight'],
@@ -19,6 +21,7 @@ export const PAD_NAMES = { 0: 'A', 1: 'B', 2: 'X', 3: 'Y', 4: 'LB', 9: 'Start', 
 const LOOK_SPEED = 2.6;   // rad/s at full right-stick deflection
 
 export function createInput({ target = globalThis, bindings = DEFAULT_BINDINGS, deadzone = 0.18 } = {}) {
+  const life = createLifetime();
   const keys = new Set(), edges = new Set(), queued = new Set(), held = new Set();
   const spent = new Set();   // keys / pad buttons held when input was switched on: ignored until released
   const touch = { x: 0, z: 0, look: [0, 0] };
@@ -26,7 +29,7 @@ export function createInput({ target = globalThis, bindings = DEFAULT_BINDINGS, 
   const inp = {
     bindings: structuredClone(bindings), source: 'keyboard', pad: null,
     get enabled() { return enabled; },
-    set enabled(v) { if (v && !enabled) inp.spend(); enabled = !!v; },
+    set enabled(v) { if (life.disposed) return; if (v && !enabled) inp.spend(); enabled = !!v; },
     /** ignore what is held now (and `code`, a key being pressed right now) until it is released */
     spend(code) {
       for (const k of keys) spent.add(k);
@@ -55,6 +58,7 @@ export function createInput({ target = globalThis, bindings = DEFAULT_BINDINGS, 
       return [dx, dy];
     },
     poll() {
+      if (life.disposed) return;
       edges.clear();
       for (const a of queued) edges.add(a);
       queued.clear();
@@ -76,7 +80,21 @@ export function createInput({ target = globalThis, bindings = DEFAULT_BINDINGS, 
     },
     reset() { inp.bindings = structuredClone(DEFAULT_BINDINGS); },
     /** resolves with the next key pressed (Escape cancels with null) */
-    capture: () => new Promise((r) => { capturing = r; }),
+    capture(signal) {
+      capturing?.(null);
+      if (life.disposed || signal?.aborted) return Promise.resolve(null);
+      return new Promise((resolve) => {
+        const cancel = () => finish(null);
+        const finish = (code) => {
+          signal?.removeEventListener('abort', cancel);
+          capturing = null;
+          resolve(code);
+        };
+        capturing = finish;
+        signal?.addEventListener('abort', cancel, { once: true });
+      });
+    },
+    dispose: life.dispose,
     stick(x, z) { touch.x = x; touch.z = z; if (x || z) inp.source = 'touch'; },
     hold(a, on) { if (on) { held.add(a); queued.add(a); inp.source = 'touch'; } else held.delete(a); },
     tap(a) { queued.add(a); inp.source = 'touch'; },
@@ -92,8 +110,12 @@ export function createInput({ target = globalThis, bindings = DEFAULT_BINDINGS, 
   const padDown = (a) => !!(inp.enabled && pad && PAD[a] && PAD[a].some((i) => pad.buttons[i] && !spent.has('pad' + i) && (pad.buttons[i].pressed || pad.buttons[i].value > 0.5)));
   const stick = (x = 0, y = 0) => { const l = Math.hypot(x, y); if (l < deadzone) return [0, 0]; const k = Math.min(1, (l - deadzone) / (1 - deadzone)) / l; return [x * k, y * k]; };
   const inField = (e) => e.target && /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName);
+  life.defer(() => {
+    capturing?.(null); inp.clear();
+    enabled = false; padPrev = []; pad = inp.pad = null;
+  });
   if (target.addEventListener) {
-    target.addEventListener('keydown', (e) => {
+    life.listen(target, 'keydown', (e) => {
       if (capturing) { e.preventDefault(); const r = capturing; capturing = null; r(e.code === 'Escape' ? null : e.code); return; }
       if (inField(e)) return;
       inp.source = 'keyboard';
@@ -104,8 +126,8 @@ export function createInput({ target = globalThis, bindings = DEFAULT_BINDINGS, 
       keys.add(e.code);
       if (!inDialog && ['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault();
     });
-    target.addEventListener('keyup', (e) => { keys.delete(e.code); spent.delete(e.code); });
-    target.addEventListener('blur', () => inp.clear());
+    life.listen(target, 'keyup', (e) => { keys.delete(e.code); spent.delete(e.code); });
+    life.listen(target, 'blur', () => inp.clear());
   }
   return inp;
 }

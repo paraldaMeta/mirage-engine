@@ -25,6 +25,7 @@ export interface Hinge<O extends THREE.Object3D = THREE.Object3D> {
 }
 export interface RayHit { point: [number, number, number]; distance: number; surface: string; object: THREE.Object3D | undefined }
 export interface Physics {
+  dispose(): void;
   R: typeof Rapier; world: World; stats: { colliders: number; triangles: number; buildMs: number };
   info: Map<number, { surface: string; object: THREE.Object3D }>; hinges: Hinge[];
   addStatic(root?: THREE.Object3D): void;

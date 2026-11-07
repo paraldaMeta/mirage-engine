@@ -13,19 +13,21 @@
 // ---------------------------------------------------------------------------
 import * as THREE from 'three';
 
-let RAPIER = null;
+let rapierReady;
 const MIN_DT = 1 / 90;   // the shortest character move (see character())
-/** load and initialise Rapier once (the dynamic import keeps it out of pages that never call this) */
-export async function loadRapier() {
-  if (!RAPIER) {
-    const m = await import('@dimforge/rapier3d-compat');
-    RAPIER = m.default || m;
-    // the compat build calls wasm-bindgen's init the old way, which warns once; that warning is not ours to fix
-    const warn = console.warn;
-    console.warn = (...a) => { if (!String(a[0]).includes('deprecated parameters for the initialization')) warn(...a); };
-    try { await RAPIER.init(); } finally { console.warn = warn; }
+/** Share in-flight initialization between mounts; a failed attempt can be retried. */
+export function loadRapier() {
+  if (!rapierReady) {
+    rapierReady = import('@dimforge/rapier3d-compat').then(async module => {
+      const rapier = module.default || module;
+      await rapier.init();
+      return rapier;
+    }).catch(error => {
+      rapierReady = undefined;
+      throw error;
+    });
   }
-  return RAPIER;
+  return rapierReady;
 }
 
 const shown = (o) => { for (let p = o; p; p = p.parent) if (!p.visible || p.userData.collide === false) return false; return true; };
@@ -214,5 +216,12 @@ export async function createPhysics(scene, { gravity = 9.81 } = {}) {
     return w;
   }
 
-  return { R, world, stats, info, addStatic, body, hinge, character, step, ray, hinges };
+  let disposed = false;
+  function dispose() {
+    if (disposed) return;
+    disposed = true;
+    info.clear(); characters.clear(); moving.length = hinges.length = 0;
+    world.free();
+  }
+  return { dispose, R, world, stats, info, addStatic, body, hinge, character, step, ray, hinges };
 }

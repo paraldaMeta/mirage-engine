@@ -57,6 +57,7 @@ export function createCharacter(world, { palette = {} } = {}) {
     pose(!onGround);
     return true;
   }
+  let disposed = false;
   return { root, mesh, update, reset, get state() { return state; },
-    dispose() { root.removeFromParent(); mesh.geometry.dispose(); } };
+    dispose() { if (!disposed) { disposed = true; root.removeFromParent(); mesh.geometry.dispose(); } } };
 }

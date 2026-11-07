@@ -1,6 +1,6 @@
 # 运行时生命周期与资源归属（候选）
 
-2026-11-06。描述当前实现，不是新增的销毁机制或 1.0 承诺。相邻声明已写入，**待异机编译及运行验收**。
+2026-11-07。会话销毁实现和声明均已写入，**待异机编译及运行验收**。
 本轮没有执行 WebGL、浏览器、测试、编译、打包或依赖安装。
 
 ## 渲染器
@@ -33,20 +33,32 @@
 
 ## 游走与游戏
 
-`createPlay()` 创建 DOM 控件、监听器并立即开始动画循环。`stop()` 只停止循环调度，`start()` 可重新开始；
-停止后可用 `step(dt)` 手动驱动。`stop()` 不注销监听器，不清除 UI，不释放渐进渲染目标、人物或 OrbitControls。
-**目前没有 play.dispose()、session.dispose()、input.dispose() 或 ui.dispose()。** 类型不会声明这些不存在的方法。
+单独使用 `createPlay()` 时，`stop()` 暂停自动帧，仍可手动 `step(dt)` 或 `start()`。
+`play.dispose()` 同步取消帧、解绑控制器与监听、移除 HUD、帮助和人物，释放自有渐进渲染目标。
+可以重复调用。传入的世界、画布、renderer、walker 和 simulation 归宿主。
 
-`startGame()` 异步创建物理和控制层，再启动 play；必须提供明确的 plan.spawn。
-`ui: false` 时 session.ui 为 null，session.game.ui 仍有无操作的消息接口；setup 执行时 game.ui 尚未赋值。
-`createSimulation()` 将角色、物理和 game.tick 放到同一 60 Hz 时钟，viewPosition 仅供显示插值；
-reset 清空累计时间和跳跃边沿，并对齐两端位置。它的暂停订阅目前也没有集中注销入口。
+使用 `startGame()` 时，整段会话只需要一个出口。销毁开始时立即停止输入和模拟，
+取消待绑定的按键（以 null 完成），移除菜单和实体根节点，释放 Rapier 世界及已登记的资源。
+返回的 Promise 等待已解锁的 AudioContext 关闭；重复调用返回同一 Promise。等待完成后即可在同一个世界启动下一场。
 
-`game.on()` 返回可调用的退订函数（返回值是 Set.delete 的 boolean）；自定义事件数据默认 unknown。
-`game.reset()` 保留实体、系统和订阅。`input.clear()` 清输入状态，不移除 DOM 监听器。
-`audio.ctx` 在用户手势解锁前可能为 null，play() 也可能返回 null；suspend() 不是释放资源。
-物理层暴露真实 Rapier 类型，低层调用者自行管理 `physics.world.free()`；不能在仍有模拟回调执行时释放它。
-这些分散的入口并不构成可靠的整场景热切换方案，统一销毁与重复挂载仍是 1.0 前的实现工作。
+```js
+const session = await startGame(world, { built, setup({ onDispose }) {
+  // Register resources at allocation, including objects later removed by gameplay.
+  const material = world.mat.std({ color: 0xbaa071 });
+  onDispose(() => material.dispose());
+} });
+await session.dispose();
+// Only when the host itself is finished:
+world.dispose();
+```
+
+`setup(ctx)` 可以用 `ctx.onDispose(fn)` 登记**同步**清理。回调按登记的逆序执行；
+即使 setup、prepare 或后续挂载失败，也会清理已取得的资源并让 startGame 拒绝。
+由 setup 创建的材质、纹理、几何和外部订阅需自行登记。借用的资源由原所有者管理。
+切换时先等待旧会话销毁，再创建新会话。底层 Rapier 刚体和控制器只在所属世界存活时有效。
+
+独立创建的 input、ui、simulation、physics、game 均有同步 `dispose()`；audio 使用 `await audio.dispose()`。
+`game.on()` 返回退订函数。游戏数据、输入状态和浏览器存档各有自己的生存期，销毁不会删除存档。
 
 ## 存档边界
 
@@ -62,7 +74,5 @@ loadSettings 也返回 unknown。读取前用应用的校验与类型守卫收�
 ## 测试机需要补的证据
 
 先按 [TYPES.md](TYPES.md) 运行消费者编译，再按 [ACCEPTANCE.md](ACCEPTANCE.md) 运行串行验收。
-声明用例包含生命周期调用和空值误用，但它们不执行这些调用，不能证明资源已被释放。
-在后续生命周期实现提交中，需补自动运行用例验证重复创建／销毁、共享 renderer 仍可用、
-事件没有重复触发、后台恢复和传送后插值正确，并记录 GPU 资源计数。
-当前统一销毁缺口与 Rapier NodeNext 兼容问题均不能用“类型已写”关闭。
+garden-quest 的 playthrough 新增 lifecycle，连续三次销毁同一世界上的会话，覆盖菜单打开、按键捕获中、音频已解锁／尚未解锁、同一 renderer 再次出图及旧循环停止。
+每次记录 renderer.info.memory 的几何与纹理计数供同机比较。game 的 Node 用例覆盖异步 setup 失败回滚。

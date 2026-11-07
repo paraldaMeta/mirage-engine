@@ -42,6 +42,13 @@ export function auditEvidence(root, names) {
   const read = p => JSON.parse(fs.readFileSync(path.join(root, p), 'utf8'));
   const nonempty = p => assert.ok(fs.statSync(path.join(root, p)).size > 0, 'Empty evidence: ' + p);
   checkE2E(read('out/e2e/summary.json'), names);
+  const lifecycle = read('examples/garden-quest/out/playthrough/report.json').parts?.lifecycle;
+  assert.ok(Array.isArray(lifecycle) && lifecycle.length === 3, 'Missing game remount evidence');
+  for (const [i, sample] of lifecycle.entries()) {
+    assert.equal(sample.cycle, i);
+    assert.equal(sample.audio, i === 1 ? 'locked' : 'closed');
+    assert.ok(Number.isInteger(sample.geometries) && Number.isInteger(sample.textures), 'Missing renderer memory counters');
+  }
   const examples = [];
   for (const name of names) {
     const base = 'examples/' + name;

@@ -19,11 +19,14 @@ export function createAudio({ volumes = {} } = {}) {
   const vol = { master: 0.9, music: 0.3, sfx: 0.8, ambience: 0.6, ...volumes };
   const stats = { played: {}, skipped: 0, state: 'locked', genMs: 0 };
   let ctx = null, buses = null, bufs = null;
+  let closing;
+  const active = new Map();
   const pendingLoops = [], J = sfc32(hash32('mirage/audio/jitter'));   // variant and pitch jitter
   const a = {
     get ctx() { return ctx; }, stats, get volumes() { return { ...vol }; },
     unlock() {
-      if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
+      if (closing) return;
+      if (ctx) { if (ctx.state === 'suspended') a.suspend(false); return; }
       const AC = globalThis.AudioContext || globalThis.webkitAudioContext;
       if (!AC) return;
       ctx = new AC();
@@ -36,7 +39,7 @@ export function createAudio({ volumes = {} } = {}) {
       stats.genMs = +(performance.now() - t0).toFixed(1);
       const resumed = () => { stats.state = ctx.state; };
       ctx.onstatechange = resumed; resumed();
-      if (ctx.state === 'suspended') ctx.resume();
+      if (ctx.state === 'suspended') a.suspend(false);
       for (const l of pendingLoops.splice(0)) l.start();
     },
     /** stop the device while the page is hidden (play's onVisibility); resumes on false */
@@ -52,8 +55,7 @@ export function createAudio({ volumes = {} } = {}) {
       const list = [].concat(bufs[name]);
       src.buffer = list[Math.floor(J() * list.length)];
       src.playbackRate.value = rate; g.gain.value = gain;
-      src.connect(g); g.connect(at ? panner(at, ref, buses[bus]) : buses[bus]);
-      src.start();
+      startSource(src, g, at, ref, bus);
       stats.played[name] = (stats.played[name] || 0) + 1;
       return src;
     },
@@ -63,13 +65,28 @@ export function createAudio({ volumes = {} } = {}) {
     },
     loop(name, { at, bus = 'ambience', gain = 1, ref = 3 } = {}) {
       const h = { name, src: null, start() {
+        if (!ctx || h.src) return;
         h.src = ctx.createBufferSource(); h.src.buffer = bufs[name]; h.src.loop = true;
-        const g = ctx.createGain(); g.gain.value = gain; h.src.connect(g);
-        g.connect(at ? panner(at, ref, buses[bus]) : buses[bus]);
-        h.src.start(); stats.played[name] = (stats.played[name] || 0) + 1;
+        const g = ctx.createGain(); g.gain.value = gain;
+        startSource(h.src, g, at, ref, bus, h);
+        stats.played[name] = (stats.played[name] || 0) + 1;
       } };
-      if (ctx) h.start(); else pendingLoops.push(h);
+      if (ctx) h.start(); else if (!closing) pendingLoops.push(h);
       return h;
+    },
+    dispose() {
+      if (closing) return closing;
+      const context = ctx;
+      closing = Promise.resolve().then(() => {
+        if (context && context.state !== 'closed') return context.close();
+      });
+      pendingLoops.length = 0;
+      for (const [source, release] of active) { source.stop(); release(); }
+      if (context) context.onstatechange = null;
+      if (buses) for (const bus of Object.values(buses)) bus.disconnect();
+      ctx = buses = bufs = null;
+      stats.state = 'closed';
+      return closing;
     },
     listen(cam) {
       if (!ctx) return;
@@ -82,6 +99,20 @@ export function createAudio({ volumes = {} } = {}) {
       } else { L.setPosition(e[12], e[13], e[14]); L.setOrientation(-e[8], -e[9], -e[10], e[4], e[5], e[6]); }
     },
   };
+  function startSource(source, gain, at, ref, bus, loop) {
+    const spatial = at ? panner(at, ref, buses[bus]) : null;
+    source.connect(gain);
+    gain.connect(spatial || buses[bus]);
+    function release() {
+      source.removeEventListener('ended', release);
+      source.disconnect(); gain.disconnect(); spatial?.disconnect();
+      if (loop) loop.src = null;
+      active.delete(source);
+    }
+    active.set(source, release);
+    source.addEventListener('ended', release);
+    source.start();
+  }
   function panner([x, y, z], ref, out = buses.sfx) {
     const p = new PannerNode(ctx, { panningModel: 'HRTF', distanceModel: 'inverse', refDistance: ref, maxDistance: 80, rolloffFactor: 1.2, positionX: x, positionY: y, positionZ: z });
     p.connect(out);

@@ -44,6 +44,7 @@ export interface GameEvents {
 export type EventData<K extends string> = K extends keyof GameEvents ? GameEvents[K] : unknown;
 export type System = (dt: number, game: Game) => void;
 export interface Game {
+  dispose(): void;
   id: string; version: number; entities: Map<string, Entity>; systems: System[];
   flags: Record<string, unknown>; removed: Set<string>; settings: Record<string, unknown>;
   paused: boolean; time: number; zones: Map<string, ActiveZone>; player: XYZ | null;

@@ -4,6 +4,7 @@
 // No framework: native <dialog> (modal, focus kept inside, labelled), real <button>s and <input type=range>, an
 // aria-live region for prompts and toasts; gamepad d-pad / A / B move focus, press and close inside dialogs.
 // ---------------------------------------------------------------------------
+import { createLifetime } from '@mirage/core/lifetime';
 import { ACTIONS, keyName } from './input.js';
 
 const CSS = `
@@ -44,8 +45,17 @@ const CSS = `
 @media (max-width:640px){.mg-obj{font-size:13px}.mg-hud{flex-direction:column}}
 `;
 
-export function createUI({ game, input, audio, title = 'Mirage', subtitle = '', slots = 3, onSave, onLoad, onRestart, canvas } = {}) {
-  if (!document.getElementById('mg-css')) document.head.insertAdjacentHTML('beforeend', `<style id="mg-css">${CSS}</style>`);
+export function createUI(options) {
+  const life = createLifetime();
+  try {
+    return mountUI(options, life);
+  } catch (error) {
+    life.dispose();
+    throw error;
+  }
+}
+
+function mountUI({ game, input, audio, title = 'Mirage', subtitle = '', slots = 3, onSave, onLoad, onRestart, canvas } = {}, life) {
   const root = document.createElement('div');
   root.className = 'mg-ui';
   root.innerHTML = `
@@ -63,40 +73,60 @@ export function createUI({ game, input, audio, title = 'Mirage', subtitle = '', 
     <dialog class="mg-menu" aria-labelledby="mg-menu-h"><h2 id="mg-menu-h">Paused</h2><div class="mg-body"></div></dialog>
     <dialog class="mg-inv" aria-labelledby="mg-inv-h"><h2 id="mg-inv-h">Carrying</h2><ul class="mg-list"></ul><button data-close>Close</button></dialog>
     <dialog class="mg-msg" aria-labelledby="mg-msg-h"><h2 id="mg-msg-h"></h2><p class="mg-msg-p"></p><button data-close>Continue</button></dialog>`;
+  if (!document.getElementById('mg-css')) {
+    const style = document.createElement('style');
+    style.textContent = CSS;
+    root.prepend(style);
+  }
+  life.defer(() => root.remove());
   document.body.appendChild(root);
   const $ = (s) => root.querySelector(s);
   const menu = $('.mg-menu'), inv = $('.mg-inv'), msg = $('.mg-msg'), start = $('.mg-start');
   $('.mg-start h1').textContent = title; $('.mg-start .sub').textContent = subtitle;
   const open = () => [menu, inv, msg].find((d) => d.open);
   let started = false, toastT = 0, panel = 'main';
+  const wasEnabled = input.enabled;
+  let ownsPause = false;
+  const files = new Map();
+  const capture = new AbortController();
+  life.defer(() => {
+    capture.abort();
+    for (const [url, timer] of files) { clearTimeout(timer); URL.revokeObjectURL(url); }
+    files.clear();
+    for (const dialog of [menu, inv, msg]) if (dialog.open) dialog.close();
+    if (canvas && document.pointerLockElement === canvas) document.exitPointerLock();
+    input.clear(); input.enabled = wasEnabled;
+    if (ownsPause) game.pause(false);
+  });
   input.enabled = false;   // nothing moves behind the start screen
 
   // ---- dialogs pause the game; Escape goes through the action map (the dialog's own cancel is suppressed)
   for (const d of [menu, inv, msg]) {
-    d.addEventListener('cancel', (e) => e.preventDefault());
-    d.addEventListener('close', () => { if (!open()) resume(); });
-    d.addEventListener('click', (e) => { if (e.target.closest('[data-close]')) d.close(); });
+    life.listen(d, 'cancel', (e) => e.preventDefault());
+    life.listen(d, 'close', () => { if (!open()) resume(); });
+    life.listen(d, 'click', (e) => { if (e.target.closest('[data-close]')) d.close(); });
   }
-  function pause() { game.pause(true); input.enabled = false; input.clear(); setRun(false); if (document.pointerLockElement) document.exitPointerLock(); }
-  function resume() { if (open()) return; game.pause(false); input.enabled = true; }
+  function pause() { if (!game.paused) ownsPause = true; game.pause(true); input.enabled = false; input.clear(); setRun(false); if (canvas && document.pointerLockElement === canvas) document.exitPointerLock(); }
+  function resume() { if (open()) return; ownsPause = false; game.pause(false); input.enabled = true; }
   function show(d) { for (const o of [menu, inv, msg]) if (o !== d && o.open) o.close(); pause(); if (!d.open) d.showModal(); }
 
   // ---- start screen: unlocks audio and captures the pointer
   function begin(e) {
+    if (life.disposed) return;
     if (started) return;
     started = true; start.hidden = true; audio.unlock(); input.enabled = true; input.spend(e && e.code);
     if (e && e.type === 'click' && canvas && canvas.requestPointerLock && !touchOn) try { const r = canvas.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch { /* drag to look */ }
     game.emit('start');
   }
-  start.addEventListener('click', begin);
-  addEventListener('keydown', (e) => { if (!started) { e.preventDefault(); begin(e); } }, true);
-  addEventListener('pointerdown', () => audio.unlock(), { capture: true });
+  life.listen(start, 'click', begin);
+  life.listen(window, 'keydown', (e) => { if (!started) { e.preventDefault(); begin(e); } }, true);
+  life.listen(window, 'pointerdown', () => audio.unlock(), { capture: true });
 
   // ---- pointer lock lost while playing (Escape in Chrome): pause, and ignore the same Escape's menu edge
   let lostAt = -1e9;
   let hadLock = false;
-  document.addEventListener('pointerlockchange', () => {
-    if (document.pointerLockElement) { hadLock = true; return; }
+  life.listen(document, 'pointerlockchange', () => {
+    if (canvas && document.pointerLockElement === canvas) { hadLock = true; return; }
     if (hadLock && !game.paused && started) { hadLock = false; lostAt = performance.now(); openMenu(); }
   });
 
@@ -105,14 +135,14 @@ export function createUI({ game, input, audio, title = 'Mirage', subtitle = '', 
   const touch = $('.mg-touch'), stick = $('.mg-stick'), knob = $('.mg-knob');
   function setTouch(on) { touchOn = on; touch.hidden = !on; $('.mg-cross').hidden = on; }
   if (matchMedia('(pointer: coarse)').matches) setTouch(true);
-  addEventListener('pointerdown', (e) => { if (e.pointerType === 'touch' && !touchOn) setTouch(true); }, { capture: true });
+  life.listen(window, 'pointerdown', (e) => { if (e.pointerType === 'touch' && !touchOn) setTouch(true); }, { capture: true });
   let stickId = null, lookId = null, last = null;
-  stick.addEventListener('pointerdown', (e) => { stickId = e.pointerId; stick.setPointerCapture(e.pointerId); moveStick(e); e.preventDefault(); });
-  stick.addEventListener('pointermove', (e) => { if (e.pointerId === stickId) moveStick(e); });
+  life.listen(stick, 'pointerdown', (e) => { stickId = e.pointerId; stick.setPointerCapture(e.pointerId); moveStick(e); e.preventDefault(); });
+  life.listen(stick, 'pointermove', (e) => { if (e.pointerId === stickId) moveStick(e); });
   let running = false;
   const setRun = (on) => { if (on !== running) { running = on; input.hold('run', on); stick.classList.toggle('run', on); } };
   const endStick = (e) => { if (e.pointerId !== stickId) return; stickId = null; knob.style.transform = ''; input.stick(0, 0); setRun(false); };
-  stick.addEventListener('pointerup', endStick); stick.addEventListener('pointercancel', endStick);
+  life.listen(stick, 'pointerup', endStick); life.listen(stick, 'pointercancel', endStick);
   function moveStick(e) {
     const r = stick.getBoundingClientRect(), R = r.width / 2;
     let dx = e.clientX - r.left - R, dy = e.clientY - r.top - R;
@@ -122,18 +152,18 @@ export function createUI({ game, input, audio, title = 'Mirage', subtitle = '', 
     setRun(l > R * 1.25);   // pushed out past the rim: run
   }
   const look = $('.mg-look');
-  look.addEventListener('pointerdown', (e) => { if (!started) begin(e); lookId = e.pointerId; last = [e.clientX, e.clientY]; look.setPointerCapture(e.pointerId); });
-  look.addEventListener('pointermove', (e) => { if (e.pointerId !== lookId) return; input.addLook((e.clientX - last[0]) * 0.006, (e.clientY - last[1]) * 0.006); last = [e.clientX, e.clientY]; });
-  look.addEventListener('pointerup', () => { lookId = null; });
+  life.listen(look, 'pointerdown', (e) => { if (!started) begin(e); lookId = e.pointerId; last = [e.clientX, e.clientY]; look.setPointerCapture(e.pointerId); });
+  life.listen(look, 'pointermove', (e) => { if (e.pointerId !== lookId) return; input.addLook((e.clientX - last[0]) * 0.006, (e.clientY - last[1]) * 0.006); last = [e.clientX, e.clientY]; });
+  life.listen(look, 'pointerup', () => { lookId = null; });
   for (const b of touch.querySelectorAll('button[data-a]')) {
     const a = b.dataset.a;
-    b.addEventListener('pointerdown', (e) => { e.preventDefault(); if (!started) { begin(e); return; } if (a === 'jump') input.hold(a, true); else input.tap(a); });
-    b.addEventListener('pointerup', () => input.hold(a, false));
-    b.addEventListener('click', (e) => { if (e.detail === 0) input.tap(a); });   // keyboard / screen reader activation
+    life.listen(b, 'pointerdown', (e) => { e.preventDefault(); if (!started) { begin(e); return; } if (a === 'jump') input.hold(a, true); else input.tap(a); });
+    life.listen(b, 'pointerup', () => input.hold(a, false));
+    life.listen(b, 'click', (e) => { if (e.detail === 0) input.tap(a); });   // keyboard / screen reader activation
   }
 
   // ---- the pause menu (panels rendered on demand)
-  function openMenu(p = 'main') { panel = p; renderMenu(); show(menu); const f = menu.querySelector('button:not(:disabled)'); if (f) f.focus(); }
+  function openMenu(p = 'main') { if (life.disposed) return; panel = p; renderMenu(); show(menu); const f = menu.querySelector('button:not(:disabled)'); if (f) f.focus(); }
   function renderMenu() {
     const body = $('.mg-body');
     $('#mg-menu-h').textContent = { main: 'Paused', save: 'Save', load: 'Load', controls: 'Controls', sound: 'Sound' }[panel];
@@ -153,7 +183,7 @@ export function createUI({ game, input, audio, title = 'Mirage', subtitle = '', 
       body.innerHTML = ['master', 'music', 'sfx', 'ambience'].map((b) => `<div class="mg-row"><label for="mg-v-${b}"><span>${b}</span></label><input id="mg-v-${b}" type="range" min="0" max="1" step="0.05" value="${audio.volumes[b]}" data-vol="${b}"></div>`).join('') + back;
     }
   }
-  menu.addEventListener('click', async (e) => {
+  life.listen(menu, 'click', async (e) => {
     const t = e.target.closest('button'); if (!t) return;
     const note = (s) => { const n = menu.querySelector('.mg-note'); if (n) n.textContent = s; };
     if (t.dataset.p) { panel = t.dataset.p; renderMenu(); const f = menu.querySelector('button'); if (f) f.focus(); }
@@ -166,28 +196,39 @@ export function createUI({ game, input, audio, title = 'Mirage', subtitle = '', 
     if (t.dataset.do === 'export') {
       const a = document.createElement('a');
       a.href = URL.createObjectURL(new Blob([onSave('export')], { type: 'application/json' }));
-      a.download = `${game.id}-save.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      a.download = `${game.id}-save.json`; const url = a.href;
+      files.set(url, setTimeout(() => { files.delete(url); URL.revokeObjectURL(url); }, 1000));
+      a.click();
     }
     if (t.dataset.bind) {
       t.textContent = 'press a key…';
-      const code = await input.capture();
+      const code = await input.capture(capture.signal);
+      if (life.disposed) return;
       if (code) { input.rebind(t.dataset.bind, code); game.settings.bindings = input.bindings; game.saveSettings(); }
       renderMenu(); const b = menu.querySelector(`[data-bind="${t.dataset.bind}"]`); if (b) b.focus();
     }
     if (t.dataset.do === 'defaults') { input.reset(); game.settings.bindings = input.bindings; game.saveSettings(); renderMenu(); }
   });
-  menu.addEventListener('input', (e) => { const b = e.target.dataset.vol; if (b) { audio.volume(b, +e.target.value); game.settings.volumes = audio.volumes; game.saveSettings(); } });
-  menu.addEventListener('change', async (e) => {
+  life.listen(menu, 'input', (e) => { const b = e.target.dataset.vol; if (b) { audio.volume(b, +e.target.value); game.settings.volumes = audio.volumes; game.saveSettings(); } });
+  life.listen(menu, 'change', async (e) => {
     if (e.target.type !== 'file' || !e.target.files[0]) return;
-    try { onLoad(await e.target.files[0].text()); menu.close(); toast('Loaded from file'); } catch (err) { menu.querySelector('.mg-note').textContent = 'Not a save of this game: ' + (err.message || err); }
+    try {
+      const json = await e.target.files[0].text();
+      if (life.disposed) return;
+      onLoad(json); menu.close(); toast('Loaded from file');
+    } catch (err) {
+      const note = menu.querySelector('.mg-note');
+      if (!life.disposed && note) note.textContent = 'Not a save of this game: ' + (err.message || err);
+    }
   });
 
   // ---- inventory panel, messages, HUD
   function openInventory() {
+    if (life.disposed) return;
     $('.mg-list').innerHTML = game.inventory.items.map((i) => `<li><b>${i.name}</b>${i.text ? ' — ' + i.text : ''}</li>`).join('') || '<li>Nothing yet.</li>';
     show(inv); $('.mg-inv button').focus();
   }
-  function message(h, p, button = 'Continue') { $('#mg-msg-h').textContent = h; $('.mg-msg-p').textContent = p; $('.mg-msg button').textContent = button; show(msg); $('.mg-msg button').focus(); }
+  function message(h, p, button = 'Continue') { if (life.disposed) return; $('#mg-msg-h').textContent = h; $('.mg-msg-p').textContent = p; $('.mg-msg button').textContent = button; show(msg); $('.mg-msg button').focus(); }
   function toast(s, ms = 2200) { const t = $('.mg-toast'); t.textContent = s; t.classList.add('on'); toastT = performance.now() + ms; }
   function objective(head, text) { $('.mg-obj').innerHTML = `<b></b><span></span>`; $('.mg-obj b').textContent = head; $('.mg-obj span').textContent = text; }
   function prompt(e) {
@@ -198,10 +239,11 @@ export function createUI({ game, input, audio, title = 'Mirage', subtitle = '', 
     p.hidden = false;
   }
   const renderItems = () => { $('.mg-items').innerHTML = game.inventory.items.map((i) => `<li>${i.name}</li>`).join(''); };
-  game.on('inventory', renderItems);
+  life.defer(game.on('inventory', renderItems));
 
   /** once per frame: action edges for the menus, gamepad focus moves, toast timeout */
   function update() {
+    if (life.disposed) return;
     if (performance.now() > toastT) $('.mg-toast').classList.remove('on');
     const d = open();
     if (input.pressed('menu') && performance.now() - lostAt > 400) { if (d) d.close(); else if (started) openMenu(); else begin(); }
@@ -217,5 +259,5 @@ export function createUI({ game, input, audio, title = 'Mirage', subtitle = '', 
       if (r && r.type === 'range' && (input.padPressed(14) || input.padPressed(15))) { input.padPressed(15) ? r.stepUp() : r.stepDown(); r.dispatchEvent(new Event('input', { bubbles: true })); }
     }
   }
-  return { root, prompt, objective, toast, message, openMenu, openInventory, update, begin, setTouch, get started() { return started; }, get touch() { return touchOn; }, get open() { return open(); } };
+  return { dispose: life.dispose, root, prompt, objective, toast, message, openMenu, openInventory, update, begin, setTouch, get started() { return started; }, get touch() { return touchOn; }, get open() { return open(); } };
 }

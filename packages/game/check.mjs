@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { createPhysics } from './src/physics.js';
+import { startGame } from './src/start.js';
 import { createSimulation } from './src/simulation.js';
 import { createGame } from './src/game.js';
 import { createInput } from './src/input.js';
@@ -33,7 +34,7 @@ ok(phys.stats.colliders === 15, `static colliders from meshes (${phys.stats.coll
   const hit = riverPhysics.ray([0.37, 3, -0.6], [0, -1, 0]);
   ok(riverPhysics.stats.colliders === 1 && hit?.surface === 'gravel' &&
     Math.abs(hit.point[1] - bed.heightAt(0.37, -0.6)) < 1e-5, 'Rapier ray hits the sampled bed beneath water');
-  riverPhysics.world.free();
+  riverPhysics.dispose(); riverPhysics.dispose();
 }
 
 const run = (w, secs, input) => { for (let t = 0; t < secs; t += 1 / 60) { w.update(1 / 60, input); phys.step(1 / 60); } return w; };
@@ -215,4 +216,27 @@ ok(input.pressed('jump') && !input.down('jump'), 'short keyboard tap survives un
   z.player = [1, 0, 1]; z.paused = true; z.tick(1 / 60);
   ok(log.join() === 'out gate', 'a paused game fires no zones');
 }
+
+// A failed asynchronous setup releases exactly the resources acquired so far.
+{
+  const host = { scene: new THREE.Scene() }, plan = { name: 'rollback' };
+  const reason = new Error('setup failed'), order = [];
+  let ctx, capture, failure;
+  try {
+    await startGame(host, { canvas: {}, built: { plan }, setup: async context => {
+      ctx = context;
+      capture = ctx.input.capture();
+      ctx.onDispose(() => order.push(1));
+      ctx.onDispose(() => order.push(2));
+      throw reason;
+    } });
+  } catch (error) { failure = error; }
+  ok(failure === reason && order.join() === '2,1', 'startup error preserved and setup cleanup ran once in reverse');
+  ok(!ctx.root.parent && ctx.audio.ctx === null && !ctx.input.enabled && await capture === null, 'failed startup detached root, audio and input');
+}
+const capture = input.capture();
+input.dispose(); input.dispose();
+press('keydown', 'Space'); input.poll();
+ok(await capture === null && !input.down('jump') && !input.pressed('jump'), 'disposed input releases capture and ignores events');
+phys.dispose();
 console.log('game check: ok');

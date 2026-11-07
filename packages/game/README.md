@@ -74,5 +74,5 @@ runs `check.mjs` (the character on a hand-made scene, doors, a crate, game state
 
 The root and current JS subpaths ship adjacent declarations; compilation is pending on the test machine.
 See [consumer checks](../../docs/TYPES.md) and [lifecycle / ownership](../../docs/LIFECYCLE.md).
-Stopping play is not disposal; no aggregate play or game-session dispose method is implemented yet.
+Use `await session.dispose()` before mounting another game on the same world. Register setup-owned resources with `ctx.onDispose(fn)`.
 The pinned Rapier 0.19.3 declarations have a known NodeNext resolution issue; the strict consumer gate remains blocked until resolved.

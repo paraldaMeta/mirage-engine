@@ -94,14 +94,12 @@ const simulation = createSimulation(physics, character, game);
 simulation.advance(1 / 144, { x: 1, jumpPressed: true }); simulation.advance(1 / 60, null); simulation.reset();
 const play = createPlay(world, { plan, walker: character, simulation }); play.walker.collider.handle.toFixed(); play.stop();
 const session = await startGame(world, { built, ui: false, appearance: { palette: { scarf: '#d98645' } },
-  async setup(ctx) { const goal: number = ctx.plan.quest.goal; ctx.game.set('goal', goal); ctx.root.name = 'entities'; },
+  async setup(ctx) { const goal: number = ctx.plan.quest.goal; ctx.game.set('goal', goal); ctx.root.name = 'entities'; ctx.onDispose(() => ctx.root.clear()); },
   objective: g => ['Collect keys', String(g.inventory.items.length)], summary: g => String(g.time) });
 const playerSave: PlayerSnapshot = session.save(1); const exported: string = session.save('export');
 session.load(exported); session.load(1); session.ui?.toast('Hello'); session.game.ui.toast('Ready');
 // @ts-expect-error disabling UI may return null
 session.ui.toast('Hello');
-// @ts-expect-error no unified session disposal exists yet
-session.dispose();
 const noSpawn = await buildWorld(world, { plan: { name: 'no-spawn', bounds: [-1, -1, 1, 1] }, modules: [] });
 // @ts-expect-error startGame requires an explicit spawn
 await startGame(world, { built: noSpawn });
@@ -110,7 +108,8 @@ ui.begin(); ui.objective('Keys', 'Find three'); ui.prompt(key); ui.openMenu('sav
 ui.open?.close();
 // @ts-expect-error no dialog is open initially
 ui.open.close();
-session.play.stop(); physics.world.free();
+const closed: Promise<void> = session.dispose(); await closed;
+ui.dispose(); play.dispose(); simulation.dispose(); input.dispose(); await audio.dispose(); game.dispose(); physics.dispose();
 
 // A missing library declaration must not silently turn the major handles into any.
 type IsAny<T> = 0 extends (1 & T) ? true : false;

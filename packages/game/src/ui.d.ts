@@ -8,6 +8,7 @@ export interface GameMessages {
   message(heading: string, text: string, button?: string): void;
 }
 export interface GameUI extends GameMessages {
+  dispose(): void;
   root: HTMLDivElement;
   openMenu(panel?: 'main' | 'save' | 'load' | 'controls' | 'sound'): void;
   openInventory(): void; update(): void;
@@ -19,5 +20,5 @@ export interface UIOptions {
   game: Game; input: Input; audio: AudioMixer; title?: string; subtitle?: string; slots?: number;
   onSave: UISaveHandler; onLoad: (slotOrJSON: number | string) => unknown; onRestart?: () => void; canvas?: HTMLCanvasElement;
 }
-/** Installs DOM UI/listeners. There is currently no aggregate dispose method. */
+/** Installs an overlay and its listeners until dispose(). */
 export function createUI(options: UIOptions): GameUI;

@@ -13,6 +13,7 @@ export interface AudioLoop {
   start(): void;
 }
 export interface AudioMixer {
+  dispose(): Promise<void>;
   readonly ctx: AudioContext | null; readonly volumes: Record<AudioBus, number>;
   stats: { played: Record<string, number>; skipped: number; state: 'locked' | AudioContextState; genMs: number };
   /** Invoke from a user gesture; may leave ctx null when Web Audio is unavailable. */
