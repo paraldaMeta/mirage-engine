@@ -9,6 +9,42 @@ npm 库"该有的东西**——接口边界、卸载（dispose）、发布元数
 脚本，一个是部署命令能删掉当前目录）。P0 里我能独立做的已经在本分支做完并各自带测试，见第 7 节；剩下的 P0 需要 Oscar
 定（包名、接口承诺、版本号）。
 
+## 0. 更正：Codex 的分支（2026-11-09）
+
+第一版审查只看了 `main`，**漏看了 Codex 没合并的一整条开发链** `codex/mirage-gpu-ci`：10 个分支，14 个提交，
+199 个文件，约 +12,700 行，日期 11 月 4–7 日，没开过 PR。下面第 1–9 节里有几处结论因此过时，例如"没有类型声明""没有
+固定步长物理""没有工具包和人物""没有 GPU CI"；已在相应位置标注。Codex 自己写明这批改动是在没有 GPU 的机器上只改了源码，
+没有跑任何测试。
+
+按 Oscar 的决定，本分支已经 **rebase 到 Codex 链之上**，并在测试机上第一次把它跑通：
+
+- 两边重复的改动只留一份，以 Codex 的设计为准：
+  - 卸载 / 生命周期（`play.dispose()`、`await session.dispose()`、`ctx.onDispose`）；
+  - `loadRapier` 的竞态；
+  - 挂点"先整体检查再合并"；
+  - 脚手架版本；
+  - 保留 `"./*"` 子路径导出（Codex 的工具包靠它导入）。
+- 我的独有修复叠在上面，在 rebase 后的代码上重新测过：
+  - 存档 XSS 和存档身份校验；
+  - `addStatic` 遇到奇怪网格；
+  - 行走网格的 Object3D / LOD；
+  - finalize 失败和同名模块的隔离；
+  - 部署删目录；
+  - 跨平台找 Chrome；
+  - 包元数据和 `test:pack`；
+  - `docs/api.md`；
+  - 无 GPU 的 CI。
+- 验证时发现并修好的 Codex 链问题：
+  - `npm test` 失败：角色碰撞过滤器在 Rapier 回调里又调 Rapier，之后 `world.free()` 抛错；
+  - 类型消费者 NodeNext / Bundler 各 4 个错误（`createPlay` 丢了自定义 walker 的类型）；
+  - GPU 预检查不认识 Chrome 156（没有 `webgl2` 状态键）；
+  - garden-quest 通关测试没跟上"开始键只负责开始"的新行为。
+- **还没修**：门打开时偶尔把玩家抬高 14.5 cm，读档位置检查因此失败（约 1 / 9 次）。
+- 测试机串行验收 run-004：**全部自动步骤通过**，状态 `machine-pass-pending-review`。通过的步骤有：GPU 预检查、类型消费者、
+  `npm test`、七个示例 e2e 29 / 29、固定步长 30–165 Hz、触屏、静帧淡入、GPU 负载、院子五个光照静帧一致、林缘和河湾指标、
+  人物 HTTP 和单文件。
+- 当前状态以 [STATUS-1.0.md](STATUS-1.0.md) 为准，人工项见 [run-004 REVIEW](acceptance/runs/2026-11-09-run-004/REVIEW.md)。
+
 ---
 
 ## 1. 现在能做什么
@@ -39,18 +75,18 @@ npm 库"该有的东西**——接口边界、卸载（dispose）、发布元数
    `dispose()`；`play.stop()` 只停帧循环。单页应用里打开再关掉一个世界，会留下约 15 个 window/document 监听、
    OrbitControls、DOM 节点、渲染目标、AudioContext（浏览器限制数量）和 Rapier 的 WASM 内存，旧的按键处理还在响应。
    `world.dispose()` 只释放几何体，不释放材质、着色器程序和阴影贴图。
-3. **没有类型声明（d.ts）**，接口文档分散在各包 README，core 有 19 个导出没有任何文档（例如 `createEnv`、`FOG`、
+3. **没有类型声明（d.ts）**（*更正：Codex 链已有，测试机通过，见第 0 节*），接口文档分散在各包 README，core 有 19 个导出没有任何文档（例如 `createEnv`、`FOG`、
    `pickQuality`、`hash32`），play 3 个、game 5 个。
 4. **发布元数据不全。** 包里没有 LICENSE 文件，没有 `repository` / `homepage` / `bugs`；`three` 的 peer 依赖钉死
    `0.186.1`，`@mirage/*` 之间钉死 `0.2.0`，任何补丁版本都会让 npm 报 ERESOLVE。
 5. **包名没定。** npm 上 `mirage-engine` 已被别人占用（一个把 DOM 映射到 WebGL 的项目，0.3.23）；`@mirage/*`
    目前查不到包，但 `@mirage` 这个 scope（组织）是否可注册我查不到（npmjs.com 对脚本返回 403），要 Oscar 登录确认。
-6. **没有 CI。** 节点测试、包内容、示例构建都只在作者机器上跑过；GPU 端到端需要带 GPU 的 runner。
+6. **没有 CI。**（*更正：本分支加了无 GPU 的 CI；Codex 链有 GPU 工作流，缺 runner*） 节点测试、包内容、示例构建都只在作者机器上跑过；GPU 端到端需要带 GPU 的 runner。
 7. **只在 macOS 上能跑工具。** Chrome 路径写死 `/Applications/Google Chrome.app/...`，Linux / Windows / CI 上所有
    工具直接失败；`'file://' + path` 在 Windows 和带 `#` 的路径上是坏的；`deploy --multi` 用 `npx`（Windows 是 `npx.cmd`）。
 8. **只能在仓库里做世界。** 技能和脚手架都假设世界放在 `examples/<名字>`，工具路径写成 `../../packages/tools/...`；
    装 npm 包、在别的目录新建一个世界的路径不存在（需要一个 `create-mirage` 或等价的说明）。
-9. **路线图里还没做的功能**（`docs/PLAN-0.3.0.md`）：固定步长物理（B6 前半）、总平面图 schema（B15）、植被工具包
+9. **路线图里还没做的功能**（*更正：固定步长、schema、植被工具包、人物在 Codex 链里已做，见第 0 节*）（`docs/PLAN-0.3.0.md`）：固定步长物理（B6 前半）、总平面图 schema（B15）、植被工具包
    （B11 / C4）、人物（占位方块）、手机真机（A3）、弱 GPU 实测。
 
 ## 3. Bug
@@ -64,9 +100,9 @@ npm 库"该有的东西**——接口边界、卸载（dispose）、发布元数
 | 2 | 高 | `tools/src/deploy.mjs` | 参数解析把 `--out` 的值当成示例目录，然后无条件 `rmSync(out, recursive)`；`mirage-deploy --out . myworld` **删掉当前目录** | 已修 + 测（已复现：旧代码把沙盒目录清空） |
 | 3 | 高 | `agent/mirage-brief-to-plan/assets/skeleton/package.json` | 脚手架要 `@mirage/*@0.1.0`，仓库是 0.2.0，按技能新建世界后 `npm install` **404 失败** | 已修 + 测（已复现） |
 | 4 | 高 | `play/src/walkgrid.js` | 烘焙行走网格时把普通 `Object3D`（glTF 的节点）和 `LOD` 当成"不算碰撞的东西"隐藏，**它们下面的实体网格全部没有碰撞**，人直接穿过去（物理那边却有碰撞） | 已修 + 测（浏览器 bake-check） |
-| 5 | 高 | `game/src/physics.js` | `loadRapier()` 在 WASM 初始化完成前就把模块交出去；先预加载再 `createPhysics()` 会抛 `rawintegrationparameters_new of undefined` | 已修 + 测（已复现） |
+| 5 | 高 | `game/src/physics.js` | `loadRapier()` 在 WASM 初始化完成前就把模块交出去；先预加载再 `createPhysics()` 会抛 `rawintegrationparameters_new of undefined` | 已修 + 测（已复现）；Codex 链也修了，rebase 后用 Codex 的实现，测试保留 |
 | 6 | 高 | `game/src/physics.js` | `addStatic` 遇到空几何、0 个实例的 InstancedMesh、没有 position 的网格、BatchedMesh 直接抛错，**`startGame` 整个失败** | 已修 + 测（已复现） |
-| 7 | 高 | play / game / core | 没有 `dispose()`，见第 2 节第 2 条 | 已修 + 测（浏览器 dispose-check） |
+| 7 | 高 | play / game / core | 没有 `dispose()`，见第 2 节第 2 条 | 已修 + 测；rebase 后改用 Codex 的生命周期实现，`world.dispose` 和 `mountWorld` 的补充保留 |
 | 8 | 中 | `world/src/loader.js` | 失败隔离有洞：`anchors` 里前面的键已合并、后面的键抛错时，"被跳过"的模块的挂点仍被别人消费；`finalize` 抛错时模块的几何和 `onUpdate` 照样留着，和文档说的"连同它加的东西一起丢掉"不符；两个模块同名会互相覆盖 | 已修 + 测（已复现） |
 | 9 | 中 | `game/src/game.js` | 导入存档不检查 `id`：别的游戏同版本的存档会被静默读入；`v: 0.5` 这种版本号能通过 | 已修 + 测 |
 | 10 | 中 | `play/src/walkgrid.js` | 总平面图超过 GPU 纹理尺寸（0.125 m 格子下约 512 m，很多安卓 GPU 是 4096）时烘焙出空网格、不报错，人掉下去；烘焙中途抛错会把 `overrideMaterial`、隐藏的物体、`fog = null` 留在场景上 | 已修（报错 + try/finally） |
@@ -150,34 +186,37 @@ P0 = 不做不能叫 1.0；P1 = 1.0 应该有，可以在 1.0 之后很快补；
 |---|---|---|---|
 | P0-1 | 修掉高严重度 bug（第 3 节 #1–#7） | **本分支完成** | 每条都有先失败后通过的测试，见第 8 节 |
 | P0-2 | 失败隔离名副其实（#8）、存档身份校验（#9） | **本分支完成** | `world/check.mjs`、`game/check.mjs` 新增项 |
-| P0-3 | 所有创建的东西都能卸载：`play.dispose()`、`startGame().dispose()`、`input/ui/audio/physics.dispose()`、`world.dispose()` 释放材质和阴影、`mountWorld` 失败时清理 | **本分支完成** | `node packages/tools/dispose-check.mjs`：挂载/卸载 5 次，监听数、DOM、几何、贴图、着色器程序都不增长 |
-| P0-4 | 定公开接口：去掉 `"./*"`，列出每个导出和稳定性 | **本分支完成提案**；**要 Oscar 定**最终的 stable / experimental 划分 | `docs/api.md`；`npm run test:pack` |
+| P0-3 | 所有创建的东西都能卸载 | **完成**（采用 Codex 的生命周期设计，补了 `world.dispose` 释放材质和阴影、`mountWorld` 失败时清理） | `dispose-check.mjs`；garden-quest lifecycle 三轮（run-004） |
+| P0-4 | 定公开接口：列出每个导出和稳定性 | **提案完成**；`"./*"` 按 Codex 的决定暂时保留，子路径白名单和 stable / experimental 划分**要 Oscar 定** | `docs/api.md`、`docs/API-CANDIDATE.md`；`npm run test:pack` |
 | P0-5 | 发布元数据：每个包带 LICENSE、repository / homepage / bugs，peer 依赖用范围 | **本分支完成** | `npm run test:pack`（`npm pack --dry-run` 检查） |
 | P0-6 | 技能包脚手架能装上 | **本分支完成** | 新建世界 `npm install` 和 `vite build` 通过；`agent/check.mjs` 防回归 |
-| P0-7 | CI：节点测试、包检查、示例构建、浏览器工具（无 GPU）在 Ubuntu 和 macOS 上跑 | **本分支完成配置**，要 PR 上实际跑一次确认 | `.github/workflows/ci.yml` |
+| P0-7 | CI：无 GPU 部分在 Ubuntu 和 macOS 上跑；GPU 部分用 Codex 的自托管工作流 | 无 GPU 部分**通过**；GPU 工作流在，**没有 runner** | `.github/workflows/ci.yml`、`gpu-acceptance.yml` |
 | P0-8 | 工具跨平台：找 Chrome、`file://` URL | **本分支完成** | `packages/tools/unit.mjs` |
 | P0-9 | **包名**：`mirage-engine` 在 npm 上已被占用；`@mirage` scope 能否注册要登录确认，否则换 scope（例如 `@mirage-engine/*`、`@paraldameta/mirage-*`） | **要 Oscar 定** | — |
 | P0-10 | **版本号**：是否把这一版叫 1.0.0（还是先 0.3.0，等 P1 做完再 1.0） | **Oscar 定为 1.0.0**（2026-11-08），本分支已改；tag 和发布仍等他 | 所有包和示例 `1.0.0`，peer `^1.0.0` |
-| P0-11 | CHANGELOG 记下 0.2.0 之后的所有变化 | **本分支完成**（"Unreleased"一节） | `CHANGELOG.md` |
+| P0-11 | CHANGELOG 记下 0.2.0 之后的所有变化 | **完成**（1.0.0 一节，含 Codex 链） | `CHANGELOG.md` |
+| P0-12 | 测试机串行验收全部自动步骤通过 | **完成**（run-004，提交 `a8260b9`） | `docs/acceptance/runs/2026-11-09-run-004/` |
+| P0-13 | 所有者看图：林缘、河湾、人物 | **要 Oscar 做** | REVIEW.md 里有截图和初看意见 |
 
 ### P1
 
 | # | 项 | 说明 |
 |---|---|---|
-| P1-1 | 类型声明（d.ts） | 至少覆盖 stable 接口；Agent 和 TS 用户都靠它 |
-| P1-2 | 总平面图 schema 和输入校验（B15，第 3 节 #12、#13） | `plan.schema.json` + 校验命令，写错报字段名；`skyState` / `createWorldRenderer` 的时间地点校验 |
+| P1-1 | 类型声明（d.ts） | **Codex 已写，测试机通过**（NodeNext / Bundler） |
+| P1-2 | 总平面图 schema 和输入校验（B15，第 3 节 #12、#13） | 计划 schema 和校验命令 **Codex 已做，测试机通过**；时间 / 地点输入校验（#12）还没做 |
 | P1-3 | 不在仓库里也能建世界 | `npm create` 脚手架或文档，工具接收路径而不是假设 `examples/` |
 | P1-4 | 嵌入时的键盘焦点（#17）和不强制刷新页面（#18） | 嵌入 API 是 stable 的，这两条会被宿主撞上 |
-| P1-5 | 固定步长物理（B6 前半） | 做法已写在 `docs/PLAN-0.3.0.md` |
+| P1-5 | 固定步长物理（B6 前半） | **Codex 已做，测试机通过**（30–165 Hz 终点一致） |
+| P1-11 | 门打开时偶尔把玩家抬高（run-003） | 约 1 / 9；读档位置因此不一致 |
 | P1-6 | 旋转道具的碰撞盒（#14） | |
 | P1-7 | 手机真机、集成显卡各量一次（A3） | 要 Oscar 的设备 |
-| P1-8 | 带 GPU 的 CI runner 跑 `test:e2e` | 要 Oscar 定 runner |
+| P1-8 | 带 GPU 的 CI runner | 工作流 Codex 已写；要 Oscar 配置自托管 runner |
 | P1-9 | 技能包让 Codex / Cursor 各盲测一次（A1） | |
 | P1-10 | 仓库专用的 bin（`mirage-e2e` 等）不发或改造（#15） | |
 
 ### P2
 
-植被 / 地形 / 水面工具包（B11、C4）；人物；Rapier gzip 内联（B14）；文档站和在线演示；第 3 节的低严重度项
+（植被 / 地形 / 水面工具包和人物：Codex 已做，自动检查通过，待看图。）Rapier gzip 内联（B14）；文档站和在线演示；第 3 节的低严重度项
 （#16、#18、#20–#24）；声音混响和遮挡（B9）；局部光照探针（B13）。
 
 ## 8. 本分支做了什么（每项的证据）
@@ -217,7 +256,9 @@ P0 = 不做不能叫 1.0；P1 = 1.0 应该有，可以在 1.0 之后很快补；
    CHANGELOG 的 1.0.0 一节也改了；P1 各项作为 1.x 的小版本补。没打 tag、没发布。
 3. **接口划分**（P0-4）：`docs/api.md` 里 stable / experimental 的划分是提案，尤其是 `createUI`、`Pipeline`、
    `installFog` 要不要承诺。
-4. **导出表收窄**是一个破坏性变化：外部如果有人深引用了 `@mirage/core/sky` 之类的文件会坏。仓库内只有
-   `@mirage/core/rng` 和 `@mirage/world/plan` 两处，已保留。
+4. **子路径白名单**：`"./*"` 按 Codex 的决定暂时保留（工具包从 `@mirage/world/kits/*` 导入）；冻结前要定哪些子路径长期支持。
+7. **看图**（P0-13）：林缘、河湾、人物三组截图在 `docs/acceptance/runs/2026-11-09-run-004/`；林缘的地平线灰带要不要改。
+8. **"开始键只负责开始"**：Codex 的固定时钟输入让离开开始界面的那个键不再同时触发它的动作（例如按 P / Esc 开始，不会同时打开菜单）。
+   我保留了这个行为，确认一下。
 5. **合并、发 npm、打 tag**：都没做，等你看完 PR。
 6. **GPU CI runner、手机、集成显卡**（P1-7、P1-8）：需要你的设备或账号。
