@@ -3,6 +3,15 @@
   "version": "0.2.0",
   "description": "Mirage rendering core: physical sky, aerial perspective, sun and soft shadows, image-based light, sub-frame accumulation post, the patch() material system and day/night for any place on Earth.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/paraldaMeta/mirage-engine.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://github.com/paraldaMeta/mirage-engine/tree/main/packages/core#readme",
+  "bugs": {
+    "url": "https://github.com/paraldaMeta/mirage-engine/issues"
+  },
   "type": "module",
   "main": "./src/index.js",
   "exports": {
@@ -15,11 +24,12 @@
   },
   "files": [
     "src",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "sideEffects": false,
   "peerDependencies": {
-    "three": "0.186.1"
+    "three": ">=0.186.1 <0.187.0"
   },
   "engines": {
     "node": ">=22"

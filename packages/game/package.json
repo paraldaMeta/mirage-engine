@@ -3,6 +3,15 @@
   "version": "0.2.0",
   "description": "Mirage game layer: entities and systems, Rapier physics (lazy WASM) with a kinematic character controller and doors, an action-mapped input (keyboard, mouse, gamepad, touch), a Web Audio mixer with procedural sounds, interactables, inventory, flags, events, save/load, pause and an accessible HTML overlay.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/paraldaMeta/mirage-engine.git",
+    "directory": "packages/game"
+  },
+  "homepage": "https://github.com/paraldaMeta/mirage-engine/tree/main/packages/game#readme",
+  "bugs": {
+    "url": "https://github.com/paraldaMeta/mirage-engine/issues"
+  },
   "type": "module",
   "main": "./src/index.js",
   "exports": {
@@ -25,17 +34,18 @@
   "files": [
     "types/rapier",
     "src",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "sideEffects": false,
   "dependencies": {
     "@dimforge/rapier3d-compat": "0.19.3"
   },
   "peerDependencies": {
-    "three": "0.186.1",
-    "@mirage/core": "0.2.0",
-    "@mirage/world": "0.2.0",
-    "@mirage/play": "0.2.0"
+    "three": ">=0.186.1 <0.187.0",
+    "@mirage/core": "^0.2.0",
+    "@mirage/world": "^0.2.0",
+    "@mirage/play": "^0.2.0"
   },
   "engines": {
     "node": ">=22"

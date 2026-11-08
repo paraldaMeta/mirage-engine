@@ -1,0 +1,31 @@
+# Checks that need no GPU: the engine's node checks, the package contents, every example's build and the browser
+# helpers in headless Chrome (no WebGL on these pages). The GPU end-to-end run (`npm run test:e2e`) needs a runner
+# with a GPU and stays local until there is one (docs/review-1.0.md).
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run test:pack
+      - run: npm run build:examples
+      # Ubuntu 24.04 blocks the unprivileged user namespaces Chrome's sandbox needs
+      - if: runner.os == 'Linux'
+        run: echo 0 | sudo tee /proc/sys/kernel/apparmor_restrict_unprivileged_userns
+      - run: node packages/tools/check.mjs
