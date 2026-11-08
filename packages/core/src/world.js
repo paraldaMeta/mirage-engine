@@ -257,9 +257,14 @@ export function createWorldRenderer(config = {}) {
     taaValid = false;   // the history targets were reallocated (empty)
   }
 
+  /** free what this world made on the GPU: geometries, materials (and their programs), the shadow map, the post and
+   *  environment targets; and the renderer if the world created it. Take objects you still need out of the scene first. */
   function dispose() {
     pipeline.dispose(); envLight.dispose();
-    scene.traverse((o) => { o.geometry && o.geometry.dispose(); });
+    const mats = new Set();
+    scene.traverse((o) => { o.geometry && o.geometry.dispose(); for (const m of [].concat(o.material || [])) mats.add(m); });
+    for (const m of mats) m.dispose();
+    if (sun.shadow && sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; }
     if (!config.renderer) renderer.dispose();
   }
 

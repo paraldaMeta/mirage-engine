@@ -23,11 +23,14 @@ import { createWalker } from './walker.js';
 export async function mountWorld({ renderer, plan, modules, world: cfg = {}, shared = {}, width, height } = {}) {
   const size = renderer.getSize(new THREE.Vector2());
   const world = createWorldRenderer({ renderer, width: width || size.x, height: height || size.y, ...cfg });
-  const sh = typeof shared === 'function' ? await shared(world) : shared;   // e.g. a texture layer made for this world
-  const built = await buildWorld(world, { plan, modules, shared: sh });
-  if (sh.tex) await sh.tex.ready();
-  await world.prepare();
-  const grid = bakeWalkGrid(world, { bounds: built.plan.bounds, ...built.plan.walk });
+  let sh, built, grid;
+  try {
+    sh = typeof shared === 'function' ? await shared(world) : shared;   // e.g. a texture layer made for this world
+    built = await buildWorld(world, { plan, modules, shared: sh });
+    if (sh.tex) await sh.tex.ready();
+    await world.prepare();
+    grid = bakeWalkGrid(world, { bounds: built.plan.bounds, ...built.plan.walk });
+  } catch (e) { world.dispose(); throw e; }   // a failed mount leaves nothing on the host's GPU
   const root = new THREE.Group();
   root.name = 'host';
   root.userData.collide = false;   // the host's characters are not part of the baked ground
@@ -42,6 +45,7 @@ export async function mountWorld({ renderer, plan, modules, world: cfg = {}, sha
       world.renderFrame(T, { camera, target, ...(shadow ? { shadow } : {}), ...(moving ? { taa: true } : { spp, frameIndex: 1 }) });
     },
     setSize: (w, h) => world.resize(w, h),
-    dispose: () => world.dispose(),
+    /** the world's GPU resources; the host's objects in `root` are taken out first and left to the host */
+    dispose: () => { world.scene.remove(root); world.dispose(); },
   };
 }

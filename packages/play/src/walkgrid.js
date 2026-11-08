@@ -55,14 +55,20 @@ export function bakeWalkGrid(world, { bounds, cell = 0.125, dy = 0.1, yMin = -1,
   const top = yMax + OFFSET, K = Math.ceil((yMax - yMin) / dy);
 
   // what counts: visible meshes on layer 0 that write depth, minus collide === false; plus collider proxies
+  // Things that draw but do not count are taken off the bake camera's layers. Layers, unlike `visible`, do not pass
+  // to children, so a solid mesh under a plain Object3D (glTF nodes), a LOD or a non-solid mesh still counts.
   const hidden = [];
   const shown = (o) => { for (let p = o; p; p = p.parent) if (!p.visible || p.userData.collide === false) return false; return true; };
   scene.traverse((o) => {
-    if (o === scene) return;
-    const solid = (o.isMesh || o.isInstancedMesh || o.isBatchedMesh) && shown(o) &&
+    if (o === scene || !(o.isMesh || o.isLine || o.isPoints || o.isSprite)) return;
+    const solid = o.isMesh && shown(o) &&
       (o.userData.collider || ((o.layers.mask & 1) && [].concat(o.material).some((m) => m && m.depthWrite !== false && !m.transparent)));
-    if (!solid && o.visible && !o.isGroup && !o.isScene && !o.isLight) { o.visible = false; hidden.push(o); }
+    if (!solid) { hidden.push([o, o.layers.mask]); o.layers.disableAll(); }
   });
+  if (NX > renderer.capabilities.maxTextureSize || NZ > renderer.capabilities.maxTextureSize) {
+    for (const [o, mask] of hidden) o.layers.mask = mask;
+    throw new Error(`walk grid: ${NX} x ${NZ} cells is more than this GPU's ${renderer.capabilities.maxTextureSize} px; use larger cells or smaller plan bounds`);
+  }
   const saved = { target: renderer.getRenderTarget(), autoClear: renderer.autoClear, shadow: renderer.shadowMap.autoUpdate, ovr: scene.overrideMaterial, bg: scene.background, fog: scene.fog };
   renderer.getClearColor(saved.clear = new THREE.Color()); saved.alpha = renderer.getClearAlpha();
   renderer.shadowMap.autoUpdate = false;
@@ -86,42 +92,44 @@ export function bakeWalkGrid(world, { bounds, cell = 0.125, dy = 0.1, yMin = -1,
 
   const wind = new Int16Array(N), ceil = new Float32Array(N), floors = new Float32Array(N * MAXL * 2), count = new Uint8Array(N);
   let nf = 0, overflow = 0;
-  // everything above the range first: the winding number at its top
-  slab(top + 1000, 1000);
-  for (let p = 0; p < N; p++) { const k = cellOf(p); wind[k] = px[p * 4] - px[p * 4 + 1]; ceil[k] = wind[k] ? top : Infinity; }
-  const found = new Float32Array(N * 8 * 2), nFound = new Uint8Array(N);   // floors top-down, before sorting
-  for (let s = 0; s < K; s++) {
-    const yT = top - s * dy;
-    slab(yT, dy);
-    for (let p = 0; p < N; p++) {
-      const F = px[p * 4], B = px[p * 4 + 1];
-      if (!F && !B) continue;
-      const k = cellOf(p), wa = wind[k], wb = wa + F - B;
-      wind[k] = wb;
-      // depth in the slab (0 = top): the first crossing (exact), and the mean of the back faces (ceilings)
-      const zMin = px[p * 4 + 3] / 255, zMax = B ? Math.max(zMin, (px[p * 4 + 2] * 4) / 255 / B) : zMin;
-      const add = (f, c) => {
-        if (c - f < MIN_GAP) return;
-        if (nFound[k] >= 8) { overflow++; return; }
-        found[(k * 8 + nFound[k]) * 2] = f; found[(k * 8 + nFound[k]) * 2 + 1] = c; nFound[k]++;
-      };
-      if (!wa && wb) add(yT - zMin * dy, ceil[k]);                       // air above, solid below: a floor
-      else if (wa && !wb) ceil[k] = yT - zMax * dy;                      // solid above, air below: a ceiling
-      else if (!wa && !wb && F && B) { add(yT - zMin * dy, ceil[k]); ceil[k] = yT - zMax * dy; }   // a thin plate inside the slab
+  try {
+    // everything above the range first: the winding number at its top
+    slab(top + 1000, 1000);
+    for (let p = 0; p < N; p++) { const k = cellOf(p); wind[k] = px[p * 4] - px[p * 4 + 1]; ceil[k] = wind[k] ? top : Infinity; }
+    const found = new Float32Array(N * 8 * 2), nFound = new Uint8Array(N);   // floors top-down, before sorting
+    for (let s = 0; s < K; s++) {
+      const yT = top - s * dy;
+      slab(yT, dy);
+      for (let p = 0; p < N; p++) {
+        const F = px[p * 4], B = px[p * 4 + 1];
+        if (!F && !B) continue;
+        const k = cellOf(p), wa = wind[k], wb = wa + F - B;
+        wind[k] = wb;
+        // depth in the slab (0 = top): the first crossing (exact), and the mean of the back faces (ceilings)
+        const zMin = px[p * 4 + 3] / 255, zMax = B ? Math.max(zMin, (px[p * 4 + 2] * 4) / 255 / B) : zMin;
+        const add = (f, c) => {
+          if (c - f < MIN_GAP) return;
+          if (nFound[k] >= 8) { overflow++; return; }
+          found[(k * 8 + nFound[k]) * 2] = f; found[(k * 8 + nFound[k]) * 2 + 1] = c; nFound[k]++;
+        };
+        if (!wa && wb) add(yT - zMin * dy, ceil[k]);                       // air above, solid below: a floor
+        else if (wa && !wb) ceil[k] = yT - zMax * dy;                      // solid above, air below: a ceiling
+        else if (!wa && !wb && F && B) { add(yT - zMin * dy, ceil[k]); ceil[k] = yT - zMax * dy; }   // a thin plate inside the slab
+      }
     }
+    // keep the lowest MAXL floors (top-down order -> bottom-up)
+    for (let k = 0; k < N; k++) {
+      const n = nFound[k], m = Math.min(n, MAXL);
+      for (let l = 0; l < m; l++) { const src = (k * 8 + (n - 1 - l)) * 2; floors[(k * MAXL + l) * 2] = found[src]; floors[(k * MAXL + l) * 2 + 1] = found[src + 1]; }
+      count[k] = m; nf += m; if (n > MAXL) overflow += n - MAXL;
+    }
+  } finally {   // a throw mid-bake still gives the scene and the renderer back as they were
+    for (const [o, mask] of hidden) o.layers.mask = mask;
+    renderer.setRenderTarget(saved.target); renderer.autoClear = saved.autoClear; renderer.shadowMap.autoUpdate = saved.shadow;
+    renderer.setClearColor(saved.clear, saved.alpha);
+    scene.overrideMaterial.dispose(); scene.overrideMaterial = saved.ovr; scene.background = saved.bg; scene.fog = saved.fog;
+    rt.dispose();
   }
-  // keep the lowest MAXL floors (top-down order -> bottom-up)
-  for (let k = 0; k < N; k++) {
-    const n = nFound[k], m = Math.min(n, MAXL);
-    for (let l = 0; l < m; l++) { const src = (k * 8 + (n - 1 - l)) * 2; floors[(k * MAXL + l) * 2] = found[src]; floors[(k * MAXL + l) * 2 + 1] = found[src + 1]; }
-    count[k] = m; nf += m; if (n > MAXL) overflow += n - MAXL;
-  }
-
-  for (const o of hidden) o.visible = true;
-  renderer.setRenderTarget(saved.target); renderer.autoClear = saved.autoClear; renderer.shadowMap.autoUpdate = saved.shadow;
-  renderer.setClearColor(saved.clear, saved.alpha);
-  scene.overrideMaterial.dispose(); scene.overrideMaterial = saved.ovr; scene.background = saved.bg; scene.fog = saved.fog;
-  rt.dispose();
   const grid = makeGrid({ nx: NX, nz: NZ, x0: bx0, z0: bz0, cell, floors, count });
   grid.stats = { nx: NX, nz: NZ, slabs: K + 1, floors: nf, overflow, hidden: hidden.length, ms: +(performance.now() - t0).toFixed(1) };
   return grid;
