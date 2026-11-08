@@ -38,5 +38,9 @@ export interface Play<W extends WalkerLike = GridWalker> {
   start(): void; wake(): void;
 }
 /** Creates DOM controls and immediately starts the animation loop. */
-export function createPlay<W extends WalkerLike = GridWalker>(world: WorldRenderer, options: PlayOptions<W>): Play<W>;
+// Two signatures: with a walker of its own the play keeps that walker's type; without one it is the grid walker.
+// (A single generic with a default fell back to GridWalker even when a walker was passed: TypeScript took the
+// default before inferring from the walker object.)
+export function createPlay<W extends WalkerLike>(world: WorldRenderer, options: Omit<PlayOptions, 'walker'> & { walker: W }): Play<W>;
+export function createPlay(world: WorldRenderer, options: PlayOptions): Play<GridWalker>;
 export function frameGate(fps: () => number): (nowMilliseconds: number) => boolean;
