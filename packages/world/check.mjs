@@ -61,4 +61,24 @@ ok(out.modules.walls.r === rng('t/walls').float(), 'per-module rng');
   ok(!Object.hasOwn(anchors, 'ghost') && !Object.hasOwn(outputs, 'partial'), 'no partial offers escape a failed build');
   ok(report.failed.some(f => f.name === 'bad' && f.phase === 'build') && !Object.hasOwn(outputs, 'bad'), 'invalid declarations are isolated');
 }
+// isolation edge cases: a module failing half-way through its anchors offers none; a finalize that throws takes
+// the module's build out of the scene and stops its callbacks; a second module with the same name is skipped
+{
+  const scene2 = new THREE.Scene(), calls = [];
+  const w2 = { scene: scene2, ctx: { THREE, onUpdate: (f) => calls.push(f) } };
+  let ticks = 0;
+  const out2 = await buildWorld(w2, { plan, log: quiet, modules: [
+    { name: 'half', build() {}, anchors: { lamps: [{ pos: [1, 1, 1] }], seats: 'not a list' } },
+    { name: 'late', build(ctx) { ctx.root.add(new THREE.Mesh(new THREE.BoxGeometry())); ctx.onUpdate(() => ticks++); }, finalize() { throw new Error('late fails'); } },
+    { name: 'twin', build(ctx) { ctx.root.add(new THREE.Object3D()); } },
+    { name: 'twin', build() {} },
+    { name: 'reader', build() {}, finalize(ctx) { ctx.root.userData.lamps = (ctx.anchors.lamps || []).length; } },
+  ] });
+  for (const f of calls) f(0);
+  const failed = out2.report.failed.map((f) => `${f.name}:${f.phase}`).sort().join();
+  ok(failed === 'half:build,late:finalize,twin:build', 'failures: ' + failed);
+  ok(!out2.anchors.lamps && scene2.getObjectByName('reader:finalize').userData.lamps === 0, 'a module that fails in its anchors offers none');
+  ok(!scene2.getObjectByName('late') && ticks === 0 && !('late' in out2.modules), 'a failed finalize drops the module and stops its callbacks');
+  ok(scene2.children.filter((c) => c.name === 'twin').length === 1, 'a second module with the same name is skipped');
+}
 console.log('world check: ok');

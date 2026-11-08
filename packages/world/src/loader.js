@@ -17,8 +17,10 @@ import { definePlan } from './plan.js';
 //   ambientVolumes    array, or (ctx, built) => array: [{ min, max, factor, soft }] interiors (core dims the
 //                     image-based light inside).
 //
-// Isolation: a module that throws (build, anchors or finalize) is logged and skipped; whatever it added to its
-// own ctx.root is dropped with it, and its onUpdate callbacks never run. The others build on.
+// Isolation: a module that throws (build, anchors, ambientVolumes or finalize) is logged and skipped; whatever it
+// added to its own ctx.root is dropped with it, its onUpdate callbacks stop, and anchors it offered in a failed
+// build reach nobody. (Anchors of a module whose finalize fails were already offered to the others' finalize.)
+// Two modules with one name: the second is skipped. The others build on.
 // Randomness: ctx.R is this module's own seeded stream (plan.seed/name), ctx.rng(sub) forks more; one module's
 // draws never shift another's.
 // Layers: geometry on layer 0 is solid for the walk grid unless `userData.collide === false`; ctx.collider(mesh)
@@ -78,7 +80,9 @@ export async function buildWorld(world, { plan, modules, shared = {}, log = cons
     report.failed.push({ name: m.name, phase, error: String(e && e.message || e) });
     log.error(`[world] module "${m.name}" failed in ${phase} and was skipped: ${e && e.stack || e}`);
   };
-  const commit = (root, updates) => { world.scene.add(root); for (const fn of updates) world.ctx.onUpdate(fn); };
+  // a module's callbacks run only while it is alive: a finalize that throws stops the ones its build added
+  const commit = (root, updates, alive) => { world.scene.add(root); for (const fn of updates) world.ctx.onUpdate((t) => alive.on && fn(t)); };
+  const seen = new Set();
 
   // ---- build, in order
   for (const m of modules) {
@@ -89,6 +93,8 @@ export async function buildWorld(world, { plan, modules, shared = {}, log = cons
     report.modules.push(row);
     try {
       if (!m.name || typeof m.build !== 'function') throw new Error('a module needs a name and build(ctx)');
+      if (seen.has(m.name)) throw new Error(`another module is already called "${m.name}"`);
+      seen.add(m.name);
       const requests = readConsumption(m.consumes);
       const out = (await m.build(ctx)) ?? {};
       const a = typeof m.anchors === 'function' ? m.anchors(ctx, out) : m.anchors;
@@ -98,8 +104,10 @@ export async function buildWorld(world, { plan, modules, shared = {}, log = cons
         if (!Array.isArray(list)) throw new Error('anchors.' + key + ' must be an array');
         return [key, list.map(entry => ({ ...entry, from: m.name }))];
       });
+      if (v != null && !Array.isArray(v)) throw new Error('ambientVolumes must be an array');
       const volumes = v ? v.map(entry => ({ ...entry, from: m.name })) : [];
-      commit(root, updates);
+      const alive = { on: true };
+      commit(root, updates, alive);
       for (const [key, entries] of offers) {
         const prior = Object.hasOwn(anchors, key) ? anchors[key] : [];
         Object.defineProperty(anchors, key, { value: prior.concat(entries), enumerable: true, configurable: true, writable: true });
@@ -107,13 +115,17 @@ export async function buildWorld(world, { plan, modules, shared = {}, log = cons
       row.anchors = Object.fromEntries(offers.map(([key, entries]) => [key, entries.length]));
       report.ambientVolumes.push(...volumes);
       built[m.name] = out;
-      live.push({ m, ctx, row, requests });
+      live.push({ m, ctx, row, requests, root, alive });
       row.ok = true;
     } catch (e) { fail(m, 'build', e); }
     row.ms = +(now() - ts).toFixed(1);
   }
   // ---- finalize: every anchor is known now
-  for (const { m, ctx, row, requests } of live) {
+  // a module whose finalize throws leaves the scene and its callbacks stop; anchors it offered were already visible
+  // to the others. (Missing required anchors only skip the finalize: the build stays.)
+  const drop = ({ m, root, alive }) => { alive.on = false; world.scene.remove(root); delete built[m.name]; };
+  for (const entry of live) {
+    const { m, ctx, row, requests, alive } = entry;
     if (requests) {
       row.consumes = requests.map(request => ({
         ...request, count: Object.hasOwn(anchors, request.key) ? anchors[request.key].length : 0,
@@ -130,8 +142,8 @@ export async function buildWorld(world, { plan, modules, shared = {}, log = cons
     root.name = m.name + ':finalize';
     try {
       await m.finalize({ ...ctx, root, scene: root, onUpdate: (fn) => updates.push(fn), collider: colliderFor(root) });
-      commit(root, updates);
-    } catch (e) { fail(m, 'finalize', e); row.ok = false; }
+      commit(root, updates, alive);
+    } catch (e) { fail(m, 'finalize', e); row.ok = false; drop(entry); }
     row.ms = +(row.ms + now() - ts).toFixed(1);
   }
   for (const row of report.modules) {
