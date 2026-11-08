@@ -30,6 +30,7 @@
 //   "shot": false  (default true)
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { launch, serve, open } from './chrome.mjs';
 
 const args = process.argv.slice(2);
@@ -54,7 +55,7 @@ function check(expr, v) {
 
 const isFile = target.endsWith('.html');
 const srv = isFile ? null : await serve(target);
-const url = (isFile ? 'file://' + path.resolve(target) : srv.url) + '?' + (sc.query || 'mode=walk&ui=0') + `&w=${W}&h=${H}`;
+const url = (isFile ? pathToFileURL(path.resolve(target)).href : srv.url) + '?' + (sc.query || 'mode=walk&ui=0') + `&w=${W}&h=${H}`;
 const browser = await launch({ w: W, h: H, args: ['--autoplay-policy=no-user-gesture-required'] });
 const results = [], wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const report = { title: sc.title || path.basename(scenarioFile), url, scenario: path.resolve(scenarioFile), at: new Date().toISOString(), w: W, h: H };

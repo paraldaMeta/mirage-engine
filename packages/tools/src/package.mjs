@@ -9,10 +9,15 @@ import { build } from 'vite';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { parseArgs } from 'node:util';
 
-const args = process.argv.slice(2);
-const root = path.resolve(args.find((a) => !a.startsWith('--')) || '.');
-const outFile = path.resolve(args.includes('--out') ? args[args.indexOf('--out') + 1] : path.join(root, 'release', path.basename(root) + '.html'));
+let opts;
+try {
+  opts = parseArgs({ args: process.argv.slice(2), allowPositionals: true, options: { out: { type: 'string' } } });
+  if (opts.positionals.length > 1) throw new Error(`one example folder, got ${opts.positionals.join(' ')}`);
+} catch (e) { console.error(`[package] ${e.message}\nusage: mirage-package <example dir> [--out file.html]`); process.exit(2); }
+const root = path.resolve(opts.positionals[0] || '.');
+const outFile = path.resolve(opts.values.out ?? path.join(root, 'release', path.basename(root) + '.html'));
 const DIST = fs.mkdtempSync(path.join(os.tmpdir(), 'mirage-package-'));
 
 const t0 = Date.now();

@@ -5,6 +5,7 @@
 // usage: mirage-perf <dist dir | page.html> [--w 1440 --h 900] [--frames 120] [--query q]
 // Walk (moving, temporal AA) along the spawn's view, the game view walking, fly, and the still path at spp 6 / 16.
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { launch, serve, open } from './chrome.mjs';
 
 const args = process.argv.slice(2);
@@ -13,7 +14,7 @@ const target = args.find((a, i) => !a.startsWith('--') && !(i > 0 && args[i - 1]
 const W = +flag('w', 1440), H = +flag('h', 900), N = +flag('frames', 120);
 const isFile = target.endsWith('.html');
 const srv = isFile ? null : await serve(target);
-const url = (isFile ? 'file://' + path.resolve(target) : srv.url) + `?mode=walk&ui=0&w=${W}&h=${H}` + (flag('query') ? '&' + flag('query') : '');
+const url = (isFile ? pathToFileURL(path.resolve(target)).href : srv.url) + `?mode=walk&ui=0&w=${W}&h=${H}` + (flag('query') ? '&' + flag('query') : '');
 const browser = await launch({ w: W, h: H });
 try {
   const { page, errors, loadMs } = await open(browser, url);

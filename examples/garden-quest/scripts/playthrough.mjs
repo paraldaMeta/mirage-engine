@@ -8,6 +8,7 @@
 // Writes <out>/<part>-NN-step.png and <out>/report.json; exit 1 on any failure.
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { launch, serve, open } from '../../../packages/tools/src/chrome.mjs';
 
 const args = process.argv.slice(2);
@@ -18,7 +19,7 @@ const PARTS = flag('part', 'main,pad,touch,lifecycle').split(',');
 fs.mkdirSync(OUT, { recursive: true });
 const isFile = target.endsWith('.html');
 const srv = isFile ? null : await serve(target);
-const base = isFile ? 'file://' + path.resolve(target) : srv.url;
+const base = isFile ? pathToFileURL(path.resolve(target)).href : srv.url;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const report = { target: base, parts: {} };
 let failed = 0;

@@ -8,6 +8,7 @@
 //   walking   W held 3 s: frames drawn per second <= the display's rate and <= 60 (power saver: <= 30)
 //   phone     390x844 with touch: the quality / fps corner covers none of a game's touch controls
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { launch, serve } from './chrome.mjs';
 
 const args = process.argv.slice(2), i = args.indexOf('--idle');
@@ -19,7 +20,7 @@ const b = await launch({ w: 960, h: 600, args: ['--autoplay-policy=no-user-gestu
 let failed = 0;
 for (const t of targets) {
   const srv = t.endsWith('.html') ? null : await serve(t);
-  const url = (srv ? srv.url : 'file://' + path.resolve(t)) + '?w=960&h=600&grain=0&mode=walk';
+  const url = (srv ? srv.url : pathToFileURL(path.resolve(t)).href) + '?w=960&h=600&grain=0&mode=walk';
   const page = await b.newPage();
   await page.evaluateOnNewDocument(() => {
     window.__raf = 0; const raf = window.requestAnimationFrame.bind(window);

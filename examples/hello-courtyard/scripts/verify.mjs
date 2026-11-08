@@ -6,10 +6,10 @@ import puppeteer from 'puppeteer-core';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { chromePath } from '../../../packages/tools/src/chrome.mjs';
 
 const OUT = path.resolve(process.argv[2] || 'out'), DIST = process.argv[3];
 const PORT = 5181, W = 1440, H = 900;
-const CHROME = process.env.CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const DAY = 'date=2026-10-25';
 const VIEWS = DIST ? [['m1-golden', 'time=golden', true]] : [
   ['golden', 'time=golden', true],
@@ -24,7 +24,7 @@ fs.mkdirSync(OUT, { recursive: true });
 const server = spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort', ...(DIST ? ['--outDir', DIST] : [])], { stdio: 'ignore' });
 await new Promise((r) => setTimeout(r, 2500));
 const browser = await puppeteer.launch({
-  executablePath: CHROME, headless: true, defaultViewport: { width: W, height: H, deviceScaleFactor: 1 },
+  executablePath: chromePath(), headless: true, defaultViewport: { width: W, height: H, deviceScaleFactor: 1 },
   args: ['--enable-gpu', '--ignore-gpu-blocklist', '--disable-gpu-watchdog', `--window-size=${W},${H}`],
 });
 const report = { views: {} };
