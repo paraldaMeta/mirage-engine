@@ -20,9 +20,28 @@ box(9, 3, 0.4, -5.5, 1.5, 3); box(9, 3, 0.4, 5.5, 1.5, 3);            // a wall 
 for (let i = 0; i < 9; i++) box(2, 0.178 * (i + 1), 0.36, 6, (0.178 * (i + 1)) / 2, -2 - i * 0.36);   // stairs climbing -z to 1.6
 box(2, 1.602, 5, 6, 0.801, -7.56);                                     // the landing
 box(1, 0.6, 1, -3, 0.3, -3);                                          // a box to jump onto
+// two callers at once: the second must not get Rapier before its init has finished
+{
+  const { loadRapier } = await import('./src/physics.js');
+  await import('@dimforge/rapier3d-compat');               // cached: the next import resolves at once, init still takes time
+  const first = loadRapier();
+  await new Promise((r) => setTimeout(r));                 // the import is done, the WASM init is still running
+  let early = null; try { early = await createPhysics(new THREE.Scene()); } catch (e) { early = e; }
+  await first;
+  ok(early && early.stats, `createPhysics while loadRapier is still initialising (${early?.message || 'ok'})`);
+}
 const phys = await createPhysics(scene);
-phys.addStatic(scene);
-ok(phys.stats.colliders === 15, `static colliders from meshes (${phys.stats.colliders}, ${phys.stats.triangles} tris)`);
+// meshes with nothing to collide with are left out instead of throwing (and failing startGame)
+const odd = new THREE.Group();
+odd.add(new THREE.Mesh(new THREE.BufferGeometry(), M), new THREE.Mesh(undefined, M), new THREE.InstancedMesh(new THREE.BoxGeometry(), M, 0));
+const batched = new THREE.BatchedMesh(1, 24, 36, M); batched.addInstance(batched.addGeometry(new THREE.BoxGeometry()));
+odd.add(batched);
+scene.add(odd);
+const warned = [], warn = console.warn; console.warn = (m) => warned.push(String(m));
+let oddError = null; try { phys.addStatic(scene); } catch (e) { oddError = e; } finally { console.warn = warn; }
+scene.remove(odd);
+ok(!oddError && phys.stats.colliders === 15, `empty, instance-less and batched meshes are skipped (${oddError?.message || phys.stats.colliders + ' colliders'})`);
+ok(warned.some((m) => m.includes('BatchedMesh')), 'a BatchedMesh is named in a warning');
 
 // Wading uses the actual bed triangle in Rapier, including under fully opaque water.
 {
@@ -164,6 +183,9 @@ store.set('mirage:check:3', JSON.stringify({ ...saved, v: 9 }));
 let threw = false; try { game.load(3); } catch { threw = true; }
 ok(threw, 'a newer save is refused');
 ok(game.importJSON(game.exportJSON()) && game.inventory.has('key'), 'export / import round trip');
+const refused = (json) => { try { game.importJSON(json); return ''; } catch (e) { return e.message; } };
+ok(/not of this game/.test(refused(JSON.stringify({ ...saved, id: 'another-game' }))), "another game's save is refused");
+ok(/not a save/.test(refused(JSON.stringify({ ...saved, v: 0.5 }))) && /not a save/.test(refused(JSON.stringify({ ...saved, v: 0 }))), 'a save with a broken version is refused');
 
 // ---- input: a button or key held when input is switched on (the start screen, a dialog closing) does not act
 const pad = { connected: true, axes: [0, 0, 0, 0], buttons: Array.from({ length: 17 }, () => ({ pressed: false, value: 0 })) };
@@ -239,4 +261,13 @@ input.dispose(); input.dispose();
 press('keydown', 'Space'); input.poll();
 ok(await capture === null && !input.down('jump') && !input.pressed('jump'), 'disposed input releases capture and ignores events');
 phys.dispose();
+// dispose after the character has walked: the Rapier world is freed (it threw before) and stepping is a no-op
+{
+  const sc = new THREE.Scene(); sc.add(new THREE.Mesh(new THREE.BoxGeometry(10, 1, 10), M));
+  const p = await createPhysics(sc); p.addStatic(sc);
+  const c = p.character({ pos: [0, 0.5, 0] });
+  for (let i = 0; i < 30; i++) { c.update(1 / 60, { x: 1, z: 0 }); p.step(1 / 60); }
+  let err = null; try { p.dispose(); p.dispose(); } catch (e) { err = e; }
+  ok(!err, `physics.dispose after walking (${err ? err.message : 'freed'})`);
+}
 console.log('game check: ok');

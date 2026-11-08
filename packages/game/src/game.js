@@ -97,7 +97,8 @@ export function createGame({ id = 'mirage', version = 1, migrate = {}, storage =
         removed: [...g.removed], entities, zones, settings: g.settings, ...extra };
     },
     restore(s) {
-      if (!s || typeof s !== 'object' || typeof s.v !== 'number') throw new Error('not a save');
+      if (!s || typeof s !== 'object' || !Number.isInteger(s.v) || s.v < 1) throw new Error('not a save');
+      if (s.id !== undefined && s.id !== id) throw new Error(`a save of "${s.id}", not of this game ("${id}")`);
       if (s.v > version) throw new Error(`save version ${s.v} is newer than this game (${version})`);
       for (let v = s.v; v < version; v++) s = { ...(migrate[v] ? migrate[v](s) : s), v: v + 1 };
       g.flags = { ...s.flags }; g.time = s.time || 0;

@@ -45,6 +45,9 @@ const CSS = `
 @media (max-width:640px){.mg-obj{font-size:13px}.mg-hud{flex-direction:column}}
 `;
 
+// text that comes from saves, settings or game content goes into markup escaped (an imported save is untrusted)
+const esc = (v) => String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+
 export function createUI(options) {
   const life = createLifetime();
   try {
@@ -172,15 +175,15 @@ function mountUI({ game, input, audio, title = 'Mirage', subtitle = '', slots = 
       body.innerHTML = `<button data-do="resume">Resume</button><button data-p="save">Save</button><button data-p="load">Load</button>
         <button data-p="controls">Controls</button><button data-p="sound">Sound</button><button class="alt" data-do="restart">Restart</button>`;
     } else if (panel === 'save' || panel === 'load') {
-      const rows = game.slots(slots).map((s) => `<div class="mg-row"><span>Slot ${s.slot}: ${s.at ? `${new Date(s.at).toLocaleString()} · ${s.summary || ''}` : s.broken ? 'unreadable' : 'empty'}</span>
+      const rows = game.slots(slots).map((s) => `<div class="mg-row"><span>Slot ${s.slot}: ${s.at ? `${esc(new Date(s.at).toLocaleString())} · ${esc(s.summary || '')}` : s.broken ? 'unreadable' : 'empty'}</span>
         <button data-${panel}="${s.slot}" ${panel === 'load' && !s.at ? 'disabled' : ''}>${panel === 'save' ? 'Save here' : 'Load'}</button></div>`).join('');
       body.innerHTML = rows + (panel === 'save' ? '<h3>File</h3><button data-do="export">Export to a file</button>'
         : '<h3>File</h3><label class="mg-file" tabindex="0">Import a file<input type="file" accept="application/json,.json"></label>') + `<p class="mg-note" role="status"></p>` + back;
     } else if (panel === 'controls') {
-      body.innerHTML = ACTIONS.map((a) => `<div class="mg-row"><span>${a}</span><button data-bind="${a}" aria-label="${a}: ${(input.bindings[a] || []).join(', ')}. Press to change">${(input.bindings[a] || []).map(keyName).join(' / ') || '—'}</button></div>`).join('') +
+      body.innerHTML = ACTIONS.map((a) => `<div class="mg-row"><span>${a}</span><button data-bind="${a}" aria-label="${a}: ${esc((input.bindings[a] || []).join(', '))}. Press to change">${esc((input.bindings[a] || []).map(keyName).join(' / ')) || '—'}</button></div>`).join('') +
         '<p>Gamepad: left stick move, right stick look, A jump, X use, Y bag, LB run, Start menu. Touch: stick, drag to look, buttons.</p><button class="alt" data-do="defaults">Defaults</button>' + back;
     } else if (panel === 'sound') {
-      body.innerHTML = ['master', 'music', 'sfx', 'ambience'].map((b) => `<div class="mg-row"><label for="mg-v-${b}"><span>${b}</span></label><input id="mg-v-${b}" type="range" min="0" max="1" step="0.05" value="${audio.volumes[b]}" data-vol="${b}"></div>`).join('') + back;
+      body.innerHTML = ['master', 'music', 'sfx', 'ambience'].map((b) => `<div class="mg-row"><label for="mg-v-${b}"><span>${b}</span></label><input id="mg-v-${b}" type="range" min="0" max="1" step="0.05" value="${esc(audio.volumes[b])}" data-vol="${b}"></div>`).join('') + back;
     }
   }
   life.listen(menu, 'click', async (e) => {
@@ -225,7 +228,7 @@ function mountUI({ game, input, audio, title = 'Mirage', subtitle = '', slots = 
   // ---- inventory panel, messages, HUD
   function openInventory() {
     if (life.disposed) return;
-    $('.mg-list').innerHTML = game.inventory.items.map((i) => `<li><b>${i.name}</b>${i.text ? ' — ' + i.text : ''}</li>`).join('') || '<li>Nothing yet.</li>';
+    $('.mg-list').innerHTML = game.inventory.items.map((i) => `<li><b>${esc(i.name)}</b>${i.text ? ' — ' + esc(i.text) : ''}</li>`).join('') || '<li>Nothing yet.</li>';
     show(inv); $('.mg-inv button').focus();
   }
   function message(h, p, button = 'Continue') { if (life.disposed) return; $('#mg-msg-h').textContent = h; $('.mg-msg-p').textContent = p; $('.mg-msg button').textContent = button; show(msg); $('.mg-msg button').focus(); }
@@ -234,11 +237,11 @@ function mountUI({ game, input, audio, title = 'Mirage', subtitle = '', slots = 
   function prompt(e) {
     const p = $('.mg-prompt');
     if (!e) { p.hidden = true; return; }
-    const label = game.label(e), html = `<kbd>${input.glyph('interact')}</kbd>${label}`;
+    const label = game.label(e), html = `<kbd>${esc(input.glyph('interact'))}</kbd>${esc(label)}`;
     if (p.hidden || p.innerHTML !== html) p.innerHTML = html;
     p.hidden = false;
   }
-  const renderItems = () => { $('.mg-items').innerHTML = game.inventory.items.map((i) => `<li>${i.name}</li>`).join(''); };
+  const renderItems = () => { $('.mg-items').innerHTML = game.inventory.items.map((i) => `<li>${esc(i.name)}</li>`).join(''); };
   life.defer(game.on('inventory', renderItems));
 
   /** once per frame: action edges for the menus, gamepad focus moves, toast timeout */

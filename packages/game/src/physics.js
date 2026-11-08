@@ -45,12 +45,15 @@ export async function createPhysics(scene, { gravity = 9.81 } = {}) {
   const stats = { colliders: 0, triangles: 0, buildMs: 0 };
   const _m = new THREE.Matrix4(), _v = new THREE.Vector3(), _q = new THREE.Quaternion();
 
+  const skipped = [];
   function addStatic(root = scene) {
     const t0 = performance.now();
     root.updateMatrixWorld(true);
     root.traverse((o) => {
       if (!solid(o)) return;
-      const g = o.geometry, pos = g.attributes.position, n = o.isInstancedMesh ? o.count : 1;
+      if (o.isBatchedMesh) { skipped.push(o.name || o.uuid); return; }   // ponytail: no per-instance trimeshes yet; give it a ctx.collider proxy
+      const g = o.geometry, pos = g?.attributes?.position, n = o.isInstancedMesh ? o.count : 1;
+      if (!pos || !pos.count || !n || (g.index && !g.index.count)) return;   // nothing to collide with (empty geometry, no instances)
       const idx = g.index ? g.index.array : Uint32Array.from({ length: pos.count }, (_, i) => i);
       const verts = new Float32Array(pos.count * 3 * n), ind = new Uint32Array(idx.length * n);
       for (let k = 0; k < n; k++) {
@@ -63,6 +66,8 @@ export async function createPhysics(scene, { gravity = 9.81 } = {}) {
       info.set(c.handle, { surface: surfaceOf(o), object: o });
       stats.colliders++; stats.triangles += ind.length / 3;
     });
+    if (skipped.length) console.warn(`[mirage physics] BatchedMesh has no collider (give it a ctx.collider proxy): ${skipped.join(', ')}`);
+    skipped.length = 0;
     world.step();   // scene queries (rays, the character) see colliders only after a step
     stats.buildMs += performance.now() - t0;
   }
@@ -162,7 +167,9 @@ export async function createPhysics(scene, { gravity = 9.81 } = {}) {
     kcc.setMinSlopeSlideAngle((40 * Math.PI) / 180);
     kcc.setApplyImpulsesToDynamicBodies(true);
     kcc.setCharacterMass(70);
-    const notMe = (c) => c.handle !== col.handle && !c.isSensor();
+    // sensors are left out by the flag; the predicate must not call back into Rapier (c.isSensor() here left the
+    // collider set marked as borrowed for good, and world.free() then threw)
+    const notMe = (c) => c.handle !== col.handle;
     const w = { pos: pos.slice(), vy: 0, onGround: false, blocked: false, body: B, collider: col, controller: kcc, walked: 0, surface: 'default', onStride: null };
     // Rapier's autostep needs a move longer than the controller's offset (2 cm): at 120 fps and up a walking step
     // is 1.25 cm or less and the character stopped at snow-hut's bevelled door step (Firefox at 120 Hz). Frames

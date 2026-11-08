@@ -132,4 +132,4 @@ export function createInput({ target = globalThis, bindings = DEFAULT_BINDINGS, 
   return inp;
 }
 
-export const keyName = (code) => code.replace(/^Key|^Digit/, '').replace(/^Arrow/, '').replace('Left', ' L').replace('Right', ' R').replace('Space', 'Space').replace('Escape', 'Esc');
+export const keyName = (code) => String(code).replace(/^Key|^Digit/, '').replace(/^Arrow/, '').replace(/(.)Left$/, '$1 L').replace(/(.)Right$/, '$1 R').replace('Escape', 'Esc');
