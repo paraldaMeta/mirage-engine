@@ -22,7 +22,8 @@ const g = await startGame(world, {
   },
   objective: (game) => ['Light the lamps', `${Object.keys(game.flags).length} lit`],
 });
-// g = { game, physics, input, audio, ui, play, character, root, save(slot), load(slot | json), stats }
+// g = { game, physics, input, audio, ui, play, character, root, save(slot), load(slot | json), stats, dispose() }
+// g.dispose(): play, overlay, input, audio (closes the AudioContext) and physics (frees the WASM world) go; then world.dispose()
 ```
 
 `startGame` does, in order: Rapier colliders from the modules' geometry, a `game` group for entities

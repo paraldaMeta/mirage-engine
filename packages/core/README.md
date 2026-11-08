@@ -64,6 +64,9 @@ setAmbientVolumes(list) }`.
   light, lamps, sky light), then cross-fades. Call `tick(dt)` every frame; it returns true while anything is
   still changing. `world.light` holds the values (`keyRGB`, `exposure` target, `lamp`, `warmth`, …).
 - `post` is live: change a field and the next frame uses it.
+- `dispose()` frees the scene's geometries and materials, the shadow map, the post and environment targets, and
+  the renderer if the world made it. Take out of the scene anything you still need first (`mountWorld` does this for
+  its `root`).
 - `setAmbientVolumes([{ min, max, factor = 0.3, soft = 0.6 }])` (up to 8 boxes): the image-based light is scaled by
   `factor` inside each box (interiors), ramping over `soft` metres. Compiled in only while a world has volumes, so
   worlds without them render exactly as before. `@mirage/world` passes modules' `ambientVolumes` here.
