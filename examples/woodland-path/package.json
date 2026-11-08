@@ -1,6 +1,6 @@
 {
   "name": "woodland-path",
-  "version": "0.2.0",
+  "version": "1.0.0",
   "private": true,
   "license": "MIT",
   "description": "A path through the forest edge, built from Mirage leaf cards, closed trunks and instanced grass.",
@@ -14,9 +14,9 @@
     "metrics": "node metrics.mjs"
   },
   "dependencies": {
-    "@mirage/core": "0.2.0",
-    "@mirage/play": "0.2.0",
-    "@mirage/world": "0.2.0",
+    "@mirage/core": "1.0.0",
+    "@mirage/play": "1.0.0",
+    "@mirage/world": "1.0.0",
     "three": "0.186.1"
   },
   "devDependencies": {

@@ -1,10 +1,12 @@
 # Changelog
 
-All notable changes. Versions follow semver once published; before 1.0 anything may change.
+All notable changes. From 1.0.0 on, versions follow semver for the stable API in `docs/api.md`.
 
-## Unreleased
+## 1.0.0 — unreleased (not tagged, not published)
 
-On `main` since 0.2.0, plus the 1.0 review branch (`docs/review-1.0.md`). Not published.
+The first version with an API promise: the names marked *stable* in `docs/api.md` change only in a major release.
+Everything on `main` since 0.2.0, plus the 1.0 review (`docs/review-1.0.md`). Package names on npm are not settled
+yet, so nothing is published.
 
 **New**
 
@@ -20,7 +22,8 @@ On `main` since 0.2.0, plus the 1.0 review branch (`docs/review-1.0.md`). Not pu
 
 - Packages export only their entry points (`@mirage/<pkg>`, plus `@mirage/core/rng` and `@mirage/world/plan`);
   other `src/` files are no longer importable.
-- Peer ranges: `three >=0.186.1 <0.187.0`, `@mirage/*` `^0.2.0` (were exact versions). Each package ships its
+- Version 1.0.0 for every package and example. Peer ranges: `three >=0.186.1 <0.187.0`, `@mirage/*` `^1.0.0`
+  (were exact versions). Each package ships its
   LICENSE and has repository, homepage and bugs fields.
 - @mirage/game: an imported save of another game (a different `id`) or with a broken version is refused.
 - @mirage/world: a module whose `anchors` or `ambientVolumes` fail half-way offers none of them; a module whose

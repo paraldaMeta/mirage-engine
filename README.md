@@ -13,8 +13,9 @@ few megabytes that opens from disk.
 
 [English](README.md) · [中文](README.zh-CN.md)
 
-> **Status: pre-alpha (0.2.0).** It works for the five examples below on the author's (灰叔 Racso's) machine. APIs will change,
-> nothing is published to npm, and it has only been tested in desktop Chrome on Apple silicon. See
+> **Status: 1.0.0.** The public API is the list in [docs/api.md](docs/api.md): names marked *stable* change only in a
+> major release (semver), *experimental* ones may change in a minor release. Not published to npm yet (the package
+> names are still to be settled), so use it from a clone. Tested on desktop browsers on Apple silicon; see
 > [Status and limits](#status-and-limits).
 
 ## Why
@@ -115,20 +116,23 @@ hours. None of its content, code or materials is part of Mirage.
 
 ## Status and limits
 
-Pre-alpha. Honestly:
+1.0.0. Honestly:
 
-Current development and outstanding 1.0 gates: [status](docs/STATUS-1.0.md). The new [serial acceptance runner](docs/ACCEPTANCE.md) is prepared for a separate test machine and has not been run.
+The 1.0 gates and their evidence: [docs/STATUS-1.0.md](docs/STATUS-1.0.md) and [docs/review-1.0.md](docs/review-1.0.md).
 
-- Historical 0.2.0 checks covered desktop Chrome on an Apple M4 Pro and Playwright Firefox / WebKit. The current development candidate needs fresh checks; real Safari and phones remain pending.
+- Tested on an Apple M4 Pro: desktop Chrome (headless and windowed); 0.2.0 also passed in Safari's and Firefox's
+  engines through Playwright. Real Safari, phones and integrated GPUs have not been measured; touch is tested in
+  Chrome's touch emulation. CI runs the node checks, the package check and every example's build on Ubuntu and macOS.
 - Frame cost is 3–6 ms per walking frame on that machine; there is no tuning for weaker GPUs beyond a `low` quality tier.
-- The engine favours still frames: the scene clock advances while moving and freezes when stationary so still views are bit-identical;
-  moving views use temporal AA, which smears fast-moving things a little.
+- The engine favours still frames: the scene clock advances while moving and freezes when stationary so still views
+  are bit-identical; moving views use temporal AA, which smears fast-moving things a little.
 - Collision comes from a walk grid baked at load (0.125 m cells) and, in games, Rapier trimeshes; very thin or
   sloped geometry needs proxy boxes, and small risers can still catch the character.
 - This development branch includes shared vegetation, terrain and water kits and a procedurally rigged traveller in game view. Appearance and performance await test-machine review. [Character review](docs/CHARACTER-REVIEW.md)
 - The skill pack was validated by one trial (one lead, three workers, Claude Code). Codex and Cursor setups are
   documented, not run.
-- Not on npm; package names and APIs will change. Open issues: [docs/CURSOR-TASKS.md](docs/CURSOR-TASKS.md).
+- Not on npm yet; worlds live in this repository (`examples/<name>`). TypeScript declarations ship next to the
+  sources ([docs/TYPES.md](docs/TYPES.md)). Open issues: [docs/CURSOR-TASKS.md](docs/CURSOR-TASKS.md).
 
 ## How Mirage relates to other projects
 

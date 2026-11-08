@@ -12,8 +12,9 @@ Mirage 用 three.js 把整个地方——院子、园林、码头、山间小屋
 
 [English](README.md) · [中文](README.zh-CN.md)
 
-> **状态：pre-alpha（0.2.0）。** 下面五个示例在作者（灰叔 Racso）的机器上能跑通。接口还会变，没有发到 npm，只在 Apple 芯片的桌面
-> Chrome 上测过。见[现状与局限](#现状与局限)。
+> **状态：1.0.0。** 公开接口以 [docs/api.md](docs/api.md) 为准：标 *stable* 的只在大版本里变（semver），标
+> *experimental* 的小版本可以变。还没有发到 npm（包名还没定），请从仓库克隆使用。在 Apple 芯片的桌面浏览器上测过，
+> 见[现状与局限](#现状与局限)。
 
 ## 为什么
 
@@ -102,17 +103,19 @@ node ../../packages/tools/src/package.mjs .                               # rele
 
 ## 现状与局限
 
-pre-alpha，如实说：
+1.0.0，如实说：
 
-- 0.2.0 有 Apple M4 Pro 桌面 Chrome 与 Playwright Firefox／WebKit 的历史成绩；当前开发候选需重新验收，真 Safari 和手机仍待实测。
+1.0 的验收门槛和证据见 [docs/STATUS-1.0.md](docs/STATUS-1.0.md) 和 [docs/review-1.0.md](docs/review-1.0.md)。
+
+- 在 Apple M4 Pro 上测过桌面 Chrome（无头和有窗口）；0.2.0 还通过 Playwright 跑过 Safari 和 Firefox 内核。真 Safari、手机和
+  集成显卡没量过；触屏只在 Chrome 的触屏模拟里测过。CI 在 Ubuntu 和 macOS 上跑节点检查、包检查和每个示例的构建。
 - 这台机器上走动每帧 3–6 ms；除了 `low` 画质档，没有为弱 GPU 调过。
 - 引擎偏向静帧：走动时场景时钟前进，停下时冻结，以保持静帧逐像素一致；移动画面用时间抗锯齿，快速运动的东西会有一点拖影。
 - 碰撞来自加载时烘焙的走动网格（0.125 m 格）和游戏里的 Rapier 三角网格；很细或倾斜的几何要加代理盒，小台阶仍可能卡住角色。
 - 当前开发分支已有共用植被、地形、水面，以及等距游戏视角里的骨骼旅行者。画面与性能待异机验收。[人物验收说明](docs/CHARACTER-REVIEW.md)
 - 技能包只验证过一轮（一个主 Agent、三个工作 Agent，Claude Code）。Codex 和 Cursor 的用法只写了文档，没实际跑过。
-- 没发 npm；包名和接口会变。已知问题：[docs/CURSOR-TASKS.md](docs/CURSOR-TASKS.md)。
-
-当前实现和 1.0 缺口见[状态表](docs/STATUS-1.0.md)。已准备[测试机串行验收入口](docs/ACCEPTANCE.md)，尚未执行。
+- 还没发 npm；世界放在本仓库里（`examples/<名字>`）。TypeScript 类型声明和源码放在一起（[docs/TYPES.md](docs/TYPES.md)）。
+  已知问题：[docs/CURSOR-TASKS.md](docs/CURSOR-TASKS.md)。
 
 ## 和其他项目的关系
 

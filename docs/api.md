@@ -4,7 +4,7 @@ Everything each package's entry point exports, one line each, with its **stabili
 package's README and in [world-protocol.md](world-protocol.md); this page is the list of what is public and what
 a release may change. `npm run test:pack` fails if a package exports a name that is not on this page.
 
-- **stable**: from 1.0 on, changed only in a major release (semver). Removing it, renaming it, or changing what an
+- **stable**: changed only in a major release (semver). Removing it, renaming it, or changing what an
   existing argument means is a breaking change.
 - **experimental**: public and usable, but a minor release may change it (listed in the changelog). Mostly the
   rendering internals and constants a world rarely needs.
@@ -16,7 +16,8 @@ The entry points `@mirage/<pkg>` are the API. Every file under `src/` can also b
 `@mirage/core/rng` and `@mirage/world/plan` as internal. Types: each package's root entry declares `types`
 ([TYPES.md](TYPES.md)).
 
-> Proposal for the 1.0 review (docs/review-1.0.md). The owner decides the final split before 1.0.0.
+> The split 1.0.0 ships with, as proposed in the 1.0 review (docs/review-1.0.md); the owner can still move names
+> before the tag. After it, moving a name from experimental to stable is a minor release, the other way a major one.
 
 ## @mirage/core
 
