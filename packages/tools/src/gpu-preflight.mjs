@@ -33,7 +33,9 @@ try {
   assertHardwareGpu(result.webgl.renderer);
   assert.deepEqual(result.webgl.pixel, [32, 128, 192, 255], 'GPU readback failed');
   assert.equal(result.webgl.error, 0, 'WebGL reported an error');
-  assert.ok(/^enabled/.test(gpu.featureStatus.webgl2), 'Chrome reports WebGL2 hardware acceleration disabled');
+  // Chrome 156 reports one 'webgl' entry and no 'webgl2'; the WebGL2 context above is the real proof it works
+  const accel = gpu.featureStatus.webgl2 ?? gpu.featureStatus.webgl;
+  assert.ok(/^enabled/.test(accel || ''), `Chrome reports WebGL hardware acceleration disabled (${accel})`);
   result.status = 'passed';
 } catch (error) {
   result.status = 'failed'; result.error = error.stack || String(error);
