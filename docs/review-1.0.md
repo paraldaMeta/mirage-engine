@@ -203,7 +203,12 @@ P0 = 不做不能叫 1.0；P1 = 1.0 应该有，可以在 1.0 之后很快补；
 
 改完后的完整复跑（同一台机器）：
 
-<!-- FINAL -->
+- `npm test`（core / game / play / world / tools / 7 个技能）：全过。
+- `npm run test:pack`：5 个包全过。
+- `npm run test:e2e`：**21 / 21 步通过**（五个示例的构建、dist playtest、单文件、file:// playtest，garden-quest 通关），帧时间和基线相差 0.3 ms 以内。
+- `npm run test:touch`、`test:gpu-load`、`test:still-pop`：全过（`play.js` 的监听方式改了，所以这三项都重跑了）。
+- `bake-check.mjs`、`dispose-check.mjs`：全过。
+- CI（本 PR）：Ubuntu 和 macOS 两个 job 都通过，Linux 上实际找到了 `/usr/bin/google-chrome` 并跑了浏览器工具检查。
 
 ## 9. 要 Oscar 决定的事
 
