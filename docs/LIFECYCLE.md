@@ -19,12 +19,12 @@
 
 | 对象／方法 | 当前释放内容 | 宿主仍需负责 |
 |---|---|---|
-| `world.dispose()` | 后期管线、环境光对象、场景中可遍历到的几何；自行创建的 WebGLRenderer | 先停止所有驱动循环；管理一般材质、纹理、阴影目标及外部监听器；避免释放其他场景仍共用的几何。 |
+| `world.dispose()` | 后期管线、环境光对象、场景中可遍历到的几何和材质（及其着色器程序）、太阳的阴影贴图；自行创建的 WebGLRenderer | 先停止所有驱动循环；管理纹理及外部监听器；要保留的对象先移出场景，避免释放其他场景仍共用的几何和材质。 |
 | 注入 `options.renderer` | world 销毁时保留这台 renderer | 注入方最终释放 renderer；创建世界会改动尺寸、色调映射和阴影设置，销毁不会恢复这些设置。 |
 | `Pipeline.dispose()` | 自有渲染目标、后期材质、Bloom、全屏四边形 | 不释放传入 renderer、场景或外部输出 target。 |
 | `EnvironmentLight.dispose()` | 捕获目标、PMREM 和混合资源 | 不释放传入 renderer。texture 在首次捕获前为 null。 |
 | `TextureLibrary.dispose()` | 库已加载的纹理 | 调用方释放 material() 返回的材质；ready() 失败会记录日志并继续 resolve，不能只凭完成判定纹理都成功。 |
-| `MountedWorld.dispose()` | 委托 world.dispose() | 宿主循环和 renderer；宿主放进 root 的几何也在 world 的遍历释放范围内。 |
+| `MountedWorld.dispose()` | 先把宿主的 root 移出场景，再委托 world.dispose()；挂载中途失败时也会释放已建的世界再抛错 | 宿主循环和 renderer；宿主放进 root 的对象由宿主释放。 |
 | `Character.dispose()` | 移除角色 root，释放几何；几何上的监听器同时释放骨骼和角色材质 | 场景中其他对象。直接 dispose 角色几何也会触发这个释放链。 |
 
 这些方法没有承诺可重复销毁、销毁后继续调用，或并发 prepare／dispose 安全。

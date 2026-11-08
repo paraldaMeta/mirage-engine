@@ -23,7 +23,7 @@ Options for games (`@mirage/game` uses them): `walker` (any object with the walk
 digits), `onStep(dt)` (runs after each step; truthy = the scene moved, so the frame is not treated as still).
 
 `play`: `place(eye, look, mode)`, `viewpoint(i)`, `setMode(m)`, `state()`, `render({ moving, spp, frameIndex })`,
-`step(dt)`, `stop()`, `start()`, `dispose()` (removes play's listeners, corner, help, figure and render targets; the world is yours: `world.dispose()`), `turn(dx, dy, k)`, `lookAt(p)`, `yaw` / `pitch`, `keys` (a Set of held `KeyboardEvent.code`s), `grid`, `walker`, `stats`.
+`step(dt)`, `stop()`, `start()`, `dispose()` (see below), `turn(dx, dy, k)`, `lookAt(p)`, `yaw` / `pitch`, `keys` (a Set of held `KeyboardEvent.code`s), `grid`, `walker`, `stats`.
 Moving frames: one jittered sub-frame resolved by the core's temporal AA. When the view stops: the core's still
 path at `refine[0]` sub-frames, later `refine[1]`, then nothing until something moves. Each still frame fades in
 over 10 frames from the image before it, so stopping does not pop the image sharp; the last fade frame is the still

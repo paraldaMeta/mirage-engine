@@ -152,7 +152,9 @@ if (PARTS.includes('main')) {
   await S.page.reload({ waitUntil: 'load' });
   await S.page.waitForFunction('window.__READY === true', { timeout: 180000, polling: 100 });
   await sleep(600);
-  await S.step('reloaded-fresh', async () => { await S.press('KeyP', 60); await sleep(200); }, (s) => !s.inv.length && !s.flags.doorOpen && s.dialog === 'mg-menu');
+  // the key that leaves the start screen only starts the game (since the fixed-clock input: it is spent), so start
+  // with W as the first step does, then P opens the menu
+  await S.step('reloaded-fresh', async () => { await S.press('KeyW', 60); await sleep(300); await S.press('KeyP', 60); await sleep(200); }, (s) => !s.inv.length && !s.flags.doorOpen && s.dialog === 'mg-menu');
   const loaded = await S.step('load-slot-1', async () => {
     await S.page.click('.mg-menu button[data-p="load"]'); await sleep(200);
     await S.page.click('.mg-menu button[data-load="1"]'); await sleep(1200);

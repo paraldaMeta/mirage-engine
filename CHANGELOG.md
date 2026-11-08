@@ -5,30 +5,43 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
 ## 1.0.0 — unreleased (not tagged, not published)
 
 The first version with an API promise: the names marked *stable* in `docs/api.md` change only in a major release.
-Everything on `main` since 0.2.0, plus the 1.0 review (`docs/review-1.0.md`). Package names on npm are not settled
-yet, so nothing is published.
+It is `main` since 0.2.0, plus Codex's development chain (`codex/mirage-gpu-ci`, built on a machine without a GPU
+and first verified here), plus the 1.0 review (`docs/review-1.0.md`). Package names on npm are not settled yet, so
+nothing is published. Evidence: `docs/STATUS-1.0.md`.
 
 **New**
 
 - @mirage/game: trigger zones — `game.zone({ id, box | sphere, enter, exit, once })`, `'zone'` events, kept in saves.
-- @mirage/play: touch screens walk, run and look in plain play (a stick on the left half, look on the right, Walk /
-  Orbit and View buttons); a game's touch stick runs when pushed past its rim.
-- `docs/api.md`: every export with its stability (stable / experimental); `npm run test:pack` checks what each
-  package would publish (files, licence, metadata, versions, export map, every export documented).
-- CI (`.github/workflows/ci.yml`): node checks, package check, every example's build and the browser helpers on
-  Ubuntu and macOS. The GPU end-to-end run stays local.
+- @mirage/game: physics and the character run on one fixed 60 Hz clock, the camera interpolates (`simulation.js`;
+  `npm run test:fixed-step`).
+- @mirage/play: touch screens walk, run and look in plain play; a game's touch stick runs past its rim.
+- @mirage/play: a rigged procedural traveller replaces the game-view placeholder (`createCharacter`).
+- @mirage/world: `plan.schema.json` and `mirage-validate-plan` with field-level messages; modules declare the
+  anchors they need (`consumes: { required, optional }`); kits for vegetation, terrain and water
+  (`@mirage/world/kits/*`); examples `woodland-path` and `river-ford`.
+- TypeScript declarations next to every source file, checked by compiling packed NodeNext and Bundler consumers
+  (`npm run test:types`).
+- One lifecycle: `play.dispose()`, `await session.dispose()` with `ctx.onDispose(fn)` in `setup`, and `dispose()`
+  on input, ui, audio, physics, game (`docs/LIFECYCLE.md`).
+- A serial acceptance runner for a test machine (`npm run acceptance`) and a GPU CI workflow that runs it on a
+  self-hosted runner (`docs/ACCEPTANCE.md`, `docs/GPU-CI.md`).
+- `docs/api.md` (every export with its stability) and `npm run test:pack` (what each package would publish);
+  CI (`.github/workflows/ci.yml`) runs the node checks, the package check and every example's build on Ubuntu and
+  macOS.
 
 **Changes in behaviour**
 
-- Packages export only their entry points (`@mirage/<pkg>`, plus `@mirage/core/rng` and `@mirage/world/plan`);
-  other `src/` files are no longer importable.
 - Version 1.0.0 for every package and example. Peer ranges: `three >=0.186.1 <0.187.0`, `@mirage/*` `^1.0.0`
-  (were exact versions). Each package ships its
-  LICENSE and has repository, homepage and bugs fields.
+  (were exact versions). Each package ships its LICENSE and has repository, homepage and bugs fields. The `"./*"`
+  subpath export stays until a whitelist is decided (`docs/api.md`).
+- @mirage/game: the key or button that leaves the start screen only starts the game; it no longer also does its own
+  action (P / Esc used to open the menu at once; a held A already did not jump).
 - @mirage/game: an imported save of another game (a different `id`) or with a broken version is refused.
 - @mirage/world: a module whose `anchors` or `ambientVolumes` fail half-way offers none of them; a module whose
   `finalize` throws is taken out of the scene and its `onUpdate` callbacks stop; a second module with a name already
-  used is skipped (all reported in `report.failed`).
+  used is skipped (all reported in `report.failed`). Missing required anchors skip only the module's `finalize`.
+- @mirage/core: `world.dispose()` also frees materials and the shadow map; `mountWorld` leaves the host's `root` to
+  the host and cleans up a mount that fails.
 - @mirage/play: the walk grid bake refuses bounds larger than the GPU's texture size (it used to return an empty
   grid); a throw during the bake leaves the scene as it was.
 - @mirage/tools: `mirage-deploy` and `mirage-package` reject unknown options and a second folder, and `mirage-deploy`
@@ -39,14 +52,16 @@ yet, so nothing is published.
 **Fixes**
 
 - @mirage/game: text from saves and settings (inventory names, key bindings, slot summaries) is escaped in the
-  overlay — an imported save file could run script in the page; `loadRapier()` and `createPhysics()` called
-  together no longer hand out Rapier before it is initialised; `addStatic` skips meshes with nothing to collide
-  with (empty geometry, an InstancedMesh with no instances) and warns about a BatchedMesh instead of throwing,
-  which failed `startGame`; the controls panel names arrow keys (`Left`, not ` L`).
+  overlay — an imported save file could run script in the page; `addStatic` skips meshes with nothing to collide
+  with (empty geometry, an InstancedMesh with no instances) and warns about a BatchedMesh instead of throwing, which
+  failed `startGame`; the character's collision filter no longer calls back into Rapier, which left the collider set
+  borrowed so that freeing the physics world threw (game check failed on the Codex chain); the controls panel names
+  arrow keys (`Left`, not ` L`).
 - @mirage/play: a solid mesh under a plain `Object3D` (as glTF loads them) or a `LOD` blocks the walker; the bake
-  used to leave it out.
-- The `mirage-brief-to-plan` scaffold asked for `@mirage/*@0.1.0`, which made `npm install` fail (404) in a new
-  world; it now asks for the repository's version, and `npm test` checks that it stays so.
+  used to leave it out. `createPlay` keeps the type of a walker passed in (the packed type check failed).
+- Tools: the acceptance GPU preflight reads Chrome 156's `webgl` feature status (it has no `webgl2` entry).
+- The `mirage-brief-to-plan` scaffold asks for the repository's `@mirage` version (it asked for 0.1.0, a 404 in a new
+  world); `npm test` checks that it stays so.
 
 ## 0.2.0 — 2026-10-27 (pre-alpha)
 
