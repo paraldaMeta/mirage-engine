@@ -55,8 +55,10 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
   overlay — an imported save file could run script in the page; `addStatic` skips meshes with nothing to collide
   with (empty geometry, an InstancedMesh with no instances) and warns about a BatchedMesh instead of throwing, which
   failed `startGame`; the character's collision filter no longer calls back into Rapier, which left the collider set
-  borrowed so that freeing the physics world threw (game check failed on the Codex chain); the controls panel names
-  arrow keys (`Left`, not ` L`).
+  borrowed so that freeing the physics world threw (game check failed on the Codex chain); the character no longer
+  hovers beside a step's lip after a short last step (autostep lifted it without carrying it onto the step; a save
+  made there loaded 14.5 cm lower), and `place()` stands it on a step beside it instead of inside it; the controls
+  panel names arrow keys (`Left`, not ` L`).
 - @mirage/play: a solid mesh under a plain `Object3D` (as glTF loads them) or a `LOD` blocks the walker; the bake
   used to leave it out. `createPlay` keeps the type of a walker passed in (the packed type check failed).
 - Tools: the acceptance GPU preflight reads Chrome 156's `webgl` feature status (it has no `webgl2` entry).
