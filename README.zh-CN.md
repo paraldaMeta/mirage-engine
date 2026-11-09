@@ -10,7 +10,7 @@ Mirage 用 three.js 把整个地方——院子、园林、码头、山间小屋
 一个世界 = 一张总平面图 + 几个模块；多个 Agent 可以并行各建一个模块，用脚本化的输入把自己建的东西走一遍来自测，
 最后打包成一个几 MB、从磁盘直接打开的 HTML 文件。
 
-[English](README.md) · [中文](README.zh-CN.md) · **[在浏览器里试玩示例](https://paraldameta.github.io/mirage-engine/)**
+[English](README.md) · [中文](README.zh-CN.md) · **[在浏览器里试玩示例](https://mirage-engine-4qj.pages.dev/)**
 
 > **状态：1.0.0。** 公开接口以 [docs/api.md](docs/api.md) 为准：标 *stable* 的只在大版本里变（semver），标
 > *experimental* 的小版本可以变。还没有发到 npm（包名还没定），请从仓库克隆使用。在 Apple 芯片的桌面浏览器上测过，
