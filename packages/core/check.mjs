@@ -46,4 +46,28 @@ assert.equal((await pickQuality({ storage: null, nav: { userAgent: SAFARI, maxTo
   assert.match(glslName('stone-wall.v2'), /^[A-Za-z0-9_]+$/, 'dashes and dots become identifier characters');
   assert.notEqual(glslName('a-b'), glslName('a.b'), 'distinct names stay distinct');
 }
+// review 2026-11-09 (core)
+{
+  // taperedTube's sides face outward, with their normals (every side triangle faced in)
+  const g = geom.taperedTube([[0, 0, 0], [0, 1, 0], [0, 2, 0]], [0.3, 0.2, 0.1], { capEnd: false });
+  const P = g.attributes.position, N = g.attributes.normal, I = g.index.array, A = new THREE.Vector3(), B = new THREE.Vector3(), C = new THREE.Vector3();
+  let inward = 0;
+  for (let t = 0; t < I.length; t += 3) {
+    A.fromBufferAttribute(P, I[t]); B.fromBufferAttribute(P, I[t + 1]); C.fromBufferAttribute(P, I[t + 2]);
+    const face = B.clone().sub(A).cross(C.clone().sub(A)), n = new THREE.Vector3().fromBufferAttribute(N, I[t]);
+    if (face.dot(n) < 0) inward++;
+  }
+  assert.equal(inward, 0, `taperedTube faces outward (${inward} of ${I.length / 3} inward)`);
+  // a segmental arch whose rise is the span: up to (0, rise) at the middle, the ends on the springing line
+  const pts = geom.archPath(new THREE.Path().moveTo(-0.5, 0), -0.5, 0.5, 0, 'segmental', 1, 32).getPoints();
+  const top = Math.max(...pts.map((q) => q.y)), last = pts.at(-1);
+  assert.ok(Math.abs(top - 1) < 1e-3 && Math.abs(last.x - 0.5) < 1e-6 && Math.abs(last.y) < 1e-6, `stilted segmental arch reaches its rise (${top.toFixed(3)}) and lands at (${last.x.toFixed(3)}, ${last.y.toFixed(3)})`);
+  // wind with no direction is still air, not NaN
+  const { createEnv } = await import('./src/env.js');
+  const wv = createEnv({ wind: { dir: [0, 0], strength: 0 } }).G.uWind.value;
+  assert.ok([wv.x, wv.y, wv.z].every(Number.isFinite), 'wind dir [0, 0] gives a finite uniform');
+  // refraction has no step below the horizon
+  const { refraction } = await import('./src/sky-time.js');
+  for (let a = -3.5; a < 1; a += 0.01) assert.ok(Math.abs(refraction(a + 0.01) - refraction(a)) < 0.02, `refraction is continuous at ${a.toFixed(2)}°`);
+}
 console.log('core check: ok');

@@ -58,6 +58,8 @@ const srv = isFile ? null : await serve(target);
 const url = (isFile ? pathToFileURL(path.resolve(target)).href : srv.url) + '?' + (sc.query || 'mode=walk&ui=0') + `&w=${W}&h=${H}`;
 const browser = await launch({ w: W, h: H, args: ['--autoplay-policy=no-user-gesture-required'] });
 const results = [], wait = (ms) => new Promise((r) => setTimeout(r, ms));
+// a step name in a file name: 'gate / prompt' or 'a:b' (Windows) made the screenshot throw and lost the report
+const fileName = (s) => String(s).replace(/[^\w.-]+/g, '-');
 const report = { title: sc.title || path.basename(scenarioFile), url, scenario: path.resolve(scenarioFile), at: new Date().toISOString(), w: W, h: H };
 let failed = 0;
 try {
@@ -166,7 +168,7 @@ try {
       }, s.flicker));
       if (s.flicker) {
         const [mid, heat] = await page.evaluate(() => window.__flickerWorst);
-        const base = `${String(idx).padStart(2, '0')}-${s.name}-worst`;
+        const base = `${String(idx).padStart(2, '0')}-${fileName(s.name ?? idx)}-worst`;
         fs.writeFileSync(path.join(OUT, base + '.png'), Buffer.from(mid.split(',')[1], 'base64'));
         fs.writeFileSync(path.join(OUT, base + '-diff.png'), Buffer.from(heat.split(',')[1], 'base64'));
         metrics.flickerWorst = base + '.png';
@@ -197,7 +199,7 @@ try {
     let shot = null;
     if (s.shot !== false) {
       await page.waitForFunction('window.__mirage.play.still >= 3', { timeout: 20000, polling: 50 }).catch(() => {});
-      shot = `${String(idx).padStart(2, '0')}-${s.name}.png`;
+      shot = `${String(idx).padStart(2, '0')}-${fileName(s.name ?? idx)}.png`;
       await page.screenshot({ path: path.join(OUT, shot) });
     }
     const vals = { ...st, x: st.pos[0], y: st.pos[1], z: st.pos[2], maxY, errors: errors.length, warnings: warnings.length, fps: +(frames / (heldMs / 1000)).toFixed(1),

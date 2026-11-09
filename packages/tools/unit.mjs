@@ -15,14 +15,15 @@ console.log('tools unit: ok');
 // an output folder is emptied only when it is clearly the tool's own (mirage-deploy --out . once deleted the cwd)
 import { checkOut } from './src/safe-out.mjs';
 const fakeFs = (tree) => ({ existsSync: (p) => p in tree, statSync: (p) => ({ isDirectory: () => Array.isArray(tree[p]) }), readdirSync: (p) => tree[p] });
-const env = { cwd: '/w/proj', home: '/home/u', fsx: fakeFs({ '/w/proj/deploy/a': ['.nojekyll', 'index.html'], '/w/other': ['notes.txt'], '/w/empty': [], '/w/file': 'x' }) };
-const refuses = (out, extra = {}) => { try { checkOut(out, { ...env, marker: '.nojekyll', ...extra }); return null; } catch (e) { return e.message; } };
+const env = { cwd: '/w/proj', home: '/home/u', fsx: fakeFs({ '/w/proj/deploy/a': ['.nojekyll', '.mirage-deploy', 'index.html'], '/w/pages': ['.nojekyll', '.git', 'CNAME', 'index.html'], '/w/other': ['notes.txt'], '/w/empty': [], '/w/file': 'x' }) };
+const refuses = (out, extra = {}) => { try { checkOut(out, { ...env, marker: '.mirage-deploy', ...extra }); return null; } catch (e) { return e.message; } };
 assert.match(refuses('/w/proj'), /is or contains \/w\/proj/, 'the current folder');
 assert.match(refuses('/w'), /contains/, 'a parent of the current folder');
 assert.match(refuses('/'), /filesystem root/, 'the root');
 assert.match(refuses('/home/u'), /contains \/home\/u/, 'home');
 assert.match(refuses('/x/ex', { keep: ['/x/ex/sub'] }), /contains \/x\/ex\/sub/, 'a folder holding the example');
-assert.match(refuses('/w/other'), /not empty and has no \.nojekyll/, 'a non-empty folder from somewhere else');
+assert.match(refuses('/w/other'), /not empty and has no \.mirage-deploy/, 'a non-empty folder from somewhere else');
+assert.match(refuses('/w/pages'), /has no \.mirage-deploy/, 'a Pages folder with .nojekyll but not made by the tool (its .git would go)');
 assert.match(refuses('/w/file'), /is a file/, 'a file');
 assert.equal(refuses('/w/proj/deploy/a'), null, 'an earlier deploy folder');
 assert.equal(refuses('/w/empty'), null, 'an empty folder');
@@ -45,4 +46,20 @@ console.log('tools unit: safe output folders ok');
   assert.equal(await get('/'), 200, 'the index still serves');
   srv.close(); fs.rmSync(base, { recursive: true, force: true });
   console.log('tools unit: static server ok');
+}
+
+// the single-file packager inlines a stylesheet index.html links (it passed with a dangling <link>, no CSS)
+{
+  const fs = await import('node:fs'), os = await import('node:os'), path = await import('node:path'), { execFileSync } = await import('node:child_process');
+  const { fileURLToPath } = await import('node:url');
+  const ex = fs.mkdtempSync(path.join(os.tmpdir(), 'mirage-css-'));
+  fs.writeFileSync(path.join(ex, 'index.html'), '<!doctype html><script type="module" src="./main.js"></script>');
+  fs.writeFileSync(path.join(ex, 'main.js'), "import './style.css'; document.body.append('hi');");
+  fs.writeFileSync(path.join(ex, 'style.css'), 'body { color: rgb(1, 2, 3); }');
+  const out = path.join(ex, 'out.html');
+  execFileSync(process.execPath, [path.join(path.dirname(fileURLToPath(import.meta.url)), 'src/package.mjs'), ex, '--out', out], { stdio: 'ignore' });
+  const html = fs.readFileSync(out, 'utf8');
+  assert.ok(/<style>[^<]*color:\s*(#010203|rgb\(1, ?2, ?3\))/.test(html) && !/rel="stylesheet"/.test(html), 'the stylesheet is inlined: ' + html.slice(0, 300));
+  fs.rmSync(ex, { recursive: true, force: true });
+  console.log('tools unit: packager inlines CSS ok');
 }

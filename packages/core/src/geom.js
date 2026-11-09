@@ -126,7 +126,7 @@ export function taperedTube(points, radii, { radial = 10, segments = null, capEn
   const row = radial + 1;
   for (let i = 0; i < n; i++) for (let j = 0; j < radial; j++) {
     const a = i * row + j, b = a + row;
-    idx.push(a, b, a + 1, b, b + 1, a + 1);
+    idx.push(a, a + 1, b, b, a + 1, b + 1);   // outward, with the normals (it was wound inward)
   }
   if (capEnd) {
     curve.getPointAt(1, P);
@@ -153,7 +153,9 @@ export function archPath(path, x0, x1, y, kind = 'round', rise = null, steps = 1
     return path;
   }
   if (kind === 'segmental') {
-    const h = rise ?? w * 0.2, R = (w * w / 4 + h * h) / (2 * h), cy = y + h - R, half = Math.asin(Math.min(1, w / 2 / R));
+    const h = rise ?? w * 0.2, R = (w * w / 4 + h * h) / (2 * h), cy = y + h - R;
+    // a rise above half the span is more than a semicircle: the major arc (asin alone gave the minor one)
+    const half = h > w / 2 ? Math.PI - Math.asin(Math.min(1, w / 2 / R)) : Math.asin(Math.min(1, w / 2 / R));
     for (let i = 1; i <= steps; i++) { const a = -half + (i / steps) * 2 * half; path.lineTo(cx + s * Math.sin(a) * R, cy + Math.cos(a) * R); }
     return path;
   }

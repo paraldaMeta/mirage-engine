@@ -35,7 +35,7 @@ export function createEnv({ wind = {} } = {}) {
   const G = {
     uTime: { value: 0 },                                   // seconds (animation, wind)
     uFrame: { value: 0 },                                  // sub-frame counter (rarely needed in materials)
-    uWind: { value: new THREE.Vector3(w[0] / Math.hypot(w[0], w[1]), w[1] / Math.hypot(w[0], w[1]), wind.strength ?? 1) },   // (dir.x, dir.z, strength)
+    uWind: { value: new THREE.Vector3(w[0] / (Math.hypot(w[0], w[1]) || 1), w[1] / (Math.hypot(w[0], w[1]) || 1), wind.strength ?? 1) },   // (dir.x, dir.z, strength); dir [0, 0] = still air, not NaN
     uKeyDir: { value: keyDir.clone() },                    // toward the key light
     uKeyColor: { value: new THREE.Vector3(7.0, 4.9, 3.0) },// key radiance (linear RGB x intensity)
     uLamp: { value: 1 },        // lamps / lit windows: 0 off (day) .. 1 lit (night)

@@ -37,7 +37,7 @@ Over budget: drop texture sets first, then lower lathe / terrain resolution, the
 node ../../packages/tools/src/deploy.mjs . --out deploy/<world>     # single file as index.html; --multi: Vite dist
 ```
 
-It writes `index.html`, `.nojekyll`, `_headers`, checks references and prints how to publish with GitHub Pages,
+It writes `index.html`, `.nojekyll`, `_headers`, a `.mirage-deploy` marker (it only ever empties a folder that has one), checks references and prints how to publish with GitHub Pages,
 Netlify, Cloudflare Pages or any static server. **It uploads nothing.** Hand the folder path and those commands to
 the user.
 

@@ -79,6 +79,8 @@ export function createLod() {
       const g = o.geometry;
       if (!g || !g.attributes.position || (g.groups && g.groups.length > 1) || Array.isArray(o.material)) return;
       const tris = (g.index ? g.index.count : g.attributes.position.count) / 3;
+      // errors are metres in the world; the simplifier works in the mesh's own units (a mesh scaled x5 popped)
+      const unit = o.matrixWorld.getMaxScaleOnAxis() || 1;
       if (tris < minTris || (filter && !filter(o))) return;
       list.push(o);
     });
@@ -105,8 +107,8 @@ export function createLod() {
       stats.meshes++; stats.tris += tris;
       errors.forEach((err, k) => {
         const [ni] = stride
-          ? MeshoptSimplifier.simplifyWithAttributes(geo.index.array, pos, 3, attr, stride, w, null, 0, err, ['ErrorAbsolute', 'LockBorder'])
-          : MeshoptSimplifier.simplify(geo.index.array, pos, 3, 0, err, ['ErrorAbsolute', 'LockBorder']);
+          ? MeshoptSimplifier.simplifyWithAttributes(geo.index.array, pos, 3, attr, stride, w, null, 0, err / unit, ['ErrorAbsolute', 'LockBorder'])
+          : MeshoptSimplifier.simplify(geo.index.array, pos, 3, 0, err / unit, ['ErrorAbsolute', 'LockBorder']);
         const tg = new THREE.BufferGeometry();
         for (const name of Object.keys(geo.attributes)) tg.setAttribute(name, geo.attributes[name]);   // shared buffers
         tg.setIndex(new THREE.BufferAttribute(ni, 1));
