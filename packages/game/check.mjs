@@ -300,4 +300,14 @@ phys.dispose();
   ok(Math.abs(c.pos[1] - 0.02) < 1e-6, `place() on open floor is as before (${c.pos[1].toFixed(4)})`);
   p.dispose();
 }
+// no storage (node, sandboxed iframes): saves live in memory instead of throwing
+{
+  const had = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, get() { throw new Error('SecurityError'); } });
+  let err = null, back = null;
+  try { const g = createGame({ id: 'memory' }); g.set('lit', 3); g.save('auto'); g.set('lit', 0); back = g.load('auto'); ok(g.flags.lit === 3, 'loaded flag'); }
+  catch (e) { err = e; }
+  if (had) Object.defineProperty(globalThis, 'localStorage', had); else delete globalThis.localStorage;
+  ok(!err && back, `save and load without localStorage (${err ? err.message : 'in memory'})`);
+}
 console.log('game check: ok');

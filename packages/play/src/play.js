@@ -144,7 +144,7 @@ function mountPlay(world, opts, life) {
     nextView: () => viewpoint((viewIndex = (viewIndex + 1) % plan.viewpoints.length)),
   });
   const onKey = (e) => {
-    if (e.repeat) return;
+    if (e.repeat || typing(e)) return;   // keys typed into the host page's fields are not moves
     keys.add(e.code);
     const k = e.code;
     if (opts.devKeys === false) return;   // a game maps its own keys (opts.input)
@@ -159,6 +159,8 @@ function mountPlay(world, opts, life) {
   life.listen(window, 'keydown', onKey);
   life.listen(window, 'keyup', (e) => keys.delete(e.code));
   life.listen(window, 'blur', () => keys.clear());
+  // a field taking focus mid-press would otherwise leave the key held (its keyup goes to the field, handled above)
+  life.listen(window, 'focusin', (e) => { if (typing(e)) keys.clear(); });
   const turn = (dx, dy, k) => { turned = true; yaw += dx * k; pitch = THREE.MathUtils.clamp(pitch - dy * k, -1.45, 1.45); };
   life.listen(document, 'mousemove', (e) => {
     if (mode === 'orbit' || mode === 'game') return;
@@ -402,7 +404,7 @@ function mountPlay(world, opts, life) {
     if (opts.onPowerSaver) opts.onPowerSaver(power.saver);
     hud.update(); wake();
   };
-  const hud = makeHud(life, opts.hud !== false, { quality: opts.quality || world.ctx.quality, power, setSaver });
+  const hud = makeHud(life, opts.hud !== false, { quality: opts.quality || world.ctx.quality, power, setSaver, onQuality: opts.onQuality });
   try { if (localStorage.getItem(POWER_KEY) === '1') setSaver(true); } catch { /* no storage */ }
   life.listen(document, 'visibilitychange', () => {
     hidden = document.hidden;
@@ -449,9 +451,15 @@ export function frameGate(fps) {
   };
 }
 
+/** true for an event whose target is a text field, select or editable element (the host page's, or the HUD's) */
+export function typing(e) {
+  const t = e && e.target;
+  return !!(t && (t.isContentEditable || /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName || '')));
+}
+
 // the corner: quality (a choice is saved and applied on reload), frames drawn per second, the power saver
 const POWER_KEY = 'mirage:power-saver';
-function makeHud(life, on, { quality, power, setSaver }) {
+function makeHud(life, on, { quality, power, setSaver, onQuality }) {
   if (!on) return { show() {}, update() {} };
   const el = document.createElement('div');
   el.className = 'mirage-hud';
@@ -460,7 +468,10 @@ function makeHud(life, on, { quality, power, setSaver }) {
   el.innerHTML = `<select title="Quality (reloads the page)" style="${ctl}">${QUALITY_LEVELS.map((q) => `<option${q === quality ? ' selected' : ''}>${q}</option>`).join('')}</select>` +
     `<span class="f" style="min-width:7ch;text-align:right"></span><button type="button" style="${ctl}">Power saver</button>`;
   const sel = el.querySelector('select'), fps = el.querySelector('.f'), btn = el.querySelector('button');
-  life.listen(sel, 'change', () => { try { localStorage.setItem(QUALITY_KEY, sel.value); } catch { /* no storage */ } location.reload(); });
+  life.listen(sel, 'change', () => {
+    try { localStorage.setItem(QUALITY_KEY, sel.value); } catch { /* no storage */ }
+    if (onQuality) onQuality(sel.value); else location.reload();   // an embedding page decides how to apply it
+  });
   life.listen(btn, 'click', () => { setSaver(!power.saver); btn.blur(); });   // no focus: Space must stay a jump
   for (const c of [sel, btn]) life.listen(c, 'keydown', (e) => e.stopPropagation());
   life.defer(() => el.remove());

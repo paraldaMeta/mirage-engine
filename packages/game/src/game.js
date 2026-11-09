@@ -16,7 +16,14 @@
 // dozen interactables is clearer, and saves as JSON, without them. Swap in one when entity counts reach ~10^4.
 // ---------------------------------------------------------------------------
 
-export function createGame({ id = 'mirage', version = 1, migrate = {}, storage = globalThis.localStorage } = {}) {
+// localStorage when the page has it; in node, or a sandboxed iframe where reading it throws, saves live in memory
+function defaultStorage() {
+  try { if (globalThis.localStorage) return globalThis.localStorage; } catch { /* opaque origin */ }
+  const m = new Map();
+  return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => { m.set(k, String(v)); } };
+}
+
+export function createGame({ id = 'mirage', version = 1, migrate = {}, storage = defaultStorage() } = {}) {
   const listeners = new Map(), grave = new Map();
   const key = (slot) => `mirage:${id}:${slot}`;
   const g = {

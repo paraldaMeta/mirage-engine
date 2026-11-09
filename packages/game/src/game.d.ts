@@ -35,7 +35,11 @@ export type SlotInfo = { slot: number; broken?: never; at?: never; time?: never;
   | { slot: number; broken: true; at?: never; time?: never; summary?: never }
   | { slot: number; broken?: never; at: unknown; time: unknown; summary: unknown };
 export type Migrations = Record<number, (save: LoadedSave) => object>;
-export interface GameOptions { id?: string; version?: number; migrate?: Migrations; storage?: Pick<Storage, 'getItem' | 'setItem'> }
+export interface GameOptions {
+  id?: string; version?: number; migrate?: Migrations;
+  /** Default: localStorage, or an in-memory store where there is none (node, sandboxed iframes). */
+  storage?: Pick<Storage, 'getItem' | 'setItem'>;
+}
 export interface GameEvents {
   flag: { key: string; value: unknown }; spawn: Entity; remove: Entity; interact: InteractableEntity;
   pause: boolean; zone: { id: string; inside: boolean }; inventory: { added?: InventoryItem; removed?: InventoryItem };

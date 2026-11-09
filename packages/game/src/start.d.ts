@@ -13,13 +13,15 @@ export interface GameSetup<P extends PlanInput = PlanInput> {
   game: Game; physics: Physics; audio: AudioMixer; input: Input; root: THREE.Group;
   plan: DefinedPlan<P> & { spawn: Viewpoint }; anchors: AnchorTable; world: WorldRenderer;
 }
-export type StartGameOptions<P extends PlanInput> = Pick<PlayOptions<PhysicsCharacter>, 'canvas' | 'spp' | 'shadowRadius' | 'grid' | 'fit' | 'quality' | 'hud' | 'idle' | 'appearance'> & {
+export type StartGameOptions<P extends PlanInput> = Pick<PlayOptions<PhysicsCharacter>, 'canvas' | 'spp' | 'shadowRadius' | 'grid' | 'fit' | 'quality' | 'hud' | 'idle' | 'appearance' | 'onQuality'> & {
   /** Unlike createPlay, startGame requires an explicit spawn. */
   built: BuildResult<P> & { plan: { spawn: Viewpoint } };
   id?: string; version?: number; migrate?: Migrations;
   setup?: (context: GameSetup<P>) => void | Promise<void>;
   objective?: (game: Game) => readonly [string, string]; summary?: (game: Game) => string;
   ui?: boolean; title?: string; subtitle?: string;
+  /** The menu's Restart. Default: reload the page. */
+  onRestart?: () => void;
 };
 export type PlayerSnapshot = ExtendedSnapshot<{ player: { pos: [number, number, number]; yaw: number; pitch: number }; summary: string }>;
 export interface GameSession {
@@ -30,6 +32,7 @@ export interface GameSession {
   save(slot: 'export'): string;
   save(slot: number | string): PlayerSnapshot | string;
   /** Numbers select local slots; every string is JSON text. Throws on an empty slot. Synchronous. */
+  /** A slot number or name, or an exported save (a string holding a JSON object). */
   load(slotOrJSON?: number | string): LoadedSave;
   stats: { setupMs: number; colliders: number; triangles: number; collidersMs: number };
   readonly near: InteractableEntity | null;

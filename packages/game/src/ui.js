@@ -122,7 +122,11 @@ function mountUI({ game, input, audio, title = 'Mirage', subtitle = '', slots = 
     game.emit('start');
   }
   life.listen(start, 'click', begin);
-  life.listen(window, 'keydown', (e) => { if (!started) { e.preventDefault(); begin(e); } }, true);
+  // any key starts, except one typed into the host page's own fields (an embedded game must not swallow those)
+  life.listen(window, 'keydown', (e) => {
+    if (started || (e.target && (e.target.isContentEditable || /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName || '')))) return;
+    e.preventDefault(); begin(e);
+  }, true);
   life.listen(window, 'pointerdown', () => audio.unlock(), { capture: true });
 
   // ---- pointer lock lost while playing (Escape in Chrome): pause, and ignore the same Escape's menu edge

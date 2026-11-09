@@ -17,6 +17,8 @@ export interface PlayOptions<W extends WalkerLike = GridWalker> {
   input?: (dt: number) => MotionInput; simulation?: SimulationDriver; onStep?: (dt: number) => boolean | void;
   fit?: boolean; idle?: number; maxFps?: number; hud?: boolean; quality?: Quality;
   onPowerSaver?: (on: boolean) => void; onVisibility?: (shown: boolean) => void;
+  /** The HUD's quality menu. The choice is saved either way; default: reload the page to apply it. */
+  onQuality?: (quality: Quality) => void;
 }
 export interface Play<W extends WalkerLike = GridWalker> {
   world: WorldRenderer; grid: WalkGrid; walker: W; keys: Set<string>; figure: THREE.Group; avatar: Character;
@@ -43,4 +45,6 @@ export interface Play<W extends WalkerLike = GridWalker> {
 // default before inferring from the walker object.)
 export function createPlay<W extends WalkerLike>(world: WorldRenderer, options: Omit<PlayOptions, 'walker'> & { walker: W }): Play<W>;
 export function createPlay(world: WorldRenderer, options: PlayOptions): Play<GridWalker>;
+/** true when a key event comes from a text field, select or editable element. */
+export function typing(e: Event): boolean;
 export function frameGate(fps: () => number): (nowMilliseconds: number) => boolean;
