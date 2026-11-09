@@ -4,7 +4,8 @@ import { cpSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-export const BASE = 'db0759af34b3908a427dc976f20192e0c11ab3a3';
+// the 1.0 candidate (claude/mirage-1.0-finish after the full code review); was db0759a, before 1.0
+export const BASE = 'c8adb66436ef931b6a5cb73c6631aa9a8d850caf';
 const control = fileURLToPath(new URL('../../../', import.meta.url));
 export function prepare(destination) {
   const root = path.resolve(destination);
