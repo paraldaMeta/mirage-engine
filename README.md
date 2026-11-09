@@ -11,7 +11,7 @@ model files, no editor. A world is a site plan plus a handful of modules; severa
 in parallel, test what they built by walking it with scripted inputs, and ship the result as one HTML file of a
 few megabytes that opens from disk.
 
-[English](README.md) · [中文](README.zh-CN.md) · **[Try the examples in your browser](https://paraldameta.github.io/mirage-engine/)**
+[English](README.md) · [中文](README.zh-CN.md) · **[Try the examples in your browser](https://mirage-engine-4qj.pages.dev/)**
 
 > **Status: 1.0.0.** The public API is the list in [docs/api.md](docs/api.md): names marked *stable* change only in a
 > major release (semver), *experimental* ones may change in a minor release. Not published to npm yet (the package

@@ -11,8 +11,9 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
 
 **New**
 
-- Live examples on GitHub Pages (https://paraldameta.github.io/mirage-engine/): every push to `main` rebuilds
-  the seven examples as single files plus an index page (`.github/workflows/pages.yml`, `scripts/build-site.mjs`).
+- Live examples on Cloudflare Pages (https://mirage-engine-4qj.pages.dev/): `npm run site` builds the seven examples
+  as single files plus an index page (`scripts/build-site.mjs`); the owner deploys it with wrangler (see that file).
+  Not rebuilt automatically: redeploy after changes to `main`.
 - @mirage/game: trigger zones — `game.zone({ id, box | sphere, enter, exit, once })`, `'zone'` events, kept in saves.
 - @mirage/game: physics and the character run on one fixed 60 Hz clock, the camera interpolates (`simulation.js`;
   `npm run test:fixed-step`).

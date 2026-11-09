@@ -1,8 +1,13 @@
 #!/usr/bin/env node
-// Mirage original code. Builds the demo site that GitHub Pages serves (.github/workflows/pages.yml): every example
-// as its single-file build (mirage-deploy) in its own folder, and an index page that links them. Uploads nothing.
+// Mirage original code. Builds the demo site (https://mirage-engine-4qj.pages.dev/): every example as its single-file
+// build (mirage-deploy) in its own folder, and an index page that links them. Uploads nothing.
 //
-// usage: node scripts/build-site.mjs [--out deploy/site]
+// usage: node scripts/build-site.mjs [--out deploy/site]      (npm run site)
+//
+// To publish it to the Cloudflare Pages project `mirage-engine` (the owner runs this, with their own account). Build
+// it outside the repo: inside an npm workspace wrangler stops at its app detection instead of deploying the folder.
+//   SHA=$(git rev-parse HEAD) && node scripts/build-site.mjs --out "$TMPDIR/mirage-site" &&
+//     (cd "$TMPDIR/mirage-site" && npx wrangler pages deploy . --project-name mirage-engine --branch main --commit-hash "$SHA")
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
