@@ -5,7 +5,7 @@ day, Moon by night) with fitted soft shadows, image-based light captured from th
 accumulation pipeline (anti-aliasing, motion blur, soft shadows, clean SSAO, depth of field), temporal AA for
 moving cameras, tone mapping and grade, an optional world-space texture layer for CC0 PBR sets, the
 `patch()` material-hook system with a GLSL noise library, seeded randomness, geometry helpers, an LOD helper and
-day/night for any place and time. Peer dependency: `three@0.186.1`. ES modules, no build step.
+day/night for any place and time. Peer dependency: `three >=0.186.1 <0.187.0`. ES modules, no build step.
 
 The root renderer lifecycle and all current JS subpaths have candidate declarations, pending off-machine compilation.
 See [coverage and off-machine validation](../../docs/TYPES.md) and [resource ownership](../../docs/LIFECYCLE.md).
@@ -34,9 +34,9 @@ requestAnimationFrame(loop);
 |---|---|---|
 | `canvas` / `renderer` | — | a canvas to create a WebGL 2 renderer on, or your own renderer |
 | `width`, `height`, `pixelRatio` | canvas size, 1 | drawing size |
-| `quality` | `'high'` | `'high'` (4096² shadows, 12 AO samples, 4 spp) or `'low'` (2048², 8, 2) |
-| `place` | `{ lat: 0, lon: 0, height: 0, tzHours: 0 }` | degrees (east +), metres, the local clock's UTC offset |
-| `time` | `'golden'` | `Date`; `{ day: 'YYYY-MM-DD', time: 'HH:MM' }` local to `place`; `{ elevation, azimuth }` (degrees, compass) for a fixed sun; `'golden'` = 6.8° at 250° (the exposure reference) |
+| `quality` | `'high'` | `'high'` (4096² shadows, 12 AO samples, 4 spp), `'medium'` (2048², 8, 4) or `'low'` (2048², 8, 2, a smaller environment map). Pages usually pass `(await pickQuality()).quality`, which picks medium on most desktops |
+| `place` | `{ lat: 0, lon: 0, height: 0, tzHours: 0 }` | degrees (east +), metres, the local clock's UTC offset; missing fields keep these defaults |
+| `time` | `'golden'` | `Date`; `{ day: 'YYYY-MM-DD', time: 'HH:MM' }` local to `place`; `{ elevation, azimuth }` (degrees, compass) for a fixed sun; `'golden'` = 6.8° at 250° (the exposure reference); an ISO date string is that instant. A malformed time or place throws a `TypeError` naming the field |
 | `shadow` | `{ center: [0,0,0], radius: 30 }` | sphere the sun's orthographic shadow map is fitted to (also per frame: `renderFrame(T, { shadow })`) |
 | `envProbe`, `envIntensity` | `[0, 3, 0]`, `0.5` | capture point and strength of the image-based light |
 | `envFade` | `1.5` | seconds an eased environment recapture cross-fades over |

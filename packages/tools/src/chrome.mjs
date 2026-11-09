@@ -57,8 +57,11 @@ const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/ja
 export function serve(dir, port = 0) {
   const root = path.resolve(dir);
   const server = http.createServer((req, res) => {
-    let p = path.join(root, decodeURIComponent(new URL(req.url, 'http://x').pathname));
-    if (!p.startsWith(root)) { res.writeHead(403).end(); return; }
+    let p;
+    try { p = path.join(root, decodeURIComponent(new URL(req.url, 'http://x').pathname)); }
+    catch { res.writeHead(400).end(); return; }   // a malformed %-escape used to crash the test server
+    // inside root only: '/srv/dist-old' starts with '/srv/dist' but is not in it
+    if (p !== root && !p.startsWith(root + path.sep)) { res.writeHead(403).end(); return; }
     if (fs.existsSync(p) && fs.statSync(p).isDirectory()) p = path.join(p, 'index.html');
     if (!fs.existsSync(p)) { res.writeHead(404).end(); return; }
     res.writeHead(200, { 'content-type': TYPES[path.extname(p)] || 'application/octet-stream' });

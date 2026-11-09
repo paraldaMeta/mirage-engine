@@ -28,3 +28,21 @@ assert.equal(refuses('/w/proj/deploy/a'), null, 'an earlier deploy folder');
 assert.equal(refuses('/w/empty'), null, 'an empty folder');
 assert.equal(refuses('/w/proj/deploy/new'), null, 'a new folder');
 console.log('tools unit: safe output folders ok');
+
+// the static test server: a malformed %-escape is a 400 (it crashed the server), a sibling folder sharing the
+// root's prefix is out of bounds (review #22)
+{
+  const fs = await import('node:fs'), os = await import('node:os'), path = await import('node:path'), http = await import('node:http');
+  const { serve } = await import('./src/chrome.mjs');
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'mirage-serve-'));
+  fs.mkdirSync(path.join(base, 'dist')); fs.mkdirSync(path.join(base, 'dist-old'));
+  fs.writeFileSync(path.join(base, 'dist', 'index.html'), 'ok'); fs.writeFileSync(path.join(base, 'dist-old', 'secret.txt'), 'no');
+  const srv = await serve(path.join(base, 'dist'));
+  const get = (p) => new Promise((r) => http.get(srv.url.replace(/\/$/, '') + p, (res) => { res.resume(); r(res.statusCode); }).on('error', () => r('error')));
+  assert.equal(await get('/%E0%A4%A'), 400, 'malformed escape');
+  assert.equal(await get('/../dist-old/secret.txt'), 404, 'path climbing is normalised by the URL parser');
+  assert.equal(await get('/..%2Fdist-old/secret.txt'), 403, 'an encoded climb into a same-prefix sibling (old code served it)');
+  assert.equal(await get('/'), 200, 'the index still serves');
+  srv.close(); fs.rmSync(base, { recursive: true, force: true });
+  console.log('tools unit: static server ok');
+}

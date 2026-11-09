@@ -39,4 +39,11 @@ assert.equal((await pickQuality({ storage: null, nav: { userAgent: SAFARI, maxTo
     assert.ok(Object.values(lightAt(st)).flat().every((v) => typeof v !== 'number' || Number.isFinite(v)), 'every light value is finite');
   }
 }
+// texture set names reach GLSL identifiers: anything but letters, digits and _ is spelled out (review #21)
+{
+  const { glslName } = await import('./src/textures.js');
+  assert.equal(glslName('stone_wall'), 'stone_wall', 'plain names unchanged');
+  assert.match(glslName('stone-wall.v2'), /^[A-Za-z0-9_]+$/, 'dashes and dots become identifier characters');
+  assert.notEqual(glslName('a-b'), glslName('a.b'), 'distinct names stay distinct');
+}
 console.log('core check: ok');

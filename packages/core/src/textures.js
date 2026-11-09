@@ -14,7 +14,7 @@ import * as THREE from 'three';
 // A set is two textures: <name>_c (albedo, sRGB, AO folded in) and <name>_n (RG = tangent normal, OpenGL;
 // B = height 0..1). Manifest entry: { tile (m per repeat), mean (linear albedo), hMean, rough, roughSlope, files }.
 //
-// GLSL (in scope after hooks()): MG_TEX_<name> expands to the set's arguments.
+// GLSL (in scope after hooks()): MG_TEX_<name> expands to the set's arguments (glslName(name) for names with - or .).
 //   MgTex mgTexTri(MG_TEX_x, vec3 p, vec3 wn, float tile, float k)     triplanar, any shape
 //   MgTex mgTexWall(MG_TEX_x, vec3 p, vec3 wn, float tile, float k)    one projection along a vertical wall's
 //                                                                      own normal (+ ground projection on tops)
@@ -93,6 +93,9 @@ float mgTexBlend(float m, float hA, float hB, float soft){
 
 const f = (v) => (Number.isInteger(+v) ? (+v).toFixed(1) : String(+(+v).toFixed(5)));
 const vec4 = (a) => `vec4(${a.map(f).join(', ')})`;
+/** The GLSL spelling of a set name in MG_TEX_<name>: letters, digits and _ stay; anything else ('stone-wall') becomes
+ *  _<hex code>_ (stone_2d_wall), so any manifest name compiles. */
+export const glslName = (name) => String(name).replace(/[^A-Za-z0-9_]/g, (c) => '_' + c.codePointAt(0).toString(16) + '_');
 
 export function createTextures(world, { manifest, url, anisotropy = 8 }) {
   const { renderer, mat } = world;
@@ -126,9 +129,10 @@ export function createTextures(world, { manifest, url, anisotropy = 8 }) {
     let decl = TEX_GLSL;
     for (const n of names) {
       const m = info(n), s = get(n);
-      uniforms[`mgT_${n}_c`] = s.c; uniforms[`mgT_${n}_n`] = s.n;
-      decl += `uniform sampler2D mgT_${n}_c; uniform sampler2D mgT_${n}_n;\n`;
-      decl += `#define MG_TEX_${n} mgT_${n}_c, mgT_${n}_n, ${vec4([...m.mean, m.hMean])}, ${vec4([m.tile, m.rough, m.roughSlope ?? 0, 0])}\n`;
+      const id = glslName(n);
+      uniforms[`mgT_${id}_c`] = s.c; uniforms[`mgT_${id}_n`] = s.n;
+      decl += `uniform sampler2D mgT_${id}_c; uniform sampler2D mgT_${id}_n;\n`;
+      decl += `#define MG_TEX_${id} mgT_${id}_c, mgT_${id}_n, ${vec4([...m.mean, m.hMean])}, ${vec4([m.tile, m.rough, m.roughSlope ?? 0, 0])}\n`;
     }
     return { ...h, fragmentDecl: decl + (h.fragmentDecl || ''), uniforms };
   }
@@ -140,7 +144,7 @@ export function createTextures(world, { manifest, url, anisotropy = 8 }) {
     const { mapping, tile, tint, detail, normal, ...params } = o;
     const out = mat.std({ roughness: m.rough, ...params }, hooks([name], {
       fragmentDecl: 'MgTex mgS;',
-      albedo: `mgS = ${fn}(MG_TEX_${name}, mgWorldPos, normalize(mgWorldNormal), ${f(tile ?? 0)}, ${f(normal ?? 1)}); diffuseColor.rgb *= ${col};`,
+      albedo: `mgS = ${fn}(MG_TEX_${glslName(name)}, mgWorldPos, normalize(mgWorldNormal), ${f(tile ?? 0)}, ${f(normal ?? 1)}); diffuseColor.rgb *= ${col};`,
       roughness: 'roughnessFactor = clamp(roughnessFactor + mgS.r, 0.04, 1.0);',
       normal: 'normal = mgTexNormal(normal, mgS, normalize(mgWorldNormal));',
     }));
@@ -149,5 +153,5 @@ export function createTextures(world, { manifest, url, anisotropy = 8 }) {
   }
   const ready = () => Promise.all(loads);
   const dispose = () => { for (const s of sets.values()) { s.c.value.dispose(); s.n.value.dispose(); } };
-  return { names: Object.keys(manifest.sets), info, hooks, material, ready, dispose };
+  return { names: Object.keys(manifest.sets), info, hooks, material, ready, dispose, glslName };
 }
