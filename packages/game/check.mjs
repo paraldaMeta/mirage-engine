@@ -300,6 +300,16 @@ phys.dispose();
   ok(Math.abs(c.pos[1] - 0.02) < 1e-6, `place() on open floor is as before (${c.pos[1].toFixed(4)})`);
   p.dispose();
 }
+// a prop turned 45° about y: its collider is the prop's own 2 x 0.5 x 0.5 box, turned with it (the world-aligned
+// box, 1.77 x 0.5 x 1.77, used to be turned once more: larger and askew; review #14)
+{
+  const sc = new THREE.Scene(), p = await createPhysics(sc);
+  const plank = new THREE.Mesh(new THREE.BoxGeometry(2, 0.5, 0.5), M); plank.position.set(3, 1, 0); plank.rotation.y = Math.PI / 4; sc.add(plank);
+  const pr = p.body(plank), he = pr.body.collider(0).halfExtents(), t = pr.body.collider(0).translation();
+  ok(Math.abs(he.x - 1) < 1e-4 && Math.abs(he.y - 0.25) < 1e-4 && Math.abs(he.z - 0.25) < 1e-4 && Math.hypot(t.x - 3, t.y - 1, t.z) < 1e-4,
+    `a turned prop keeps its own box (half ${[he.x, he.y, he.z].map((v) => v.toFixed(3)).join(' ')})`);
+  p.dispose();
+}
 // no storage (node, sandboxed iframes): saves live in memory instead of throwing
 {
   const had = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
