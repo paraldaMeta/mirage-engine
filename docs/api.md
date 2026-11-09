@@ -114,6 +114,6 @@ see [world-protocol.md](world-protocol.md).
 ## @mirage/tools
 
 Command-line tools (no JS entry point). Stable: `mirage-playtest` (scenario format in the playtest skill),
-`mirage-package`, `mirage-snap`, `mirage-deploy`. Experimental: `mirage-walktest`, `mirage-perf`, `mirage-e2e`,
+`mirage-package`, `mirage-snap`, `mirage-deploy`. Experimental: `mirage-walktest`, `mirage-perf`, `mirage-e2e` (runs the `examples/` of the current folder or `--root`),
 `mirage-gpu-load`, `mirage-still-pop` (repository checks; some expect this repository's `examples/`). The tools
 need Chrome: `$CHROME`, or the usual install place on macOS, Linux and Windows.
