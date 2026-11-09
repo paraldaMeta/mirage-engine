@@ -270,4 +270,34 @@ phys.dispose();
   let err = null; try { p.dispose(); p.dispose(); } catch (e) { err = e; }
   ok(!err, `physics.dispose after walking (${err ? err.message : 'freed'})`);
 }
+// a last short step at a 14.5 cm plinth's edge: autostep could lift the character without carrying it onto the
+// plinth, and the controller's 2 cm offset then held it hovering beside the lip (garden-quest's pavilion steps,
+// acceptance run-003: a save made there loaded 14.5 cm lower). Wherever the step ends, the character stands on
+// something under it: on the floor, or on the plinth.
+{
+  const sc = new THREE.Scene(), add = (w, h, d, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), M); m.position.set(x, y, z); sc.add(m); };
+  add(20, 1, 20, 0, -0.5, 0); add(6, 0.145, 4, 0, 0.0725, -2);     // floor top 0; plinth top 0.145, lip at z = 0
+  const p = await createPhysics(sc); p.addStatic(sc);
+  const c = p.character({ pos: [0, 0, 2] }), R = c.body.radius, hovering = [];
+  let tried = 0;
+  for (let z0 = R + 0.004; z0 <= R + 0.03; z0 += 0.002) for (const push of [0.1, 0.3, 0.5, 0.7, 0.85, 1]) {
+    tried++;
+    c.place([0, 0.3, z0]);
+    for (let i = 0; i < 5; i++) { c.update(1 / 60, {}); p.step(1 / 60); }
+    c.update(1 / 60, { z: -push }); p.step(1 / 60);
+    for (let i = 0; i < 60; i++) { c.update(1 / 60, {}); p.step(1 / 60); }
+    const [, y, z] = c.pos, onPlinth = z < R - 0.001, raised = y > 0.06;
+    if (raised !== onPlinth || y < 0) hovering.push(`z0 ${z0.toFixed(3)} push ${push}: y ${y.toFixed(3)} z ${z.toFixed(3)}`);
+  }
+  ok(!hovering.length, `no hovering at a step's lip (${hovering.length} / ${tried}${hovering.length ? ': ' + hovering.slice(0, 3).join('; ') : ''})`);
+  // place() with the centre over the floor but 10 cm of the cylinder over the plinth: on the plinth (the centre ray
+  // alone put it 14.5 cm inside the plinth, and the next walking move lifted it, sometimes into that hover)
+  c.place([0, 0, R - 0.1]);
+  const placedY = c.pos[1];
+  for (let i = 0; i < 30; i++) { c.update(1 / 60, {}); p.step(1 / 60); }
+  ok(placedY > 0.16 && placedY < 0.19 && Math.abs(c.pos[1] - placedY) < 0.01, `place() beside a step stands on it (placed ${placedY.toFixed(3)}, then ${c.pos[1].toFixed(3)})`);
+  c.place([0, 0, 1]);
+  ok(Math.abs(c.pos[1] - 0.02) < 1e-6, `place() on open floor is as before (${c.pos[1].toFixed(4)})`);
+  p.dispose();
+}
 console.log('game check: ok');

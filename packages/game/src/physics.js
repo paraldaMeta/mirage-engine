@@ -176,6 +176,27 @@ export async function createPhysics(scene, { gravity = 9.81 } = {}) {
     // shorter than MIN_DT are added up and moved as one.
     // Only variable-step low-level callers accumulate here. Each game tick is already longer than MIN_DT.
     let acc = 0;
+    // Autostep can lift the character without carrying it onto the step: a short last move at a riser ends with the
+    // cylinder beside the lip, and the controller's offset then holds it there in the air (garden-quest's 14.5 cm
+    // plinth: 17 of 84 last steps at the edge; a save made there loaded 14.5 cm lower). Such a step-up is not taken:
+    // the move is dropped and its horizontal part is carried into the next one, which is long enough to land on the
+    // step; with no more input the character stays below. Only moves with a horizontal part are checked: autostep
+    // needs one, and a character set down inside a step (place() puts the feet under its centre) rises out of it
+    // with no input.
+    const _down = { x: 0, y: -1, z: 0 }, _rot = { x: 0, y: 0, z: 0, w: 1 };
+    const supported = (x, y, z) => !!world.castShape({ x, y: y + lift, z }, _rot, _down, col.shape, 0, OFF + 0.03, true,
+      R.QueryFilterFlags.EXCLUDE_SENSORS, undefined, col);
+    let carry = null;
+    // where place() puts the feet: on the ground under the centre, as before, unless the cylinder there would sit
+    // inside something (beside a step: the higher step under its rim); then on the highest thing under the whole
+    // cylinder (a shape cast; it stops a few millimetres early, so it is only the fallback)
+    const groundUnder = (p) => {
+      const top = (p[1] ?? 0) + 0.5, g = ray([p[0], top, p[2]], [0, -1, 0], 50, col);
+      const y = g ? g.point[1] + OFF : p[1] ?? 0;
+      if (!world.intersectionWithShape({ x: p[0], y: y + lift, z: p[2] }, _rot, col.shape, R.QueryFilterFlags.EXCLUDE_SENSORS, undefined, col)) return y;
+      const hit = world.castShape({ x: p[0], y: top + lift, z: p[2] }, _rot, _down, col.shape, 0, 50, true, R.QueryFilterFlags.EXCLUDE_SENSORS, undefined, col);
+      return hit && hit.time_of_impact > 0 ? top - hit.time_of_impact + OFF : y;
+    };
     w.update = (dt, input = {}) => {
       acc += dt;
       if (acc < MIN_DT) return w;
@@ -184,8 +205,13 @@ export async function createPhysics(scene, { gravity = 9.81 } = {}) {
       if (w.onGround && input.jump) { w.vy = B.jump; w.onGround = false; }
       w.vy = w.onGround && w.vy <= 0 ? -1 : w.vy - B.gravity * dt;   // a little down force keeps it on stairs going down
       const want = { x: (input.x || 0) * speed * dt, y: w.vy * dt, z: (input.z || 0) * speed * dt };
+      if (carry && (want.x || want.z)) { want.x += carry.x; want.z += carry.z; }
+      carry = null;
       kcc.computeColliderMovement(col, want, R.QueryFilterFlags.EXCLUDE_SENSORS, undefined, notMe);
       let m = kcc.computedMovement();
+      if ((want.x || want.z) && m.y > 0.01 && w.vy <= 0 && !supported(w.pos[0] + m.x, w.pos[1] + m.y, w.pos[2] + m.z)) {
+        carry = { x: want.x, z: want.z }; m = { x: 0, y: 0, z: 0 };
+      }
       // standing still on the ground: the solver's sub-millimetre drift (0.3 mm/s down a gentle slope, +-0.1 mm
       // up and down) is dropped, so a still view stays still; a real push (a door) is centimetres per step
       if (!want.x && !want.z && w.onGround && w.vy <= 0 && Math.hypot(m.x, m.y, m.z) < 0.002) m = { x: 0, y: 0, z: 0 };
@@ -209,8 +235,7 @@ export async function createPhysics(scene, { gravity = 9.81 } = {}) {
     };
     /** put the feet on the ground under p (searching from p.y + 0.5 down); exact: at p as given (a saved spot) */
     w.place = (p, { exact = false } = {}) => {
-      const g = exact ? null : ray([p[0], (p[1] ?? 0) + 0.5, p[2]], [0, -1, 0], 50, col);
-      w.pos = [p[0], g ? g.point[1] + OFF : p[1] ?? 0, p[2]];
+      w.pos = [p[0], exact ? p[1] ?? 0 : groundUnder(p), p[2]];
       const centre = { x: w.pos[0], y: w.pos[1] + lift, z: w.pos[2] };
       rb.setTranslation(centre, true);
       rb.setNextKinematicTranslation(centre);
