@@ -18,7 +18,7 @@ export default {
   render: {
     time: { elevation: 16, azimuth: 258 }, wind: { dir: [0.8, 0.6], strength: 0.8 },
     shadow: { center: [0, 3, 0], radius: 29 }, envProbe: [-0.8, 2.4, 6],
-    fog: { groundDensity: 0.0015, height: 24 }, post: { grain: 0 },
+    fog: { groundDensity: 0.007, height: 24 }, post: { grain: 0 },
   },
   budget: { singleFileMB: 5, frameMs: 16.7, calls: 150, triangles: 400000 },
   spawn: { eye: [-0.5, 1.62, 10], look: [0.5, 2.1, -4], mode: 'walk' },

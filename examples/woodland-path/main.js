@@ -4,6 +4,7 @@ import { createPlay } from '@mirage/play';
 import plan from './plan.js';
 import ground from './modules/ground.js';
 import verge from './modules/verge.js';
+import backdrop from './modules/backdrop.js';
 
 const q = new URLSearchParams(location.search);
 const canvas = document.querySelector('canvas');
@@ -11,7 +12,7 @@ const width = Number(q.get('w')) || innerWidth, height = Number(q.get('h')) || i
 const quality = q.get('quality') || (await pickQuality()).quality;
 canvas.style.width = width + 'px'; canvas.style.height = height + 'px';
 const world = createWorldRenderer({ ...plan.render, canvas, width, height, quality, preserveDrawingBuffer: true });
-const built = await buildWorld(world, { plan, modules: [ground, verge] });
+const built = await buildWorld(world, { plan, modules: [ground, verge, backdrop] });
 if (built.report.failed.length) throw new Error(built.report.failed.map(row => row.name + ': ' + row.error).join('\n'));
 await world.prepare();
 const play = createPlay(world, { canvas, quality, plan: built.plan, mode: q.get('mode') || 'walk',
