@@ -30,6 +30,7 @@
 //   "shot": false  (default true)
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { launch, serve, open } from './chrome.mjs';
 
 const args = process.argv.slice(2);
@@ -54,7 +55,7 @@ function check(expr, v) {
 
 const isFile = target.endsWith('.html');
 const srv = isFile ? null : await serve(target);
-const url = (isFile ? 'file://' + path.resolve(target) : srv.url) + '?' + (sc.query || 'mode=walk&ui=0') + `&w=${W}&h=${H}`;
+const url = (isFile ? pathToFileURL(path.resolve(target)).href : srv.url) + '?' + (sc.query || 'mode=walk&ui=0') + `&w=${W}&h=${H}`;
 const browser = await launch({ w: W, h: H, args: ['--autoplay-policy=no-user-gesture-required'] });
 const results = [], wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const report = { title: sc.title || path.basename(scenarioFile), url, scenario: path.resolve(scenarioFile), at: new Date().toISOString(), w: W, h: H };
@@ -63,9 +64,10 @@ try {
   const { page, errors, warnings, loadMs } = await open(browser, url);
   Object.assign(report, { loadMs, ...(await page.evaluate(() => {
     const { play, built } = window.__mirage, gl = play.world.renderer.getContext(), x = gl.getExtension('WEBGL_debug_renderer_info');
-    return { gpu: x ? gl.getParameter(x.UNMASKED_RENDERER_WEBGL) : '?', grid: play.grid.stats, build: built && built.report ? { ms: built.report.ms, failed: built.report.failed, modules: built.report.modules.map((m) => ({ name: m.name, ok: m.ok, ms: m.ms, tris: m.tris })), anchors: built.report.anchors } : null };
+    return { gpu: x ? gl.getParameter(x.UNMASKED_RENDERER_WEBGL) : '?', grid: play.grid.stats, build: built && built.report ? { ms: built.report.ms, failed: built.report.failed, modules: built.report.modules.map((m) => ({ name: m.name, ok: m.ok, ms: m.ms, tris: m.tris, consumes: m.consumes })), anchors: built.report.anchors } : null };
   })) });
   console.log(JSON.stringify({ step: 'load', loadMs, grid: report.grid, build: report.build }));
+  if (report.build?.failed.some(f => f.phase === 'consumes')) failed++;
   const state = () => page.evaluate(() => {
     const m = window.__mirage, s = m.play.state(), g = m.g;
     if (g) Object.assign(s, { near: g.near ? g.near.id : null, prompt: g.near ? g.game.label(g.near) : null, flags: { ...g.game.flags }, inventory: g.game.inventory.items.map((i) => i.id), paused: g.game.paused });
@@ -244,6 +246,8 @@ function markdown(r) {
   const fmt = (v) => (Array.isArray(v) ? v.map((x) => (typeof x === 'number' ? x.toFixed(2) : x)).join(', ') : v === undefined ? '' : String(v));
   const rows = r.steps.map((s, i) => `| ${i + 1} | ${s.step} | ${s.pass ? 'pass' : '**FAIL**'} | ${s.checks.map((c) => `${c.ok ? '' : '✗ '}${c.k} ${c.e} (${fmt(c.v)})`).join('<br>')}${s.err ? '<br>✗ ' + s.err : ''} | ${fmt(s.to)} | ${s.fps || ''} | ${s.shot ? `[png](${s.shot})` : ''} |`);
   const metrics = r.steps.filter((s) => Object.keys(s.metrics).length).map((s) => `- **${s.step}**: ` + Object.entries(s.metrics).map(([k, v]) => `${k} ${v}`).join(', '));
+  const contracts = (r.build?.modules || []).flatMap(m => (m.consumes || []).map(a =>
+    `- ${m.name} · ${a.key} (${a.required ? 'required' : 'optional'}) · ${a.count} available`));
   return `# Playtest: ${r.title} — ${r.pass ? 'PASS' : 'FAIL'}
 
 - target: \`${r.url}\` (${r.w} × ${r.h}), ${r.at}
@@ -255,6 +259,7 @@ function markdown(r) {
 | # | step | result | checks (value) | feet at end | fps | shot |
 |---|---|---|---|---|---|---|
 ${rows.join('\n')}
+${contracts.length ? '\n## Anchor consumption\n\n' + contracts.join('\n') + '\n' : ''}
 ${metrics.length ? '\n## Metrics\n\n' + metrics.join('\n') + '\n' : ''}
 ## Console
 

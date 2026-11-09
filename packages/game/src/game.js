@@ -21,7 +21,7 @@ export function createGame({ id = 'mirage', version = 1, migrate = {}, storage =
   const key = (slot) => `mirage:${id}:${slot}`;
   const g = {
     id, version, entities: new Map(), systems: [], flags: {}, removed: new Set(), settings: {}, paused: false, time: 0,
-    on(type, fn) { if (!listeners.has(type)) listeners.set(type, new Set()); listeners.get(type).add(fn); return () => listeners.get(type).delete(fn); },
+    on(type, fn) { if (!listeners.has(type)) listeners.set(type, new Set()); listeners.get(type).add(fn); return () => listeners.get(type)?.delete(fn) ?? false; },
     emit(type, data) { for (const fn of listeners.get(type) || []) fn(data, g); },
     set(k, value = true) { if (g.flags[k] === value) return; g.flags[k] = value; g.emit('flag', { key: k, value }); },
 
@@ -97,7 +97,8 @@ export function createGame({ id = 'mirage', version = 1, migrate = {}, storage =
         removed: [...g.removed], entities, zones, settings: g.settings, ...extra };
     },
     restore(s) {
-      if (!s || typeof s !== 'object' || typeof s.v !== 'number') throw new Error('not a save');
+      if (!s || typeof s !== 'object' || !Number.isInteger(s.v) || s.v < 1) throw new Error('not a save');
+      if (s.id !== undefined && s.id !== id) throw new Error(`a save of "${s.id}", not of this game ("${id}")`);
       if (s.v > version) throw new Error(`save version ${s.v} is newer than this game (${version})`);
       for (let v = s.v; v < version; v++) s = { ...(migrate[v] ? migrate[v](s) : s), v: v + 1 };
       g.flags = { ...s.flags }; g.time = s.time || 0;
@@ -122,6 +123,12 @@ export function createGame({ id = 'mirage', version = 1, migrate = {}, storage =
     importJSON: (text) => g.restore(JSON.parse(text)),
     saveSettings() { try { storage.setItem(key('settings'), JSON.stringify(g.settings)); } catch { /* private mode */ } },
     loadSettings() { try { return (g.settings = JSON.parse(storage.getItem(key('settings'))) || g.settings); } catch { return g.settings; } },
+    dispose() {
+      g.paused = true; g.player = null;
+      for (const handlers of listeners.values()) handlers.clear();
+      listeners.clear(); grave.clear(); g.removed.clear();
+      g.entities.clear(); g.zones.clear(); g.systems.length = 0; g.inventory.items.length = 0;
+    },
     reset() { g.flags = {}; g.inventory.items = []; g.removed.clear(); g.time = 0; for (const z of g.zones.values()) Object.assign(z, { inside: false, fired: false }); },
   };
   return g;

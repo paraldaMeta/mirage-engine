@@ -9,11 +9,25 @@ import * as THREE from 'three';
 
 export const VERSION = 1;
 
-export function setupQuest({ game, physics, audio, root, plan, anchors, world }, mats) {
+export function setupQuest({ game, physics, audio, root, plan, anchors, world, onDispose }, mats) {
   const { mat } = world;
   const iron = mats.iron, wood = mats.planks;
   const gold = mat.std({ color: new THREE.Color(0.75, 0.52, 0.2), roughness: 0.32, metalness: 1 });
-  const add = (o) => { o.traverse((m) => { if (m.isMesh) m.castShadow = m.receiveShadow = true; }); root.add(o); return o; };
+  const borrowed = new Set(Object.values(mats)), owned = new Set([gold]);
+  onDispose(() => {
+    for (const resource of owned) resource.dispose();
+    owned.clear();
+  });
+  function add(object) {
+    object.traverse(mesh => {
+      if (!mesh.isMesh) return;
+      mesh.castShadow = mesh.receiveShadow = true;
+      owned.add(mesh.geometry);
+      for (const material of [].concat(mesh.material)) if (!borrowed.has(material)) owned.add(material);
+    });
+    root.add(object);
+    return object;
+  }
   const at = (o) => o.getWorldPosition(new THREE.Vector3()).toArray();
   const lamps = anchors.questLamps || [];
 

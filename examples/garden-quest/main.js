@@ -32,14 +32,19 @@ for (const [k, m] of Object.entries(shared.mats)) m.userData.surface = S[k] || '
 const { camera } = world;
 camera.aspect = W / H; camera.fov = 55; camera.near = 0.1; camera.far = 3000; camera.updateProjectionMatrix();
 await tex.ready();
-let quest;
-const g = await startGame(world, {
-  built, canvas, id: 'garden-quest', version: VERSION, title: 'Garden Quest', subtitle: 'Find the key · open the pavilion · light the lanterns',
-  spp: +Q.get('spp') || 6, shadowRadius: 26, fit: !Q.get('w'), quality, hud,
-  setup: (ctx) => { quest = setupQuest(ctx, shared.mats); },
-  objective: (game) => objective(game, quest.lamps.length), summary,
-});
+async function mountQuest() {
+  let quest;
+  const g = await startGame(world, {
+    built, canvas, id: 'garden-quest', version: VERSION, title: 'Garden Quest', subtitle: 'Find the key · open the pavilion · light the lanterns',
+    spp: +Q.get('spp') || 6, shadowRadius: 26, fit: !Q.get('w'), quality, hud,
+    setup: (ctx) => { quest = setupQuest(ctx, shared.mats); },
+    objective: (game) => objective(game, quest.lamps.length), summary,
+  });
+  return { g, play: g.play, quest };
+}
+const mounted = await mountQuest();
+const { g } = mounted;
 if (Q.get('load')) g.load(+Q.get('load'));
 if (Q.has('start')) g.ui.begin();
-window.__mirage = { world, built, play: g.play, g, quest, tex, render: (o = {}) => world.renderFrame(o.T ?? 0, { spp: 6, frameIndex: 1, ...o }) };
+window.__mirage = { world, built, ...mounted, mountQuest, tex, render: (o = {}) => world.renderFrame(o.T ?? 0, { spp: 6, frameIndex: 1, ...o }) };
 window.__READY = true;

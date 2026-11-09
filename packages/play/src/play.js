@@ -3,8 +3,10 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { QUALITY_KEY, QUALITY_LEVELS } from '@mirage/core';
+import { createLifetime } from '@mirage/core/lifetime';
 import { bakeWalkGrid } from './walkgrid.js';
 import { createWalker } from './walker.js';
+import { createCharacter } from './character.js';
 
 // ---------------------------------------------------------------------------
 // createPlay(world, { plan, canvas, mode, fit }): walk / fly / game / orbit over a built world.
@@ -22,13 +24,23 @@ import { createWalker } from './walker.js';
 // The scene clock (wind, water, clouds, ctx.onUpdate) runs while the view moves and stands still with it, so still
 // frames stay deterministic (M1b); place() (a viewpoint, the spawn) sets it back to 0, so fixed views are what they
 // were (B5). `animate: true` runs it on real time instead.
-// ponytail: the game view has no occluder x-ray and the figure only bobs; mouse look has no smoothing.
+// The game view animates the visible traveller using actual displacement. Its root follows the walker.
 // ---------------------------------------------------------------------------
 
 const GAME_DIR = new THREE.Vector3(1, 1.15, 1).normalize(), GAME_DIST = 40;
 const FLY = 8, FLY_FAST = 28;
 
 export function createPlay(world, opts = {}) {
+  const life = createLifetime();
+  try {
+    return mountPlay(world, opts, life);
+  } catch (error) {
+    life.dispose();
+    throw error;
+  }
+}
+
+function mountPlay(world, opts, life) {
   const { plan, canvas = world.renderer.domElement, spp = 6, refine = [spp, 16], animate = false } = opts;
   const { camera, scene, renderer } = world;
   const grid = opts.grid || bakeWalkGrid(world, { bounds: plan.bounds, ...plan.walk });
@@ -42,14 +54,27 @@ export function createPlay(world, opts = {}) {
   const flyPos = new THREE.Vector3(), flyVel = new THREE.Vector3(), gameTarget = new THREE.Vector3();
   const gameCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 400);
   const orbitLens = { fov: camera.fov, near: camera.near, far: camera.far };   // the stills view keeps the world's lens
-  const figure = makeFigure(world);
+  const avatar = createCharacter(world, opts.appearance), figure = avatar.root;
   figure.visible = false;
+  life.defer(() => avatar.dispose());
   scene.add(figure);
+  const { touchAction, cursor } = canvas.style;
+  life.defer(() => { Object.assign(canvas.style, { touchAction, cursor }); });
   const controls = new OrbitControls(camera, canvas);
+  const orbitCaptures = new Set();
+  life.listen(canvas, 'pointerdown', e => {
+    if (controls.enabled && canvas.hasPointerCapture(e.pointerId)) orbitCaptures.add(e.pointerId);
+  });
+  life.listen(canvas, 'lostpointercapture', e => orbitCaptures.delete(e.pointerId));
+  life.defer(() => {
+    controls.dispose();
+    for (const id of orbitCaptures) if (canvas.hasPointerCapture(id)) canvas.releasePointerCapture(id);
+    orbitCaptures.clear();
+  });
   controls.enableDamping = true; controls.maxPolarAngle = Math.PI * 0.495; controls.enabled = false;
   let orbiting = false;
-  controls.addEventListener('start', () => { orbiting = true; });
-  controls.addEventListener('end', () => { orbiting = false; });
+  life.listen(controls, 'start', () => { orbiting = true; });
+  life.listen(controls, 'end', () => { orbiting = false; });
 
   // ---- placing
   function look(from, to) {
@@ -58,23 +83,33 @@ export function createPlay(world, opts = {}) {
   }
   /** put the viewer at `eye` looking at `look`; mode: 'walk' | 'fly' | 'game' | 'orbit' (default: keep) */
   function place(eye, lookAt, m = mode) {
+    if (life.disposed) return;
     mode = m;
     clock = 0;
     look(eye, lookAt);
     walker.place([eye[0], eye[1] - B.eye + 0.3, eye[2]]);
-    eyeY = walker.pos[1] + B.eye;
+    syncWalkerView();
     flyPos.set(...eye); flyVel.set(0, 0, 0);
-    gameTarget.set(walker.pos[0], walker.pos[1] + 0.9, walker.pos[2]);
     if (mode === 'orbit') { camera.position.set(...eye); controls.target.set(...lookAt); controls.update(); }
     setMode(mode);
   }
+  function syncWalkerView() {
+    if (life.disposed) return;
+    const [x, y, z] = walker.pos;
+    eyeY = y + B.eye;
+    figure.position.set(x, y, z); figure.rotation.y = Math.PI / 2 - yaw; avatar.reset();
+    gameTarget.set(x, y + 0.9, z);
+    if (mode === 'walk') camera.position.set(x, eyeY, z);
+  }
   function viewpoint(i) {
+    if (life.disposed) return;
     const v = plan.viewpoints[i];
     if (!v) return;
     const above = v.eye[1] - (grid.groundAt(v.eye[0], v.eye[2], v.eye[1]) || 0);
     place(v.eye, v.look, v.mode || (mode === 'game' || mode === 'orbit' ? mode : above > 3 ? 'fly' : 'walk'));
   }
   function setMode(m) {
+    if (life.disposed) return;
     if (mode === 'orbit' && m !== 'orbit') {   // leave the orbit where its camera is, looking where it looks
       const d = camera.getWorldDirection(new THREE.Vector3());
       yaw = Math.atan2(d.z, d.x); pitch = Math.asin(THREE.MathUtils.clamp(d.y, -1, 1));
@@ -88,10 +123,13 @@ export function createPlay(world, opts = {}) {
       camera.position.copy(mode === 'fly' ? flyPos : new THREE.Vector3(walker.pos[0], eyeY, walker.pos[2]));
       controls.target.copy(camera.position).addScaledVector(forward(), 8);
     }
+    if (mode !== m && m === 'game') syncWalkerView();
+    if (mode === 'game' && m !== 'game') avatar.reset();
     mode = m;
+    figure.visible = mode === 'game';
     controls.enabled = mode === 'orbit';
     if (mode === 'game') gameTarget.set(walker.pos[0], walker.pos[1] + 0.9, walker.pos[2]);
-    if (mode === 'game' && document.pointerLockElement) document.exitPointerLock();
+    if (mode === 'game' && document.pointerLockElement === canvas) document.exitPointerLock();
     ui.mode(mode);
     still = 0;
   }
@@ -101,7 +139,7 @@ export function createPlay(world, opts = {}) {
   const keys = new Set();
   let drag = null;
   let viewIndex = -1;
-  const ui = makeUI(opts.ui !== false, plan, {
+  const ui = makeUI(life, opts.ui !== false, plan, {
     toggleOrbit: () => setMode(mode === 'orbit' ? 'walk' : 'orbit'),
     nextView: () => viewpoint((viewIndex = (viewIndex + 1) % plan.viewpoints.length)),
   });
@@ -118,32 +156,38 @@ export function createPlay(world, opts = {}) {
     if (/^Digit[1-9]$/.test(k)) viewpoint(+k.slice(5) - 1);
     if (k === 'Space') e.preventDefault();
   };
-  window.addEventListener('keydown', onKey);
-  window.addEventListener('keyup', (e) => keys.delete(e.code));
-  window.addEventListener('blur', () => keys.clear());
+  life.listen(window, 'keydown', onKey);
+  life.listen(window, 'keyup', (e) => keys.delete(e.code));
+  life.listen(window, 'blur', () => keys.clear());
   const turn = (dx, dy, k) => { turned = true; yaw += dx * k; pitch = THREE.MathUtils.clamp(pitch - dy * k, -1.45, 1.45); };
-  document.addEventListener('mousemove', (e) => {
+  life.listen(document, 'mousemove', (e) => {
     if (mode === 'orbit' || mode === 'game') return;
     if (document.pointerLockElement === canvas) turn(e.movementX, e.movementY, 0.0022);
     else if (drag) { turn(e.clientX - drag[0], e.clientY - drag[1], 0.004); drag = [e.clientX, e.clientY]; }
   });
   let touchAt = -1e9;   // a tap also fires mousedown: no pointer lock for it (touch fingers need pointer capture)
-  canvas.addEventListener('mousedown', (e) => {
+  life.listen(canvas, 'mousedown', (e) => {
     if (mode === 'orbit' || mode === 'game' || performance.now() - touchAt < 1000) return;
     drag = [e.clientX, e.clientY];
     if (canvas.requestPointerLock && opts.pointerLock !== false) try { const r = canvas.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch { /* drag instead */ }
   });
-  window.addEventListener('mouseup', () => { drag = null; });
+  life.listen(window, 'mouseup', () => { drag = null; });
   // touch (when no game overlay takes it): a finger going down on the left half is a stick around that point,
   // dragged past STICK_RUN px it runs; one on the right half looks. Orbit keeps OrbitControls' own touch.
   const STICK = 50, STICK_RUN = 80, fingers = new Map(), pad = { x: 0, z: 0, run: false };
+  life.defer(() => {
+    keys.clear(); drag = null;
+    for (const id of fingers.keys()) if (canvas.hasPointerCapture(id)) canvas.releasePointerCapture(id);
+    fingers.clear();
+    if (document.pointerLockElement === canvas) document.exitPointerLock();
+  });
   if (!opts.input && opts.touch !== false) {
     canvas.style.touchAction = 'none';
     const padFrom = (f, e) => {
       const dx = e.clientX - f.at[0], dy = e.clientY - f.at[1], l = Math.hypot(dx, dy), k = l > STICK ? STICK / l : 1;
       pad.x = (dx * k) / STICK; pad.z = (-dy * k) / STICK; pad.run = l > STICK_RUN;
     };
-    canvas.addEventListener('pointerdown', (e) => {
+    life.listen(canvas, 'pointerdown', (e) => {
       if (e.pointerType !== 'touch') return;
       touchAt = performance.now();
       if (mode === 'orbit') return;
@@ -151,16 +195,16 @@ export function createPlay(world, opts = {}) {
       fingers.set(e.pointerId, { stick, at: [e.clientX, e.clientY] });
       canvas.setPointerCapture(e.pointerId);
     });
-    canvas.addEventListener('pointermove', (e) => {
+    life.listen(canvas, 'pointermove', (e) => {
       const f = fingers.get(e.pointerId);
       if (!f) return;
       if (f.stick) padFrom(f, e);
       else if (mode !== 'game') { turn(e.clientX - f.at[0], e.clientY - f.at[1], 0.005); f.at = [e.clientX, e.clientY]; }
     });
     const up = (e) => { const f = fingers.get(e.pointerId); if (!f) return; fingers.delete(e.pointerId); if (f.stick) Object.assign(pad, { x: 0, z: 0, run: false }); };
-    canvas.addEventListener('pointerup', up); canvas.addEventListener('pointercancel', up);
+    life.listen(canvas, 'pointerup', up); life.listen(canvas, 'pointercancel', up);
   }
-  canvas.addEventListener('wheel', (e) => { if (mode === 'game') { viewSize = THREE.MathUtils.clamp(viewSize * Math.exp(e.deltaY * 0.0012), 3, 60); e.preventDefault(); } }, { passive: false });
+  life.listen(canvas, 'wheel', (e) => { if (mode === 'game') { viewSize = THREE.MathUtils.clamp(viewSize * Math.exp(e.deltaY * 0.0012), 3, 60); e.preventDefault(); } }, { passive: false });
 
   // ---- shadows follow the view, the centre snapped to whole shadow texels (the map never swims)
   const shadowR = opts.shadowRadius || 22;
@@ -189,8 +233,10 @@ export function createPlay(world, opts = {}) {
   }
   let changed = false, acting = false, turned = false;
   function step(dt) {
+    if (life.disposed) return;
     // opts.input(): { x (right), z (forward), up, run, jump } from a game's action map; default: the keys above
     const inp = opts.input ? opts.input(dt) : keyInput();
+    if (life.disposed) return;
     const fx = inp.x || 0, fz = inp.z || 0, up = inp.up || 0, run = !!inp.run;
     acting = !!(fx || fz || up || inp.jump);
     const game = mode === 'game';
@@ -199,9 +245,14 @@ export function createPlay(world, opts = {}) {
     const right = new THREE.Vector3(-fwd.z, 0, fwd.x);
     const want = new THREE.Vector3().addScaledVector(fwd, fz).addScaledVector(right, fx);
     if (want.lengthSq() > 1) want.normalize();
-    if (mode === 'walk' || game) {
-      walker.update(dt, { x: want.x, z: want.z, run, jump: !!inp.jump });
-      const p = walker.pos;
+    const walking = mode === 'walk' || game;
+    const motion = walking ? { x: want.x, z: want.z, run, jump: !!inp.jump, jumpPressed: !!inp.jumpPressed } : null;
+    if (opts.simulation) {
+      if (opts.simulation.advance(dt, motion)) changed = true;
+    } else if (walking) walker.update(dt, motion);
+    if (life.disposed) return;
+    if (walking) {
+      const p = opts.simulation?.viewPosition ?? walker.pos;
       if (game && want.lengthSq() > 1e-4) { let d = Math.atan2(want.z, want.x) - yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); yaw += d * Math.min(1, dt * 10); pitch = 0; }
       const target = p[1] + B.eye;
       eyeY += (target - eyeY) * Math.min(1, dt * (Math.abs(target - eyeY) > 0.5 ? 30 : 14));   // eased over steps
@@ -213,10 +264,11 @@ export function createPlay(world, opts = {}) {
         gameCam.left = -viewSize * a; gameCam.right = viewSize * a; gameCam.top = viewSize; gameCam.bottom = -viewSize;
         gameCam.updateProjectionMatrix();
         gameCam.position.copy(gameTarget).addScaledVector(GAME_DIR, GAME_DIST); gameCam.lookAt(gameTarget);
-        figure.position.set(p[0], p[1], p[2]); figure.rotation.y = -yaw + Math.PI / 2;
-        const sp = Math.hypot(want.x, want.z) * (walker.blocked ? 0.3 : 1);
-        figure.userData.phase += dt * (sp > 0.05 ? (run ? 11 : 7) : 0);
-        figure.userData.body.position.y = sp > 0.05 && walker.onGround ? Math.abs(Math.sin(figure.userData.phase)) * 0.04 : 0;
+        const distance = Math.hypot(p[0] - figure.position.x, p[2] - figure.position.z);
+        const heading = Math.PI / 2 - yaw;
+        if (figure.rotation.y !== heading) changed = true;
+        if (avatar.update(dt, { distance, run, onGround: walker.onGround, verticalSpeed: walker.vy })) changed = true;
+        figure.position.set(p[0], p[1], p[2]); figure.rotation.y = heading;
       } else camera.position.set(p[0], eyeY, p[2]);
     } else if (mode === 'fly') {
       const target = new THREE.Vector3().addScaledVector(fwd, fz).addScaledVector(right, fx).setY(up).multiplyScalar(run ? FLY_FAST : FLY);
@@ -226,7 +278,6 @@ export function createPlay(world, opts = {}) {
       if (!Number.isNaN(g) && flyPos.y < g + 0.6) flyPos.y = g + 0.6;
       camera.position.copy(flyPos);
     }
-    figure.visible = game;
     if (mode === 'orbit') controls.update();
     else { const f = forward(); camera.lookAt(camera.position.x + f.x, camera.position.y + f.y, camera.position.z + f.z); }
     Object.assign(camera, mode === 'orbit' ? orbitLens : { fov, near: 0.08, far: 3000 });
@@ -242,13 +293,25 @@ export function createPlay(world, opts = {}) {
   }
   /** render the current view: moving -> temporal AA; still -> the still path (spp sub-frames) */
   function render({ moving = true, spp: n = spp, frameIndex, target } = {}) {
+    if (life.disposed) return;
     const { cam, shadow } = view();
     const T = animate ? (performance.now() - t0) / 1000 : clock;
     const o = { camera: cam, ...(shadow ? { shadow } : {}), ...(frameIndex !== undefined ? { frameIndex } : {}) };
-    world.renderFrame(T, moving ? { ...o, taa: true, target } : { ...o, spp: n, target });
+    rendering = true;
+    try {
+      world.renderFrame(T, moving ? { ...o, taa: true, target } : { ...o, spp: n, target });
+    } finally {
+      rendering = false;
+      if (life.disposed) releaseFadeTargets();
+    }
   }
   const FADE = 10;
-  let fadeRT = null;
+  let fadeRT = null, rendering = false;
+  function releaseFadeTargets() {
+    if (fadeRT) for (const target of fadeRT) target.dispose();
+    fadeRT = null;
+  }
+  life.defer(() => { if (!rendering) releaseFadeTargets(); });
   const fadeTargets = () => {
     const { w, h } = world.pipeline;
     if (!fadeRT || fadeRT[0].width !== w || fadeRT[0].height !== h) {
@@ -257,18 +320,27 @@ export function createPlay(world, opts = {}) {
     }
     return fadeRT;
   };
-  let pending = false;
-  const schedule = () => { if (!pending) { pending = true; requestAnimationFrame(frame); } };
+  let frameId = null;
+  function stop() {
+    running = false;
+    if (frameId !== null) cancelAnimationFrame(frameId);
+    frameId = null;
+  }
+  const schedule = () => {
+    if (running && !hidden && !life.disposed && frameId === null) frameId = requestAnimationFrame(frame);
+  };
+  life.defer(stop);
   function frame(now) {
-    pending = false;
+    frameId = null;
     if (!running || hidden) return;
     schedule();
     if (!gate(now)) return;   // at most maxFps (60; power saver 30)
     const dt = Math.max(0, Math.min((now - last) / 1000, 0.1)); last = now;   // a rAF stamp can precede `last`
     step(dt);
+    if (life.disposed || !running) return;
     const { cam } = view();
     cam.updateMatrixWorld();
-    const key = cam.matrixWorld.elements.map((v) => v.toFixed(5)).join(',') + (cam.isOrthographicCamera ? cam.top.toFixed(4) : cam.fov) + figure.userData.body.position.y.toFixed(4) +
+    const key = cam.matrixWorld.elements.map((v) => v.toFixed(5)).join(',') + (cam.isOrthographicCamera ? cam.top.toFixed(4) : cam.fov) +
       `@${world.pipeline.w}x${world.pipeline.h}`;   // a resize clears the canvas: draw again even when still
     const viewMoved = key !== lastKey || orbiting;
     if (viewMoved || acting) wake();
@@ -279,6 +351,7 @@ export function createPlay(world, opts = {}) {
     changed = false;
     lastKey = key;
     if (world.tick(dt)) moving = true;
+    if (life.disposed) return;
     const t = performance.now();
     // the clock runs only on frames the player drives (keys, stick, looking): a camera easing in after place() or
     // after letting go does not move it
@@ -287,17 +360,18 @@ export function createPlay(world, opts = {}) {
     if (moving) { still = 0; render({ moving: true }); stats.moving++; }
     else {
       still++;
-      if (still === 1) { const [a] = fadeTargets(); render({ moving: true, target: a }); world.pipeline.blend(a, a, 0); }
+      if (still === 1) { const [a] = fadeTargets(); render({ moving: true, target: a }); if (!life.disposed) world.pipeline.blend(a, a, 0); }
       else if (still <= FADE + 1) {
         const [a, b] = fadeTargets();
         if (still === 2) { render({ moving: false, spp: refine[0], frameIndex: 1, target: b }); stats.refined++; }
-        world.pipeline.blend(a, b, (still - 1) / FADE);
+        if (!life.disposed) world.pipeline.blend(a, b, (still - 1) / FADE);
       } else if (still >= 45 && still < 45 + FADE && refine[1] > refine[0]) {
         const [a, b] = fadeTargets();
         if (still === 45) { render({ moving: false, spp: refine[1], frameIndex: 1, target: a }); stats.refined++; }
-        world.pipeline.blend(b, a, (still - 44) / FADE);
+        if (!life.disposed) world.pipeline.blend(b, a, (still - 44) / FADE);
       }
     }
+    if (life.disposed) return;
     const drew = moving || still <= FADE + 1 || (still >= 45 && still < 45 + FADE && refine[1] > refine[0]);
     stats.lastMs = performance.now() - t;
     stats.frames++;
@@ -308,7 +382,7 @@ export function createPlay(world, opts = {}) {
   }
 
   // opts.fit: the canvas follows the window (pages without a fixed ?w= / ?h=)
-  if (opts.fit) window.addEventListener('resize', () => {
+  if (opts.fit) life.listen(window, 'resize', () => {
     canvas.style.width = innerWidth + 'px'; canvas.style.height = innerHeight + 'px';
     world.resize(innerWidth, innerHeight);
   });
@@ -319,17 +393,18 @@ export function createPlay(world, opts = {}) {
   stats.draws = 0;
   let lastInput = performance.now(), hidden = typeof document !== 'undefined' && document.hidden;
   const wake = () => { lastInput = performance.now(); };
-  for (const ev of ['keydown', 'pointerdown', 'pointermove', 'wheel', 'touchstart']) window.addEventListener(ev, wake, { passive: true });
+  for (const ev of ['keydown', 'pointerdown', 'pointermove', 'wheel', 'touchstart']) life.listen(window, ev, wake, { passive: true });
   const power = { saver: false, maxFps: opts.maxFps ?? 60 }, gate = frameGate(() => power.maxFps);
   const setSaver = (on) => {
+    if (life.disposed) return;
     power.saver = !!on; power.maxFps = on ? 30 : opts.maxFps ?? 60;
     try { localStorage.setItem(POWER_KEY, on ? '1' : '0'); } catch { /* no storage */ }
     if (opts.onPowerSaver) opts.onPowerSaver(power.saver);
     hud.update(); wake();
   };
-  const hud = makeHud(opts.hud !== false, { quality: opts.quality || world.ctx.quality, power, setSaver });
+  const hud = makeHud(life, opts.hud !== false, { quality: opts.quality || world.ctx.quality, power, setSaver });
   try { if (localStorage.getItem(POWER_KEY) === '1') setSaver(true); } catch { /* no storage */ }
-  document.addEventListener('visibilitychange', () => {
+  life.listen(document, 'visibilitychange', () => {
     hidden = document.hidden;
     if (opts.onVisibility) opts.onVisibility(!hidden);
     if (!hidden && running) { last = performance.now(); keys.clear(); wake(); schedule(); }
@@ -339,7 +414,7 @@ export function createPlay(world, opts = {}) {
   schedule();
 
   return {
-    world, grid, walker, keys, figure, gameCam, controls, stats, render, place, viewpoint, setMode, turn,
+    world, grid, walker, keys, figure, avatar, gameCam, controls, stats, render, place, viewpoint, setMode, turn, syncWalkerView,
     /** turn the view toward a world point without moving */
     lookAt: (p) => look(camera.position.toArray(), p),
     get yaw() { return yaw; }, set yaw(v) { yaw = v; }, get pitch() { return pitch; }, set pitch(v) { pitch = v; },
@@ -353,31 +428,12 @@ export function createPlay(world, opts = {}) {
     state: () => ({ mode, pos: (mode === 'fly' ? [flyPos.x, flyPos.y - B.eye, flyPos.z] : walker.pos).map((v) => +v.toFixed(3)), eye: camera.position.toArray().map((v) => +v.toFixed(3)), onGround: walker.onGround, blocked: walker.blocked, yaw: +yaw.toFixed(3), still }),
     /** advance input, walker and cameras by dt without rendering (tools drive frames themselves after stop()) */
     step,
-    stop() { running = false; },
-    start() { if (!running) { running = true; last = performance.now(); schedule(); } },
+    stop, dispose: life.dispose,
+    start() { if (!life.disposed && !running) { running = true; last = performance.now(); schedule(); } },
     /** the power saver (30 fps cap) and the frame-rate cap; wake(): count as input (restarts scene animation) */
     get powerSaver() { return power.saver; }, set powerSaver(v) { setSaver(v); },
     get maxFps() { return power.maxFps; }, wake, get idleFor() { return (performance.now() - lastInput) / 1000; },
   };
-}
-
-// a simple figure for the game view: robe, head, arms (three built-ins, the world's materials and shadows)
-function makeFigure(world) {
-  const { mat } = world;
-  const g = new THREE.Group(), body = new THREE.Group();
-  g.add(body);
-  const cloth = mat.std({ color: new THREE.Color(0.62, 0.12, 0.06), roughness: 0.8 });
-  const skin = mat.std({ color: new THREE.Color(0.45, 0.3, 0.2), roughness: 0.7 });
-  const robe = new THREE.Mesh(new THREE.LatheGeometry([[0, 0.02], [0.22, 0.02], [0.2, 0.6], [0.19, 1.2], [0.15, 1.38], [0.06, 1.45], [0, 1.46]].map(([r, y]) => new THREE.Vector2(r, y)), 20), cloth);
-  robe.scale.z = 0.75;
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.11, 16, 12), skin);
-  head.position.y = 1.58;
-  body.add(robe, head);
-  for (const s of [-1, 1]) { const a = new THREE.Mesh(new THREE.CapsuleGeometry(0.045, 0.5, 4, 8), cloth); a.position.set(s * 0.21, 1.05, 0); a.rotation.z = s * 0.08; body.add(a); }
-  g.traverse((o) => { o.userData.collide = false; if (o.isMesh) o.castShadow = o.receiveShadow = true; });
-  g.name = 'figure';
-  g.userData.body = body; g.userData.phase = 0;
-  return g;
 }
 
 /** (now) -> whether an animation frame at `now` (ms) runs, keeping to at most fps() frames per second */
@@ -395,7 +451,7 @@ export function frameGate(fps) {
 
 // the corner: quality (a choice is saved and applied on reload), frames drawn per second, the power saver
 const POWER_KEY = 'mirage:power-saver';
-function makeHud(on, { quality, power, setSaver }) {
+function makeHud(life, on, { quality, power, setSaver }) {
   if (!on) return { show() {}, update() {} };
   const el = document.createElement('div');
   el.className = 'mirage-hud';
@@ -404,14 +460,15 @@ function makeHud(on, { quality, power, setSaver }) {
   el.innerHTML = `<select title="Quality (reloads the page)" style="${ctl}">${QUALITY_LEVELS.map((q) => `<option${q === quality ? ' selected' : ''}>${q}</option>`).join('')}</select>` +
     `<span class="f" style="min-width:7ch;text-align:right"></span><button type="button" style="${ctl}">Power saver</button>`;
   const sel = el.querySelector('select'), fps = el.querySelector('.f'), btn = el.querySelector('button');
-  sel.addEventListener('change', () => { try { localStorage.setItem(QUALITY_KEY, sel.value); } catch { /* no storage */ } location.reload(); });
-  btn.addEventListener('click', () => { setSaver(!power.saver); btn.blur(); });   // no focus: Space must stay a jump
-  for (const c of [sel, btn]) c.addEventListener('keydown', (e) => e.stopPropagation());
+  life.listen(sel, 'change', () => { try { localStorage.setItem(QUALITY_KEY, sel.value); } catch { /* no storage */ } location.reload(); });
+  life.listen(btn, 'click', () => { setSaver(!power.saver); btn.blur(); });   // no focus: Space must stay a jump
+  for (const c of [sel, btn]) life.listen(c, 'keydown', (e) => e.stopPropagation());
+  life.defer(() => el.remove());
   document.body.appendChild(el);
   // on touch the bottom corners hold a game's stick and buttons: go below its menu button (top 70 px, 52 px tall)
   const up = () => { el.style.top = '132px'; el.style.right = '16px'; el.style.bottom = 'auto'; };
   if (matchMedia('(pointer: coarse)').matches) up();
-  addEventListener('pointerdown', (e) => { if (e.pointerType === 'touch') up(); }, { capture: true, passive: true });
+  life.listen(window, 'pointerdown', (e) => { if (e.pointerType === 'touch') up(); }, { capture: true, passive: true });
   let shown = -1;
   const hud = {
     show(n, settled) {
@@ -424,7 +481,7 @@ function makeHud(on, { quality, power, setSaver }) {
   return hud;
 }
 
-function makeUI(on, plan, { toggleOrbit, nextView }) {
+function makeUI(life, on, plan, { toggleOrbit, nextView }) {
   const root = document.createElement('div');
   root.style.cssText = 'position:fixed;left:14px;bottom:12px;font:12px/1.5 system-ui,sans-serif;color:#f3e6cc;text-shadow:0 1px 2px #000;pointer-events:none;';
   const vps = plan.viewpoints.slice(0, 9).map((v, i) => `${i + 1} ${v.name}`).join(' · ');
@@ -436,16 +493,17 @@ function makeUI(on, plan, { toggleOrbit, nextView }) {
   const b = 'min-height:40px;padding:0 14px;color:#f3e6cc;background:rgba(12,10,8,.55);border:1px solid rgba(255,255,255,.3);border-radius:8px;';
   bar.innerHTML = `<button type="button" data-t="mode" style="${b}"></button>` + (plan.viewpoints.length ? `<button type="button" data-t="view" style="${b}">View</button>` : '');
   const modeBtn = bar.querySelector('[data-t=mode]');
-  modeBtn.addEventListener('click', toggleOrbit);
-  if (plan.viewpoints.length) bar.querySelector('[data-t=view]').addEventListener('click', nextView);
+  life.listen(modeBtn, 'click', toggleOrbit);
+  if (plan.viewpoints.length) life.listen(bar.querySelector('[data-t=view]'), 'click', nextView);
   const touchOn = () => {
     bar.style.display = 'flex';
     root.querySelector('.k').textContent = 'left half: drag to walk, far to run · right half: drag to look';
   };
   if (on) {
+    life.defer(() => { root.remove(); bar.remove(); });
     document.body.appendChild(root); document.body.appendChild(bar);
     if (matchMedia('(pointer: coarse)').matches) touchOn();
-    addEventListener('pointerdown', (e) => { if (e.pointerType === 'touch') touchOn(); }, { capture: true, passive: true });
+    life.listen(window, 'pointerdown', (e) => { if (e.pointerType === 'touch') touchOn(); }, { capture: true, passive: true });
   }
   let shown = on;
   return {

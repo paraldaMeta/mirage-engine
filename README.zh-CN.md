@@ -10,10 +10,11 @@ Mirage 用 three.js 把整个地方——院子、园林、码头、山间小屋
 一个世界 = 一张总平面图 + 几个模块；多个 Agent 可以并行各建一个模块，用脚本化的输入把自己建的东西走一遍来自测，
 最后打包成一个几 MB、从磁盘直接打开的 HTML 文件。
 
-[English](README.md) · [中文](README.zh-CN.md)
+[English](README.md) · [中文](README.zh-CN.md) · **[在浏览器里试玩示例](https://paraldameta.github.io/mirage-engine/)**
 
-> **状态：pre-alpha（0.2.0）。** 下面五个示例在作者（灰叔 Racso）的机器上能跑通。接口还会变，没有发到 npm，只在 Apple 芯片的桌面
-> Chrome 上测过。见[现状与局限](#现状与局限)。
+> **状态：1.0.0。** 公开接口以 [docs/api.md](docs/api.md) 为准：标 *stable* 的只在大版本里变（semver），标
+> *experimental* 的小版本可以变。还没有发到 npm（包名还没定），请从仓库克隆使用。在 Apple 芯片的桌面浏览器上测过，
+> 见[现状与局限](#现状与局限)。
 
 ## 为什么
 
@@ -69,6 +70,10 @@ node ../../packages/tools/src/package.mjs .                               # rele
 
 ## 示例
 
+开发分支新增[河湾浅滩](examples/river-ford)。从一岸涉水走到另一岸，用于验收共用地形与水面，首次画面和性能实测待测试机执行。
+
+开发分支新增独立的[林缘小径](examples/woodland-path)，用来检验程序化树冠、近景草和树干碰撞，待测试机首次验收。下面五个是 v0.2.0 的发布示例。
+
 | | | |
 |---|---|---|
 | ![](docs/media/examples/hello-courtyard.jpg) **hello-courtyard**：带水池、花架和棕榈的围合院子；四个模块、五套 CC0 贴图、运行时钟 | ![](docs/media/examples/walled-garden.jpg) **walled-garden**：三层台地、台阶、水池、亭子；六个模块（外加一个故意报错的） | ![](docs/media/examples/garden-quest.jpg) **garden-quest**：把园林做成小游戏：找钥匙、开亭子、点灯笼；存档、手柄、触屏 |
@@ -98,15 +103,19 @@ node ../../packages/tools/src/package.mjs .                               # rele
 
 ## 现状与局限
 
-pre-alpha，如实说：
+1.0.0，如实说：
 
-- 只在 Apple M4 Pro 的桌面 Chrome（无头和有窗口）上测过；Safari、Firefox、手机都没测。
+1.0 的验收门槛和证据见 [docs/STATUS-1.0.md](docs/STATUS-1.0.md) 和 [docs/review-1.0.md](docs/review-1.0.md)。
+
+- 在 Apple M4 Pro 上测过桌面 Chrome（无头和有窗口）；0.2.0 还通过 Playwright 跑过 Safari 和 Firefox 内核。真 Safari、手机和
+  集成显卡没量过；触屏只在 Chrome 的触屏模拟里测过。CI 在 Ubuntu 和 macOS 上跑节点检查、包检查和每个示例的构建。
 - 这台机器上走动每帧 3–6 ms；除了 `low` 画质档，没有为弱 GPU 调过。
-- 引擎偏向静帧：走动时时钟和风是冻结的，保证静止画面逐像素一致；移动画面用时间抗锯齿，快速运动的东西会有一点拖影。
+- 引擎偏向静帧：走动时场景时钟前进，停下时冻结，以保持静帧逐像素一致；移动画面用时间抗锯齿，快速运动的东西会有一点拖影。
 - 碰撞来自加载时烘焙的走动网格（0.125 m 格）和游戏里的 Rapier 三角网格；很细或倾斜的几何要加代理盒，小台阶仍可能卡住角色。
-- 植被、地形、水面每个世界自己写（还没有共用工具包）；人物是占位。
+- 当前开发分支已有共用植被、地形、水面，以及等距游戏视角里的骨骼旅行者。画面与性能待异机验收。[人物验收说明](docs/CHARACTER-REVIEW.md)
 - 技能包只验证过一轮（一个主 Agent、三个工作 Agent，Claude Code）。Codex 和 Cursor 的用法只写了文档，没实际跑过。
-- 没发 npm；包名和接口会变。已知问题：[docs/CURSOR-TASKS.md](docs/CURSOR-TASKS.md)。
+- 还没发 npm；世界放在本仓库里（`examples/<名字>`）。TypeScript 类型声明和源码放在一起（[docs/TYPES.md](docs/TYPES.md)）。
+  已知问题：[docs/CURSOR-TASKS.md](docs/CURSOR-TASKS.md)。
 
 ## 和其他项目的关系
 

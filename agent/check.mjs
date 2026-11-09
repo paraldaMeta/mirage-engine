@@ -29,5 +29,12 @@ for (const d of dirs) {
   console.log(`  ok ${d} (description ${fm.description ? fm.description.length : 0} chars, body ${text.split('\n').length} lines)`);
 }
 if (!dirs.length) bad.push('no skills found');
+// the scaffold a new world is copied from must ask for the @mirage versions this repository has: npm resolves a
+// workspace dependency locally only when the version matches, otherwise it asks the registry (404 before publishing)
+const version = JSON.parse(fs.readFileSync(path.join(here, '../package.json'), 'utf8')).version;
+const skel = JSON.parse(fs.readFileSync(path.join(here, 'mirage-brief-to-plan/assets/skeleton/package.json'), 'utf8'));
+for (const [dep, want] of Object.entries(skel.dependencies || {})) {
+  if (dep.startsWith('@mirage/') && want !== version) bad.push(`skeleton package.json: ${dep} "${want}", the packages are ${version}`);
+}
 if (bad.length) { console.error('skill check failed:\n  ' + bad.join('\n  ')); process.exit(1); }
 console.log(`skill check: ${dirs.length} skills ok`);

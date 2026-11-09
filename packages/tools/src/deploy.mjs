@@ -9,16 +9,25 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parseArgs } from 'node:util';
+import { checkOut } from './safe-out.mjs';
 
-const args = process.argv.slice(2);
-const root = path.resolve(args.find((a) => !a.startsWith('--')) || '.');
+let opts;
+try {
+  opts = parseArgs({ args: process.argv.slice(2), allowPositionals: true, options: { out: { type: 'string' }, multi: { type: 'boolean' } } });
+  if (opts.positionals.length > 1) throw new Error(`one example folder, got ${opts.positionals.join(' ')}`);
+} catch (e) { console.error(`[deploy] ${e.message}\nusage: mirage-deploy <example dir> [--out deploy/<name>] [--multi]`); process.exit(2); }
+const root = path.resolve(opts.positionals[0] || '.');
 const name = path.basename(root);
-const out = path.resolve(args.includes('--out') ? args[args.indexOf('--out') + 1] : path.join('deploy', name));
 const here = path.dirname(fileURLToPath(import.meta.url));
+let out;
+try { out = checkOut(opts.values.out ?? path.join('deploy', name), { keep: [root], marker: '.nojekyll' }); }
+catch (e) { console.error('[deploy] ' + e.message); process.exit(2); }
 fs.rmSync(out, { recursive: true, force: true });
 fs.mkdirSync(out, { recursive: true });
-if (args.includes('--multi')) {
-  execFileSync('npx', ['vite', 'build', '--outDir', out, '--emptyOutDir'], { cwd: root, stdio: 'inherit' });
+if (opts.values.multi) {
+  const vite = path.join(path.dirname(fileURLToPath(import.meta.resolve('vite/package.json'))), 'bin/vite.js');
+  execFileSync(process.execPath, [vite, 'build', '--outDir', out, '--emptyOutDir'], { cwd: root, stdio: 'inherit' });
 } else {
   execFileSync(process.execPath, [path.join(here, 'package.mjs'), root, '--out', path.join(out, 'index.html')], { stdio: 'inherit' });
 }

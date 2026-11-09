@@ -15,21 +15,17 @@
 // shape: { rect: [x0, z0, x1, z1], y? } | { circle: [x, z, r], y? } | { poly: [[x, z], ...], y? }   (y: its level)
 // ---------------------------------------------------------------------------
 
-const SHAPES = ['rect', 'circle', 'poly'];
+import { planProblems } from './plan-validation.js';
 
 /** Check a plan and fill defaults. Throws with every problem listed (agents read the message). */
 export function definePlan(plan) {
-  const p = { units: 'm', axes: { x: 'east', y: 'up', z: 'south' }, walk: { yMin: -1, yMax: 12 }, regions: {}, footprints: {}, paths: {}, points: {}, viewpoints: [], ...plan };
-  const bad = [];
-  if (p.units !== 'm') bad.push(`units must be 'm' (got ${p.units})`);
-  if (!p.name) bad.push('name is missing');
-  if (!Array.isArray(p.bounds) || p.bounds.length !== 4 || !(p.bounds[0] < p.bounds[2] && p.bounds[1] < p.bounds[3])) bad.push('bounds must be [x0, z0, x1, z1] with x0 < x1, z0 < z1');
-  for (const group of ['regions', 'footprints']) for (const [k, s] of Object.entries(p[group])) if (!SHAPES.some((t) => s && s[t])) bad.push(`${group}.${k}: needs rect, circle or poly`);
-  for (const [k, q] of Object.entries(p.paths)) if (!q || !Array.isArray(q.points) || q.points.length < 2) bad.push(`paths.${k}: needs at least two points`);
-  for (const [i, v] of p.viewpoints.entries()) if (!v.eye || !v.look) bad.push(`viewpoints[${i}]: needs eye and look`);
-  if (bad.length) throw new Error(`[plan ${p.name || '?'}] ` + bad.join('; '));
-  p.seed = p.seed ?? p.name;
-  return p;
+  const problems = planProblems(plan);
+  if (problems.length) throw new Error('[plan ' + (typeof plan?.name === 'string' ? plan.name : '?') + ']\n' + problems.join('\n'));
+  return {
+    units: 'm', regions: {}, footprints: {}, paths: {}, points: {}, viewpoints: [], ...plan,
+    axes: { x: 'east', y: 'up', z: 'south', ...plan.axes }, walk: { yMin: -1, yMax: 12, ...plan.walk },
+    seed: plan.seed ?? plan.name,
+  };
 }
 
 /** Is (x, z) inside the shape? */

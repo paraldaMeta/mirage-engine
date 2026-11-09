@@ -2,11 +2,12 @@
 // Check: resizing the window resizes the canvas and redraws a still view (it was left blank at the old size).
 // usage: node scripts/resize-check.mjs <dist dir | page.html>   (no ?w= / ?h=, so the page follows the window)
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { launch, serve, open } from '../../../packages/tools/src/chrome.mjs';
 
 const target = process.argv[2] || 'dist';
 const srv = target.endsWith('.html') ? null : await serve(target);
-const url = srv ? srv.url : 'file://' + path.resolve(target);
+const url = srv ? srv.url : pathToFileURL(path.resolve(target)).href;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const b = await launch({ w: 1000, h: 700 });
 const { page, errors } = await open(b, url + '?grain=0');

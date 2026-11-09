@@ -1,7 +1,7 @@
 {
   "name": "mirage-engine",
   "private": true,
-  "version": "0.2.0",
+  "version": "1.0.0",
   "description": "A code-only world engine for AI agents: build whole towns and landscapes in three.js, in parallel, as code.",
   "license": "MIT",
   "type": "module",
@@ -13,8 +13,13 @@
     "node": ">=22"
   },
   "scripts": {
+    "acceptance": "node packages/tools/src/acceptance.mjs",
+    "test:types": "node packages/tools/src/typecheck.mjs",
     "test": "npm test -ws --if-present && node agent/check.mjs",
+    "test:pack": "node scripts/check-packages.mjs",
+    "build:examples": "npm run build -w examples --if-present",
     "test:e2e": "node packages/tools/src/e2e.mjs",
+    "test:fixed-step": "node packages/tools/src/fixed-step-check.mjs examples/snow-hut/dist",
     "test:still-pop": "node packages/tools/src/still-pop.mjs examples/hello-courtyard/dist examples/walled-garden/dist examples/garden-quest/dist examples/agent-trial/dist",
     "test:touch": "node packages/tools/src/touch-check.mjs examples/hello-courtyard/dist examples/walled-garden/dist examples/garden-quest/dist examples/agent-trial/dist examples/snow-hut/dist",
     "test:gpu-load": "node packages/tools/src/gpu-load.mjs examples/hello-courtyard/dist examples/walled-garden/dist examples/garden-quest/dist examples/agent-trial/dist examples/snow-hut/dist"

@@ -16,6 +16,12 @@ main.js            createWorldRenderer -> buildWorld(world, { plan, modules }) -
 
 A plain object (JSON-able), checked by `definePlan()`; errors list every problem at once.
 
+Use the exported JSON Schema `@mirage/world/plan.schema.json` in an editor. From a workspace checkout,
+`node packages/tools/src/validate-plan.mjs examples/garden-quest/plan.js` checks the actual layout after
+its imports and computed coordinates have resolved. The same command accepts a JSON file. Both the engine
+and CLI also check that rectangle endpoints and walk heights are ordered. Extra fields on a world or a shape
+belong to its modules and are preserved. Bounds describe the walk grid, so scenery can extend beyond them.
+
 | field | meaning |
 |---|---|
 | `name`, `seed` | the world; `seed` (default `name`) seeds every module's randomness |
@@ -62,6 +68,29 @@ main.js passes, e.g. the texture layer), `onUpdate(fn)`, `collider(mesh)`, `log(
 ## 3. Anchors
 
 Points one module offers so that another can put things there, without either knowing the other's code.
+
+A module can declare the keys it uses during finalization. Here the lantern module requires lamp positions
+and can also use posts when they are available.
+
+```js
+const lanterns = {
+  name: 'lanterns',
+  consumes: { required: ['lamps'], optional: ['posts'] },
+  build() {},
+  finalize(ctx) {
+    for (const lamp of ctx.anchors.lamps) attachLantern(ctx, lamp);
+    for (const post of ctx.anchors.posts || []) attachPost(ctx, post);
+  },
+};
+```
+
+The loader resolves these names after every module has built. Counts include all entries from successful
+producers, including producers later in the build order. A required key with zero entries skips that consumer's
+finalizer. Its successful build and offered anchors remain available. Other modules continue. Each declared
+key appears in `report.modules[].consumes` with `key`, `required` and `count`. Missing required keys also
+appear together in `report.failed` under the consumer's name and phase `consumes`. A playtest fails for a
+missing requirement even when the host supplies a quiet logger. Optional keys may have zero
+entries in a module-only preview. Omit the declaration to use the original finalization behavior.
 
 - Entry: `{ pos: [x, y, z], rotY, ...extra }` in world metres; the loader adds `from: <module>`.
 - Facing: local +Z = `(sin rotY, 0, cos rotY)` points **out** of the wall / door into the open air.

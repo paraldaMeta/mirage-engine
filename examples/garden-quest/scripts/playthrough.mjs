@@ -4,21 +4,22 @@
 //          taper, light the four lanterns, the "done" message; footsteps by surface, sounds, no console errors
 //   pad    the same controls through an injected Gamepad API shim (stick, look, A jump, X use, Start / d-pad / B menu)
 //   touch  an emulated phone (390 x 844, touch): the virtual stick, drag-look, Jump and Use buttons
-// usage: node scripts/playthrough.mjs <dist dir | page.html> [--out dir] [--part main,pad,touch]
+// usage: node scripts/playthrough.mjs <dist dir | page.html> [--out dir] [--part main,pad,touch,lifecycle]
 // Writes <out>/<part>-NN-step.png and <out>/report.json; exit 1 on any failure.
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { launch, serve, open } from '../../../packages/tools/src/chrome.mjs';
 
 const args = process.argv.slice(2);
 const flag = (k, d) => { const i = args.indexOf('--' + k); return i >= 0 ? args[i + 1] : d; };
 const target = args.find((a, i) => !a.startsWith('--') && !(i > 0 && args[i - 1].startsWith('--')));
 const OUT = path.resolve(flag('out', 'out/playthrough'));
-const PARTS = flag('part', 'main,pad,touch').split(',');
+const PARTS = flag('part', 'main,pad,touch,lifecycle').split(',');
 fs.mkdirSync(OUT, { recursive: true });
 const isFile = target.endsWith('.html');
 const srv = isFile ? null : await serve(target);
-const base = isFile ? 'file://' + path.resolve(target) : srv.url;
+const base = isFile ? pathToFileURL(path.resolve(target)).href : srv.url;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const report = { target: base, parts: {} };
 let failed = 0;
@@ -151,7 +152,9 @@ if (PARTS.includes('main')) {
   await S.page.reload({ waitUntil: 'load' });
   await S.page.waitForFunction('window.__READY === true', { timeout: 180000, polling: 100 });
   await sleep(600);
-  await S.step('reloaded-fresh', async () => { await S.press('KeyP', 60); await sleep(200); }, (s) => !s.inv.length && !s.flags.doorOpen && s.dialog === 'mg-menu');
+  // the key that leaves the start screen only starts the game (since the fixed-clock input: it is spent), so start
+  // with W as the first step does, then P opens the menu
+  await S.step('reloaded-fresh', async () => { await S.press('KeyW', 60); await sleep(300); await S.press('KeyP', 60); await sleep(200); }, (s) => !s.inv.length && !s.flags.doorOpen && s.dialog === 'mg-menu');
   const loaded = await S.step('load-slot-1', async () => {
     await S.page.click('.mg-menu button[data-p="load"]'); await sleep(200);
     await S.page.click('.mg-menu button[data-load="1"]'); await sleep(1200);
@@ -247,6 +250,53 @@ if (PARTS.includes('touch')) {
   report.parts.touch = { steps: S.steps, errors: S.errorsAll(), warnings: S.warningsAll() };
   if (S.errorsAll().length) { failed++; console.log('console errors:', S.errorsAll()); }
   await S.close();
+}
+
+if (PARTS.includes('lifecycle')) {
+  const S = await session('lifecycle');
+  try {
+    await S.open();
+    report.parts.lifecycle = await S.page.evaluate(async () => {
+      const host = window.__mirage, renderer = host.world.renderer;
+      const evidence = [];
+      const check = (condition, message) => { if (!condition) throw new Error(message); };
+      for (let cycle = 0; cycle < 3; cycle++) {
+        const { g } = host, { play, input, ui, audio } = g;
+        const opened = cycle !== 1;
+        if (opened) { ui.begin(); ui.openMenu('controls'); }
+        const context = audio.ctx;
+        const pending = input.capture();
+        const frames = play.stats.frames;
+        const nextFrame = () => new Promise(resolve => requestAnimationFrame(resolve));
+        const closed = g.dispose();
+        check(closed === g.dispose(), 'disposal must share its completion');
+        check(!ui.root.isConnected && !g.root.parent && !play.figure.parent, 'session still attached');
+        await closed;
+        check(await pending === null, 'key capture did not cancel');
+        if (opened) check(context && context.state === 'closed', 'unlocked audio still open');
+        else check(!context && !audio.ctx, 'locked audio was opened during disposal');
+        play.start(); play.step(1 / 60);
+        dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW' }));
+        await nextFrame(); await nextFrame();
+        check(!play.keys.has('KeyW') && play.stats.frames === frames, 'old controller reacted');
+        check(!document.querySelector('.mg-ui, .mirage-hud'), 'old overlay still in page');
+        check(host.world.renderer === renderer, 'renderer changed');
+        host.render({ spp: 1 });
+        evidence.push({ cycle, frames, audio: context?.state || 'locked', geometries: renderer.info.memory.geometries,
+          textures: renderer.info.memory.textures });
+        if (cycle < 2) {
+          Object.assign(host, await host.mountQuest());
+          check(document.querySelectorAll('.mg-ui').length === 1, 'duplicate game overlay');
+        }
+      }
+      return evidence;
+    });
+    if (S.errorsAll().length) throw new Error(S.errorsAll().join('\n'));
+  } catch (error) {
+    failed++;
+    report.parts.lifecycle = { failed: String(error) };
+    console.error('FAIL lifecycle', error);
+  } finally { await S.close(); }
 }
 
 report.failed = failed;

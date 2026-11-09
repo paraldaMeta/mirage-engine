@@ -3,8 +3,13 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { createPhysics } from './src/physics.js';
+import { startGame } from './src/start.js';
+import { createSimulation } from './src/simulation.js';
 import { createGame } from './src/game.js';
 import { createInput } from './src/input.js';
+import { createEnv, createMaterials } from '@mirage/core';
+import { addTerrain } from '@mirage/world/kits/terrain';
+import { addWater } from '@mirage/world/kits/water';
 
 const ok = (c, m) => { if (!c) { console.error('FAIL', m); process.exit(1); } console.log('  ok', m); };
 const scene = new THREE.Scene(), M = new THREE.MeshBasicMaterial();
@@ -15,9 +20,41 @@ box(9, 3, 0.4, -5.5, 1.5, 3); box(9, 3, 0.4, 5.5, 1.5, 3);            // a wall 
 for (let i = 0; i < 9; i++) box(2, 0.178 * (i + 1), 0.36, 6, (0.178 * (i + 1)) / 2, -2 - i * 0.36);   // stairs climbing -z to 1.6
 box(2, 1.602, 5, 6, 0.801, -7.56);                                     // the landing
 box(1, 0.6, 1, -3, 0.3, -3);                                          // a box to jump onto
+// two callers at once: the second must not get Rapier before its init has finished
+{
+  const { loadRapier } = await import('./src/physics.js');
+  await import('@dimforge/rapier3d-compat');               // cached: the next import resolves at once, init still takes time
+  const first = loadRapier();
+  await new Promise((r) => setTimeout(r));                 // the import is done, the WASM init is still running
+  let early = null; try { early = await createPhysics(new THREE.Scene()); } catch (e) { early = e; }
+  await first;
+  ok(early && early.stats, `createPhysics while loadRapier is still initialising (${early?.message || 'ok'})`);
+}
 const phys = await createPhysics(scene);
-phys.addStatic(scene);
-ok(phys.stats.colliders === 15, `static colliders from meshes (${phys.stats.colliders}, ${phys.stats.triangles} tris)`);
+// meshes with nothing to collide with are left out instead of throwing (and failing startGame)
+const odd = new THREE.Group();
+odd.add(new THREE.Mesh(new THREE.BufferGeometry(), M), new THREE.Mesh(undefined, M), new THREE.InstancedMesh(new THREE.BoxGeometry(), M, 0));
+const batched = new THREE.BatchedMesh(1, 24, 36, M); batched.addInstance(batched.addGeometry(new THREE.BoxGeometry()));
+odd.add(batched);
+scene.add(odd);
+const warned = [], warn = console.warn; console.warn = (m) => warned.push(String(m));
+let oddError = null; try { phys.addStatic(scene); } catch (e) { oddError = e; } finally { console.warn = warn; }
+scene.remove(odd);
+ok(!oddError && phys.stats.colliders === 15, `empty, instance-less and batched meshes are skipped (${oddError?.message || phys.stats.colliders + ' colliders'})`);
+ok(warned.some((m) => m.includes('BatchedMesh')), 'a BatchedMesh is named in a warning');
+
+// Wading uses the actual bed triangle in Rapier, including under fully opaque water.
+{
+  const root = new THREE.Scene(), ctx = { root, mat: createMaterials(createEnv().G) };
+  const bed = addTerrain(ctx, { bounds: [-3, -2, 3, 2], segments: [3, 2], sample: (x, z) => -1 + x * z * 0.05, surface: 'gravel' });
+  addWater(ctx, { outline: [[-3,-2], [3,-2], [3,2], [-3,2]], level: 0.4, opacity: 1 });
+  const riverPhysics = await createPhysics(root);
+  riverPhysics.addStatic(root);
+  const hit = riverPhysics.ray([0.37, 3, -0.6], [0, -1, 0]);
+  ok(riverPhysics.stats.colliders === 1 && hit?.surface === 'gravel' &&
+    Math.abs(hit.point[1] - bed.heightAt(0.37, -0.6)) < 1e-5, 'Rapier ray hits the sampled bed beneath water');
+  riverPhysics.dispose(); riverPhysics.dispose();
+}
 
 const run = (w, secs, input) => { for (let t = 0; t < secs; t += 1 / 60) { w.update(1 / 60, input); phys.step(1 / 60); } return w; };
 const steps = [];
@@ -81,7 +118,7 @@ ok(phys.ray([0, 5, 10], [0, -1, 0], 10)?.distance > 4.9, 'ray down hits the floo
 // and at 22 degrees, at 60 / 20 / 10 fps and on fast displays (120 / 144 / 240 fps: a step of a few millimetres
 // used to stop at every riser, Firefox at 120 Hz in snow-hut's doorway): up without slowing below 80 % of the walk
 {
-  const lane = async ({ step = 0, riser, bevel = 0, merge = false, dir = [0, -1], dt = 1 / 60 }) => {
+  const lane = async ({ step = 0, riser, bevel = 0, merge = false, dir = [0, -1], dt = 1 / 60 }, fixed) => {
     const sc = new THREE.Scene(), geos = [];
     const put = (w, h, d, x, y, z) => {
       let gg = new THREE.BoxGeometry(w, h, d).translate(x, y, z);
@@ -96,9 +133,15 @@ ok(phys.ray([0, 5, 10], [0, -1, 0], 10)?.distance > 4.9, 'ray down hits the floo
     if (merge) sc.add(new THREE.Mesh(mergeGeometries(geos.map((gg) => { gg.deleteAttribute('uv'); gg.deleteAttribute('normal'); return gg; })), M));
     const ph = await createPhysics(sc); ph.addStatic(sc);
     const c = ph.character({ pos: [0, 0, 0] }), n = Math.hypot(...dir);
+    const motion = { x: dir[0] / n, z: dir[1] / n };
+    const simulation = fixed && createSimulation(ph, c, createGame());
     let t = 0;
-    for (; t < 6 && c.pos[2] > z0 - 2; t += dt) { c.update(dt, { x: dir[0] / n, z: dir[1] / n }); ph.step(dt); }
+    for (; t < 6 && c.pos[2] > z0 - 2; t += dt) {
+      if (simulation) simulation.advance(dt, motion);
+      else { c.update(dt, motion); ph.step(dt); }
+    }
     const speed = Math.abs(c.pos[2]) / t / Math.abs(dir[1] / n) / c.body.walk;
+    ph.world.free();
     return { up: Math.abs(c.pos[1] - top) < 0.05 && c.pos[2] <= z0 - 2, y: c.pos[1], speed };
   };
   const cases = [];
@@ -106,9 +149,11 @@ ok(phys.ray([0, 5, 10], [0, -1, 0], 10)?.distance > 4.9, 'ray down hits the floo
   for (const o of [{}, { bevel: 0.03 }, { merge: true }, { bevel: 0.03, merge: true }, { dir: [0.4, -1] }]) cases.push({ step: 0.17, riser: 0.13, ...o }, { riser: 0.05, ...o });
   // snow-hut's doorway: a 13.5 cm stone step (0.45 m tread) up to the 34 cm porch deck
   for (const dt of [1 / 60, 1 / 30, 1 / 120, 1 / 144, 1 / 240]) for (const bevel of [0, 0.03]) cases.push({ step: 0.135, riser: 0.205, bevel, dt });
-  let worst = 1, fails = [];
-  for (const k of cases) { const r = await lane(k); worst = Math.min(worst, r.speed); if (!r.up || r.speed < 0.8) fails.push({ ...k, ...r }); }
-  ok(!fails.length, `small risers: ${cases.length - fails.length} / ${cases.length} lanes up, slowest at ${(worst * 100).toFixed(0)} % of the walk` + (fails.length ? ' ' + JSON.stringify(fails) : ''));
+  for (const fixed of [false, true]) {
+    let worst = 1, fails = [];
+    for (const k of cases) { const r = await lane(k, fixed); worst = Math.min(worst, r.speed); if (!r.up || r.speed < 0.8) fails.push({ ...k, ...r }); }
+    ok(!fails.length, `small risers (${fixed ? 'game clock' : 'explicit step'}): ${cases.length - fails.length} / ${cases.length} lanes up, slowest at ${(worst * 100).toFixed(0)} %` + (fails.length ? ' ' + JSON.stringify(fails) : ''));
+  }
 }
 
 // ---- game state without a renderer
@@ -138,6 +183,9 @@ store.set('mirage:check:3', JSON.stringify({ ...saved, v: 9 }));
 let threw = false; try { game.load(3); } catch { threw = true; }
 ok(threw, 'a newer save is refused');
 ok(game.importJSON(game.exportJSON()) && game.inventory.has('key'), 'export / import round trip');
+const refused = (json) => { try { game.importJSON(json); return ''; } catch (e) { return e.message; } };
+ok(/not of this game/.test(refused(JSON.stringify({ ...saved, id: 'another-game' }))), "another game's save is refused");
+ok(/not a save/.test(refused(JSON.stringify({ ...saved, v: 0.5 }))) && /not a save/.test(refused(JSON.stringify({ ...saved, v: 0 }))), 'a save with a broken version is refused');
 
 // ---- input: a button or key held when input is switched on (the start screen, a dialog closing) does not act
 const pad = { connected: true, axes: [0, 0, 0, 0], buttons: Array.from({ length: 17 }, () => ({ pressed: false, value: 0 })) };
@@ -158,6 +206,8 @@ ok(jumps === 0, `Space held through the start screen does not jump (${jumps} fra
 press('keyup', 'Space'); press('keydown', 'Space'); input.poll();
 ok(input.down('jump'), 'Space pressed again jumps');
 press('keyup', 'Space');
+press('keydown', 'Space'); press('keyup', 'Space'); input.poll();
+ok(input.pressed('jump') && !input.down('jump'), 'short keyboard tap survives until the next poll');
 
 // zones: enter / exit as the player crosses them, once-only zones, and a load that lands inside does not re-fire
 {
@@ -187,5 +237,67 @@ press('keyup', 'Space');
   ok(log2.length === 0, 'a once zone fired before the save stays spent after loading');
   z.player = [1, 0, 1]; z.paused = true; z.tick(1 / 60);
   ok(log.join() === 'out gate', 'a paused game fires no zones');
+}
+
+// A failed asynchronous setup releases exactly the resources acquired so far.
+{
+  const host = { scene: new THREE.Scene() }, plan = { name: 'rollback' };
+  const reason = new Error('setup failed'), order = [];
+  let ctx, capture, failure;
+  try {
+    await startGame(host, { canvas: {}, built: { plan }, setup: async context => {
+      ctx = context;
+      capture = ctx.input.capture();
+      ctx.onDispose(() => order.push(1));
+      ctx.onDispose(() => order.push(2));
+      throw reason;
+    } });
+  } catch (error) { failure = error; }
+  ok(failure === reason && order.join() === '2,1', 'startup error preserved and setup cleanup ran once in reverse');
+  ok(!ctx.root.parent && ctx.audio.ctx === null && !ctx.input.enabled && await capture === null, 'failed startup detached root, audio and input');
+}
+const capture = input.capture();
+input.dispose(); input.dispose();
+press('keydown', 'Space'); input.poll();
+ok(await capture === null && !input.down('jump') && !input.pressed('jump'), 'disposed input releases capture and ignores events');
+phys.dispose();
+// dispose after the character has walked: the Rapier world is freed (it threw before) and stepping is a no-op
+{
+  const sc = new THREE.Scene(); sc.add(new THREE.Mesh(new THREE.BoxGeometry(10, 1, 10), M));
+  const p = await createPhysics(sc); p.addStatic(sc);
+  const c = p.character({ pos: [0, 0.5, 0] });
+  for (let i = 0; i < 30; i++) { c.update(1 / 60, { x: 1, z: 0 }); p.step(1 / 60); }
+  let err = null; try { p.dispose(); p.dispose(); } catch (e) { err = e; }
+  ok(!err, `physics.dispose after walking (${err ? err.message : 'freed'})`);
+}
+// a last short step at a 14.5 cm plinth's edge: autostep could lift the character without carrying it onto the
+// plinth, and the controller's 2 cm offset then held it hovering beside the lip (garden-quest's pavilion steps,
+// acceptance run-003: a save made there loaded 14.5 cm lower). Wherever the step ends, the character stands on
+// something under it: on the floor, or on the plinth.
+{
+  const sc = new THREE.Scene(), add = (w, h, d, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), M); m.position.set(x, y, z); sc.add(m); };
+  add(20, 1, 20, 0, -0.5, 0); add(6, 0.145, 4, 0, 0.0725, -2);     // floor top 0; plinth top 0.145, lip at z = 0
+  const p = await createPhysics(sc); p.addStatic(sc);
+  const c = p.character({ pos: [0, 0, 2] }), R = c.body.radius, hovering = [];
+  let tried = 0;
+  for (let z0 = R + 0.004; z0 <= R + 0.03; z0 += 0.002) for (const push of [0.1, 0.3, 0.5, 0.7, 0.85, 1]) {
+    tried++;
+    c.place([0, 0.3, z0]);
+    for (let i = 0; i < 5; i++) { c.update(1 / 60, {}); p.step(1 / 60); }
+    c.update(1 / 60, { z: -push }); p.step(1 / 60);
+    for (let i = 0; i < 60; i++) { c.update(1 / 60, {}); p.step(1 / 60); }
+    const [, y, z] = c.pos, onPlinth = z < R - 0.001, raised = y > 0.06;
+    if (raised !== onPlinth || y < 0) hovering.push(`z0 ${z0.toFixed(3)} push ${push}: y ${y.toFixed(3)} z ${z.toFixed(3)}`);
+  }
+  ok(!hovering.length, `no hovering at a step's lip (${hovering.length} / ${tried}${hovering.length ? ': ' + hovering.slice(0, 3).join('; ') : ''})`);
+  // place() with the centre over the floor but 10 cm of the cylinder over the plinth: on the plinth (the centre ray
+  // alone put it 14.5 cm inside the plinth, and the next walking move lifted it, sometimes into that hover)
+  c.place([0, 0, R - 0.1]);
+  const placedY = c.pos[1];
+  for (let i = 0; i < 30; i++) { c.update(1 / 60, {}); p.step(1 / 60); }
+  ok(placedY > 0.16 && placedY < 0.19 && Math.abs(c.pos[1] - placedY) < 0.01, `place() beside a step stands on it (placed ${placedY.toFixed(3)}, then ${c.pos[1].toFixed(3)})`);
+  c.place([0, 0, 1]);
+  ok(Math.abs(c.pos[1] - 0.02) < 1e-6, `place() on open floor is as before (${c.pos[1].toFixed(4)})`);
+  p.dispose();
 }
 console.log('game check: ok');

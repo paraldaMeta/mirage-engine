@@ -11,10 +11,11 @@ model files, no editor. A world is a site plan plus a handful of modules; severa
 in parallel, test what they built by walking it with scripted inputs, and ship the result as one HTML file of a
 few megabytes that opens from disk.
 
-[English](README.md) · [中文](README.zh-CN.md)
+[English](README.md) · [中文](README.zh-CN.md) · **[Try the examples in your browser](https://paraldameta.github.io/mirage-engine/)**
 
-> **Status: pre-alpha (0.2.0).** It works for the five examples below on the author's (灰叔 Racso's) machine. APIs will change,
-> nothing is published to npm, and it has only been tested in desktop Chrome on Apple silicon. See
+> **Status: 1.0.0.** The public API is the list in [docs/api.md](docs/api.md): names marked *stable* change only in a
+> major release (semver), *experimental* ones may change in a minor release. Not published to npm yet (the package
+> names are still to be settled), so use it from a clone. Tested on desktop browsers on Apple silicon; see
 > [Status and limits](#status-and-limits).
 
 ## Why
@@ -77,6 +78,12 @@ integration ([TRIAL.md](examples/agent-trial/TRIAL.md)).
 
 ## Examples
 
+[River Ford](examples/river-ford) crosses a sampled riverbed beneath a flowing water surface. Its source and
+test-machine acceptance procedure are on this development branch.
+
+The development branch also includes [Woodland Path](examples/woodland-path), a procedural forest edge for
+checking the vegetation kit. It awaits its first test-machine run. The five v0.2.0 examples follow.
+
 | | | |
 |---|---|---|
 | ![](docs/media/examples/hello-courtyard.jpg) **hello-courtyard** — a walled courtyard with a basin, a pergola and a palm; four modules, five CC0 texture sets, a running clock | ![](docs/media/examples/walled-garden.jpg) **walled-garden** — three terraces, stairs, pools, a pavilion; six modules (plus one that fails on purpose) | ![](docs/media/examples/garden-quest.jpg) **garden-quest** — the garden as a small game: find the key, open the pavilion, light the lanterns; saves, gamepad, touch |
@@ -109,18 +116,23 @@ hours. None of its content, code or materials is part of Mirage.
 
 ## Status and limits
 
-Pre-alpha. Honestly:
+1.0.0. Honestly:
 
-- Tested in desktop Chrome (headless and windowed) on an Apple M4 Pro only. Safari, Firefox and phones are untested.
+The 1.0 gates and their evidence: [docs/STATUS-1.0.md](docs/STATUS-1.0.md) and [docs/review-1.0.md](docs/review-1.0.md).
+
+- Tested on an Apple M4 Pro: desktop Chrome (headless and windowed); 0.2.0 also passed in Safari's and Firefox's
+  engines through Playwright. Real Safari, phones and integrated GPUs have not been measured; touch is tested in
+  Chrome's touch emulation. CI runs the node checks, the package check and every example's build on Ubuntu and macOS.
 - Frame cost is 3–6 ms per walking frame on that machine; there is no tuning for weaker GPUs beyond a `low` quality tier.
-- The engine favours still frames: the clock and wind freeze while walking so still views are bit-identical;
-  moving views use temporal AA, which smears fast-moving things a little.
+- The engine favours still frames: the scene clock advances while moving and freezes when stationary so still views
+  are bit-identical; moving views use temporal AA, which smears fast-moving things a little.
 - Collision comes from a walk grid baked at load (0.125 m cells) and, in games, Rapier trimeshes; very thin or
   sloped geometry needs proxy boxes, and small risers can still catch the character.
-- Vegetation, terrain and water are written per world (no shared kits yet); characters are placeholders.
+- This development branch includes shared vegetation, terrain and water kits and a procedurally rigged traveller in game view. Appearance and performance await test-machine review. [Character review](docs/CHARACTER-REVIEW.md)
 - The skill pack was validated by one trial (one lead, three workers, Claude Code). Codex and Cursor setups are
   documented, not run.
-- Not on npm; package names and APIs will change. Open issues: [docs/CURSOR-TASKS.md](docs/CURSOR-TASKS.md).
+- Not on npm yet; worlds live in this repository (`examples/<name>`). TypeScript declarations ship next to the
+  sources ([docs/TYPES.md](docs/TYPES.md)). Open issues: [docs/CURSOR-TASKS.md](docs/CURSOR-TASKS.md).
 
 ## How Mirage relates to other projects
 

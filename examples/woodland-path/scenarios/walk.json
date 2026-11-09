@@ -1,0 +1,19 @@
+{
+  "title": "Woodland Path · grass, tree clearance and side light",
+  "query": "mode=walk&quality=medium&grain=0&ui=0&hud=0",
+  "w": 1440, "h": 900,
+  "steps": [
+    { "name": "through-grass", "place": { "eye": [-3.6, 1.62, 7], "look": [-3.6, 1.62, 2], "mode": "walk" },
+      "keys": ["KeyW"], "ms": 2900, "expect": { "z": "< 4", "y": "~ 0 0.08", "onGround": "== true" } },
+    { "name": "trunk-stops-player", "place": { "eye": [2.5, 1.62, 3.2], "look": [2.5, 1.62, -4], "mode": "walk" },
+      "keys": ["KeyW"], "ms": 3200, "expect": { "z": "~ 0.72 0.35", "x": "~ 2.5 0.2", "y": "~ 0 0.08" } },
+    { "name": "around-trunk", "walkTo": [[4.2, 1.6], [4.2, -1.2], [2.5, -2.3]], "tol": 0.26,
+      "expect": { "z": "< -2.0", "x": "~ 2.5 0.32", "onGround": "== true" } },
+    { "name": "medium-frame-cost", "place": { "eye": [-0.5, 1.62, 10], "look": [0.5, 2.1, -4], "mode": "walk" },
+      "perf": { "frames": 90 }, "expect": { "frameMs": "> 0", "p95Ms": "> 0", "calls": "> 0", "triangles": "> 0" } },
+    { "name": "trailhead", "viewpoint": 0 },
+    { "name": "near-grass", "viewpoint": 1 },
+    { "name": "side-lit-crown", "viewpoint": 2 },
+    { "name": "trunk-and-turn", "viewpoint": 3, "expect": { "errors": "== 0" } }
+  ]
+}

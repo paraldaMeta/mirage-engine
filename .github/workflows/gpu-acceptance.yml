@@ -1,0 +1,78 @@
+name: GPU acceptance
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# One GPU workload across all refs. Keep every queued request and its evidence.
+concurrency:
+  group: mirage-gpu-acceptance
+  cancel-in-progress: false
+  queue: max
+
+jobs:
+  acceptance:
+    if: github.repository == 'paraldaMeta/mirage-engine' && (github.event_name == 'workflow_dispatch' || vars.MIRAGE_GPU_CI_ENABLED == 'true')
+    runs-on: [self-hosted, mirage-gpu]
+    timeout-minutes: 360
+    defaults:
+      run:
+        shell: bash
+    env:
+      CHROME: ${{ vars.MIRAGE_GPU_CHROME }}
+      MIRAGE_GPU_MACHINE_JSON: ${{ vars.MIRAGE_GPU_MACHINE_JSON }}
+      MIRAGE_BROWSER: ''
+      ONLY: ''
+      NODE_OPTIONS: ''
+    steps:
+      - name: Initialize attempt evidence
+        run: |
+          CI_EVIDENCE="$RUNNER_TEMP/mirage-gpu-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          mkdir "$CI_EVIDENCE"
+          printf 'CI_EVIDENCE=%s\n' "$CI_EVIDENCE" >> "$GITHUB_ENV"
+          printf 'Commit %s\nRunner %s\nRun %s attempt %s\n' "$GITHUB_SHA" "$RUNNER_NAME" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" > "$CI_EVIDENCE/bootstrap.log"
+      - name: Check out the requested commit
+        id: checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Install the acceptance Node runtime
+        id: node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22.22.0'
+          package-manager-cache: false
+      - name: Run the serial acceptance
+        id: acceptance
+        timeout-minutes: 330
+        run: node packages/tools/src/gpu-ci.mjs run
+      - name: Collect completed and partial evidence
+        if: always() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success'
+        timeout-minutes: 15
+        run: node packages/tools/src/gpu-ci.mjs collect
+      - name: Upload evidence
+        id: artifact
+        if: always() && env.CI_EVIDENCE != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: mirage-gpu-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ env.CI_EVIDENCE }}/upload/
+            ${{ env.CI_EVIDENCE }}/ci.json
+            ${{ env.CI_EVIDENCE }}/ci.log
+            ${{ env.CI_EVIDENCE }}/bootstrap.log
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 1
+      - name: Link the evidence
+        if: always() && steps.artifact.outputs.artifact-url != ''
+        env:
+          ARTIFACT_URL: ${{ steps.artifact.outputs.artifact-url }}
+          ARTIFACT_DIGEST: ${{ steps.artifact.outputs.artifact-digest }}
+        run: |
+          printf '\n[Download acceptance evidence](%s)\n\nArtifact SHA-256 %s\n' "$ARTIFACT_URL" "$ARTIFACT_DIGEST" >> "$GITHUB_STEP_SUMMARY"

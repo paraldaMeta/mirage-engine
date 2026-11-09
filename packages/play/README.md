@@ -23,7 +23,7 @@ Options for games (`@mirage/game` uses them): `walker` (any object with the walk
 digits), `onStep(dt)` (runs after each step; truthy = the scene moved, so the frame is not treated as still).
 
 `play`: `place(eye, look, mode)`, `viewpoint(i)`, `setMode(m)`, `state()`, `render({ moving, spp, frameIndex })`,
-`step(dt)`, `stop()`, `start()`, `turn(dx, dy, k)`, `lookAt(p)`, `yaw` / `pitch`, `keys` (a Set of held `KeyboardEvent.code`s), `grid`, `walker`, `stats`.
+`step(dt)`, `stop()`, `start()`, `dispose()` (see below), `turn(dx, dy, k)`, `lookAt(p)`, `yaw` / `pitch`, `keys` (a Set of held `KeyboardEvent.code`s), `grid`, `walker`, `stats`.
 Moving frames: one jittered sub-frame resolved by the core's temporal AA. When the view stops: the core's still
 path at `refine[0]` sub-frames, later `refine[1]`, then nothing until something moves. Each still frame fades in
 over 10 frames from the image before it, so stopping does not pop the image sharp; the last fade frame is the still
@@ -31,6 +31,23 @@ frame itself. `npm run test:still-pop` measures the change per frame after stopp
 `ctx.onUpdate`) runs on the frames the player drives (keys, stick, looking) and stands still with the view;
 `place()` sets it to 0, so a viewpoint looks as it always did (`play.clock`; `animate: true` runs it on real time). Shadows follow the view,
 their centre snapped to whole shadow texels.
+
+## The player character
+
+Game view shows an original low-poly traveller with a cropped jacket, scarf and backpack. It uses one
+vertex-coloured skinned mesh and one material. Walk, fly and orbit hide the figure. The walker or Rapier
+character supplies the feet and collision. Actual distance drives the gait. A stopped player settles into a
+repeatable pose so progressive rendering can finish.
+
+`createPlay(world, { plan, appearance: { palette: { scarf: 0xd98645 } } })` selects colours; `startGame`
+accepts the same appearance option. The palette also accepts `jacket`, `trousers`, `leather`, `skin` and
+`hair`. `play.figure` is the existing Three.js group. `play.avatar.state` exposes `idle`, `walk`, `run`,
+`jump`, `fall` or `land`.
+
+Hosts can import `createCharacter` from `@mirage/play` and attach its `root` to their own scene. The origin
+is at the soles in metres and forward is +Z. Call `update(dt, { distance, run, onGround, verticalSpeed })`
+with horizontal displacement since the previous frame, seconds and vertical speed in m/s. `reset()` settles
+the pose after a teleport. `dispose()` detaches the root and releases its owned resources.
 
 ## The walk grid (`bakeWalkGrid(world, { bounds, cell = 0.125, dy = 0.1, yMin, yMax })`)
 
@@ -60,6 +77,13 @@ const mw = await mountWorld({ renderer, plan, modules, world: { place, time, sha
 mw.root.add(player);                 // lit, shadowed and hazed with the world (root has collide = false)
 const w = mw.walker([x, y, z]);      // the host's characters on the baked grid
 mw.update(dt); mw.render(hostCamera, { target, moving });
+mw.dispose();                        // the world's GPU resources; your objects in root are left to you
 ```
 The host camera is never modified (the core jitters its projection and restores it). The core takes over the
 shared renderer's tone mapping (off) and shadow settings. Example: `examples/hello-courtyard/embed.html`.
+
+## Type declarations (candidate)
+
+The root and current JS subpaths ship adjacent declarations; compilation is pending on the test machine.
+See [consumer checks](../../docs/TYPES.md) and [lifecycle / ownership](../../docs/LIFECYCLE.md).
+Use `play.stop()` to pause and `play.dispose()` to release the controls, overlays, character and render targets. The host retains the world.

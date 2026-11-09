@@ -29,5 +29,6 @@ export default {
     const P = ctx.plan.<field>;
     return { lamps: [{ pos: [P.x, P.y + 1.2, P.z], rotY: 0 }] };
   },
+  // consumes: { optional: ['seats'] },  // use required for keys without which finalize cannot run
   // finalize(ctx) { for (const a of ctx.anchors.seats || []) { /* consume another module's anchors */ } },
 };

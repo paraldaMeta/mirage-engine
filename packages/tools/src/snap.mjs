@@ -8,6 +8,7 @@
 // and <out>/snap.json (load time, per-view render ms, console errors).
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { launch, serve, open } from './chrome.mjs';
 
 const args = process.argv.slice(2);
@@ -19,7 +20,7 @@ const OUT = path.resolve(flag('out', 'out/snap'));
 fs.mkdirSync(OUT, { recursive: true });
 const isFile = target.endsWith('.html');
 const srv = isFile ? null : await serve(target);
-const url = (isFile ? 'file://' + path.resolve(target) : srv.url) + `?mode=walk&ui=0&w=${W}&h=${H}` + (flag('query') ? '&' + flag('query') : '');
+const url = (isFile ? pathToFileURL(path.resolve(target)).href : srv.url) + `?mode=walk&ui=0&w=${W}&h=${H}` + (flag('query') ? '&' + flag('query') : '');
 const browser = await launch({ w: W, h: H });
 const report = { url, views: [] };
 try {

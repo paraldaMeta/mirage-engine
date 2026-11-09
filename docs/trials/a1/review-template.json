@@ -1,0 +1,20 @@
+{
+  "A": {
+    "isolated": null,
+    "unassisted": null,
+    "originalSourceAndLog": null,
+    "routeAndVisibleBarrier": null,
+    "signalVisibleFromDoor": null,
+    "sceneAndCameraQuality": null,
+    "evidenceNotes": ""
+  },
+  "B": {
+    "isolated": null,
+    "unassisted": null,
+    "originalSourceAndLog": null,
+    "routeAndVisibleBarrier": null,
+    "signalVisibleFromDoor": null,
+    "sceneAndCameraQuality": null,
+    "evidenceNotes": ""
+  }
+}

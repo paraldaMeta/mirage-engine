@@ -22,13 +22,19 @@ const g = await startGame(world, {
   },
   objective: (game) => ['Light the lamps', `${Object.keys(game.flags).length} lit`],
 });
-// g = { game, physics, input, audio, ui, play, character, root, save(slot), load(slot | json), stats }
+// g = { game, physics, input, audio, ui, play, character, root, save(slot), load(slot | json), stats, dispose() }
+// await g.dispose(): the whole session goes (docs/LIFECYCLE.md); world.dispose() stays the host's
 ```
 
 `startGame` does, in order: Rapier colliders from the modules' geometry, a `game` group for entities
 (`collide = false`: the baked walk grid leaves moving things out), your `setup`, `world.prepare()`, the character,
-the overlay, then `createPlay` with the character as its walker, the action map as its input and the game tick as
-its `onStep` (interaction prompt, `game.tick`, `physics.step`, the audio listener).
+the overlay, then `createPlay` with the character and action map.
+
+The game advances the character, Rapier and trigger zones together at 60 Hz. The camera interpolates between the
+previous and current feet positions. `character.pos`, `play.state().pos` in walk mode and saved coordinates
+remain physical positions. UI, interaction and audio update once per display frame. A short jump press survives
+a frame with no physics tick. Pausing, returning to a tab, placing the player and loading a save reset interpolation.
+Hosts using `createPhysics` directly can still drive `character.update(dt, input)` and `physics.step(dt)` explicitly.
 
 ## Parts
 
@@ -64,3 +70,10 @@ also kept on their own (`mirage:<id>:settings`). Loading an earlier save brings 
 Licence and size: Rapier is Apache-2.0; `@dimforge/rapier3d-compat` 0.19.3 inlines its 1.57 MB WASM as base64
 (2.24 MB JS, 0.84 MB gzip), loaded by a dynamic `import()` only when `createPhysics` runs. `npm test -w @mirage/game`
 runs `check.mjs` (the character on a hand-made scene, doors, a crate, game state, saves) in node.
+
+## Type declarations (candidate)
+
+The root and current JS subpaths ship adjacent declarations; compilation is pending on the test machine.
+See [consumer checks](../../docs/TYPES.md) and [lifecycle / ownership](../../docs/LIFECYCLE.md).
+Use `await session.dispose()` before mounting another game on the same world. Register setup-owned resources with `ctx.onDispose(fn)`.
+NodeNext resolves the bundled, unchanged Rapier 0.19.3 declarations through the game package. Bundler uses the installed Rapier declarations. Both compiler results are pending.

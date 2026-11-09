@@ -4,13 +4,29 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 
-export const CHROME = process.env.CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+// $CHROME, else the usual install places on macOS, Linux and Windows (the first that exists).
+const CANDIDATES = {
+  darwin: ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/Applications/Chromium.app/Contents/MacOS/Chromium'],
+  linux: ['/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium', '/usr/bin/chromium-browser', '/snap/bin/chromium'],
+  win32: ['PROGRAMFILES', 'PROGRAMFILES(X86)', 'LOCALAPPDATA'].map((v) => `%${v}%\\Google\\Chrome\\Application\\chrome.exe`),
+};
+/** where Chrome is: $CHROME, else the first existing candidate for the platform; throws with the places tried */
+export function findChrome({ env = process.env, platform = process.platform, exists = fs.existsSync } = {}) {
+  if (env.CHROME) return env.CHROME;
+  const tried = (CANDIDATES[platform] || []).map((p) => p.replace(/%([^%]+)%/g, (_, v) => env[v] || ''));
+  const hit = tried.find((p) => p && exists(p));
+  if (hit) return hit;
+  throw new Error(`mirage tools: no Chrome found; set CHROME=/path/to/chrome (tried: ${tried.join(', ') || 'nothing for ' + platform})`);
+}
+let chrome;
+/** the Chrome the tools launch (found on first use, so importing this file never throws) */
+export const chromePath = () => (chrome ??= findChrome());
 
 export function launch({ w = 1440, h = 900, args = [] } = {}) {
   const other = process.env.MIRAGE_BROWSER;
   if (other) return launchPlaywright(other, { w, h });
   return puppeteer.launch({
-    executablePath: CHROME, headless: true, defaultViewport: { width: w, height: h, deviceScaleFactor: 1 }, protocolTimeout: 900000,
+    executablePath: chromePath(), headless: true, defaultViewport: { width: w, height: h, deviceScaleFactor: 1 }, protocolTimeout: 900000,
     // --disable-audio-output: Web Audio runs against a null sink, so the host's sound device cannot fail a test
     args: ['--enable-gpu', '--ignore-gpu-blocklist', '--disable-gpu-watchdog', '--disable-audio-output', `--window-size=${w},${h}`, ...args],
   });

@@ -1,10 +1,20 @@
 {
   "name": "@mirage/tools",
-  "version": "0.2.0",
+  "version": "1.0.0",
   "description": "Mirage tools: the playtest runner (scripted inputs, expectations, flicker along a path, frame cost, markdown report, contact sheet), single-file packager, multi-view snapshots, a frame-cost sweep, a static-deploy folder, the texture packer.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/paraldaMeta/mirage-engine.git",
+    "directory": "packages/tools"
+  },
+  "homepage": "https://github.com/paraldaMeta/mirage-engine/tree/main/packages/tools#readme",
+  "bugs": {
+    "url": "https://github.com/paraldaMeta/mirage-engine/issues"
+  },
   "type": "module",
   "bin": {
+    "mirage-validate-plan": "./src/validate-plan.mjs",
     "mirage-playtest": "./src/playtest.mjs",
     "mirage-package": "./src/package.mjs",
     "mirage-walktest": "./src/walktest.mjs",
@@ -18,14 +28,19 @@
   "files": [
     "src",
     "tex",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "dependencies": {
+    "@mirage/world": "^1.0.0",
     "puppeteer-core": "25.13.0",
     "vite": "8.3.4"
   },
   "engines": {
     "node": ">=22"
+  },
+  "scripts": {
+    "test": "node validate-plan.check.mjs && node acceptance.check.mjs && node gpu-ci.check.mjs && node unit.mjs"
   },
   "author": "灰叔 Racso"
 }

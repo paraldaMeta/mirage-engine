@@ -9,25 +9,25 @@
 //   phys.step(dt)               one Rapier step; true while anything moved (props awake, a door turning)
 //   phys.ray(from, dir, max)    -> { point, distance, surface, object } | null
 // Surfaces (footsteps): `userData.surface` on the mesh or its material, else 'default'.
-// ponytail: one variable-length step per frame (dt clamped to 1/30), no interpolation; a fixed step with an
-// accumulator when determinism or replays matter. Sensors / contact events are not wired (interactables use
-// distance); add an EventQueue when a game needs triggers.
+// startGame drives the character and step() together at 60 Hz. Low-level callers may still step explicitly.
 // ---------------------------------------------------------------------------
 import * as THREE from 'three';
 
-let RAPIER = null;
+let rapierReady;
 const MIN_DT = 1 / 90;   // the shortest character move (see character())
-/** load and initialise Rapier once (the dynamic import keeps it out of pages that never call this) */
-export async function loadRapier() {
-  if (!RAPIER) {
-    const m = await import('@dimforge/rapier3d-compat');
-    RAPIER = m.default || m;
-    // the compat build calls wasm-bindgen's init the old way, which warns once; that warning is not ours to fix
-    const warn = console.warn;
-    console.warn = (...a) => { if (!String(a[0]).includes('deprecated parameters for the initialization')) warn(...a); };
-    try { await RAPIER.init(); } finally { console.warn = warn; }
+/** Share in-flight initialization between mounts; a failed attempt can be retried. */
+export function loadRapier() {
+  if (!rapierReady) {
+    rapierReady = import('@dimforge/rapier3d-compat').then(async module => {
+      const rapier = module.default || module;
+      await rapier.init();
+      return rapier;
+    }).catch(error => {
+      rapierReady = undefined;
+      throw error;
+    });
   }
-  return RAPIER;
+  return rapierReady;
 }
 
 const shown = (o) => { for (let p = o; p; p = p.parent) if (!p.visible || p.userData.collide === false) return false; return true; };
@@ -45,12 +45,15 @@ export async function createPhysics(scene, { gravity = 9.81 } = {}) {
   const stats = { colliders: 0, triangles: 0, buildMs: 0 };
   const _m = new THREE.Matrix4(), _v = new THREE.Vector3(), _q = new THREE.Quaternion();
 
+  const skipped = [];
   function addStatic(root = scene) {
     const t0 = performance.now();
     root.updateMatrixWorld(true);
     root.traverse((o) => {
       if (!solid(o)) return;
-      const g = o.geometry, pos = g.attributes.position, n = o.isInstancedMesh ? o.count : 1;
+      if (o.isBatchedMesh) { skipped.push(o.name || o.uuid); return; }   // ponytail: no per-instance trimeshes yet; give it a ctx.collider proxy
+      const g = o.geometry, pos = g?.attributes?.position, n = o.isInstancedMesh ? o.count : 1;
+      if (!pos || !pos.count || !n || (g.index && !g.index.count)) return;   // nothing to collide with (empty geometry, no instances)
       const idx = g.index ? g.index.array : Uint32Array.from({ length: pos.count }, (_, i) => i);
       const verts = new Float32Array(pos.count * 3 * n), ind = new Uint32Array(idx.length * n);
       for (let k = 0; k < n; k++) {
@@ -63,6 +66,8 @@ export async function createPhysics(scene, { gravity = 9.81 } = {}) {
       info.set(c.handle, { surface: surfaceOf(o), object: o });
       stats.colliders++; stats.triangles += ind.length / 3;
     });
+    if (skipped.length) console.warn(`[mirage physics] BatchedMesh has no collider (give it a ctx.collider proxy): ${skipped.join(', ')}`);
+    skipped.length = 0;
     world.step();   // scene queries (rays, the character) see colliders only after a step
     stats.buildMs += performance.now() - t0;
   }
@@ -146,7 +151,7 @@ export async function createPhysics(scene, { gravity = 9.81 } = {}) {
   }
 
   /** a cylinder on a kinematic character controller with the @mirage/play walker's interface */
-  function character({ pos = [0, 0, 0], body: B0 = {} } = {}) {
+  function character({ pos = [0, 0, 0], body: B0 = {}, onPlace } = {}) {
     const B = { radius: 0.28, head: 1.8, eye: 1.62, step: 0.4, walk: 1.5, run: 4.2, gravity, jump: 4.2, stride: 0.75, ...B0 };
     // a cylinder like the walk grid's body: a capsule's round bottom climbs 0.18 m risers at a third of the walking
     // speed under Rapier's autostep (measured), a flat bottom at ~92 %
@@ -162,13 +167,36 @@ export async function createPhysics(scene, { gravity = 9.81 } = {}) {
     kcc.setMinSlopeSlideAngle((40 * Math.PI) / 180);
     kcc.setApplyImpulsesToDynamicBodies(true);
     kcc.setCharacterMass(70);
-    const notMe = (c) => c.handle !== col.handle && !c.isSensor();
+    // sensors are left out by the flag; the predicate must not call back into Rapier (c.isSensor() here left the
+    // collider set marked as borrowed for good, and world.free() then threw)
+    const notMe = (c) => c.handle !== col.handle;
     const w = { pos: pos.slice(), vy: 0, onGround: false, blocked: false, body: B, collider: col, controller: kcc, walked: 0, surface: 'default', onStride: null };
     // Rapier's autostep needs a move longer than the controller's offset (2 cm): at 120 fps and up a walking step
     // is 1.25 cm or less and the character stopped at snow-hut's bevelled door step (Firefox at 120 Hz). Frames
     // shorter than MIN_DT are added up and moved as one.
-    // ponytail: above 90 fps the character moves on every other frame, no interpolation (play caps at 60 fps)
+    // Only variable-step low-level callers accumulate here. Each game tick is already longer than MIN_DT.
     let acc = 0;
+    // Autostep can lift the character without carrying it onto the step: a short last move at a riser ends with the
+    // cylinder beside the lip, and the controller's offset then holds it there in the air (garden-quest's 14.5 cm
+    // plinth: 17 of 84 last steps at the edge; a save made there loaded 14.5 cm lower). Such a step-up is not taken:
+    // the move is dropped and its horizontal part is carried into the next one, which is long enough to land on the
+    // step; with no more input the character stays below. Only moves with a horizontal part are checked: autostep
+    // needs one, and a character set down inside a step (place() puts the feet under its centre) rises out of it
+    // with no input.
+    const _down = { x: 0, y: -1, z: 0 }, _rot = { x: 0, y: 0, z: 0, w: 1 };
+    const supported = (x, y, z) => !!world.castShape({ x, y: y + lift, z }, _rot, _down, col.shape, 0, OFF + 0.03, true,
+      R.QueryFilterFlags.EXCLUDE_SENSORS, undefined, col);
+    let carry = null;
+    // where place() puts the feet: on the ground under the centre, as before, unless the cylinder there would sit
+    // inside something (beside a step: the higher step under its rim); then on the highest thing under the whole
+    // cylinder (a shape cast; it stops a few millimetres early, so it is only the fallback)
+    const groundUnder = (p) => {
+      const top = (p[1] ?? 0) + 0.5, g = ray([p[0], top, p[2]], [0, -1, 0], 50, col);
+      const y = g ? g.point[1] + OFF : p[1] ?? 0;
+      if (!world.intersectionWithShape({ x: p[0], y: y + lift, z: p[2] }, _rot, col.shape, R.QueryFilterFlags.EXCLUDE_SENSORS, undefined, col)) return y;
+      const hit = world.castShape({ x: p[0], y: top + lift, z: p[2] }, _rot, _down, col.shape, 0, 50, true, R.QueryFilterFlags.EXCLUDE_SENSORS, undefined, col);
+      return hit && hit.time_of_impact > 0 ? top - hit.time_of_impact + OFF : y;
+    };
     w.update = (dt, input = {}) => {
       acc += dt;
       if (acc < MIN_DT) return w;
@@ -177,8 +205,13 @@ export async function createPhysics(scene, { gravity = 9.81 } = {}) {
       if (w.onGround && input.jump) { w.vy = B.jump; w.onGround = false; }
       w.vy = w.onGround && w.vy <= 0 ? -1 : w.vy - B.gravity * dt;   // a little down force keeps it on stairs going down
       const want = { x: (input.x || 0) * speed * dt, y: w.vy * dt, z: (input.z || 0) * speed * dt };
+      if (carry && (want.x || want.z)) { want.x += carry.x; want.z += carry.z; }
+      carry = null;
       kcc.computeColliderMovement(col, want, R.QueryFilterFlags.EXCLUDE_SENSORS, undefined, notMe);
       let m = kcc.computedMovement();
+      if ((want.x || want.z) && m.y > 0.01 && w.vy <= 0 && !supported(w.pos[0] + m.x, w.pos[1] + m.y, w.pos[2] + m.z)) {
+        carry = { x: want.x, z: want.z }; m = { x: 0, y: 0, z: 0 };
+      }
       // standing still on the ground: the solver's sub-millimetre drift (0.3 mm/s down a gentle slope, +-0.1 mm
       // up and down) is dropped, so a still view stays still; a real push (a door) is centimetres per step
       if (!want.x && !want.z && w.onGround && w.vy <= 0 && Math.hypot(m.x, m.y, m.z) < 0.002) m = { x: 0, y: 0, z: 0 };
@@ -202,16 +235,25 @@ export async function createPhysics(scene, { gravity = 9.81 } = {}) {
     };
     /** put the feet on the ground under p (searching from p.y + 0.5 down); exact: at p as given (a saved spot) */
     w.place = (p, { exact = false } = {}) => {
-      const g = exact ? null : ray([p[0], (p[1] ?? 0) + 0.5, p[2]], [0, -1, 0], 50, col);
-      w.pos = [p[0], g ? g.point[1] + OFF : p[1] ?? 0, p[2]];
-      rb.setTranslation({ x: w.pos[0], y: w.pos[1] + lift, z: w.pos[2] }, true);
+      w.pos = [p[0], exact ? p[1] ?? 0 : groundUnder(p), p[2]];
+      const centre = { x: w.pos[0], y: w.pos[1] + lift, z: w.pos[2] };
+      rb.setTranslation(centre, true);
+      rb.setNextKinematicTranslation(centre);
       world.propagateModifiedBodyPositionsToColliders();
-      w.vy = 0; w.onGround = true; w.walked = 0;
+      acc = 0; w.vy = 0; w.onGround = true; w.blocked = false; w.walked = 0;
+      onPlace?.();
       return w;
     };
     w.place(pos);
     return w;
   }
 
-  return { R, world, stats, info, addStatic, body, hinge, character, step, ray, hinges };
+  let disposed = false;
+  function dispose() {
+    if (disposed) return;
+    disposed = true;
+    info.clear(); characters.clear(); moving.length = hinges.length = 0;
+    world.free();
+  }
+  return { dispose, R, world, stats, info, addStatic, body, hinge, character, step, ray, hinges };
 }

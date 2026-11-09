@@ -1,30 +1,49 @@
 {
   "name": "@mirage/world",
-  "version": "0.2.0",
+  "version": "1.0.0",
   "description": "Mirage world protocol: the site plan (single source of positions), the module interface, the loader (order, failure isolation, anchors, ambient volumes) and seeded randomness per module.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/paraldaMeta/mirage-engine.git",
+    "directory": "packages/world"
+  },
+  "homepage": "https://github.com/paraldaMeta/mirage-engine/tree/main/packages/world#readme",
+  "bugs": {
+    "url": "https://github.com/paraldaMeta/mirage-engine/issues"
+  },
   "type": "module",
   "main": "./src/index.js",
+  "types": "./src/index.d.ts",
   "exports": {
-    ".": "./src/index.js",
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    },
+    "./plan.schema.json": "./plan.schema.json",
+    "./kits/vegetation": "./src/kits/vegetation.js",
+    "./kits/terrain": "./src/kits/terrain.js",
+    "./kits/water": "./src/kits/water.js",
     "./*": "./src/*.js",
     "./package.json": "./package.json"
   },
   "files": [
     "src",
+    "plan.schema.json",
     "README.md",
-    "NOTES.template.md"
+    "NOTES.template.md",
+    "LICENSE"
   ],
   "sideEffects": false,
   "peerDependencies": {
-    "three": "0.186.1",
-    "@mirage/core": "0.2.0"
+    "three": ">=0.186.1 <0.187.0",
+    "@mirage/core": "^1.0.0"
   },
   "engines": {
     "node": ">=22"
   },
   "scripts": {
-    "test": "node check.mjs"
+    "test": "node check.mjs && node vegetation.check.mjs && node landscape.check.mjs"
   },
   "author": "灰叔 Racso"
 }
