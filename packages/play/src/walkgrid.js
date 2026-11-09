@@ -109,7 +109,10 @@ export function bakeWalkGrid(world, { bounds, cell = 0.125, dy = 0.1, yMin = -1,
         const zMin = px[p * 4 + 3] / 255, zMax = B ? Math.max(zMin, (px[p * 4 + 2] * 4) / 255 / B) : zMin;
         const add = (f, c) => {
           if (c - f < MIN_GAP) return;
-          if (nFound[k] >= 8) { overflow++; return; }
+          if (nFound[k] >= 8) {   // full: drop the highest (found first), the lowest floors are the ones kept
+            overflow++;
+            found.copyWithin(k * 16, k * 16 + 2, k * 16 + 16); nFound[k]--;
+          }
           found[(k * 8 + nFound[k]) * 2] = f; found[(k * 8 + nFound[k]) * 2 + 1] = c; nFound[k]++;
         };
         if (!wa && wb) add(yT - zMin * dy, ceil[k]);                       // air above, solid below: a floor

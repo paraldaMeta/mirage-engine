@@ -92,7 +92,7 @@ export function createWalker(grid, opts = {}) {
     }
     return w;
   };
-  w.place = (p) => { pos[0] = p[0]; pos[2] = p[2]; const g = grid.groundAt(p[0], p[2], p[1] ?? 1e4, 0.5); pos[1] = Number.isNaN(g) ? p[1] ?? 0 : g; w.vy = 0; w.onGround = true; return w; };
+  w.place = (p) => { pos[0] = p[0]; pos[2] = p[2]; const g = grid.groundAt(p[0], p[2], p[1] ?? 1e4, 0.5); pos[1] = Number.isNaN(g) ? p[1] ?? 0 : g; w.vy = 0; w.onGround = !Number.isNaN(g); return w; };   // no ground: it falls
   if (opts.pos) w.place(opts.pos);
   return w;
 }

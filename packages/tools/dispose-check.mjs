@@ -49,6 +49,23 @@ window.mountGame = async () => {
   if (g.dispose) await g.dispose(); else g.play.stop();
   world.dispose();
 };
+// embedding: the host's camera lens comes back on dispose, and keys typed into the host's text field do not walk
+window.embed = async () => {
+  const world = createWorldRenderer({ renderer, width: 320, height: 240, quality: 'low' });
+  const built = await buildWorld(world, { plan, modules, log: { log() {}, error: console.error } });
+  await world.prepare();
+  const lens = [world.camera.fov, world.camera.near, world.camera.far].join();
+  const play = createPlay(world, { plan: built.plan, canvas, hud: false, ui: false, mode: 'walk' });
+  const field = document.createElement('input'); document.body.appendChild(field); field.focus();
+  const start = play.state().pos.join();
+  for (let i = 0; i < 30; i++) { field.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW', key: 'w', bubbles: true })); play.step(1 / 60); }
+  field.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyW', key: 'w', bubbles: true }));
+  const typed = play.state().pos.join();
+  play.dispose(); field.remove();
+  const after = [world.camera.fov, world.camera.near, world.camera.far].join();
+  world.dispose();
+  return { lens, after, start, typed };
+};
 window.counts = () => ({ geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures, programs: renderer.info.programs.length, nodes: document.body.querySelectorAll('*').length });
 window.__READY = true;
 `);
@@ -74,6 +91,9 @@ try {
     const [first, last] = [rows[0], rows.at(-1)];
     for (const k of ['window', 'document', 'nodes', 'geometries', 'textures', 'programs']) check(`${label}: ${k} do not grow (${first[k]} -> ${last[k]})`, last[k] <= first[k], rows.map((r) => r[k]));
   }
+  const E = await page.evaluate(() => window.embed());
+  check('typing W into a host text field does not walk', E.start === E.typed, E);
+  check("dispose gives the world camera's lens back", E.lens === E.after, E);
   // a disposed play does not walk: hold W, nothing to move and no errors
   await page.keyboard.down('KeyW'); await new Promise((r) => setTimeout(r, 300)); await page.keyboard.up('KeyW');
   check('no console errors', errors.length === 0, errors);

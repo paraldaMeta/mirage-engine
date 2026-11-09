@@ -54,6 +54,13 @@ function mountPlay(world, opts, life) {
   const flyPos = new THREE.Vector3(), flyVel = new THREE.Vector3(), gameTarget = new THREE.Vector3();
   const gameCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 400);
   const orbitLens = { fov: camera.fov, near: camera.near, far: camera.far };   // the stills view keeps the world's lens
+  // the world's camera is the host's: dispose() gives back its lens and pose
+  const hostCamera = { ...orbitLens, aspect: camera.aspect, position: camera.position.clone(), quaternion: camera.quaternion.clone() };
+  life.defer(() => {
+    Object.assign(camera, { fov: hostCamera.fov, near: hostCamera.near, far: hostCamera.far, aspect: hostCamera.aspect });
+    camera.position.copy(hostCamera.position); camera.quaternion.copy(hostCamera.quaternion);
+    camera.updateProjectionMatrix(); camera.updateMatrixWorld();
+  });
   const avatar = createCharacter(world, opts.appearance), figure = avatar.root;
   figure.visible = false;
   life.defer(() => avatar.dispose());
@@ -108,17 +115,24 @@ function mountPlay(world, opts, life) {
     const above = v.eye[1] - (grid.groundAt(v.eye[0], v.eye[2], v.eye[1]) || 0);
     place(v.eye, v.look, v.mode || (mode === 'game' || mode === 'orbit' ? mode : above > 3 ? 'fly' : 'walk'));
   }
+  // leaving fly or orbit for the ground: over a column with no floor at all (outside the plan), back to the spawn
+  // instead (the walker used to stay hanging there, unable to move)
+  const land = (p) => {
+    if (Number.isNaN(grid.groundAt(p[0], p[2], 1e4))) walker.place([spawn.eye[0], spawn.eye[1] - B.eye, spawn.eye[2]]);
+    else walker.place(p);
+    eyeY = walker.pos[1] + B.eye;
+  };
   function setMode(m) {
     if (life.disposed) return;
     if (mode === 'orbit' && m !== 'orbit') {   // leave the orbit where its camera is, looking where it looks
       const d = camera.getWorldDirection(new THREE.Vector3());
       yaw = Math.atan2(d.z, d.x); pitch = Math.asin(THREE.MathUtils.clamp(d.y, -1, 1));
       flyPos.copy(camera.position);
-      if (m !== 'fly') { walker.place([camera.position.x, camera.position.y - B.eye + 0.3, camera.position.z]); eyeY = walker.pos[1] + B.eye; }
+      if (m !== 'fly') land([camera.position.x, camera.position.y - B.eye + 0.3, camera.position.z]);
       mode = 'fly';
     }
     if (m === 'fly' && mode !== 'fly') flyPos.set(walker.pos[0], eyeY, walker.pos[2]);
-    if (m === 'walk' && mode === 'fly') { walker.place([flyPos.x, flyPos.y - B.eye + 0.3, flyPos.z]); eyeY = walker.pos[1] + B.eye; }
+    if ((m === 'walk' || m === 'game') && mode === 'fly') land([flyPos.x, flyPos.y - B.eye + 0.3, flyPos.z]);
     if (m === 'orbit' && mode !== 'orbit') {
       camera.position.copy(mode === 'fly' ? flyPos : new THREE.Vector3(walker.pos[0], eyeY, walker.pos[2]));
       controls.target.copy(camera.position).addScaledVector(forward(), 8);
@@ -129,7 +143,8 @@ function mountPlay(world, opts, life) {
     figure.visible = mode === 'game';
     controls.enabled = mode === 'orbit';
     if (mode === 'game') gameTarget.set(walker.pos[0], walker.pos[1] + 0.9, walker.pos[2]);
-    if (mode === 'game' && document.pointerLockElement === canvas) document.exitPointerLock();
+    // orbit drags and the game view's cursor need the pointer back
+    if ((mode === 'game' || mode === 'orbit') && document.pointerLockElement === canvas) document.exitPointerLock();
     ui.mode(mode);
     still = 0;
   }
@@ -273,7 +288,9 @@ function mountPlay(world, opts, life) {
         figure.position.set(p[0], p[1], p[2]); figure.rotation.y = heading;
       } else camera.position.set(p[0], eyeY, p[2]);
     } else if (mode === 'fly') {
-      const target = new THREE.Vector3().addScaledVector(fwd, fz).addScaledVector(right, fx).setY(up).multiplyScalar(run ? FLY_FAST : FLY);
+      const target = new THREE.Vector3().addScaledVector(fwd, fz).addScaledVector(right, fx).setY(up);
+      if (target.lengthSq() > 1) target.normalize();   // diagonals and stick + keys fly no faster than straight ahead
+      target.multiplyScalar(run ? FLY_FAST : FLY);
       flyVel.lerp(target, Math.min(1, dt * 4));
       flyPos.addScaledVector(flyVel, dt);
       const g = grid.groundAt(flyPos.x, flyPos.z, flyPos.y);
@@ -453,7 +470,7 @@ export function frameGate(fps) {
 
 /** true for an event whose target is a text field, select or editable element (the host page's, or the HUD's) */
 export function typing(e) {
-  const t = e && e.target;
+  const t = (e && e.composedPath && e.composedPath()[0]) || (e && e.target);   // inside shadow DOM, the real field
   return !!(t && (t.isContentEditable || /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName || '')));
 }
 
@@ -495,7 +512,8 @@ function makeHud(life, on, { quality, power, setSaver, onQuality }) {
 function makeUI(life, on, plan, { toggleOrbit, nextView }) {
   const root = document.createElement('div');
   root.style.cssText = 'position:fixed;left:14px;bottom:12px;font:12px/1.5 system-ui,sans-serif;color:#f3e6cc;text-shadow:0 1px 2px #000;pointer-events:none;';
-  const vps = plan.viewpoints.slice(0, 9).map((v, i) => `${i + 1} ${v.name}`).join(' · ');
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  const vps = plan.viewpoints.slice(0, 9).map((v, i) => `${i + 1} ${esc(v.name ?? 'view')}`).join(' · ');
   root.innerHTML = `<div class="m" style="font-weight:600;letter-spacing:.08em"></div><div class="k">WASD walk · mouse look · Shift run · Space jump · F fly · G game view · O orbit · R spawn · H hide</div><div style="opacity:.8">${vps}</div><div class="s" style="opacity:.6;font-family:ui-monospace,monospace"></div>`;
   // touch has no keys: buttons for walk / orbit and the next viewpoint
   const bar = document.createElement('div');
