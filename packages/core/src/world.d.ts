@@ -15,7 +15,8 @@ export interface AmbientVolume { min: XYZ; max: XYZ; factor?: number; soft?: num
 export interface WorldRendererOptions {
   canvas?: HTMLCanvasElement; renderer?: THREE.WebGLRenderer;
   width?: number; height?: number; pixelRatio?: number; quality?: Quality;
-  place?: Place; time?: SkyTime; shadow?: ShadowRegion; envProbe?: XYZ;
+  /** Missing fields keep their defaults (lat 0, lon 0, height 0, tzHours 0). */
+  place?: Partial<Place>; time?: SkyTime; shadow?: ShadowRegion; envProbe?: XYZ;
   envIntensity?: number; envFade?: number; wind?: NonNullable<Parameters<typeof createEnv>[0]>['wind'];
   clouds?: number; fog?: Partial<{ density: number; groundDensity: number; height: number; air: number; level: number; color: number; glow: number }>;
   post?: Partial<PostSettings>; preserveDrawingBuffer?: boolean; mobile?: boolean; shadowMapSize?: number; spp?: number;

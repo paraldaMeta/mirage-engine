@@ -40,9 +40,11 @@ const shutterSlot = (k, spp) => { let p = 3; while (gcd(p, spp) !== 1) p += 2; r
 export function createWorldRenderer(config = {}) {
   const {
     canvas, width = canvas?.clientWidth || 1280, height = canvas?.clientHeight || 720, pixelRatio = 1,
-    quality = 'high', place = { lat: 0, lon: 0, height: 0, tzHours: 0 }, time = 'golden',
+    quality = 'high', place: placeIn, time = 'golden',
     shadow = { center: [0, 0, 0], radius: 30 }, envProbe = [0, 3, 0], envIntensity = 0.5, wind, clouds = 0.35,
   } = config;
+  // a partial place ({ lat: 35 }) keeps the other defaults instead of lighting the world with NaN
+  const place = { lat: 0, lon: 0, height: 0, tzHours: 0, ...placeIn };
   const Q = QUALITY[quality] || QUALITY.high;
   const fogCfg = { density: 1, groundDensity: 0.0016, height: 18, air: 0.00012, level: 0, color: 1, glow: 1, ...config.fog };
   const post = { ...DEFAULT_POST, ...config.post };

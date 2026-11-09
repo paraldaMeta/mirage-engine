@@ -26,4 +26,17 @@ const { pickQuality } = await import('./src/index.js');
 const SAFARI = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15';
 assert.equal((await pickQuality({ storage: null, nav: { userAgent: SAFARI, maxTouchPoints: 5 } })).quality, 'low', 'an iPad gets low');
 assert.equal((await pickQuality({ storage: null, nav: { userAgent: SAFARI, maxTouchPoints: 0 } })).quality, 'medium', 'a Mac gets medium');
+// wrong time or place: a TypeError that names the field, not a world lit with NaN (review #12)
+{
+  const K = { lat: 35, lon: 135.8, tzHours: 9 };
+  for (const [t, p, field] of [['noon', K, 'time'], [{ time: '18:00' }, K, 'time.day'], [{ elevation: 10 }, K, 'fixed sun'],
+    [{ day: '2026-10-25', time: '6pm' }, K, 'time.time'], [new Date('nope'), K, 'invalid date'], [{ day: '2026-10-25' }, { lat: 35 }, 'place']]) {
+    assert.throws(() => skyState(t, p), (e) => e instanceof TypeError && e.message.toLowerCase().includes(field.split(' ')[0].toLowerCase()), `${JSON.stringify(t)} names ${field}`);
+  }
+  const iso = skyState('2026-10-25T13:00:00Z', K), same = skyState(new Date('2026-10-25T13:00:00Z'), K);
+  assert.equal(iso.sun.elevation, same.sun.elevation, 'an ISO string is that instant');
+  for (const st of [iso, skyState({ day: '2026-10-25', time: '22:00' }, K), skyState({ elevation: 5, azimuth: 250 })]) {
+    assert.ok(Object.values(lightAt(st)).flat().every((v) => typeof v !== 'number' || Number.isFinite(v)), 'every light value is finite');
+  }
+}
 console.log('core check: ok');
