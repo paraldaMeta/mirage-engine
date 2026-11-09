@@ -11,6 +11,8 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
 
 **New**
 
+- Live examples on GitHub Pages (https://paraldameta.github.io/mirage-engine/): every push to `main` rebuilds
+  the seven examples as single files plus an index page (`.github/workflows/pages.yml`, `scripts/build-site.mjs`).
 - @mirage/game: trigger zones — `game.zone({ id, box | sphere, enter, exit, once })`, `'zone'` events, kept in saves.
 - @mirage/game: physics and the character run on one fixed 60 Hz clock, the camera interpolates (`simulation.js`;
   `npm run test:fixed-step`).
