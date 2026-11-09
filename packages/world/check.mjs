@@ -81,4 +81,35 @@ ok(out.modules.walls.r === rng('t/walls').float(), 'per-module rng');
   ok(!scene2.getObjectByName('late') && ticks === 0 && !('late' in out2.modules), 'a failed finalize drops the module and stops its callbacks');
   ok(scene2.children.filter((c) => c.name === 'twin').length === 1, 'a second module with the same name is skipped');
 }
+// review 2026-11-09: one broken module must not take the build down with it, and the report counts what is drawn
+{
+  const scene3 = new THREE.Scene(), w3 = { scene: scene3, ctx: { THREE, onUpdate() {} }, setAmbientVolumes(v) { w3.vols = v; } };
+  let error = null, out3 = null, disposed = 0;
+  const geo = new THREE.BoxGeometry(); geo.addEventListener('dispose', () => disposed++);
+  try {
+    out3 = await buildWorld(w3, { plan, log: quiet, modules: [
+      null,
+      { name: 'empty', build(ctx) { ctx.root.add(new THREE.Mesh(new THREE.BufferGeometry())); } },
+      { name: 'badvol', build() {}, ambientVolumes: [{ factor: 0.2 }] },
+      { name: 'hut', build(ctx) { ctx.root.add(new THREE.Mesh(geo)); }, ambientVolumes: [{ min: [0, 0, 0], max: [1, 1, 1] }], finalize() { throw new Error('hut fails'); } },
+      { name: 'box', build(ctx) { ctx.root.add(new THREE.Mesh(new THREE.BoxGeometry())); ctx.collider(new THREE.Mesh(new THREE.BoxGeometry())); } },
+      { name: 'box', build(ctx) { ctx.root.add(new THREE.Mesh(new THREE.BoxGeometry())); } },
+      { name: 'forks', build(ctx) { return { same: ctx.rng(0) === ctx.R, main: ctx.rng() === ctx.R }; } },
+    ] });
+  } catch (e) { error = e; }
+  ok(!error, 'build survives a null module, an empty mesh and a malformed volume (' + (error && error.message) + ')');
+  const failed = out3.report.failed.map((f) => `${f.name}:${f.phase}`).sort().join();
+  ok(failed === 'badvol:build,box:build,hut:finalize,null:build', 'failures: ' + failed);
+  ok(!(w3.vols || []).some((v) => v.from === 'hut'), "a dropped module's ambient volumes are not applied");
+  ok(disposed === 1, "a dropped module's geometry is released");
+  const rows = Object.fromEntries(out3.report.modules.map((r) => [r.name + (r.ok ? '' : '!'), r.tris]));
+  ok(rows.box === 12 && rows['box!'] === 0 && rows.empty === 0, 'triangles: own roots only, colliders not drawn ' + JSON.stringify(rows));
+  ok(!out3.modules.forks.same && out3.modules.forks.main, 'rng(0) is its own stream, rng() the module stream');
+}
+{
+  const p = definePlan({ ...plan, seed: undefined, walk: { yMin: undefined, yMax: 5 } });
+  ok(p.seed === plan.name && p.walk.yMin === -1 && p.walk.yMax === 5, 'optional fields set to undefined take the defaults');
+  const a = along({ points: [[0, 0], [0, 0], [10, 0]] }, 0), b = along({ points: [[0, 0], [10, 0], [10, 0]] }, 20);
+  ok(a.dx === 1 && a.dz === 0 && b.dx === 1 && b.x === 10, 'along() keeps a unit direction on repeated points');
+}
 console.log('world check: ok');

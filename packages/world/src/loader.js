@@ -31,7 +31,19 @@ import { definePlan } from './plan.js';
 export const LAYER = { VIEW: 0, COLLIDE: 2 };
 
 const now = () => (globalThis.performance ? performance.now() : Date.now());
-const tris = (o) => { let n = 0; o.traverse((m) => { const g = m.geometry; if (m.isMesh && g) n += ((g.index ? g.index.count : g.attributes.position.count) / 3) * (m.isInstancedMesh ? m.count : 1); }); return Math.round(n); };
+// drawn triangles: collision-only proxies are not drawn, and a placeholder mesh without positions has none
+const tris = (o) => { let n = 0; o.traverse((m) => { const g = m.geometry, p = g?.attributes?.position; if (m.isMesh && p && !m.userData.collider) n += ((g.index ? g.index.count : p.count) / 3) * (m.isInstancedMesh ? m.count : 1); }); return Math.round(n); };
+// what world.setAmbientVolumes reads: { min: [x, y, z], max: [x, y, z], factor?, soft? }
+const xyz = (v) => Array.isArray(v) && v.length === 3 && v.every(Number.isFinite);
+function checkVolume(v, i) {
+  if (!v || typeof v !== 'object' || !xyz(v.min) || !xyz(v.max)) throw new Error(`ambientVolumes[${i}] needs min and max as [x, y, z]`);
+  for (const k of ['factor', 'soft']) if (v[k] !== undefined && !Number.isFinite(v[k])) throw new Error(`ambientVolumes[${i}].${k} must be a number`);
+}
+// a dropped module's GPU objects (the shared proxy material stays)
+const release = (root) => root.traverse((o) => {
+  o.geometry?.dispose?.();
+  for (const m of [].concat(o.material || [])) if (m !== proxyMat) m.dispose?.();
+});
 const proxyMat = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
 const colliderFor = (root) => (mesh) => {
   mesh.material = proxyMat; mesh.layers.set(LAYER.COLLIDE); mesh.castShadow = mesh.receiveShadow = false;
@@ -69,7 +81,7 @@ export async function buildWorld(world, { plan, modules, shared = {}, log = cons
     const R = rng(`${plan.seed}/${m.name}`);
     return {
       ...world.ctx, world, plan, shared, name: m.name, root, scene: root,
-      R, rng: (sub = '') => (sub ? rng(`${plan.seed}/${m.name}/${sub}`) : R),
+      R, rng: (sub) => (sub === undefined || sub === '' ? R : rng(`${plan.seed}/${m.name}/${sub}`)),
       anchors, modules: built,
       onUpdate: (fn) => updates.push(fn),
       collider: colliderFor(root),
@@ -85,14 +97,16 @@ export async function buildWorld(world, { plan, modules, shared = {}, log = cons
   const seen = new Set();
 
   // ---- build, in order
-  for (const m of modules) {
+  for (const entry of modules) {
+    // a null or non-object entry (a conditional list) is skipped alone, like any other broken module
+    const m = entry && typeof entry === 'object' ? entry : { name: String(entry) };
     const ts = now(), root = new THREE.Group(), updates = [];
     root.name = m.name;
-    const ctx = makeCtx(m, root, updates);
     const row = { name: m.name, ok: false, ms: 0, tris: 0, anchors: {} };
     report.modules.push(row);
     try {
       if (!m.name || typeof m.build !== 'function') throw new Error('a module needs a name and build(ctx)');
+      const ctx = makeCtx(m, root, updates);
       if (seen.has(m.name)) throw new Error(`another module is already called "${m.name}"`);
       seen.add(m.name);
       const requests = readConsumption(m.consumes);
@@ -105,6 +119,7 @@ export async function buildWorld(world, { plan, modules, shared = {}, log = cons
         return [key, list.map(entry => ({ ...entry, from: m.name }))];
       });
       if (v != null && !Array.isArray(v)) throw new Error('ambientVolumes must be an array');
+      (v || []).forEach(checkVolume);
       const volumes = v ? v.map(entry => ({ ...entry, from: m.name })) : [];
       const alive = { on: true };
       commit(root, updates, alive);
@@ -115,15 +130,19 @@ export async function buildWorld(world, { plan, modules, shared = {}, log = cons
       row.anchors = Object.fromEntries(offers.map(([key, entries]) => [key, entries.length]));
       report.ambientVolumes.push(...volumes);
       built[m.name] = out;
-      live.push({ m, ctx, row, requests, root, alive });
+      live.push({ m, ctx, row, requests, root, alive, roots: [root] });
       row.ok = true;
-    } catch (e) { fail(m, 'build', e); }
+    } catch (e) { fail(m, 'build', e); release(root); }
     row.ms = +(now() - ts).toFixed(1);
   }
   // ---- finalize: every anchor is known now
   // a module whose finalize throws leaves the scene and its callbacks stop; anchors it offered were already visible
   // to the others. (Missing required anchors only skip the finalize: the build stays.)
-  const drop = ({ m, root, alive }) => { alive.on = false; world.scene.remove(root); delete built[m.name]; };
+  const drop = ({ m, roots, alive }) => {
+    alive.on = false; delete built[m.name];
+    for (const r of roots) { world.scene.remove(r); release(r); }
+    report.ambientVolumes = report.ambientVolumes.filter((v) => v.from !== m.name);   // nothing left to darken
+  };
   for (const entry of live) {
     const { m, ctx, row, requests, alive } = entry;
     if (requests) {
@@ -143,13 +162,11 @@ export async function buildWorld(world, { plan, modules, shared = {}, log = cons
     try {
       await m.finalize({ ...ctx, root, scene: root, onUpdate: (fn) => updates.push(fn), collider: colliderFor(root) });
       commit(root, updates, alive);
-    } catch (e) { fail(m, 'finalize', e); row.ok = false; drop(entry); }
+      entry.roots.push(root);
+    } catch (e) { fail(m, 'finalize', e); row.ok = false; drop(entry); release(root); }
     row.ms = +(row.ms + now() - ts).toFixed(1);
   }
-  for (const row of report.modules) {
-    const objs = world.scene.children.filter((c) => c.name === row.name || c.name === row.name + ':finalize');
-    row.tris = objs.reduce((s, o) => s + tris(o), 0);
-  }
+  for (const { row, roots } of live) if (roots.every((r) => r.parent === world.scene)) row.tris = roots.reduce((s, o) => s + tris(o), 0);
   if (report.ambientVolumes.length && world.setAmbientVolumes) world.setAmbientVolumes(report.ambientVolumes);
   report.anchors = Object.fromEntries(Object.entries(anchors).map(([k, l]) => [k, l.length]));
   report.ms = +(now() - t0).toFixed(1);

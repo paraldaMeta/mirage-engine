@@ -32,12 +32,14 @@ export function planProblems(plan) {
       }
     }
     if (type !== 'object') return;
-    for (const key of rule.required || []) if (!Object.hasOwn(value, key)) issue(field(path, key), 'is required');
+    const has = (key) => Object.hasOwn(value, key) && value[key] !== undefined;   // { seed: undefined } is no seed
+    for (const key of rule.required || []) if (!has(key)) issue(field(path, key), 'is required');
     if (rule.oneOf) {
       const keys = rule.oneOf.map(option => option.required[0]);
-      if (keys.filter(key => Object.hasOwn(value, key)).length !== 1) issue(path, 'expected exactly one of ' + keys.join(', '));
+      if (keys.filter(has).length !== 1) issue(path, 'expected exactly one of ' + keys.join(', '));
     }
     for (const [key, child] of Object.entries(value)) {
+      if (child === undefined) continue;
       const known = rule.properties && Object.hasOwn(rule.properties, key);
       const childRule = known ? rule.properties[key] : rule.additionalProperties;
       if (childRule) visit(childRule, child, field(path, key));
