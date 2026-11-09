@@ -101,21 +101,26 @@ export function createGame({ id = 'mirage', version = 1, migrate = {}, storage =
       const zones = {};
       for (const z of g.zones.values()) if (z.inside || z.fired) zones[z.id] = { inside: z.inside, fired: z.fired };
       return { v: version, id, at: new Date().toISOString(), time: +g.time.toFixed(2), flags: { ...g.flags }, inventory: g.inventory.items.map((i) => ({ ...i })),
-        removed: [...g.removed], entities, zones, settings: g.settings, ...extra };
+        removed: [...g.removed], entities, zones, ...extra };
     },
     restore(s) {
       if (!s || typeof s !== 'object' || !Number.isInteger(s.v) || s.v < 1) throw new Error('not a save');
       if (s.id !== undefined && s.id !== id) throw new Error(`a save of "${s.id}", not of this game ("${id}")`);
       if (s.v > version) throw new Error(`save version ${s.v} is newer than this game (${version})`);
       for (let v = s.v; v < version; v++) s = { ...(migrate[v] ? migrate[v](s) : s), v: v + 1 };
+      // check every part before changing anything: a broken import must leave the game as it was
+      const obj = (x) => x == null || (typeof x === 'object' && !Array.isArray(x)), list = (x) => x == null || Array.isArray(x);
+      const bad = [['flags', obj], ['entities', obj], ['zones', obj], ['inventory', list], ['removed', list]].filter(([k, ok]) => !ok(s[k])).map(([k]) => k);
+      if (bad.length || (s.time != null && !Number.isFinite(s.time))) throw new Error('not a save (' + (bad.join(', ') || 'time') + ')');
       g.flags = { ...s.flags }; g.time = s.time || 0;
       g.inventory.items = (s.inventory || []).map((i) => ({ ...i }));
       const gone = new Set(s.removed || []);
       for (const [rid, { e, parent }] of grave) if (!gone.has(rid)) { grave.delete(rid); g.removed.delete(rid); if (parent) parent.add(e.object); g.add(e); }
       for (const rid of gone) { g.remove(rid); g.removed.add(rid); }
+      for (const rid of [...g.removed]) if (!gone.has(rid)) g.removed.delete(rid);   // an id this save never removed
       for (const [eid, data] of Object.entries(s.entities || {})) { const e = g.entities.get(eid); if (e && e.load) e.load(data, g); }
       for (const z of g.zones.values()) Object.assign(z, { inside: false, fired: false }, (s.zones || {})[z.id]);
-      if (s.settings) g.settings = s.settings;
+      // settings (bindings, volumes) belong to the player, not to a save: loading an old save must not undo them
       g.emit('inventory', {}); g.emit('load', s);
       return s;
     },
@@ -136,7 +141,14 @@ export function createGame({ id = 'mirage', version = 1, migrate = {}, storage =
       listeners.clear(); grave.clear(); g.removed.clear();
       g.entities.clear(); g.zones.clear(); g.systems.length = 0; g.inventory.items.length = 0;
     },
-    reset() { g.flags = {}; g.inventory.items = []; g.removed.clear(); g.time = 0; for (const z of g.zones.values()) Object.assign(z, { inside: false, fired: false }); },
+    reset() {
+      g.flags = {}; g.inventory.items = []; g.time = 0;
+      // what was removed comes back, as a load of a save that removed nothing would bring it back
+      g.removed.clear();   // first: add() refuses removed ids
+      for (const [rid, { e, parent }] of grave) { grave.delete(rid); if (parent) parent.add(e.object); g.add(e); }
+      for (const z of g.zones.values()) Object.assign(z, { inside: false, fired: false });
+      g.emit('inventory', {});
+    },
   };
   return g;
 }

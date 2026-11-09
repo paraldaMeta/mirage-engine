@@ -54,10 +54,12 @@ Sounds (all generated in code at `unlock`, ~0.3 s): `step_stone|gravel|grass|woo
 ## Saves
 
 Versioned JSON in `localStorage` (`mirage:<id>:<slot>`), also exported to / imported from a file:
-`{ v, id, at, time, flags, inventory, removed, entities: { id: e.save() }, settings: { bindings, volumes }, player: { pos, yaw, pitch }, summary }`.
-An older `v` runs through `migrate[v]` step by step; a newer one is refused. Settings (key bindings, volumes) are
-also kept on their own (`mirage:<id>:settings`). Loading an earlier save brings back entities removed since
-(a picked-up key returns to its bench).
+`{ v, id, at, time, flags, inventory, removed, entities: { id: e.save() }, zones, player: { pos, yaw, pitch }, summary }`.
+An older `v` runs through `migrate[v]` step by step; a newer one, another game's save or a malformed one is refused
+without changing anything. Settings (key bindings, volumes) belong to the player, not to a save: they are kept on
+their own (`mirage:<id>:settings`) and loading a save leaves them alone (saves before 1.0 carried a copy, now
+ignored). Loading an earlier save brings back entities removed since (a picked-up key returns to its bench); so
+does `reset()`. Without `localStorage` (node, a sandboxed iframe) saves are kept in memory.
 
 ## Controls (defaults)
 

@@ -26,7 +26,6 @@ export interface LoadedSave { v: number; [field: string]: unknown }
 export interface Snapshot {
   v: number; id: string; at: string; time: number; flags: Record<string, unknown>; inventory: InventoryItem[];
   removed: string[]; entities: Record<string, unknown>; zones: Record<string, { inside: boolean; fired: boolean }>;
-  settings: Record<string, unknown>;
 }
 /** Extra fields spread last at runtime, including overrides of base fields. */
 export type ExtendedSnapshot<Extra extends object = Record<never, never>> = Omit<Snapshot, keyof Extra> & Extra;

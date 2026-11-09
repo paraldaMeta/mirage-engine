@@ -310,6 +310,26 @@ phys.dispose();
     `a turned prop keeps its own box (half ${[he.x, he.y, he.z].map((v) => v.toFixed(3)).join(' ')})`);
   p.dispose();
 }
+// review 2026-11-09 (game state): loading keeps the player's settings, a broken import changes nothing, removed ids
+// a save never removed are cleared, reset() brings removed things back
+{
+  const mem = new Map(), st = { getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, v) };
+  const g = createGame({ id: 't', storage: st });
+  const coin = () => ({ id: 'coin', pos: [0, 0, 0] });
+  g.settings = {}; g.save(1);
+  g.settings = { bindings: { jump: ['KeyJ'] } }; g.load(1);
+  ok(g.settings.bindings?.jump?.[0] === 'KeyJ', "loading a save keeps the player's settings");
+  g.add(coin()); g.remove('coin'); g.save(2);           // coin removed in slot 2
+  const g2 = createGame({ id: 't', storage: st });      // a fresh session: coin not added yet
+  g2.load(2); g2.save(3); g2.load(1);                    // slot 1 removed nothing
+  ok(!g2.removed.has('coin'), 'a removed id the loaded save never removed is cleared');
+  g2.add(coin()); ok(g2.entities.has('coin'), 'and the entity can be added again');
+  g2.set('real', 1);
+  let err = null; try { g2.importJSON('{"v":1,"id":"t","flags":{"hacked":1},"time":3,"inventory":{}}'); } catch (e) { err = e; }
+  ok(err && !g2.flags.hacked && g2.flags.real === 1 && g2.time !== 3, 'a malformed import changes nothing (' + (err && err.message) + ')');
+  g2.remove('coin'); g2.reset();
+  ok(g2.entities.has('coin') && !g2.removed.size, 'reset() brings removed entities back');
+}
 // no storage (node, sandboxed iframes): saves live in memory instead of throwing
 {
   const had = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');

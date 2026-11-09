@@ -246,6 +246,7 @@ export async function createPhysics(scene, { gravity = 9.81 } = {}) {
     };
     /** put the feet on the ground under p (searching from p.y + 0.5 down); exact: at p as given (a saved spot) */
     w.place = (p, { exact = false } = {}) => {
+      carry = null;   // a step-up deferred at the old spot is not a move at the new one
       w.pos = [p[0], exact ? p[1] ?? 0 : groundUnder(p), p[2]];
       const centre = { x: w.pos[0], y: w.pos[1] + lift, z: w.pos[2] };
       rb.setTranslation(centre, true);
