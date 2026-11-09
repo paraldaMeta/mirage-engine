@@ -51,6 +51,21 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
   refuses to empty an output folder that is or contains the current folder, the example, the home folder or a
   filesystem root, or a non-empty folder that is not an earlier deploy. The tools find Chrome on macOS, Linux and
   Windows (`$CHROME` still wins).
+- @mirage/core: a malformed `time` or `place` throws a `TypeError` naming the field (it lit the world with NaN, a
+  black frame); ISO date strings are instants; a partial `place` keeps the other defaults.
+- @mirage/play: keys typed into the host page's fields (text inputs, selects, contenteditable, inside shadow DOM
+  too) no longer move the player; `onQuality(quality)` and startGame's `onRestart` let an embedding page replace the
+  default page reload; `dispose()` gives the world camera its lens and pose back; leaving fly or orbit over no
+  ground at all goes back to the spawn; orbit releases pointer lock.
+- @mirage/game: saves no longer carry or restore settings (bindings and volumes belong to the player; loading an
+  older save undid a rebinding); a malformed save changes nothing; `session.load('auto')` reads the named slot;
+  without `localStorage` (node, sandboxed iframes) saves are kept in memory; `reset()` brings removed entities back.
+- @mirage/world: one broken module (a `null` entry, a mesh without positions, a malformed ambient volume) fails
+  alone instead of rejecting `buildWorld`; a dropped module takes its ambient volumes along and frees its GPU
+  objects; `ctx.rng(0)` is its own stream; fields set to `undefined` in a plan take the defaults.
+- @mirage/tools: `mirage-deploy` only empties a folder carrying its own `.mirage-deploy` marker (a Pages folder with
+  `.nojekyll` and `.git` passed before); `mirage-package` inlines a linked stylesheet and fails on any other file it
+  cannot inline; `mirage-e2e` runs the `examples/` of the current folder or `--root`.
 
 **Fixes**
 
@@ -67,6 +82,21 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
 - Tools: the acceptance GPU preflight reads Chrome 156's `webgl` feature status (it has no `webgl2` entry).
 - The `mirage-brief-to-plan` scaffold asks for the repository's `@mirage` version (it asked for 0.1.0, a 404 in a new
   world); `npm test` checks that it stays so.
+- 1.0 code review (2026-11-09), each fix with a check that fails on the old code:
+  - core: `geom.taperedTube` side walls faced inward (every triangle; the courtyard palm and the garden trunks);
+    `archPath` segmental arches with a rise above half the span; `wind.dir: [0, 0]` made every swaying mesh vanish
+    (NaN); refraction no longer jumps 0.76° at −2°; LOD errors are world metres on scaled meshes; texture set names
+    with `-` or `.` compile in GLSL (`glslName`).
+  - game: a turned prop's collider is its own box (a 45° plank got a 1.77 m square); a pending key rebind ends with
+    the menu (the next key in play was swallowed and bound); touch buttons release on `pointercancel`; `place()` drops
+    a deferred step-up.
+  - play: the walk-grid bake keeps the lowest floors when a column has more than eight (the ground was dropped); fly
+    speed is normalised on diagonals; fly → game lands where the camera is; viewpoint names are escaped.
+  - world: the report's triangle counts are each module's own and leave out collision proxies; `along()` keeps a
+    unit direction on repeated points.
+  - tools: the test server answers a malformed URL with 400 (it crashed) and stays inside its folder; playtest step
+    names are safe in file names.
+- woodland-path: a wood beyond the meadow fades into haze; the horizon was a hard grey band (the edge of the ground).
 
 ## 0.2.0 — 2026-10-27 (pre-alpha)
 
