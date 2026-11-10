@@ -55,7 +55,7 @@ export const XR_SCALE_LEVELS = [{ scale: 1 }, { scale: 0.85 }, { scale: 0.7 }, {
  *  a frame is dropped) or when more than `drops` of the last `window` intervals were late (after: the GPU was the
  *  limit, which only shows that way), and steps UP after `calm` s under `low` x the period with no late frame.
  *  opts: { hz = 72, levels = XR_LEVELS, high = 0.8, low = 0.55, window = 45, drops = 3, calm = 4, hold = 1 (s after a
- *  step before the next), start = 0 }. update() returns the level index; .level is the entry; .steps counts changes. */
+ *  step before the next), warm = 1 (s ignored at the start: a session's first frames compile shaders), start = 0 }. update() returns the level index; .level is the entry; .steps counts changes. */
 export function createXRGovernor(opts = {}) {
   const c = { hz: 72, levels: XR_LEVELS, high: 0.8, low: 0.55, window: 45, drops: 3, calm: 4, hold: 1, warm: 1, start: 0, ...opts };
   const late = new Uint8Array(c.window);
