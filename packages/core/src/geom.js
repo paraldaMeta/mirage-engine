@@ -1,5 +1,6 @@
 // Mirage original code. Techniques informed by Golden Temple by Leon Lin (MIT) — see NOTICE.
 import * as THREE from 'three';
+import { chunkObject } from './chunk.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
@@ -67,7 +68,7 @@ export class MeshBatch {
   cylinder(material, rTop, rBot, h, pos = [0, 0, 0], rot = [0, 0, 0], seg = 20) {
     return this.add(new THREE.CylinderGeometry(rTop, rBot, h, seg, 1), material, compose(pos, rot));
   }
-  finish({ name = 'batch', castShadow = true, receiveShadow = true } = {}) {
+  finish({ name = 'batch', castShadow = true, receiveShadow = true, chunk = false } = {}) {
     const out = new THREE.Group();
     out.name = name;
     for (const { material, parts } of this.groups.values()) {
@@ -83,6 +84,7 @@ export class MeshBatch {
         out.add(mesh);
       }
     }
+    if (chunk) chunkObject(out, chunk === true ? {} : chunk);   // opt-in: spatial pieces with tight bounds (chunk.js)
     return out;
   }
 }
