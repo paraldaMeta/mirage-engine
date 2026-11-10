@@ -21,9 +21,9 @@
 | 触屏模拟、静帧淡入、GPU 负载、院子五个光照静帧一致 | **测试机通过** | `touch`、`still-pop`、`gpu-load`、`still-identity`。 |
 | Codex / Cursor 从零造景 A1 | **A 场已跑、复核 machine-pass；B 场未跑** | 两边用同一引擎快照 `c8adb66`。A 场用时 14 分钟（上限 120），没有人工介入，`examples/rain-post/` 以外零改动。`replay.mjs`（控制器 `457a880`）复核结果：HTTP 和 file 都通过，medium 3.40 / 3.32 ms，单文件 3.19 MB，离线冷启动通过。与规程的偏差（同一 OS 账户、客户端沙箱关闭）记在主持人私有记录里。A／B 和客户端的对应在评分前保密。下一步：B 场 → 匿名视觉评审 → `decide.mjs`。 |
 | 手机真机与集成显卡 | 待实测 | 没有设备；所有者决定这次不做。 |
-| Firefox / WebKit / Safari | **Firefox、WebKit 通过；真 Safari 待测** | [复测记录](acceptance/runs/2026-11-09-browsers/README.md)，`457a880`：七个示例两种引擎全部通过，错误为 0。已知问题：WebKit 下 garden-quest 偶发台阶处「走不动」，main 15 次里 2 次、分支 19 次里 2 次，不是这次的回归，单列为后续问题。真 Safari 要所有者在 Safari 设置里打开「允许远程自动化」。 |
+| Firefox / WebKit / Safari | **Firefox、WebKit 通过；真 Safari 不测** | [复测记录](acceptance/runs/2026-11-09-browsers/README.md)，`457a880`：七个示例两种引擎全部通过，错误为 0。已知问题：WebKit 下 garden-quest 偶发台阶处「走不动」，main 15 次里 2 次、分支 19 次里 2 次，不是这次的回归，单列为后续问题。真 Safari 由所有者决定这次不测；只测了 Playwright 自带的 WebKit，它和 Safari 不完全相同。 |
 | GPU CI | 工作流在，仓库没有 runner | 所有者决定暂不注册自托管 runner（公开仓库的安全考虑）。 |
 | 公开 API、npm 包名与发布文档 | 稳定性划分已写（[api.md](api.md)），包名暂定 `@mirage/*` | `npm run test:pack` 通过；`"./*"` 子路径白名单未定；npm 上 `mirage-engine` 已被占用。`@mirage` scope 能不能用，要所有者登录 npm 后确认，不行再换。 |
 
-还要做的：所有者看图（林缘、河湾、人物）→ 真 Safari → A1 的 B 场和匿名评审 → 确认 `@mirage` scope 和子路径白名单 → 打 tag。手机真机、集显和 GPU CI 由所有者决定这次不做。
+还要做的：所有者看图（林缘、河湾、人物）→ A1 的 B 场和匿名评审 → 确认 `@mirage` scope 和子路径白名单 → 打 tag。手机真机、集显、真 Safari 和 GPU CI 由所有者决定这次不做。
 每一条"待验收"只能用同一修订的报告和实际观察来关闭。

@@ -4,7 +4,7 @@
 - 测试机：Mac mini M4 Pro，macOS 26.6.2
 - 浏览器：Playwright 1.65.0 的 WebKit（webkit-2388）和 Firefox（firefox-1572），headless
 - 跑法：`MIRAGE_BROWSER=webkit|firefox MIRAGE_PLAYWRIGHT=<playwright/index.js>`，在示例目录跑 `playtest.mjs <场景> dist`
-- 真 Safari：没测。safaridriver 要求在 Safari 设置的「开发者」里打开「允许远程自动化」，所有者还没开
+- 真 Safari：没测。safaridriver 要求在 Safari 设置的「开发者」里打开「允许远程自动化」，所有者 2026-11-10 决定这次不测真 Safari
 
 | 示例 | WebKit 步骤 · 错误 · 警告 · frameMs | Firefox 步骤 · 错误 · 警告 · frameMs |
 |---|---|---|
