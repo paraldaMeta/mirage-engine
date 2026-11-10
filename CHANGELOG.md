@@ -11,6 +11,17 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
 
 **New**
 
+- @mirage/tools: one diagnostic shape everywhere, `{ code, severity, target, message, fix, at? }`, with stable codes
+  (MG1xx plan, MG2xx modules, MG3xx walking, MG4xx frame, MG5xx budgets, MG6xx console, MG7xx game state;
+  `docs/diagnostics.md`). The playtest writes them to `report.json` `diagnostics` and the top of `report.md`;
+  `mirage-validate-plan --json` and the new `mirage-check` (a world check without a scenario) print the same.
+  Every fix is measured where it can be: the gap between two wall segments, the plan field behind a too-narrow
+  gate, the collider box to add, the free spot next to a spawn inside a crate, the look point for an object out of
+  frame. New load-time checks: the spawn and viewpoints inside solids, floating objects, coplanar surfaces, what each
+  viewpoint shows, the triangle budget. Quiet on all seven examples.
+- `evals/`: a repair-rate eval. Eleven copies of a small world with one defect each, a machine check per task
+  (`node evals/check.mjs` proves every broken start fails and every reference fix passes), and a runner that hands
+  an agent CLI the task with or without the diagnostics, one turn or several (`node evals/run.mjs --cmd ...`).
 - @mirage/tools: playtest `see` — a step can require named objects to be in the final view
   (`"see": { "rail": ">= 0.005" }`). An ID pass measures each object's share of the frame and, on a failure, says
   whether it is out of frame, hidden (and by which objects) or too small. Screenshots also report `luma`, `dark`

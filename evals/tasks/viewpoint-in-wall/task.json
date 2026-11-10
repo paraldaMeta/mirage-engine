@@ -1,0 +1,8 @@
+{
+  "title": "The gate viewpoint is broken",
+  "prompt": "The 'gate' viewpoint looks broken.",
+  "expect": [
+    "MG310"
+  ],
+  "forbid": []
+}

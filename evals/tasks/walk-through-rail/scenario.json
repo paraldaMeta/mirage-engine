@@ -1,0 +1,39 @@
+{
+  "title": "walk-through-rail",
+  "query": "mode=walk&ui=0&grain=0",
+  "w": 640,
+  "h": 400,
+  "steps": [
+    {
+      "name": "spawn",
+      "ms": 300,
+      "expect": {
+        "onGround": "== true",
+        "y": "~ 0 0.05"
+      }
+    },
+    {
+      "name": "rail-blocks",
+      "place": {
+        "eye": [
+          -3.5,
+          1.62,
+          5
+        ],
+        "look": [
+          -3.5,
+          1.62,
+          -5
+        ],
+        "mode": "walk"
+      },
+      "keys": [
+        "KeyW"
+      ],
+      "ms": 2000,
+      "expect": {
+        "z": "~ 3.38 0.15"
+      }
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "title": "The crate is missing",
+  "prompt": "The crate is missing from the yard.",
+  "expect": [
+    "MG201",
+    "MG404"
+  ],
+  "forbid": []
+}

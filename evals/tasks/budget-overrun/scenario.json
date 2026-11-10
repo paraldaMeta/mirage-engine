@@ -1,0 +1,16 @@
+{
+  "title": "budget-overrun",
+  "query": "mode=walk&ui=0&grain=0",
+  "w": 640,
+  "h": 400,
+  "steps": [
+    {
+      "name": "spawn",
+      "ms": 300,
+      "expect": {
+        "onGround": "== true",
+        "y": "~ 0 0.05"
+      }
+    }
+  ]
+}

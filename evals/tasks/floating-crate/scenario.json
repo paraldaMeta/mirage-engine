@@ -1,0 +1,15 @@
+{
+  "title": "floating-crate",
+  "query": "mode=walk&ui=0&grain=0",
+  "w": 640,
+  "h": 400,
+  "steps": [
+    {
+      "name": "yard-view",
+      "viewpoint": 0,
+      "see": [
+        "crate"
+      ]
+    }
+  ]
+}

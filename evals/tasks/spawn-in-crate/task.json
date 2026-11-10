@@ -1,0 +1,8 @@
+{
+  "title": "Players spawn stuck",
+  "prompt": "Players spawn stuck and cannot walk away from where they start.",
+  "expect": [
+    "MG310"
+  ],
+  "forbid": []
+}

@@ -1,0 +1,10 @@
+{
+  "title": "Everything renders black",
+  "prompt": "The yard renders black.",
+  "expect": [
+    "MG440"
+  ],
+  "forbid": [
+    "MG440"
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "title": "The crate looks wrong",
+  "prompt": "The crate looks wrong in the yard view.",
+  "expect": [
+    "MG320"
+  ],
+  "forbid": [
+    "MG320"
+  ]
+}
