@@ -24,6 +24,7 @@
     "./kits/vegetation": "./src/kits/vegetation.js",
     "./kits/terrain": "./src/kits/terrain.js",
     "./kits/water": "./src/kits/water.js",
+    "./kits/rain": "./src/kits/rain.js",
     "./*": "./src/*.js",
     "./package.json": "./package.json"
   },

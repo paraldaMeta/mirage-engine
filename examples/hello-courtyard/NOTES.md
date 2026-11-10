@@ -93,3 +93,21 @@ posts' feet, the arch-shaped patch of low sun on the north wall has the same sof
   against the parent commit: 0 px). With it, still and walking frames are bit-identical between runs.
 - With `?light2=1` the lamp shadows are unchanged; the Moon's shadows (the key light at night) soften as the Sun's.
 
+## wet (wet surfaces, puddles, rain; optional)
+`?wet=0..1` (`&rain=0..1`): `modules/materials.js` re-patches the paving (porosity 0.5, joints fill first through the
+photo set's height `mgS.h` about its hMean, 1.4 cm per unit), the land (0.8, puddles 0.8), the plaster (0.85, no
+puddles, damp band 0.45 m) and the ashlar (0.45, `mgS.h`) with `withWet` (@mirage/core wet.js); `&rain` adds
+`addRain` (@mirage/world/kits/rain) to the scene. Without either flag nothing is re-patched or added. Planks, clay,
+iron and the basin's water stay as they are; the pergola and the arcade do not shelter the ground (no occlusion).
+`window.__mirage.wet` = `{ setWetness, setRain, rain }` for tools.
+- **Off path** (built `dist/` of this branch against the base commit's, 1440 × 900, 6 sub-frames, 5 views: golden
+  hero, night hero, golden hero + light2, night pergola + light2, noon basin): no flag, `?wet=0` and `?wet=0&rain=0`
+  are all 0 px different. The first page a fresh browser loads differs from every later load of the same view by
+  1/255 in a few hundred pixels at golden hour (also base against base): references are second loads.
+- **Stills**: every wet / rain still renders identically twice in a page and across runs (the same hash).
+- **Cost** (walking from the spawn, 1 sub-frame + TAA, `play.stop()` + step + render + 1-px readback, dry / wet 0.8 /
+  wet 0.8 + rain 1 interleaved in one page, 8 and 12 rounds of 60 frames; the M4 Pro was shared with other jobs:
+  the dry walk took 9.2–14 ms instead of ~4): wet +0.15…0.57 ms median per round (+2…5 %), spread −0.7…+2.4 ms;
+  rain on top +0.0…0.25 ms. Draw calls 52 → 53 with rain (one).
+- **Shimmer** (TAA orbit over the paving, `verify.mjs`'s second difference, grain off): flicker / motion 1.40 dry
+  against 1.40 wet (golden), 1.46 / 1.46 (golden + light2), 1.43 / 1.43 (night + light2): no new sparkle.

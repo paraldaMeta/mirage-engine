@@ -11,7 +11,7 @@ a release may change. `npm run test:pack` fails if a package exports a name that
 
 The entry points `@mirage/<pkg>` are the API. Every file under `src/` can also be imported as a subpath
 (`"./*"` in the export map) and has its own `.d.ts`; the world kits live there (`@mirage/world/kits/vegetation`,
-`/kits/terrain`, `/kits/water`, documented in the world README). Which subpaths stay supported is open:
+`/kits/terrain`, `/kits/water`, `/kits/rain`, documented in the world README). Which subpaths stay supported is open:
 [API-CANDIDATE.md](API-CANDIDATE.md) lists them; until a whitelist is decided, treat subpaths other than the kits,
 `@mirage/core/rng` and `@mirage/world/plan` as internal. Types: each package's root entry declares `types`
 ([TYPES.md](TYPES.md)).
@@ -45,6 +45,11 @@ The entry points `@mirage/<pkg>` are the API. Every file under `src/` can also b
 | `withRelief(hooks)` | experimental | put the relief GLSL and uniforms in front of a hooks object |
 | `renderHeight(name, und, swipe)` | experimental | GLSL declaring a hand-applied render's height (m), faded with distance |
 | `renderShade(name)` | experimental | `output` hook snippet: shade the render's hollows |
+| `withWet(hooks, options)` | experimental | wet surfaces on a hooks object: damp → soaked → standing water (puddles), run-off streaks, a damp band at the ground, rain rings; options `porosity`, `ground`, `band`, `puddles`, `height`, `heightMid`, `heightScale` |
+| `setWetness(level)` | experimental | wetness 0 (off: the wet code not compiled; crossing 0 recompiles the opted-in materials) .. 1 (full puddles); page-global |
+| `setRain(intensity)` | experimental | rain 0 .. 1: ripples on standing water and the rain kit's streak density; page-global |
+| `WET` | experimental | the wetness's page-global uniforms (`uWet`, `uRain`) |
+| `WET_GLSL` | experimental | the wet GLSL (`mgWetApply`, `mgWetNormal`, `mgWetRipples`, `mgWetH`) |
 | `NOISE_GLSL` | stable | the GLSL noise library (`mgHash`, `mgValue2/3`, `mgFbm2/3`, `mgCell2/3`, …) |
 | `rng(seed)` | stable | seeded random stream: `next`, `float`, `range`, `int`, `pick`, `chance`, `sign`, `gauss`, `inDisc`, `onSphere`, `fork(name)` (also `@mirage/core/rng`) |
 | `geom` | stable | geometry helpers: `wall`, `archPath`, `lathe`, `taperedTube`, `instances`, `MeshBatch`, `compose`, `lerp`, `clamp`, `smoothstep`, `remap` (experimental: `softExtrude`, `softBox`, `sootPlumes`, `wall({ round })`); three's `mergeGeometries` and `RoundedBoxGeometry` re-exported |

@@ -3,7 +3,7 @@
 // walls, the paving, the stone and the land, and the plaster's hand-applied render. Off, every material compiles
 // exactly as it did before the relief existed.
 import * as THREE from 'three';
-import { PROC, renderHeight, renderShade } from '@mirage/core';
+import { PROC, renderHeight, renderShade, withWet } from '@mirage/core';
 
 export function materials(ctx) {
   if (ctx.shared.mats) return ctx.shared.mats;
@@ -29,10 +29,20 @@ export function materials(ctx) {
     vec3 c = mix(vec3(0.42, 0.35, 0.25), vec3(0.30, 0.30, 0.19), smoothstep(-0.1, 0.4, n));
     c = mix(c, vec3(0.36, 0.32, 0.28), smoothstep(0.08, 0.3, slope));
     diffuseColor.rgb *= mgTexTint(mgS, c, 0.9);`, normal: 'normal = mgTexNormal(normal, mgS, normalize(mgWorldNormal));' }, { relief: D }));
+  const ashlar = tex.material('ashlar', { mapping: 'wall', tint: [0.56, 0.47, 0.37], detail: 1.1, tile: 2.4, roughness: 0.85, ...(D ? { relief: RL.ashlar } : {}) });
+  const paving = tex.material('paving', { mapping: 'ground', tint: [0.56, 0.48, 0.38], detail: 0.8, roughness: 0.82, ...(D ? { relief: RL.paving } : {}) });
+  // ctx.shared.wet (`?wet=`, off by default): @mirage/core's wet.js on the ground and the masonry; the photo sets'
+  // heights (mgS.h) let the paving joints and the land's hollows fill first. Without it nothing is re-patched.
+  if (ctx.shared.wet) {
+    const wet = (m, o) => mat.patch(m, withWet(m.userData.hooks, o));
+    const hm = (n) => tex.info(n).hMean;
+    wet(paving, { porosity: 0.5, height: 'mgS.h', heightMid: hm('paving'), heightScale: 0.014 });
+    wet(land, { porosity: 0.8, puddles: 0.8, ground: -0.02 });
+    wet(plaster, { porosity: 0.85, puddles: 0, band: 0.45 });
+    wet(ashlar, { porosity: 0.45, height: 'mgS.h', heightMid: hm('ashlar') });
+  }
   return (ctx.shared.mats = {
-    plaster, land,
-    ashlar: tex.material('ashlar', { mapping: 'wall', tint: [0.56, 0.47, 0.37], detail: 1.1, tile: 2.4, roughness: 0.85, ...(D ? { relief: RL.ashlar } : {}) }),
-    paving: tex.material('paving', { mapping: 'ground', tint: [0.56, 0.48, 0.38], detail: 0.8, roughness: 0.82, ...(D ? { relief: RL.paving } : {}) }),
+    plaster, land, ashlar, paving,
     planks: tex.material('planks', { mapping: 'tri', tint: [0.36, 0.25, 0.16], detail: 1, roughness: 0.78, tile: 1.6 }),
     clay: mat.std({ roughness: 0.75 }, PROC.terracotta()),
     iron: mat.std({ color: new THREE.Color(0.03, 0.028, 0.025), roughness: 0.5, metalness: 0.8 }),

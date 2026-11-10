@@ -28,6 +28,12 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
   `mgTex{Tri,Wall,Ground}Relief`), a hand-applied render's undulation and trowel swipes (`PROC.plaster(base,
   { render })`), `setRelief(level)`; geometry `geom.wall({ round })`, `softExtrude`, `softBox`, `sootPlumes`. Opt-in:
   worlds that do not ask for it compile the same shaders. hello-courtyard uses it (`?nodetail` for A/B).
+- @mirage/core: optional wet surfaces (`wet.js`): `withWet(hooks, options)` gives any Standard / Physical material
+  one ramp dry → damp → soaked → standing water (world-space puddles, run-off streaks on walls, a damp band at the
+  ground, `porosity`), rain rings on standing water; `setWetness`, `setRain` (page-global). Only standing water is
+  flagged for light2's reflections. Off by default; the wet code compiles only while the wetness is above 0, so
+  `setWetness(0)` frames are bit-identical. `patch()` hooks gain `specAA` and `attach`. @mirage/world: rain kit
+  (`@mirage/world/kits/rain`, `addRain`): camera-following streaks, one draw call. hello-courtyard: `?wet=0.8&rain=1`.
 - Live examples on Cloudflare Pages (https://mirage-engine-4qj.pages.dev/): `npm run site` builds the seven examples
   as single files plus an index page (`scripts/build-site.mjs`); the owner deploys it with wrangler (see that file).
   Not rebuilt automatically: redeploy after changes to `main`.
