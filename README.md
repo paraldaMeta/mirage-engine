@@ -48,6 +48,38 @@ node ../../packages/tools/src/playtest.mjs scenarios/playtest.json dist   # scri
 node ../../packages/tools/src/package.mjs .                               # release/snow-hut.html, opens from disk
 ```
 
+## Make your own world (10 minutes, by hand)
+
+The examples are finished places; this is an empty one. A world is a folder in `examples/` with a plan (every
+shared position), one file per module, and a scenario that tests it.
+
+```sh
+cp -R agent/mirage-brief-to-plan/assets/skeleton examples/my-world && cd examples/my-world
+# write plan.js and modules/ground.js, modules/room.js: the three files are in docs/making-a-world.md
+npm run dev                                  # http://localhost:5190, rebuilds as you type
+npm run build && npm run playtest            # out/playtest/report.md + sheet.png: walk through the door, lean on a wall
+npm run package                              # release/my-world.html
+```
+
+A module is a function that adds three.js objects to `ctx.root`; what it adds is drawn and collided with:
+
+```js
+export default {
+  name: 'room',
+  build(ctx) {
+    const { geom, root, plan } = ctx, b = new geom.MeshBatch();
+    b.add(geom.wall({ length: 6.3, height: 2.6, thickness: 0.3, openings: [{ x: 0, width: 1.2, height: 2.1, arch: 'flat' }] }),
+      ctx.mat.std({ roughness: 0.92 }), geom.compose([0, 0, plan.room.rect[3]]));
+    root.add(b.finish({ name: 'room' }));
+  },
+};
+```
+
+[docs/making-a-world.md](docs/making-a-world.md) has the whole room (built and playtested as written), the four
+things newcomers walk into (a door arch taller than its wall, a room with no light of its own, lists under
+`plan.points`, what a `perf` step measures) and the escape hatches: plain three materials, your own shaders, glTF
+models, `AnimationMixer`, async builds. All guides: [docs/README.md](docs/README.md).
+
 ## The AI-native workflow
 
 **brief → plan → parallel modules → playtest → ship.** Each step is a skill in [`agent/`](agent/) (the open Agent

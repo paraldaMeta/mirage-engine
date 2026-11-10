@@ -10,6 +10,9 @@ import * as THREE from 'three';
 import assert from '../soft-assert.mjs';
 import { readPackages, exported, scan, checkMaps } from '../check-imports.mjs';
 import { createLod } from '../../packages/core/src/lod.js';
+import { ranFlags, measure } from '../coverage.mjs';
+import { apiRows, classify } from '../api-stability.mjs';
+import { links, missingFromIndex } from '../check-docs.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -72,5 +75,43 @@ process.exit(0);
   assert.equal(err, null, 'register() runs on a mesh over minTris: ' + (err && err.message));
   assert.equal(lod.stats.meshes, 1);
   assert.ok(lod.stats.twinTris.length > 0 && lod.stats.twinTris[0] > 0 && lod.stats.twinTris[0] < lod.stats.tris, `the first twin has fewer triangles (${lod.stats.twinTris[0]} of ${lod.stats.tris})`);
+}
+
+// ---- the coverage arithmetic: inner ranges win, comments and blanks are not lines
+{
+  const src = '// note\nfunction a() { return 1; }\n\nfunction b(x) { if (x) { return 2; } return 3; }\n/* block\n   more */\nconst k = 1;\n';
+  const at = (t, from = 0) => src.indexOf(t, from);
+  const fns = [
+    { functionName: '', ranges: [{ startOffset: 0, endOffset: src.length, count: 1 }] },
+    { functionName: 'a', ranges: [{ startOffset: at('function a'), endOffset: at('}') + 1, count: 0 }] },
+    { functionName: 'b', ranges: [{ startOffset: at('function b'), endOffset: at('return 3; }') + 11, count: 2 }, { startOffset: at('{ return 2'), endOffset: at('return 2; }') + 11, count: 0 }] },
+  ];
+  const ran = ranFlags(fns, src.length), m = measure(src, ran);
+  assert.equal(ran[at('return 1')], 0, 'a never ran');
+  assert.equal(ran[at('return 2')], 0, 'the inner block of b did not run although b did');
+  assert.equal(ran[at('return 3')], 1);
+  assert.equal(ran[at('const k')], 1, 'top level ran');
+  assert.deepEqual([m.lines, m.linesRun], [3, 2], 'three code lines (comments, blank and block comment skipped), a is the one not run');
+  assert.ok(m.charsRun < m.chars && m.charsRun > 0);
+  const none = measure(src, null);
+  assert.deepEqual([none.lines, none.linesRun, none.charsRun], [3, 0, 0], 'a file nothing loaded counts as zero');
+}
+
+// ---- the stability report reads rows, own package first
+{
+  const rows = apiRows('## @mirage/core\n| `geom` | stable | meshes; `wall`, `openingProblem` |\n| `createThing(world, { fast })` | experimental | a thing |\nprose about `loose`\n## @mirage/play\n| `createThing` | stable | another |\n## Notes\n| `x` | stable | not a package |\n');
+  assert.deepEqual(Object.keys(rows), ['@mirage/core', '@mirage/play']);
+  assert.equal(classify('geom', '@mirage/core', rows), 'stable');
+  assert.equal(classify('createThing', '@mirage/core', rows), 'experimental', 'the own package row wins');
+  assert.equal(classify('createThing', '@mirage/play', rows), 'stable');
+  assert.equal(classify('openingProblem', '@mirage/core', rows), 'stable', 'a name in the description takes the row');
+  assert.equal(classify('create', '@mirage/core', rows), null, 'a prefix of a name is not the name');
+  assert.equal(classify('loose', '@mirage/core', rows), null, 'prose is not a row');
+}
+
+// ---- the docs index check
+{
+  assert.deepEqual(links('see [a](a.md#x), [web](https://x.y/z.md), `[code](no.md)` and [up](../B.md "t")\n```\n[fenced](f.md)\n```\n').map((l) => l.href), ['a.md', '../B.md']);
+  assert.deepEqual(missingFromIndex('[a](a.md) [b](./b.md)', ['a.md', 'b.md', 'c.md', 'README.md']), ['c.md']);
 }
 console.log(`tooling check: ${assert.failures.length ? 'FAILED' : 'ok'} (${assert.count} assertions)`);

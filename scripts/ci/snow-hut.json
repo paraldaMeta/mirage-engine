@@ -1,8 +1,7 @@
 {
-  "title": "snow-hut on software GL (hosted CI): the game loop (walk in, light the stove), a wall, two stills against the committed baselines",
+  "title": "snow-hut on software GL (hosted CI): the game loop (walk in, light the stove), a wall, two views looked at (the stills are compared in determinism:snow-hut: the game's snow and fire run on game time, so these pictures differ run to run)",
   "query": "start=1&grain=0",
   "w": 480, "h": 300,
-  "baseline": "baseline/snow-hut",
   "steps": [
     { "name": "spawn", "ms": 500, "expect": { "onGround": "== true", "y": "~ 0 0.3", "paused": "== false", "errors": "== 0" }, "shot": false },
     { "name": "to-the-door", "walkTo": [[1.3, 1.5], [1.3, 0.4]], "run": true, "timeout": 90000, "expect": { "x": "~ 1.3 0.4", "z": "~ 0.4 0.4" }, "shot": false },
