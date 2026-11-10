@@ -38,6 +38,14 @@ const gcd = (a, b) => (b ? gcd(b, a % b) : a);
 // shutter slot of sub-frame k: a stride coprime with spp decorrelates time from the AA offset
 const shutterSlot = (k, spp) => { let p = 3; while (gcd(p, spp) !== 1) p += 2; return (k * p + 1) % spp; };
 
+/** dynamicRes option -> settings or null: true or { target fps = 60, min scale = 0.6, step = 0.1 } */
+export function dynamicResConfig(c) {
+  if (!c) return null;
+  const o = c === true ? {} : c;
+  const n = (v, d, lo, hi) => (Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d);
+  return { target: n(o.target, 60, 10, 240), min: n(o.min, 0.6, 0.25, 1), step: n(o.step, 0.1, 0.02, 0.5) };
+}
+
 export function createWorldRenderer(config = {}) {
   const {
     canvas, width = canvas?.clientWidth || 1280, height = canvas?.clientHeight || 720, pixelRatio = 1,
@@ -82,6 +90,38 @@ export function createWorldRenderer(config = {}) {
 
   const pipeline = new Pipeline(renderer, { width: width * pixelRatio, height: height * pixelRatio, msaa: device.msaa, aoSamples: Q.aoSamples });
   if (l2cfg) pipeline.useLight2(l2cfg, { sun, G });
+  // dynamic resolution (opt-in, moving frames only): the pipeline renders at resScale x the canvas and the grade pass
+  // stretches it; still frames always render at full size, so they stay bit-identical
+  const dynRes = dynamicResConfig(config.dynamicRes);
+  let baseW = width * pixelRatio, baseH = height * pixelRatio, resScale = 1;
+  const dr = { last: 0, ema: 0, hold: 0, good: 0, wait: 2000, raisedAt: -1e9, lowered: null, clock: 0 };
+  function fitPipeline(s) {
+    const pw = Math.max(16, Math.round(baseW * s)), ph = Math.max(16, Math.round(baseH * s));
+    if (pw !== pipeline.w || ph !== pipeline.h) { pipeline.setSize(pw, ph); taaValid = false; }
+  }
+  // the interval between moving frames drives it: over budget -> one step down; at budget for `wait` -> try one step
+  // up (a step up that is undone within 2 s doubles the wait, up to 32 s); a step down that did not help (the frame
+  // is limited by the CPU, not by pixels) is undone and the scaler rests for 30 s
+  function dynamicStep(now) {
+    const ms = dr.last ? now - dr.last : 0; dr.last = now;
+    if (!ms || ms > 250) { dr.ema = 0; return; }   // the first frame, or after a pause (a hidden tab, a still view)
+    dr.ema = dr.ema ? dr.ema + (ms - dr.ema) * 0.1 : ms;
+    dr.clock += ms; dr.hold -= ms;
+    if (dr.hold > 0) return;
+    const budget = 1000 / dynRes.target;
+    if (dr.lowered) {
+      const { from, ema } = dr.lowered; dr.lowered = null;
+      if (dr.ema > ema * 0.97) { resScale = from; dr.hold = 30000; dr.ema = 0; return; }
+    }
+    if (dr.ema > budget * 1.12 && resScale > dynRes.min + 1e-6) {
+      if (dr.clock - dr.raisedAt < 2000) dr.wait = Math.min(dr.wait * 2, 32000);
+      dr.lowered = { from: resScale, ema: dr.ema };
+      resScale = Math.max(dynRes.min, +(resScale - dynRes.step).toFixed(3)); dr.hold = 700; dr.good = 0; dr.ema = 0;
+    } else if (dr.ema < budget * 1.03 && resScale < 1) {
+      dr.good += ms;
+      if (dr.good > dr.wait) { resScale = Math.min(1, +(resScale + dynRes.step).toFixed(3)); dr.raisedAt = dr.clock; dr.hold = 700; dr.good = 0; dr.ema = 0; }
+    } else dr.good = 0;
+  }
   const mat = createMaterials(G);
   const updates = [];
   const envLight = createEnvLight(renderer, { size: Q.envSize, fade: config.envFade ?? 1.5 });
@@ -91,7 +131,7 @@ export function createWorldRenderer(config = {}) {
   // temporal AA state (moving camera): history validity, previous view-projection, jitter index.
   // ponytail: TAA rather than supersampling while moving: 4 sub-frames cost 4x (~3.4 ms each at 1440x900) and
   // still crawl on thin edges; TAA is one extra full-screen pass. Still views keep the exact sub-frame average.
-  let taaValid = false, taaK = 0;
+  let taaValid = false, taaK = 0, lastMoving = 0;
   const prevVP = new THREE.Matrix4(), curVP = new THREE.Matrix4(), invVP = new THREE.Matrix4();
 
   const setLampGain = () => { G.uLampGain.value = light.lamp * Math.pow(exposure, -0.9); };
@@ -199,6 +239,15 @@ export function createWorldRenderer(config = {}) {
     const dt = opts.dt ?? 1 / 60, shutter = opts.shutter ?? 0.5;
     const sh = opts.shadow || shadow;
     const P = { ...post, exposure: post.exposure * exposure, temperature: post.temperature + light.warmth };
+    const now = performance.now();
+    // the seconds since the last moving frame, for auto exposure (still frames are metered on their own)
+    const frameDt = taa ? (lastMoving ? Math.min((now - lastMoving) / 1000, 0.25) : 1 / 60) : 0;
+    lastMoving = taa ? now : 0;
+    if (dynRes) {
+      if (taa) dynamicStep(now); else dr.last = 0;
+      fitPipeline(taa ? resScale : 1);
+      if (taa && resScale < 1) P.sharpen = post.sharpen + (1 - resScale) * 0.6;   // the stretch softens: sharpen a little more
+    }
     writeFog();
     const W = aaWeights(spp);
     const w = pipeline.w, h = pipeline.h;
@@ -239,7 +288,7 @@ export function createWorldRenderer(config = {}) {
       cam.projectionMatrixInverse.copy(cam.projectionMatrix).invert();
       if (!cam.position.equals(savedPos)) { cam.position.copy(savedPos); cam.updateMatrixWorld(); }
     }
-    pipeline.end(P, opts.frameIndex ?? frameCounter++, opts.target ?? null);
+    pipeline.end(P, opts.frameIndex ?? frameCounter++, opts.target ?? null, { dt: opts.taa ? (opts.dt ?? frameDt) : 0, still: !taa });
   }
 
   /** Interiors: [{ min: [x,y,z], max: [x,y,z], factor = 0.3, soft = 0.6 }] scale the image-based light inside
@@ -259,7 +308,8 @@ export function createWorldRenderer(config = {}) {
 
   function resize(wd, ht) {
     renderer.setSize(wd, ht, false);
-    pipeline.setSize(wd * pixelRatio, ht * pixelRatio);
+    baseW = wd * pixelRatio; baseH = ht * pixelRatio;
+    pipeline.setSize(Math.max(16, Math.round(baseW * (dynRes ? resScale : 1))), Math.max(16, Math.round(baseH * (dynRes ? resScale : 1))));
     camera.aspect = wd / ht; camera.updateProjectionMatrix();
     taaValid = false;   // the history targets were reallocated (empty)
   }
@@ -277,7 +327,11 @@ export function createWorldRenderer(config = {}) {
 
   const ctx = { THREE, renderer, scene, camera, G, keyDir, mat, geom, rng, quality, place, onUpdate: (fn) => updates.push(fn) };
   return {
-    renderer, scene, camera, sun, sky, stars, pipeline, ctx, G, keyDir, mat, geom, rng, post, device, light2: l2cfg,
+    renderer, scene, camera, sun, sky, stars, pipeline, ctx, G, keyDir, mat, geom, rng, post, device, light2: l2cfg, dynamicRes: dynRes,
+    /** the moving frames' render scale (1 = the canvas; below 1 only with `dynamicRes`) */
+    get resolutionScale() { return resScale; },
+    /** forget the adapted exposure (auto exposure): the next frame is metered on its own, e.g. after a teleport */
+    resetExposure: () => pipeline.resetExposure(),
     get light() { return light; }, get state() { return state; }, get exposure() { return exposure; },
     setTime, tick, prepare, renderFrame, resize, dispose, captureEnv, setAmbientVolumes,
   };

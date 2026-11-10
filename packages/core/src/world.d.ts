@@ -23,7 +23,12 @@ export interface WorldRendererOptions {
   post?: Partial<PostSettings>; preserveDrawingBuffer?: boolean; mobile?: boolean; shadowMapSize?: number; spp?: number;
   /** Lamp shadows, screen-space reflections, volumetric light, mixed bloom (off by default). */
   light2?: Light2Option;
+  /** Moving frames render below the canvas size when they run over budget (off by default; stills stay full size). */
+  dynamicRes?: boolean | Partial<DynamicResSettings>;
 }
+export interface DynamicResSettings { target: number; min: number; step: number }
+/** The full dynamic-resolution settings for `true` / a partial object; null when off. */
+export function dynamicResConfig(option?: boolean | Partial<DynamicResSettings> | null): DynamicResSettings | null;
 export interface RenderFrameOptions {
   camera?: RenderCamera; getCamera?: (seconds: number) => RenderCamera; spp?: number; dt?: number;
   shutter?: number; frameIndex?: number; target?: THREE.WebGLRenderTarget | null;
@@ -44,6 +49,12 @@ export interface WorldRenderer {
   mat: MaterialKit; geom: typeof geom; rng: typeof rng; post: PostSettings; device: DeviceProfile;
   /** The light2 settings in use (live), null when off. */
   light2: Light2Settings | null;
+  /** The dynamic-resolution settings in use (live), null when off. */
+  dynamicRes: DynamicResSettings | null;
+  /** The moving frames' render scale (1 = the canvas size). */
+  readonly resolutionScale: number;
+  /** Auto exposure: forget the adapted exposure, so the next frame is metered on its own (after a teleport or cut). */
+  resetExposure(): void;
   /** Null before setTime(), prepare() or the first renderFrame(). */
   readonly light: LightState | null; readonly state: SkyState | null; readonly exposure: number;
   setTime(time: SkyTime, options?: { ease?: boolean }): LightState;

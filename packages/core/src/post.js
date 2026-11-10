@@ -29,6 +29,9 @@ export const DEFAULT_POST = {
   tonemap: 'aces', sharpen: 0.2, grain: 0.012,
   bloom: 0.08, bloomRadius: 0.55,
   ao: 0.8, aoRadius: 0.9, aoPower: 1.3,
+  aoLit: 0,            // 0..1: fade the AO out on brightly lit pixels (occlusion belongs to ambient light), 0 = off
+  autoExposure: 0,     // 0..1: how far the eye adapts toward aeKey (log2 space), 0 = off; see end()
+  aeKey: 0.2, aeRange: 1.5, aeUp: 1.0, aeDown: 2.5,   // target mean (exposed luminance), max EV either way, rates (1/s)
   sky: 1,              // multiplier for sky pixels (nothing drawn), applied per sub-frame
   dof: 0, focus: 8,    // depth of field: lens radius (m, 0 = off) and focus distance (m); needs spp > 1
 };
@@ -75,7 +78,7 @@ export class Pipeline {
       }`, { tDepth: { value: null }, uInvProj: { value: new THREE.Matrix4() }, uProj: { value: new THREE.Matrix4() }, uTexel: { value: new THREE.Vector2() }, uRadius: { value: 1 }, uPower: { value: 1 }, uK: { value: 0 } });
     // accumulate, with a 4x4 depth-aware blur of the AO (it removes the interleaved pattern)
     this.acc = quadMat(/* glsl */ `
-      varying vec2 vUv; uniform sampler2D tColor, tAO; uniform vec2 uAOTexel; uniform float uW, uAO, uSky;
+      varying vec2 vUv; uniform sampler2D tColor, tAO; uniform vec2 uAOTexel; uniform float uW, uAO, uSky, uAOLit, uAOExp;
       uniform sampler2D tSSR, tVol; uniform float uUseSSR, uUseVol; uniform vec2 uVolTexel;
       ${VIEWPOS}
       void main(){
@@ -89,7 +92,11 @@ export class Pipeline {
             float wz = exp(-abs(viewPos(q).z - z0) / (0.03 * abs(z0) + 0.05));
             s += texture2D(tAO, q).r * wz; w += wz;
           }
-          c *= mix(1.0, s / max(w, 1e-4), uAO);
+          float o = s / max(w, 1e-4);
+          // aoLit: occlusion belongs to ambient light; a brightly lit pixel (exposed luminance) is mostly direct light,
+          // so fade the darkening there (sunlit walls get no dirty halos)
+          if (uAOLit > 0.0) o = mix(o, 1.0, uAOLit * smoothstep(0.25, 1.0, dot(c, vec3(0.2126, 0.7152, 0.0722)) * uAOExp));
+          c *= mix(1.0, o, uAO);
         }
         if (uUseSSR > 0.5) {
           // light2: toward the screen-space reflection where it hit (premultiplied: bilinear up-sampling keeps the colour)
@@ -105,12 +112,13 @@ export class Pipeline {
         }
         if (any(isnan(c))) c = vec3(0.0);
         gl_FragColor = vec4(min(c, vec3(32000.0)) * uW, uW);
-      }`, { tColor: { value: null }, tAO: { value: null }, tDepth: { value: null }, uInvProj: { value: new THREE.Matrix4() }, uAOTexel: { value: new THREE.Vector2() }, uW: { value: 1 }, uAO: { value: 0 }, uSky: { value: 1 },
+      }`, { tColor: { value: null }, tAO: { value: null }, tDepth: { value: null }, uInvProj: { value: new THREE.Matrix4() }, uAOTexel: { value: new THREE.Vector2() }, uW: { value: 1 }, uAO: { value: 0 }, uSky: { value: 1 }, uAOLit: { value: 0 }, uAOExp: { value: 1 },
       tSSR: { value: null }, tVol: { value: null }, uUseSSR: { value: 0 }, uUseVol: { value: 0 }, uVolTexel: { value: new THREE.Vector2() } },
     { blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor, transparent: true });
     this.grade = quadMat(/* glsl */ `
       varying vec2 vUv; uniform sampler2D tColor; uniform vec2 uTexel;
       uniform float uExposure, uSat, uCon, uLift, uVig, uSharp, uGrain, uFrame, uTM; uniform vec3 uWB;
+      uniform sampler2D tAE; uniform float uUseAE;
       #include <tonemapping_pars_fragment>
       float h3(vec3 p){ uvec3 v = floatBitsToUint(p) * 1664525u + 1013904223u; v.x += v.y * v.z; v.y += v.z * v.x; v.z += v.x * v.y; v ^= v >> 16u; v.x += v.y * v.z; return float(v.x) / 4294967296.0; }
       void main(){
@@ -119,6 +127,7 @@ export class Pipeline {
                + texture2D(tColor, vUv + vec2(0.0, uTexel.y)).rgb + texture2D(tColor, vUv - vec2(0.0, uTexel.y)).rgb;
         c = max(c + uSharp * clamp(c - n * 0.25, -0.5 * c, 0.5 * c), 0.0);   // limited: no halos on hot edges
         c *= uExposure * uWB;
+        if (uUseAE > 0.5) c *= exp2(texture2D(tAE, vec2(0.5)).r);   // auto exposure: the adapted EV (end())
         c = uTM < 0.5 ? AgXToneMapping(c) : uTM < 1.5 ? ACESFilmicToneMapping(c) : NeutralToneMapping(c);
         float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
         c = max(mix(vec3(l), c, uSat), 0.0);
@@ -130,7 +139,37 @@ export class Pipeline {
         float g = h3(vec3(gl_FragCoord.xy, uFrame)) + h3(vec3(gl_FragCoord.yx * 0.5, uFrame + 7.0)) - 1.0;
         o += g * uGrain * (1.0 - 0.6 * o) + (h3(vec3(gl_FragCoord.xy, uFrame + 13.0)) - 0.5) / 255.0;
         gl_FragColor = vec4(o, 1.0);
-      }`, { tColor: { value: null }, uTexel: { value: new THREE.Vector2() }, uExposure: { value: 1 }, uSat: { value: 1 }, uCon: { value: 1 }, uLift: { value: 0 }, uVig: { value: 0 }, uSharp: { value: 0 }, uGrain: { value: 0 }, uFrame: { value: 0 }, uTM: { value: 0 }, uWB: { value: new THREE.Vector3(1, 1, 1) } });
+      }`, { tColor: { value: null }, uTexel: { value: new THREE.Vector2() }, uExposure: { value: 1 }, uSat: { value: 1 }, uCon: { value: 1 }, uLift: { value: 0 }, uVig: { value: 0 }, uSharp: { value: 0 }, uGrain: { value: 0 }, uFrame: { value: 0 }, uTM: { value: 0 }, uWB: { value: new THREE.Vector3(1, 1, 1) },
+      tAE: { value: null }, uUseAE: { value: 0 } });
+    // auto exposure (opt-in, P.autoExposure): meter the frame into a 32 x 18 grid of centre-weighted log luminances,
+    // reduce it to one EV and adapt toward it (all on the GPU: no read-back). A still frame is metered on its own
+    // (no history), so it stays bit-identical; while moving the EV eases in log space, slower when brightening.
+    this.meterMat = quadMat(/* glsl */ `
+      varying vec2 vUv; uniform sampler2D tColor; uniform vec2 uCell; uniform float uExp;
+      void main(){
+        float s = 0.0;
+        for (int y = 0; y < 4; y++) for (int x = 0; x < 4; x++){
+          vec3 c = texture2D(tColor, vUv + (vec2(x, y) - 1.5) * 0.25 * uCell).rgb;
+          s += log2(max(dot(c, vec3(0.2126, 0.7152, 0.0722)) * uExp, 1e-4));
+        }
+        vec2 d = (vUv - 0.5) * vec2(1.6, 1.0);
+        float w = exp(-4.0 * dot(d, d)) + 0.05;   // centre-weighted, the edges still count a little
+        gl_FragColor = vec4(s / 16.0 * w, w, 0.0, 1.0);
+      }`, { tColor: { value: null }, uCell: { value: new THREE.Vector2() }, uExp: { value: 1 } });
+    this.adaptMat = quadMat(/* glsl */ `
+      uniform sampler2D tMeter, tPrev; uniform float uKey, uStrength, uRange, uUp, uDown, uDt, uReset;
+      void main(){
+        float s = 0.0, w = 0.0;
+        for (int y = 0; y < 18; y++) for (int x = 0; x < 32; x++){
+          vec2 m = texture2D(tMeter, (vec2(x, y) + 0.5) / vec2(32.0, 18.0)).rg; s += m.x; w += m.y;
+        }
+        float ev = clamp(uStrength * (log2(uKey) - s / max(w, 1e-6)), -uRange, uRange);
+        float prev = texture2D(tPrev, vec2(0.5)).r;
+        float t = uReset > 0.5 ? 1.0 : 1.0 - exp(-uDt * (ev > prev ? uUp : uDown));
+        gl_FragColor = vec4(mix(prev, ev, t), 0.0, 0.0, 1.0);
+      }`, { tMeter: { value: null }, tPrev: { value: null }, uKey: { value: 0.2 }, uStrength: { value: 0 }, uRange: { value: 1.5 }, uUp: { value: 1 }, uDown: { value: 2.5 }, uDt: { value: 1 / 60 }, uReset: { value: 1 } });
+    const small = (w, h) => new THREE.WebGLRenderTarget(w, h, { type: THREE.HalfFloatType, depthBuffer: false, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter });
+    this.meterRT = small(32, 18); this.aeA = small(1, 1); this.aeB = small(1, 1); this.aeValid = false;
     // temporal AA for a moving camera (one jittered sub-frame per frame): the history is reprojected through the
     // depth buffer and clipped to the new frame's 3x3 neighbourhood (mean +- 1.25 sigma), in a compressed range
     // so one hot pixel cannot dominate. ponytail: static-scene reprojection (no motion vectors), bilinear
@@ -466,6 +505,7 @@ export class Pipeline {
     a.tColor.value = this.sceneRT.texture; a.tAO.value = this.aoRT.texture; a.tDepth.value = this.sceneRT.depthTexture;
     a.uInvProj.value.copy(camera.projectionMatrixInverse); a.uAOTexel.value.set(1 / this.aoRT.width, 1 / this.aoRT.height);
     a.uW.value = w; a.uAO.value = useAO ? P.ao : 0; a.uSky.value = P.sky;
+    a.uAOLit.value = useAO ? Math.min(1, Math.max(0, P.aoLit || 0)) : 0; a.uAOExp.value = P.exposure;
     this._draw(this.acc, this.accRT);
   }
 
@@ -481,8 +521,29 @@ export class Pipeline {
     this._draw(this.copyMat, this.accRT);
   }
 
-  /** Bloom and grade the accumulated frame into `target` (null = the canvas). */
-  end(P, frameIndex = 0, target = null) {
+  /** Forget the adapted exposure: the next frame is metered on its own (a cut, a teleport). */
+  resetExposure() { this.aeValid = false; }
+
+  _meter(P, expo, { dt = 1 / 60, still = false }) {
+    const m = this.meterMat.uniforms;
+    m.tColor.value = this.accRT.texture; m.uCell.value.set(1 / 32, 1 / 18); m.uExp.value = expo;
+    this._draw(this.meterMat, this.meterRT);
+    const u = this.adaptMat.uniforms;
+    u.tMeter.value = this.meterRT.texture; u.tPrev.value = this.aeA.texture;
+    u.uKey.value = Math.max(1e-4, P.aeKey); u.uStrength.value = Math.min(1, P.autoExposure); u.uRange.value = Math.max(0, P.aeRange);
+    u.uUp.value = Math.max(0, P.aeUp); u.uDown.value = Math.max(0, P.aeDown);
+    u.uDt.value = Math.min(Math.max(dt, 0), 0.25); u.uReset.value = still || !this.aeValid ? 1 : 0;
+    this._draw(this.adaptMat, this.aeB);
+    [this.aeA, this.aeB] = [this.aeB, this.aeA];
+    this.aeValid = true;   // a still frame's EV is its own (reset above); the next moving frame eases on from it
+  }
+
+  /** Bloom and grade the accumulated frame into `target` (null = the canvas). opts: { dt, still } for auto exposure
+   *  (the seconds since the last frame; still = a still frame, metered on its own so it stays bit-identical). */
+  end(P, frameIndex = 0, target = null, opts = {}) {
+    const useAE = P.autoExposure > 0;
+    if (useAE) this._meter(P, P.exposure, opts);
+    else this.aeValid = false;
     const b = this.bloomPass;
     // the mid-range factor of three's bloom composite (3 x the radius-mixed mip weights): the lift an additive
     // bloom of strength 1 gives a flat image
@@ -513,6 +574,7 @@ export class Pipeline {
     u.uExposure.value = P.exposure * expK; u.uSat.value = P.saturation; u.uCon.value = P.contrast; u.uLift.value = P.lift;
     u.uVig.value = P.vignette; u.uSharp.value = P.sharpen; u.uGrain.value = P.grain; u.uFrame.value = frameIndex % 4096;
     u.uTM.value = { agx: 0, aces: 1, neutral: 2 }[P.tonemap] ?? 0;
+    u.uUseAE.value = useAE ? 1 : 0; u.tAE.value = this.aeA.texture;
     const t = P.temperature;   // -1 cool .. +1 warm, a simple channel tilt
     u.uWB.value.set(1 + 0.1 * t, 1, 1 - 0.12 * t);
     this._draw(this.grade, target);
@@ -526,9 +588,9 @@ export class Pipeline {
   }
 
   dispose() {
-    for (const t of [this.sceneRT, this.aoRT, this.accRT, this.histA, this.histB, this.ssrRT, this.volRT]) t && t.dispose();
+    for (const t of [this.sceneRT, this.aoRT, this.accRT, this.histA, this.histB, this.ssrRT, this.volRT, this.meterRT, this.aeA, this.aeB]) t && t.dispose();
     if (this.l2) { this.l2.lamps.dispose(); this.l2.ssrMat.dispose(); this.l2.volMat.dispose(); }
     this.bloomPass.dispose(); this.quad.dispose();
-    for (const m of [this.ao, this.acc, this.grade, this.taaMat, this.copyMat, this.blendMat]) m.dispose();
+    for (const m of [this.ao, this.acc, this.grade, this.taaMat, this.copyMat, this.blendMat, this.meterMat, this.adaptMat]) m.dispose();
   }
 }

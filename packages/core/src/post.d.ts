@@ -6,6 +6,13 @@ export interface PostSettings {
   exposure: number; temperature: number; saturation: number; contrast: number; lift: number; vignette: number;
   tonemap: 'agx' | 'aces' | 'neutral'; sharpen: number; grain: number; bloom: number; bloomRadius: number;
   ao: number; aoRadius: number; aoPower: number; sky: number; dof: number; focus: number;
+  /** 0..1: fade the AO out on brightly lit pixels (0 = AO everywhere, as before). */
+  aoLit: number;
+  /** 0..1: how far the exposure adapts toward aeKey (0 = off). */
+  autoExposure: number;
+  /** Auto exposure: target mean exposed luminance, the largest correction in EV either way, the adaptation rates (1/s)
+   *  when brightening (aeUp) and darkening (aeDown). */
+  aeKey: number; aeRange: number; aeUp: number; aeDown: number;
 }
 export const DEFAULT_POST: PostSettings;
 export class Pipeline {
@@ -22,7 +29,10 @@ export class Pipeline {
   /** Turn on light2's passes (createWorldRenderer does this for `light2`). */
   useLight2(settings: Light2Settings, context: { sun: THREE.DirectionalLight; G: Record<string, THREE.IUniform> }): void;
   taa(inverseViewProjection: THREE.Matrix4, previousViewProjection: THREE.Matrix4, alpha: number): void;
-  end(post: PostSettings, frameIndex?: number, target?: THREE.WebGLRenderTarget | null): void;
+  /** options (auto exposure): dt = seconds since the last moving frame; still = meter this frame on its own. */
+  end(post: PostSettings, frameIndex?: number, target?: THREE.WebGLRenderTarget | null, options?: { dt?: number; still?: boolean }): void;
+  /** Auto exposure: the next frame is metered on its own. */
+  resetExposure(): void;
   blend(a: THREE.WebGLRenderTarget, b: THREE.WebGLRenderTarget, t: number, target?: THREE.WebGLRenderTarget | null): void;
   /** Releases owned targets and post-processing resources; leaves the supplied renderer alive. */
   dispose(): void;
