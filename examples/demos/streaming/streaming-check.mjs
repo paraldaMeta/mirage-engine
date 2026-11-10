@@ -75,7 +75,7 @@ async function loadStats(query) {
   const p = await open(query);
   await new Promise((r) => setTimeout(r, 1000));
   const s = await p.page.evaluate(() => {
-    const ready = performance.now(), lt = window.__lt;
+    const lt = window.__lt;
     return { timing: window.__mirage.timing, longTasks: { count: lt.length, totalMs: +lt.reduce((a, t) => a + t[1], 0).toFixed(1), maxMs: lt.reduce((a, t) => Math.max(a, t[1]), 0) }, gpu: (() => { const gl = window.__mirage.world.renderer.getContext(), e = gl.getExtension('WEBGL_debug_renderer_info'); return e ? gl.getParameter(e.UNMASKED_RENDERER_WEBGL) : '?'; })() };
   });
   results.gpu ??= s.gpu;
@@ -95,7 +95,6 @@ const pixels = (page, a, b) => page.evaluate(async (a, b) => {
   for (let k = 0; k < A.length; k += 4) for (let c = 0; c < 3; c++) { const d = Math.abs(A[k + c] - B[k + c]); s += d; mx = Math.max(mx, d); n++; }
   return { meanAbs: +(s / n).toFixed(4), max: mx };
 }, a, b);
-const stat = (v) => { const s = [...v].sort((a, b) => a - b); return { mean: +(s.reduce((a, b) => a + b, 0) / s.length).toFixed(2), p95: +s[Math.floor(s.length * 0.95)].toFixed(2), max: +s[s.length - 1].toFixed(2), n: s.length }; };
 const med = (v) => { const s = [...v].sort((a, b) => a - b); return s[Math.floor(s.length / 2)]; };
 const summary = (rows, keys) => Object.fromEntries(keys.map((k) => [k, { median: med(rows.map((r) => k.split('.').reduce((o, p) => o?.[p], r))), all: rows.map((r) => k.split('.').reduce((o, p) => o?.[p], r)) }]));
 

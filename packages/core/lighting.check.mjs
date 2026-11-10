@@ -1,7 +1,7 @@
 // Mirage original code.
 // The pure parts of the lighting features (no GPU): `node packages/core/lighting.check.mjs`, also run by check.mjs.
 // The GPU paths are checked in Chrome by packages/tools/src/lighting-check.mjs.
-import assert from 'node:assert/strict';
+import assert from '../../scripts/soft-assert.mjs';
 import * as THREE from 'three';
 import { createInjector, isLit } from './src/inject.js';
 import { csmConfig, csmSplits, sliceSphere, snapToTexel, CSM_DEFAULTS } from './src/csm.js';

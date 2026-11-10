@@ -11,7 +11,7 @@ import { createEnv, createMaterials } from '@mirage/core';
 import { addTerrain } from '@mirage/world/kits/terrain';
 import { addWater } from '@mirage/world/kits/water';
 
-const ok = (c, m) => { if (!c) { console.error('FAIL', m); process.exit(1); } console.log('  ok', m); };
+import { ok } from '../../scripts/soft-assert.mjs';   // reports every failure with a count, not only the first
 const scene = new THREE.Scene(), M = new THREE.MeshBasicMaterial();
 const box = (w, h, d, x, y, z, s) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), M.clone()); m.position.set(x, y, z); if (s) m.material.userData.surface = s; scene.add(m); return m; };
 box(40, 1, 40, 0, -0.5, 0, 'stone');                                  // floor, top at 0

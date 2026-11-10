@@ -339,7 +339,7 @@ T('existing API: createAudio plays through the engine buses, and alone again aft
   for (let i = 0; i < 100 && audio.ctx.state !== 'running'; i++) await new Promise((r) => setTimeout(r, 20));
   const alone = await hear(() => audio.play('pickup'));
   const e = createAudioEngine({ audio, buses: { sfx: { effects: [{ id: 'cut', type: 'gain', gain: 1 }] } } });
-  const through = await hear(() => audio.play('pickup')), meter = e.mixer.has('sfx');
+  const through = await hear(() => audio.play('pickup'));
   e.bus('sfx').effect('cut').set({ gain: 0 });
   await new Promise((r) => setTimeout(r, 60));
   const cut = await hear(() => audio.play('pickup'));

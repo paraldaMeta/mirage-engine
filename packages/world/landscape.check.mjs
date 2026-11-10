@@ -1,5 +1,5 @@
 // Test-machine checks using real mesh raycasts; no renderer is needed for these geometry contracts.
-import assert from 'node:assert/strict';
+import assert from '../../scripts/soft-assert.mjs';
 import * as THREE from 'three';
 import { createEnv, createMaterials } from '@mirage/core';
 import { addTerrain } from '@mirage/world/kits/terrain';

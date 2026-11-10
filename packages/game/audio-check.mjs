@@ -6,7 +6,7 @@ import { createAudioEngine, normalizeZones, zoneWeights, zonesFromPlan } from '.
 import { gridOccluder, physicsOccluder } from './src/audio-occlusion.js';
 import { audioStatsText } from './src/audio-debug.js';
 
-const ok = (c, m) => { if (!c) { console.error('FAIL', m); process.exit(1); } console.log('  ok', m); };
+import { ok } from '../../scripts/soft-assert.mjs';   // reports every failure with a count, not only the first
 const near = (a, b, e = 1e-6) => Math.abs(a - b) <= e;
 
 // ---- formulas ----------------------------------------------------------------------------------------------

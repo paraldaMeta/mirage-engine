@@ -1,0 +1,17 @@
+{
+  "title": "snow-hut on software GL (hosted CI): the game loop (walk in, light the stove), a wall, two stills against the committed baselines",
+  "query": "start=1&grain=0",
+  "w": 480, "h": 300,
+  "baseline": "baseline/snow-hut",
+  "steps": [
+    { "name": "spawn", "ms": 500, "expect": { "onGround": "== true", "y": "~ 0 0.3", "paused": "== false", "errors": "== 0" }, "shot": false },
+    { "name": "to-the-door", "walkTo": [[1.3, 1.5], [1.3, 0.4]], "run": true, "timeout": 90000, "expect": { "x": "~ 1.3 0.4", "z": "~ 0.4 0.4" }, "shot": false },
+    { "name": "through-the-door", "walkTo": [[1.3, -1.6], [-1.2, -2.0], [-1.5, -3.9]], "timeout": 90000, "expect": { "x": "~ -1.5 0.4", "z": "~ -3.9 0.4", "y": "~ 0.34 0.05" }, "shot": false },
+    { "name": "stove-prompt", "lookAt": "stove", "expect": { "near": "== stove", "prompt": "has Light the stove" }, "shot": false },
+    { "name": "light-the-stove", "tap": "KeyE", "ms": 1500, "expect": { "flags.lit": "== true", "flags.done": "== true" }, "shot": false },
+    { "name": "close-the-message", "tap": "Enter", "ms": 600, "expect": { "paused": "== false", "flags.lit": "== true" }, "shot": false },
+    { "name": "hut-blocks-from-outside", "place": { "eye": [-1, 1.62, 3], "look": [-1, 1.62, -10], "mode": "walk" }, "keys": ["KeyW"], "ms": 7000, "expect": { "z": "> -0.5" }, "shot": false },
+    { "name": "view-arrival", "viewpoint": 0, "expect": { "luma": "> 20" } },
+    { "name": "view-stove", "viewpoint": 3, "expect": { "errors": "== 0" } }
+  ]
+}

@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { definePlan, contains, along, pathLength, buildWorld } from './src/index.js';
 import { rng } from '@mirage/core';
 
-const ok = (c, m) => { if (!c) { console.error('FAIL', m); process.exit(1); } };
+import { okQuiet as ok } from '../../scripts/soft-assert.mjs';   // reports every failure with a count, not only the first
 const plan = definePlan({ name: 't', bounds: [-10, -10, 10, 10], regions: { a: { rect: [0, 0, 2, 2] }, c: { circle: [0, 0, 1] }, p: { poly: [[0, 0], [4, 0], [0, 4]] } }, paths: { m: { points: [[0, 0], [3, 4], [3, 10]] } } });
 ok(contains(plan.regions.a, 1, 1) && !contains(plan.regions.a, 3, 1), 'rect');
 ok(contains(plan.regions.c, 0.5, 0.5) && !contains(plan.regions.c, 1, 1), 'circle');
@@ -25,7 +25,7 @@ const quiet = { log() {}, error() {} };
 const modules = [
   { name: 'walls', build(ctx) { order.push('walls'); ctx.root.add(new THREE.Mesh(new THREE.BoxGeometry())); return { r: ctx.R.float() }; }, anchors: (ctx, b) => ({ lamps: [{ pos: [1, 2, 3], rotY: 0 }] }) },
   { name: 'broken', build(ctx) { ctx.root.add(new THREE.Mesh(new THREE.BoxGeometry())); ctx.onUpdate(() => {}); throw new Error('deliberate'); }, anchors: { lamps: [{ pos: [9, 9, 9] }] } },
-  { name: 'props', build(ctx) { order.push('props'); }, finalize(ctx) { order.push('props:finalize'); for (const a of ctx.anchors.lamps) ctx.root.add(new THREE.PointLight()); } },
+  { name: 'props', build(ctx) { order.push('props'); }, finalize(ctx) { order.push('props:finalize'); for (const _ of ctx.anchors.lamps) ctx.root.add(new THREE.PointLight()); } },
   { name: 'room', build() { return {}; }, ambientVolumes: [{ min: [0, 0, 0], max: [1, 1, 1] }] },
 ];
 const out = await buildWorld(world, { plan, modules, log: quiet });
@@ -253,7 +253,7 @@ ok(out.modules.walls.r === rng('t/walls').float(), 'per-module rng');
   ok(w.regs.length === 1 && st.stats.builds.length === 4, 'rebuilt after eviction, still one registration');
   // 13: evicting one cached module keeps a texture another cached module still samples
   {
-    const w2 = mkWorld(), t = { n: 0 }, tex2 = new THREE.DataTexture(new Uint8Array(4 * 16 * 16), 16, 16); tex2.needsUpdate = true;
+    const w2 = mkWorld(), tex2 = new THREE.DataTexture(new Uint8Array(4 * 16 * 16), 16, 16); tex2.needsUpdate = true;
     let gone = 0; tex2.addEventListener('dispose', () => gone++);
     const mod = (x) => ({ name: 'n' + x, center: [x, 0], radius: 10, build: (ctx) => { ctx.root.add(new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial({ map: tex2 }))); } });
     const s2 = createStreamer(w2, { plan: { name: 'c', bounds: [-50, -50, 50, 50] }, log: logger, budget: 1e9, modules: [mod(0), mod(4)] });

@@ -1,6 +1,6 @@
 // Animator contracts on the code-authored rig after a GLB round trip: blend spaces, the state machine, masked and
 // additive layers, root motion (and the walker driven by it), clip events, determinism.
-import assert from 'node:assert/strict';
+import assert from '../../scripts/soft-assert.mjs';
 import * as THREE from 'three';
 import validator from 'gltf-validator';
 import { createEnv, createMaterials, writeGLB } from '@mirage/core';

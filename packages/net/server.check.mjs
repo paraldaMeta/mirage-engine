@@ -12,7 +12,7 @@ import { joinRoom, hostRoom } from './src/host.js';
 import { kitProtocol, installKit } from './src/kit.js';
 import { bakeGridCPU, boxTriangles, serializeGrid, deserializeGrid } from './src/grid.js';
 
-const ok = (c, m) => { if (!c) { console.error('FAIL', m); process.exit(1); } console.log('  ok', m); };
+import { ok } from '../../scripts/soft-assert.mjs';   // reports every failure with a count, not only the first
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const until = async (fn, ms = 6000) => { const t = Date.now(); while (!fn()) { if (Date.now() - t > ms) return false; await sleep(20); } return true; };
 
@@ -105,7 +105,7 @@ const pump = new Set();   // sessions whose clients are updated at 60 Hz
 const timer = setInterval(() => { for (const s of pump) s.client.update(); }, 1000 / 60);
 const others = (s) => [...s.client.entities.values()].filter((e) => e.name === 'player' && e.id !== s.client.id);
 const pickupsOf = (s) => [...s.client.entities.values()].filter((e) => e.name === 'pickup');
-let token = null, firstId = 0;
+let firstId = 0;
 {
   const la = await connectLobby(at.ws), lb = await connectLobby(at.ws);
   const code = await la.create('  Yard\u0007  ', 4);
@@ -130,7 +130,7 @@ let token = null, firstId = 0;
   ok(await until(() => others(b)[0].state.score === 1 && pickupsOf(b).find((e) => e.id === pid).state.taken === true) && Math.abs(others(b)[0].state.x - a.client.walker.pos[0]) < 0.05, 'room: score, pickup state and position converge on the other client');
   ok(a.client.stats.corrections === 0 && a.client.stats.exact > 20, `room: prediction over a real socket is exact (${a.client.stats.exact} confirmations, 0 corrections)`);
   // reconnect: the socket dies, a new one resumes the same player with its token
-  token = a.client.token; firstId = a.client.id;
+  firstId = a.client.id;
   const where = a.client.walker.pos.slice();
   la.socket.socket.close(); pump.delete(a);
   ok(await until(() => a.client.status === 'closed' && others(b)[0]?.state.away === true), 'reconnect: a dropped player stays in the room, marked away');

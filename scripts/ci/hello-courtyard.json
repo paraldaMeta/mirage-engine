@@ -1,0 +1,14 @@
+{
+  "title": "hello-courtyard on software GL (hosted CI): walk, collide, one perf step, two stills against the committed baselines",
+  "query": "mode=walk&ui=0",
+  "w": 480, "h": 300,
+  "baseline": "baseline/hello-courtyard",
+  "steps": [
+    { "name": "spawn", "place": { "eye": [0.4, 1.62, 5.4], "look": [0, 1.5, -6], "mode": "walk" }, "expect": { "y": "~ 0 0.02", "onGround": "== true", "errors": "== 0", "luma": "> 20", "dark": "< 0.5" } },
+    { "name": "gate-passes", "place": { "eye": [0, 1.62, 3], "look": [0, 1.62, 20], "mode": "walk" }, "walkTo": [[0, 9.2]], "timeout": 60000, "expect": { "z": "> 8.6", "y": "~ 0 0.1" }, "shot": false },
+    { "name": "wall-blocks", "place": { "eye": [3, 1.62, 3], "look": [10, 1.62, 3], "mode": "walk" }, "keys": ["KeyW"], "ms": 9000, "expect": { "x": "~ 6.9 0.15" }, "shot": false },
+    { "name": "frame-cost", "place": { "eye": [0.4, 1.62, 5.4], "look": [0, 1.5, -6], "mode": "walk" }, "keys": ["KeyW"], "perf": { "frames": 12, "runs": 3 }, "expect": { "frameMs": "< 16.7", "calls": "> 0", "triangles": "> 1000" }, "shot": false },
+    { "name": "view-hero", "viewpoint": 0, "mode": "orbit", "expect": { "luma": "> 20" } },
+    { "name": "view-gate", "viewpoint": 2, "expect": { "errors": "== 0" } }
+  ]
+}

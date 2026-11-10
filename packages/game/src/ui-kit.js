@@ -19,7 +19,7 @@
 // Steady state: nothing reads layout and nothing is written; animated things (bars, world labels) change
 // transform / opacity only. docs/ui.md has the guide and the measured costs.
 // ---------------------------------------------------------------------------
-import { signal, computed, effect, scope, untracked, read, isReactive, onCleanup, batch } from './ui-reactive.js';
+import { signal, effect, scope, untracked, read, isReactive, onCleanup, batch } from './ui-reactive.js';
 import { createFocusNav, glyphFor } from './ui-nav.js';
 import { createI18n } from './ui-i18n.js';
 import { LOCALES } from './ui-locales.js';

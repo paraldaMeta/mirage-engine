@@ -2,7 +2,7 @@
 // Drawing a ParticlePool: one instanced mesh whose vertex shader reads the simulation textures by gl_InstanceID,
 // built with patch() so particles get the same fog, sun, shadow and sky light as every other Mirage material.
 //
-//   import { createParticleMesh } from '@mirage/core/particle-draw';   // normally reached through createVfx (vfx.js)
+//   import { createParticleMesh } from './particle-draw.js';   // internal (not in the export map): reached through createVfx (vfx.js)
 //   const mesh = createParticleMesh(pool, { G, lut, depth, sheets, meshes });
 //   scene.add(mesh);                           // mesh.userData.sync(time) once per frame after the pool stepped
 //

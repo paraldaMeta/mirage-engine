@@ -1,6 +1,6 @@
 // Node check of the effect description format and the library (no GPU): `node packages/core/vfx.check.mjs`,
 // also run by check.mjs. The GPU side is examples/demos/vfx/vfx-check.mjs.
-import assert from 'node:assert/strict';
+import assert from '../../scripts/soft-assert.mjs';
 import { defineEffect, evalCurve, bakeCurves, effectRadius, VFX_ENUMS, VFX_LUT_W, parseColor } from './src/vfx-data.js';
 import { VFX_LIBRARY } from './src/vfx-library.js';
 import { seeded } from './src/vfx-gpu.js';

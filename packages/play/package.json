@@ -15,11 +15,24 @@
   "type": "module",
   "main": "./src/index.js",
   "exports": {
-    ".": {
-      "types": "./src/index.d.ts",
-      "default": "./src/index.js"
-    },
-    "./*": "./src/*.js",
+    ".": { "types": "./src/index.d.ts", "default": "./src/index.js" },
+    "./anim": { "types": "./src/anim.d.ts", "default": "./src/anim.js" },
+    "./character": { "types": "./src/character.d.ts", "default": "./src/character.js" },
+    "./character-model": { "types": "./src/character-model.d.ts", "default": "./src/character-model.js" },
+    "./embed": { "types": "./src/embed.d.ts", "default": "./src/embed.js" },
+    "./glyphs": { "types": "./src/glyphs.d.ts", "default": "./src/glyphs.js" },
+    "./ik": { "types": "./src/ik.d.ts", "default": "./src/ik.js" },
+    "./motion": { "types": "./src/motion.d.ts", "default": "./src/motion.js" },
+    "./navgrid": { "types": "./src/navgrid.d.ts", "default": "./src/navgrid.js" },
+    "./play": { "types": "./src/play.d.ts", "default": "./src/play.js" },
+    "./retarget": { "types": "./src/retarget.d.ts", "default": "./src/retarget.js" },
+    "./rig-character": { "types": "./src/rig-character.d.ts", "default": "./src/rig-character.js" },
+    "./rig-model": { "types": "./src/rig-model.d.ts", "default": "./src/rig-model.js" },
+    "./timeline": { "types": "./src/timeline.d.ts", "default": "./src/timeline.js" },
+    "./walker": { "types": "./src/walker.d.ts", "default": "./src/walker.js" },
+    "./walkgrid": { "types": "./src/walkgrid.d.ts", "default": "./src/walkgrid.js" },
+    "./xr": { "types": "./src/xr.d.ts", "default": "./src/xr.js" },
+    "./xr-hands": { "types": "./src/xr-hands.d.ts", "default": "./src/xr-hands.js" },
     "./package.json": "./package.json"
   },
   "files": [

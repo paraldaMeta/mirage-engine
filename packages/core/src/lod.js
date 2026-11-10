@@ -79,8 +79,6 @@ export function createLod() {
       const g = o.geometry;
       if (!g || !g.attributes.position || (g.groups && g.groups.length > 1) || Array.isArray(o.material)) return;
       const tris = (g.index ? g.index.count : g.attributes.position.count) / 3;
-      // errors are metres in the world; the simplifier works in the mesh's own units (a mesh scaled x5 popped)
-      const unit = o.matrixWorld.getMaxScaleOnAxis() || 1;
       if (tris < minTris || (filter && !filter(o))) return;
       list.push(o);
     });
@@ -89,6 +87,8 @@ export function createLod() {
     const box = new THREE.Box3();
     for (const o of list) {
       const g = o.geometry;
+      // errors are metres in the world; the simplifier works in the mesh's own units (a mesh scaled x5 popped)
+      const unit = o.matrixWorld.getMaxScaleOnAxis() || 1;
       if (!g.boundingBox) g.computeBoundingBox();
       box.union(g.boundingBox.clone().applyMatrix4(o.matrixWorld));
       const { geo, names } = weld(g);

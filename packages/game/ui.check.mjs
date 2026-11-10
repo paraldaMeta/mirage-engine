@@ -13,7 +13,7 @@ import { moveItem, virtualRange, radialIndex, revealCount } from './src/ui-widge
 import { projectPoint, clampToEdge, worldFade } from './src/ui-world.js';
 import { createCanvasUI, cv, layoutCanvas } from './src/ui-canvas.js';
 
-const ok = (c, m) => { if (!c) { console.error('FAIL', m); process.exit(1); } console.log('  ok', m); };
+import { ok } from '../../scripts/soft-assert.mjs';   // reports every failure with a count, not only the first
 const eq = (a, b, m) => ok(JSON.stringify(a) === JSON.stringify(b), `${m} (${JSON.stringify(a)})`);
 
 // ---- binding

@@ -12,6 +12,7 @@
 //   menu      (only when named: --only menu; needs examples/snow-hut/dist) createKitUI as startGame's overlay on
 //             snow-hut ?ui=kit: start screen, HUD, pause menu and its tabs, a message, with the keyboard
 // Exit 1 if a step fails or a page logs an error.
+/* global __ui, __mirage, __pad */   // page globals, used inside page.evaluate()
 import { build } from 'vite';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -52,7 +53,6 @@ async function open(query, { viewport, before } = {}) {
   };
   return p;
 }
-const depth = () => __ui.kit.nav.depth;
 const focusIn = (sel) => { const a = document.activeElement; return !!(a && a.closest(sel)); };
 const slotIds = () => __ui.state.slots.peek().map((s) => (s ? s.id : ''));
 

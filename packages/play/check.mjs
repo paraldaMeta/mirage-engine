@@ -2,7 +2,7 @@
 import { makeGrid, MAXL } from './src/walkgrid.js';
 import { createWalker } from './src/walker.js';
 
-const ok = (c, m) => { if (!c) { console.error('FAIL', m); process.exit(1); } console.log('  ok', m); };
+import { ok } from '../../scripts/soft-assert.mjs';   // reports every failure with a count, not only the first
 const cell = 0.125, x0 = -5, z0 = -5, nx = 80, nz = 80;
 const floors = new Float32Array(nx * nz * MAXL * 2), count = new Uint8Array(nx * nz);
 const set = (k, list) => { count[k] = list.length; list.forEach(([f, c], l) => { floors[(k * MAXL + l) * 2] = f; floors[(k * MAXL + l) * 2 + 1] = c; }); };

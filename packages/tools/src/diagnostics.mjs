@@ -35,6 +35,7 @@ export const CODES = {
   MG202: { severity: 'error', title: 'module threw in finalize', fix: 'Fix finalize(ctx) in the module file; check every anchor it reads exists (ctx.anchors[key] may be undefined).' },
   MG203: { severity: 'error', title: 'required anchors missing', fix: 'Add a module that offers the anchors (anchors: { key: [...] }) before this one, or move the key from consumes.required to consumes.optional.' },
   MG204: { severity: 'error', title: 'module definition invalid', fix: 'A module is { name, build(ctx) } with a unique name; anchors, ambientVolumes and consumes must have the documented shapes.' },
+  MG206: { severity: 'warning', title: 'wall opening reaches the top of its wall', fix: "An opening's height is where its arch springs and the arch defaults to 'round' (+ width / 2): give the opening arch: 'flat', or lower its height so the arch stays under the wall top (the message has the numbers)." },
   MG205: { severity: 'info', title: 'module built no triangles', fix: 'If the module should be visible, check it adds meshes to ctx.root (not to the scene) and that they have geometry.' },
   // ---- MG3xx walking and collision (walk grid, walker, playtest steps)
   MG301: { severity: 'error', title: 'walker stuck', fix: 'Widen the opening (>= 0.62 m), lower the step (<= 0.4 m) or raise the ceiling (>= 1.8 m) at the stuck point, or route walkTo around the obstacle.' },
@@ -57,6 +58,7 @@ export const CODES = {
   MG411: { severity: 'warning', title: 'viewpoint blocked', fix: 'One surface fills the view: move the eye back from it or out of it.' },
   MG412: { severity: 'warning', title: 'viewpoint misses its subject', fix: 'Aim the view at its subject (the object it is named after, or its see: [...] list): set look to the centre given in the message.' },
   MG440: { severity: 'warning', title: 'black frame', fix: 'Check the light: plan.render.post.exposure (default 0.4), plan.render.time (sun below the horizon), and that the camera is not inside a mesh.' },
+  MG442: { severity: 'warning', title: 'interior nearly black', fix: 'The eye is inside a module\'s ambientVolumes box, which dims the sky light, and the room has no light of its own: add a lamp or an emissive surface, raise the volume\'s factor (0.5 - 0.7), or open a window.' },
   MG441: { severity: 'warning', title: 'overexposed frame', fix: 'Lower plan.render.post.exposure or emissive / lamp strengths; check for a mesh with a huge emissive right in front of the camera.' },
   MG450: { severity: 'warning', title: 'coplanar surfaces (z-fighting)', fix: 'Raise the upper surface 1-2 cm (y += 0.01) or remove one of the two; coplanar faces flicker.' },
   MG451: { severity: 'error', title: 'flicker over the limit', fix: 'Open the step\'s -worst-diff.png (bright = what flickered): offset coplanar faces 1-2 cm, coarsen sub-pixel high-contrast detail, exclude animations.' },
@@ -64,7 +66,7 @@ export const CODES = {
   MG460: { severity: 'error', title: 'still differs from its baseline', fix: 'Open the diff image (baseline | now, the worst cell boxed): if the change is meant, refresh the baseline (delete the file, rerun); otherwise undo what moved in that cell.' },
   MG461: { severity: 'error', title: 'still not reproducible', fix: 'The same view drew different pixels after another view or a reload: look for Math.random / Date.now / performance.now in a module or ctx.onUpdate, state kept between frames (a counter, an eased value), or a texture that loads late; seed it (ctx.rng) or reset it in play.place().' },
   // ---- MG5xx performance budgets (plan.budget)
-  MG501: { severity: 'error', title: 'frame time over budget', fix: 'Cut the heaviest module (named in the message): fewer triangles, instancing, fewer shadow casters; or raise plan.budget.frameMs if the target allows.' },
+  MG501: { severity: 'error', title: 'frame time over budget', fix: 'A time is not a cause: read the runs and the spread in the message (over 25 %: measure again on a quiet machine), then compare calls and triangles with plan.budget; shadows, lamps, post effects and resolution cost time without triangles. Or raise plan.budget.frameMs if the target allows.' },
   MG502: { severity: 'error', title: 'p95 frame time over budget', fix: 'Spikes: something rebuilds or compiles while walking; prepare materials at load, avoid per-frame allocations.' },
   MG503: { severity: 'error', title: 'draw calls over budget', fix: 'Merge meshes per material (b.finish) or instance repeated objects in the module named in the message.' },
   MG504: { severity: 'error', title: 'triangles over budget', fix: 'Lower the detail of the heaviest module named in the message (segments, lathe steps, terrain resolution), or instance it.' },
@@ -120,14 +122,27 @@ const PLAN_RULES = { required: 'MG101', type: 'MG102', finite: 'MG103', range: '
 
 /** planIssues(plan) (from @mirage/world/plan-validation) -> diagnostics. */
 export function fromPlanIssues(issues) {
+  // a LIST of spots under plan.points (points: { lamps: [[x, y, z], ...] }) fails once per entry with "expected
+  // number": said once per name, with what to write instead ("Set points.lamps[0] so it is number" helped nobody)
+  const listed = new Set(issues.map((i) => i.rule === 'type' && /^points\.[^.[\]]+\[\d+\]$/.test(i.path) && /expected number/.test(i.message) ? i.path.replace(/\[\d+\]$/, '') : null).filter(Boolean));
+  const said = new Set();
   return issues.map((i) => {
     const code = PLAN_RULES[i.rule] || 'MG102';
+    const name = i.path.replace(/\[\d+\]$/, '');
+    if (listed.has(name)) {
+      if (said.has(name)) return null;
+      said.add(name);
+      const key = name.slice('points.'.length);
+      return diag('MG102', { target: name, message: `${name}: a list of spots, where plan.points takes one [x, y, z] per name`,
+        fix: `Name each spot (points: { ${key}A: [x, y, z], ${key}B: [x, y, z] }), or move the list out of points to a key of your own (plan.${key} = [[x, y, z], ...]): the plan keeps extra top-level keys and a module reads them from ctx.plan.` });
+    }
+    if (code === 'MG104' && /^points\.[^.[\]]+$/.test(i.path)) return diag(code, { target: i.path, message: `${i.path}: ${i.message}`, fix: `Give ${i.path} three numbers, [x, y, z] with y the height (ground spots are [x, 0, z]; [x, z] pairs belong to paths and shapes).` });
     let fix;
     if (code === 'MG101') fix = `Add ${i.path} to plan.js.`;
     else if (code === 'MG107') fix = `Make ${i.path} larger than the corner before it: rects are [x0, z0, x1, z1] with x1 > x0, z1 > z0.`;
     else if (code === 'MG104' || code === 'MG102' || code === 'MG105' || code === 'MG103') fix = `Set ${i.path} so it ${i.message.replace(/^expected/, 'is')}.`;
     return diag(code, { target: i.path, message: `${i.path}: ${i.message}`, fix });
-  });
+  }).filter(Boolean);
 }
 
 /** Checks of a valid plan that need no geometry: where the spawn and the views are. */
@@ -207,6 +222,19 @@ export function hintForError(msg, plan) {
 
 // ---------------------------------------------------------------------------------------------------- console
 /** Console errors / page errors (chrome.mjs open()) -> diagnostics. World module failures are covered by MG2xx. */
+/** Console warnings that carry a diagnostic code ("[mirage/geom] MG206 wall: ...") become that diagnostic: the text
+ *  up to the first ". " that follows a colon-led explanation is the message, the rest is the fix. */
+export function fromWarnings(warnings = []) {
+  const out = [], seen = new Set();
+  for (const w of warnings) {
+    const m = /\[mirage\/([\w-]+)\] (MG\d{3}) ([\s\S]*)/.exec(String(w));
+    if (!m || !CODES[m[2]] || seen.has(m[0])) continue;
+    seen.add(m[0]);
+    const cut = m[3].lastIndexOf('. ') + 1, message = (cut > 0 ? m[3].slice(0, cut) : m[3]).trim(), fix = cut > 0 ? m[3].slice(cut).trim() : '';
+    out.push(diag(m[2], { target: m[1], message, ...(fix ? { fix } : {}) }));
+  }
+  return out;
+}
 export function fromConsole(errors = [], { allowed = 0, stacks = [] } = {}) {
   const out = [];
   const real = errors.filter((e) => !/\[world\] module "[^"]+" failed in/.test(e));
@@ -304,6 +332,7 @@ export function fromStep(row, ctx) {
       continue;
     }
     const PERF = { frameMs: 'MG501', p95Ms: 'MG502', calls: 'MG503', triangles: 'MG504' };
+    if (k === 'frameMs' || k === 'p95Ms') { const t = timingWords(row.metrics, plan, ctx.heavy); out.push(diag(PERF[k], { target, message: base + t.message, fix: t.fix })); continue; }
     if (PERF[k]) { out.push(diag(PERF[k], { target, message: base, fix: ctx.heavy ? `${CODES[PERF[k]].fix.split(':')[0]}: ${ctx.heavy}.` : undefined })); continue; }
     if (k === 'luma' || k === 'dark') { out.push(diag('MG440', { target, message: base, severity: 'error', fix: ctx.lightFix })); continue; }
     if (k === 'clipped') { out.push(diag('MG441', { target, message: base, severity: 'error' })); continue; }
@@ -320,6 +349,13 @@ export function fromStep(row, ctx) {
   const hasLumaCheck = (row.checks || []).some((c) => !c.ok && (c.k === 'luma' || c.k === 'dark' || c.k === 'clipped'));
   if (!hasLumaCheck && row.frame) {
     if (row.frame.dark > 0.98 || row.frame.luma < 4) out.push(diag('MG440', { target, message: `${target}: the screenshot is black (${Math.round(row.frame.dark * 100)} % of pixels near black, mean luma ${row.frame.luma})`, fix: ctx.lightFix }));
+    else {
+      // not black, but an interior with almost no light: the eye is inside a module's ambientVolumes box (sky light
+      // times its factor) and the frame is nearly black. The documented factor 0.35 does this in a room without a lamp.
+      const vol = row.to && insideVolume([row.to[0], row.to[1] + 1.62, row.to[2]], ctx.volumes);
+      if (vol && row.frame.luma < DIM_LUMA) out.push(diag('MG442', { target, at: row.to, message: `${target}: the view inside ${vol.from ? `modules/${vol.from}.js's` : 'an'} ambient volume is nearly black (mean luma ${row.frame.luma} of 255, ${Math.round(row.frame.dark * 100)} % of pixels near black)`,
+        fix: `ambientVolumes multiplies the sky light by factor (here ${vol.factor ?? 0.3}) inside the box, and nothing else lights this room. Add a lamp or an emissive surface inside, raise factor (0.5 - 0.7 reads as a shaded room), or open a window to the sun; plan.render.post.exposure would brighten the outdoors too.` }));
+    }
     if (row.frame.clipped > 0.35) out.push(diag('MG441', { target, message: `${target}: the screenshot is overexposed (${Math.round(row.frame.clipped * 100)} % of pixels near white)` }));
   }
   if (row.metrics && row.metrics.flickerMax > 15 && row.metrics.flickerMax > 4 * row.metrics.flicker && !out.some((d) => d.code === 'MG451')) {
@@ -328,7 +364,11 @@ export function fromStep(row, ctx) {
   // budgets measured by a perf step, even without an expectation
   const b = plan && plan.budget;
   if (b && row.metrics) {
-    const over = (k, code, unit) => { if (b[k] && row.metrics[k] > b[k] && !out.some((d) => d.code === code)) out.push(diag(code, { target, severity: 'warning', message: `${target}: ${k} ${row.metrics[k]}${unit} is over plan.budget.${k} ${b[k]}${unit}`, fix: ctx.heavy ? `${CODES[code].fix.split(':')[0]}: ${ctx.heavy}.` : undefined })); };
+    const over = (k, code, unit) => {
+      if (!(b[k] && row.metrics[k] > b[k]) || out.some((d) => d.code === code)) return;
+      const t = k === 'frameMs' ? timingWords(row.metrics, plan, ctx.heavy) : null;
+      out.push(diag(code, { target, severity: 'warning', message: `${target}: ${k} ${row.metrics[k]}${unit} is over plan.budget.${k} ${b[k]}${unit}${t ? t.message : ''}`, fix: t ? t.fix : ctx.heavy ? `${CODES[code].fix.split(':')[0]}: ${ctx.heavy}.` : undefined }));
+    };
     over('frameMs', 'MG501', ' ms'); over('calls', 'MG503', ''); over('triangles', 'MG504', '');
   }
   return out;
@@ -348,6 +388,30 @@ export function linkCauses(out, s, idx, load) {
   }
 }
 
+/** the ambient volume ({ min, max, factor, from }) the point is in, or null */
+// 40 of 255: between what was measured in a 6 x 5 m room with a door at midday, factor 0.35 (25 - 33 with no lamp,
+// 55 - 76 with one) and a lit interior at dusk (snow-hut's stove view, 75). A mood darker than that is a warning to read.
+export const DIM_LUMA = 40;
+export function insideVolume(p, volumes) {
+  for (const v of volumes || []) if (v && v.min && v.max && [0, 1, 2].every((k) => p[k] >= v.min[k] && p[k] <= v.max[k])) return v;
+  return null;
+}
+/** What a slow perf step can honestly say. A time is not a cause: the runs and their spread say how far to trust it
+ *  (over SPREAD_SOFT the machine was busy), and triangles are blamed only when the step's triangles or calls are over
+ *  plan.budget; otherwise the largest module is named as the largest, not as the reason. */
+export const SPREAD_SOFT = 0.25;
+export function timingWords(metrics = {}, plan, heavy = '') {
+  const runs = metrics.frameMsRuns || [], spread = metrics.frameMsSpread, b = (plan && plan.budget) || {};
+  const noisy = runs.length > 1 && spread > SPREAD_SOFT;
+  const message = runs.length > 1 ? ` (median of ${runs.length} runs: ${runs.join(', ')} ms; spread ${Math.round(100 * spread)} %${noisy ? ', the runs disagree' : ''})` : '';
+  const overTris = b.triangles && metrics.triangles > b.triangles, overCalls = b.calls && metrics.calls > b.calls;
+  const counts = metrics.triangles != null ? `this view draws ${metrics.calls} calls and ${(metrics.triangles / 1000).toFixed(1)} k triangles` : '';
+  const parts = [];
+  if (noisy) parts.push(`The runs differ by more than ${Math.round(100 * SPREAD_SOFT)} %: another process had the CPU or GPU. Close what is running and measure again before changing the scene`);
+  if (overTris || overCalls) parts.push(`${counts}, over plan.budget (${[overTris && `triangles ${b.triangles}`, overCalls && `calls ${b.calls}`].filter(Boolean).join(', ')}): start there${heavy ? ` (${heavy})` : ''}`);
+  else parts.push(`The time says the frame is slow, not why${counts ? `: ${counts}${b.triangles || b.calls ? ', inside plan.budget' : ''}` : ''}. Shadows, lamps, post effects and the pixel count cost time without adding a triangle: turn them down one at a time and measure${heavy ? `. Largest by triangles, not necessarily the cause: ${heavy}` : ''}`);
+  return { message, fix: parts.join('. ') + '.', noisy };
+}
 /** The modules with the most triangles, as words: "modules/props.js builds 81 % (412.0 k) of 509.3 k triangles". */
 export function heaviest(build) {
   if (!build || !build.modules) return '';

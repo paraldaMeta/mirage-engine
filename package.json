@@ -27,5 +27,12 @@
     "test:touch": "node packages/tools/src/touch-check.mjs examples/hello-courtyard/dist examples/walled-garden/dist examples/garden-quest/dist examples/agent-trial/dist examples/snow-hut/dist",
     "test:gpu-load": "node packages/tools/src/gpu-load.mjs examples/hello-courtyard/dist examples/walled-garden/dist examples/garden-quest/dist examples/agent-trial/dist examples/snow-hut/dist"
   },
-  "author": "灰叔 Racso"
+  "author": "灰叔 Racso",
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/three": "^0.186.0",
+    "eslint": "^10.14.0",
+    "globals": "^17.14.0",
+    "typescript": "^5.9.3"
+  }
 }

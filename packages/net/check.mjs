@@ -12,7 +12,7 @@ import { createClient } from './src/client.js';
 import { createWalker } from '@mirage/play/walker';
 import { rng } from '@mirage/core/rng';
 
-const ok = (c, m) => { if (!c) { console.error('FAIL', m); process.exit(1); } console.log('  ok', m); };
+import { ok } from '../../scripts/soft-assert.mjs';   // reports every failure with a count, not only the first
 const throws = (fn) => { try { fn(); return false; } catch { return true; } };
 
 // ---- wire -------------------------------------------------------------------
@@ -245,7 +245,6 @@ for (const tickRate of [20, 60]) {
 // ---- reconnect, late join -----------------------------------------------------------------
 {
   const W = world({ conditions: { latency: 30, loss: 0.02 }, seed: 'sessions', reconnectMs: 3000 });
-  const left = [];
   W.room.spawn('pickup', { x: 2, y: 0, z: 6, kind: 4 });
   const a = W.add('Ada'), b = W.add('Bo');
   Object.assign(a.input, { x: 1, z: 0.2 }); W.run(3);

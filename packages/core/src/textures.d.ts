@@ -36,3 +36,5 @@ export function createTextures(world: { renderer: THREE.WebGLRenderer; mat: Mate
 
 /** The GLSL spelling of a set name in MG_TEX_<name> ('stone-wall' -> 'stone_2d_wall'; plain names are unchanged). */
 export function glslName(name: string): string;
+/** Can this browser decode to an ImageBitmap with the options the bitmap path needs (`ua` for tests)? */
+export function bitmapDecodeOK(userAgent?: string): boolean;

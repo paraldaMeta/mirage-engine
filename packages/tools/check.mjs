@@ -1,5 +1,5 @@
 // Checks of the shared browser helpers in the local headless Chrome: node packages/tools/check.mjs
-import assert from "node:assert/strict";
+import assert from "../../scripts/soft-assert.mjs";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";

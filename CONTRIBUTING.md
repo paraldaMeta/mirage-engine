@@ -1,6 +1,7 @@
 # Contributing to Mirage
 
-Thanks for helping. Mirage is pre-alpha; small, tested changes are the easiest to take. These rules apply to every
+Thanks for helping. Mirage is at 1.0: the names marked stable in [docs/api.md](docs/api.md) change only in a major
+release ([docs/STABILITY.md](docs/STABILITY.md)), so small, tested changes are the easiest to take. These rules apply to every
 change, human or agent.
 
 1. **Read first**: `PLAN.md` §2 (licence and provenance), [docs/world-protocol.md](docs/world-protocol.md), the README
@@ -10,7 +11,8 @@ change, human or agent.
    examples: examples stay neutral.
 3. **As little code as works** (the "ponytail" rule): use what three.js already has, add no abstraction nothing uses
    yet. Where you simplify on purpose, leave a `// ponytail:` comment saying the limit and how to upgrade.
-4. **Run the checks** before you send a change: `npm test` (every package and the skill validator), plus the
+4. **Run the checks** before you send a change: `npm test` (every package, the skill validator, ESLint, the export
+   maps, the declarations and the docs index; a check script reports every failed assertion with a count), plus the
    playtest of every example your change can affect (`npm run playtest` in the example; garden-quest also has
    `npm run playthrough`). Image comparisons need real Chrome.
 5. **Still frames are a hard requirement**: the same camera and frame number must render bit-identical frames

@@ -46,7 +46,7 @@ export function createPlay(world, opts = {}) {
 
 function mountPlay(world, opts, life) {
   const { plan, canvas = world.renderer.domElement, spp = 6, refine = [spp, 16], animate = false } = opts;
-  const { camera, scene, renderer } = world;
+  const { camera, scene } = world;
   const grid = opts.grid || bakeWalkGrid(world, { bounds: plan.bounds, ...plan.walk });
   const spawn = plan.spawn || plan.viewpoints[0] || { eye: [0, 1.7, 0], look: [0, 1.7, -1] };
   // opts.walker: anything with the walker's shape ({ pos, onGround, blocked, body, update(dt, input), place(p) }),

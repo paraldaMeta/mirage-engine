@@ -22,7 +22,7 @@ export type ModuleContext<P extends PlanInput = PlanInput, Shared = Record<strin
     world: WorldHost<C>; plan: DefinedPlan<P>; shared: Shared; name: string;
     root: THREE.Group; scene: THREE.Group; R: RandomStream; rng(sub?: string): RandomStream;
     anchors: AnchorTable; modules: Record<string, unknown>;
-    onUpdate(callback: (seconds: number) => void): number;
+    onUpdate(callback: (seconds: number) => void): () => void;
     /** Replaces the material with the shared proxy material; returned identity is unchanged. */
     collider(mesh: THREE.Mesh): THREE.Mesh;
     log(...values: unknown[]): void;
@@ -59,3 +59,5 @@ export function buildWorld<P extends PlanInput, Shared = Record<string, unknown>
     log?: { log(...values: unknown[]): void; error(...values: unknown[]): void }; slice?: SliceOption },
 ): Promise<BuildResult<P>>;
 export const LAYER: { VIEW: 0; COLLIDE: 2 };
+/** @internal the `ctx.collider` of a module root: marks a mesh as collision-only (walk grid, physics) and adds it */
+export function colliderFor(root: THREE.Object3D): <M extends THREE.Mesh>(mesh: M) => M;

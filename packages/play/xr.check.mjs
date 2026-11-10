@@ -7,7 +7,7 @@ import { encode } from './scripts/glyph-font.mjs';
 import { createHandGesture, handMeasures, indexRay, HAND_JOINTS } from './src/xr-hands.js';
 import { setGrade, XR_FIT } from './src/xr.js';
 
-const ok = (c, m) => { if (!c) { console.error('FAIL', m); process.exit(1); } console.log('  ok', m); };
+import { ok } from '../../scripts/soft-assert.mjs';   // reports every failure with a count, not only the first
 
 // ---- glyphs
 ok(FONT_SOURCE === encode(), 'glyphs.js FONT is scripts/glyph-font.mjs encoded (95 glyphs, 5 x 9)');

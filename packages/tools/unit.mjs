@@ -1,5 +1,5 @@
 // Node checks of the tools that need no browser: `npm test -w @mirage/tools`
-import assert from 'node:assert/strict';
+import assert from '../../scripts/soft-assert.mjs';
 import { findChrome } from './src/chrome.mjs';
 
 // $CHROME wins; otherwise the first install place that exists, per platform

@@ -9,13 +9,24 @@ a release may change. `npm run test:pack` fails if a package exports a name that
 - **experimental**: public and usable, but a minor release may change it (listed in the changelog). Mostly the
   rendering internals and constants a world rarely needs.
 
-The entry points `@mirage/<pkg>` are the API. Every file under `src/` can also be imported as a subpath
-(`"./*"` in the export map) and has its own `.d.ts`; the world kits live there (`@mirage/world/kits/vegetation`,
-`/kits/terrain`, `/kits/water`, `/kits/rain`, `/kits/fur` (experimental), documented in the world README). Which subpaths stay supported is open:
-`/kits/terrain`, `/kits/water`, `/kits/rain`, `/kits/splat`, documented in the world README). Which subpaths stay supported is open:
-[API-CANDIDATE.md](API-CANDIDATE.md) lists them; until a whitelist is decided, treat subpaths other than the kits,
-`@mirage/core/rng`, `@mirage/world/plan`, `@mirage/core/export` (`exportWorld`, experimental: [export.md](export.md)) and `@mirage/core/ktx2` (`createKTX2Loader(renderer, { transcoderPath, workers })`, experimental: a KTX2Loader for `createTextures({ ktx2 })`; a subpath so bundles that never import it never contain three's KTX2Loader) as internal. Types: each package's root entry declares `types`
-([TYPES.md](TYPES.md)).
+The entry points `@mirage/<pkg>` are the API. Subpaths are an explicit allow-list: each package's `exports` map
+names every importable file (there is no `"./*"`), each with its own `.d.ts`, and a file under `src/` that is not
+listed is internal and cannot be imported from an installed package. `npm test` fails on an import of a subpath
+that is not listed (`scripts/check-imports.mjs`, over source, examples and docs) and on a `.d.ts` that declares
+other value names than its module exports (`scripts/check-types.mjs`). The subpaths a world normally needs:
+
+- the world kits `@mirage/world/kits/vegetation`, `/kits/terrain`, `/kits/water`, `/kits/rain`, `/kits/splat` and
+  `/kits/fur` (experimental), documented in the world README;
+- `@mirage/core/rng`, `@mirage/core/geom`, `@mirage/world/plan`;
+- `@mirage/core/export` (`exportWorld`, experimental: [export.md](export.md)), `@mirage/core/assets`
+  ([import.md](import.md)) and `@mirage/core/ktx2` (`createKTX2Loader(renderer, { transcoderPath, workers })`,
+  experimental: a KTX2Loader for `createTextures({ ktx2 })`; a subpath so bundles that never import it never contain
+  three's KTX2Loader).
+
+The other listed subpaths are the same modules the entry points re-export, importable one at a time; their names
+carry the stability of the row that describes them below. Adding a subpath is a line in the package's `exports`;
+removing one is a breaking change. Types: each package's root entry declares `types` ([TYPES.md](TYPES.md)). The
+count of stable and experimental exports, and how a name is promoted: [STABILITY.md](STABILITY.md).
 
 > The split 1.0.0 ships with, as proposed in the 1.0 review (docs/review-1.0.md); the owner can still move names
 > before the tag. After it, moving a name from experimental to stable is a minor release, the other way a major one.
@@ -59,7 +70,7 @@ The entry points `@mirage/<pkg>` are the API. Every file under `src/` can also b
 | `WET_GLSL` | experimental | the wet GLSL (`mgWetApply`, `mgWetNormal`, `mgWetRipples`, `mgWetH`) |
 | `NOISE_GLSL` | stable | the GLSL noise library (`mgHash`, `mgValue2/3`, `mgFbm2/3`, `mgCell2/3`, …) |
 | `rng(seed)` | stable | seeded random stream: `next`, `float`, `range`, `int`, `pick`, `chance`, `sign`, `gauss`, `inDisc`, `onSphere`, `fork(name)` (also `@mirage/core/rng`) |
-| `geom` | stable | geometry helpers: `wall`, `archPath`, `lathe`, `taperedTube`, `instances`, `MeshBatch`, `compose`, `lerp`, `clamp`, `smoothstep`, `remap` (experimental: `softExtrude`, `softBox`, `sootPlumes`, `wall({ round })`); three's `mergeGeometries` and `RoundedBoxGeometry` re-exported |
+| `geom` | stable | geometry helpers: `wall`, `archPath`, `lathe`, `taperedTube`, `instances`, `MeshBatch`, `compose`, `lerp`, `clamp`, `smoothstep`, `remap` (experimental: `softExtrude`, `softBox`, `sootPlumes`, `wall({ round })`, `openingProblem(opening, wallHeight)`: why an opening does not fit its wall, the text of MG206). A `wall` opening's `height` is where its arch springs, not its top, and `arch` defaults to `'round'` (top = height + width / 2): give `arch: 'flat'` for a straight lintel at `height`; three's `mergeGeometries` and `RoundedBoxGeometry` re-exported |
 | `skyAt(date, place)` | stable | Sun and Moon position for a date and a place (pure JS) |
 | `placeDate(day, time, tzHours)` | stable | a `Date` for a local wall-clock time |
 | `placeClock(date, tzHours)` | stable | the local wall-clock parts of a `Date` |

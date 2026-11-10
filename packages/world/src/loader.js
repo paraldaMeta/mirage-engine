@@ -98,7 +98,7 @@ export async function buildWorld(world, { plan, modules, shared = {}, log = cons
       ...world.ctx, world, plan, shared, name: m.name, root, scene: root,
       R, rng: (sub) => (sub === undefined || sub === '' ? R : rng(`${plan.seed}/${m.name}/${sub}`)),
       anchors, modules: built,
-      onUpdate: (fn) => updates.push(fn),
+      onUpdate: subscriber(updates),
       collider: colliderFor(root),
       log: (...a) => log.log(`[${m.name}]`, ...a),
     };
@@ -108,7 +108,18 @@ export async function buildWorld(world, { plan, modules, shared = {}, log = cons
     log.error(`[world] module "${m.name}" failed in ${phase} and was skipped: ${e && e.stack || e}`);
   };
   // a module's callbacks run only while it is alive: a finalize that throws stops the ones its build added
-  const commit = (root, updates, alive) => { world.scene.add(root); for (const fn of updates) world.ctx.onUpdate((t) => alive.on && fn(t)); };
+  // ctx.onUpdate returns an unsubscribe function that works before the module is committed (the callback is
+  // withdrawn from the staged list) and after (the world's own unsubscribe)
+  const subscriber = (updates) => (fn) => {
+    const rec = { fn, off: null, dead: false };
+    updates.push(rec);
+    return () => { if (rec.dead) return; rec.dead = true; if (rec.off) rec.off(); else { const i = updates.indexOf(rec); if (i >= 0) updates.splice(i, 1); } };
+  };
+  const commit = (root, updates, alive) => { world.scene.add(root); for (const rec of updates) {
+    const off = world.ctx.onUpdate((t) => alive.on && !rec.dead && rec.fn(t));
+    rec.off = typeof off === 'function' ? off : () => {};   // a host world of its own may still return a count
+    (alive.offs ||= []).push(rec.off);
+  } };
   const seen = new Set();
 
   // ---- build, in order
@@ -156,6 +167,7 @@ export async function buildWorld(world, { plan, modules, shared = {}, log = cons
   // to the others. (Missing required anchors only skip the finalize: the build stays.)
   const drop = ({ m, roots, alive }) => {
     alive.on = false; delete built[m.name];
+    for (const off of alive.offs || []) off();   // out of the world's list, not only silenced
     for (const r of roots) { world.scene.remove(r); release(r); }
     report.ambientVolumes = report.ambientVolumes.filter((v) => v.from !== m.name);   // nothing left to darken
   };
@@ -176,7 +188,7 @@ export async function buildWorld(world, { plan, modules, shared = {}, log = cons
     const ts = now(), root = new THREE.Group(), updates = [];
     root.name = m.name + ':finalize';
     try {
-      await m.finalize({ ...ctx, root, scene: root, onUpdate: (fn) => updates.push(fn), collider: colliderFor(root) });
+      await m.finalize({ ...ctx, root, scene: root, onUpdate: subscriber(updates), collider: colliderFor(root) });
       commit(root, updates, alive);
       entry.roots.push(root);
     } catch (e) { fail(m, 'finalize', e); row.ok = false; drop(entry); release(root); }
