@@ -173,22 +173,54 @@ export function archPath(path, x0, x1, y, kind = 'round', rise = null, steps = 1
   return path;
 }
 
+// the top of an opening's arch (its apex)
+function archTop(o) {
+  const w = o.width, kind = o.arch || 'round';
+  if (kind === 'flat') return o.height;
+  if (kind === 'round') return o.height + w / 2;
+  if (kind === 'segmental') return o.height + (o.rise ?? w * 0.2);
+  const R = Math.max(o.rise ?? 0.8, 0.5) * w;
+  return o.height + R * Math.sin(Math.acos((R - w / 2) / R));
+}
+
 /** An extruded wall along local +X (centred), from y = 0 to `height`, `thickness` along Z (centred).
  *  openings: [{ x (centre along the wall), width, height (springing height), arch: 'round' | 'pointed' |
- *  'segmental' | 'flat', rise, sill (0 = a door from the ground) }]; round: arris radius (m, 0 = sharp) */
+ *  'segmental' | 'flat', rise, sill (0 = a door from the ground) }]; round: arris chamfer (m, 0 = sharp; 45°, cut
+ *  into the faces, never beyond the plain bounds). The chamfer is capped at 0.35 x the narrowest strip of wall
+ *  (an opening to the top, an end, the sill line or another opening) and dropped below 4 mm; the foot is not
+ *  chamfered (the outline starts that far below y = 0). */
 export function wall({ length, height, thickness = 0.4, openings = [], curveSteps = 18, round = 0 }) {
   const L = length / 2;
   const doors = openings.filter((o) => !(o.sill > 0)).sort((a, b) => a.x - b.x);
   const windows = openings.filter((o) => o.sill > 0);
+  let rr = 0;
+  if (round > 0) {
+    // the narrowest strip of wall round any opening: the inset contours of a softExtrude must not cross
+    let clear = Infinity;
+    const box = (o) => [o.x - o.width / 2, o.x + o.width / 2, o.sill > 0 ? o.sill : -Infinity, archTop(o)];
+    const B = openings.map(box);
+    for (const [x0, x1, y0, y1] of B) {
+      clear = Math.min(clear, x0 + L, L - x1, height - y1);
+      if (y0 > -Infinity) clear = Math.min(clear, y0);
+    }
+    for (let i = 0; i < B.length; i++) for (let j = i + 1; j < B.length; j++) {
+      const a = B[i], b = B[j];
+      const gx = Math.max(b[0] - a[1], a[0] - b[1]), gy = Math.max(b[2] - a[3], a[2] - b[3]);
+      clear = Math.min(clear, Math.max(gx, gy));
+    }
+    rr = Math.min(round, thickness * 0.3, 0.35 * clear);
+    if (!(rr > 0.004)) rr = 0;
+  }
+  const yb = rr > 0 ? -rr * 1.5 : 0;   // the foot: its chamfer below ground
   const shape = new THREE.Shape();
-  shape.moveTo(-L, 0);
+  shape.moveTo(-L, yb);
   for (const d of doors) {
     const x0 = d.x - d.width / 2, x1 = d.x + d.width / 2;
-    shape.lineTo(x0, 0); shape.lineTo(x0, d.height);
+    shape.lineTo(x0, yb); shape.lineTo(x0, d.height);
     archPath(shape, x0, x1, d.height, d.arch || 'round', d.rise, curveSteps);
-    shape.lineTo(x1, 0);
+    shape.lineTo(x1, yb);
   }
-  shape.lineTo(L, 0); shape.lineTo(L, height); shape.lineTo(-L, height); shape.lineTo(-L, 0);
+  shape.lineTo(L, yb); shape.lineTo(L, height); shape.lineTo(-L, height); shape.lineTo(-L, yb);
   for (const w of windows) {
     const x0 = w.x - w.width / 2, x1 = w.x + w.width / 2;
     const hole = new THREE.Path();
@@ -197,15 +229,17 @@ export function wall({ length, height, thickness = 0.4, openings = [], curveStep
     hole.lineTo(x0, w.sill);
     shape.holes.push(hole);
   }
-  const geo = round > 0 ? softExtrude(shape, thickness, round, curveSteps) : new THREE.ExtrudeGeometry(shape, { depth: thickness, bevelEnabled: false, curveSegments: curveSteps });
+  const geo = rr > 0 ? softExtrude(shape, thickness, rr, curveSteps) : new THREE.ExtrudeGeometry(shape, { depth: thickness, bevelEnabled: false, curveSegments: curveSteps });
   geo.translate(0, 0, -thickness / 2);
   geo.computeVertexNormals();
   return geo;
 }
 
-/** An ExtrudeGeometry of `shape` over z in [0, depth] whose outline and hole edges are rounded (chamfered with
- *  `segments` bevel steps) by r: the faces' contours are inset, the sides are exact, so the part never grows beyond
- *  the plain extrusion. Falls back to the plain extrusion for r <= 4 mm (r is capped at 0.3 x depth). */
+/** An ExtrudeGeometry of `shape` over z in [0, depth] whose outline and hole edges are chamfered (rounded with
+ *  more `segments`) by r: the faces' contours are inset, the sides are exact, so the part never grows beyond the
+ *  plain extrusion AS LONG AS r < ~0.35 x the narrowest strip of the shape (a hole to the outline, two holes):
+ *  wider, the inset contours cross and fold (wall() caps r for you). Falls back to the plain extrusion for
+ *  r <= 4 mm (r is capped at 0.3 x depth). */
 export function softExtrude(shape, depth, r, curveSegments = 2, segments = 1) {
   const rr = Math.min(r, depth * 0.3);
   if (!(rr > 0.004)) return new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false, curveSegments, steps: 1 });
@@ -247,11 +281,12 @@ function sootTexture() {
 /** Soot blackening the wall above lamps (anything that smokes), as one merged mesh of quads multiplying what is
  *  behind them (no light of its own, no shadows, no depth writes: the walk grid and SSAO ignore it).
  *  list: [{ pos: [x, y, z] on the wall face, normal: [nx, ny, nz] | rotY (out of the wall), scale = 1,
- *  up = 1.25 (m) }]. Quads stand 3.5 cm off the face. Returns null for an empty list. */
+ *  up = 1.25 (m) }]. Quads stand 3.5 cm off the face. Returns null when no entry is usable. */
 export function sootPlumes(list) {
   if (!list || !list.length) return null;
   const P = [], UV = [], IX = [];
   for (const it of list) {
+    if (!it || !Array.isArray(it.pos) || it.pos.length < 3) { console.warn('[mirage/geom] sootPlumes: an entry without pos [x, y, z] skipped'); continue; }
     const n = it.normal ? new THREE.Vector3(...it.normal) : new THREE.Vector3(Math.sin(it.rotY || 0), 0, Math.cos(it.rotY || 0));
     n.y = 0; if (n.lengthSq() < 1e-6) continue; n.normalize();
     const t = new THREE.Vector3(n.z, 0, -n.x), s = it.scale ?? 1, up = (it.up ?? 1.25) * s, hw = 0.32 * s;
@@ -263,6 +298,7 @@ export function sootPlumes(list) {
     }
     IX.push(k, k + 1, k + 2, k, k + 2, k + 3);
   }
+  if (!P.length) return null;
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
   g.setAttribute('uv', new THREE.Float32BufferAttribute(UV, 2));

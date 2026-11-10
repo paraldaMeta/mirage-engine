@@ -89,13 +89,25 @@ const { setRelief, RELIEF, RELIEF_GLSL, PROC, createMaterials, createTextures, c
 const bb = (g) => (g.computeBoundingBox(), g.boundingBox);
 const within = (a, b, eps = 1e-6) => a.min.x >= b.min.x - eps && a.min.y >= b.min.y - eps && a.min.z >= b.min.z - eps && a.max.x <= b.max.x + eps && a.max.y <= b.max.y + eps && a.max.z <= b.max.z + eps;
 const wo = { length: 10, height: 4, thickness: 0.5, openings: [{ x: 0, width: 2, height: 2, arch: 'pointed' }, { x: 3, width: 1, height: 2, sill: 1, arch: 'round' }] };
-const plain = bb(geom.wall(wo)), soft = bb(geom.wall({ ...wo, round: 0.05 }));
-assert.ok(within(soft, plain) && within(plain, soft, 1e-4), 'a rounded wall keeps the plain wall\'s bounds');
+// a rounded wall keeps the plain wall's bounds above ground (its foot's chamfer is cut below y = 0), also with
+// openings close to the top, an end or each other (the chamfer shrinks so the inset contours never cross)
+const above = (g) => { const b = bb(g).clone(); b.min.y = Math.max(b.min.y, 0); return b; };
+for (const [name, o] of [['two openings', wo],
+  ['apex 4 cm under the top', { length: 6, height: 3.8, thickness: 0.6, openings: [{ x: 0, width: 2.4, height: 2.3, arch: 'pointed', rise: 0.8 }] }],
+  ['window 3 cm under the top', { length: 10, height: 4, thickness: 0.5, openings: [{ x: 0, width: 1, height: 3.47, sill: 1, arch: 'round' }] }],
+  ['door 3 cm from the end', { length: 10, height: 4, thickness: 0.5, openings: [{ x: -4.47, width: 1, height: 2, arch: 'flat' }] }],
+  ['door flush with the end', { length: 10, height: 4, thickness: 0.5, openings: [{ x: -4.5, width: 1, height: 2, arch: 'flat' }] }],
+  ['a 4 cm pier', { length: 10, height: 4, thickness: 0.5, openings: [{ x: 0, width: 1, height: 2, arch: 'round' }, { x: 1.04, width: 1, height: 2, arch: 'round' }] }]]) {
+  const plainB = bb(geom.wall(o)), softG = geom.wall({ ...o, round: 0.05 }), softB = above(softG);
+  assert.ok(within(softB, plainB, 1e-5) && within(plainB, softB, 1e-4), `rounded wall keeps the plain bounds above ground: ${name}`);
+  assert.ok(bb(softG).min.y >= -0.08, `the foot's chamfer stays just below ground: ${name}`);
+}
 assert.ok(within(bb(geom.softBox(1, 0.5, 0.3)), bb(new THREE.BoxGeometry(1, 0.5, 0.3))), 'softBox inside the box');
 assert.equal(geom.softBox(1, 0.08, 1).type, 'BoxGeometry', 'thin parts stay sharp');
 const soot = geom.sootPlumes([{ pos: [0, 2, 0], rotY: 0 }, { pos: [1, 2, 0], normal: [0, 0, 1], scale: 0.5 }]);
 assert.ok(soot.geometry.attributes.position.count === 8 && soot.material.depthWrite === false && !soot.castShadow, 'two soot quads, no depth, no shadow');
 assert.equal(geom.sootPlumes([]), null);
+assert.equal(geom.sootPlumes([{ normal: [0, 0, 1] }, { pos: [0, 1, 0], normal: [0, 1, 0] }]), null, 'no usable soot entry: null');
 assert.equal(setRelief(0), 0); assert.equal(RELIEF.uRelief.value, 0);
 setRelief(0.5); assert.ok(RELIEF.uRelief.value === 1 && Math.abs(RELIEF.uReliefFar.value - 4) < 1e-9, 'half level halves the reach');
 setRelief(1); assert.equal(RELIEF.uReliefFar.value, 8);

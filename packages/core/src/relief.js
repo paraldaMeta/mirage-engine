@@ -51,6 +51,12 @@ export const RELIEF_GLSL = /* glsl */ `
 uniform float uRelief;
 uniform float uReliefFar;
 float mgRlSh = 1.0;
+// how much the key light's self-shadow applies: the key must shine (above the horizon, with colour), and lit lamps
+// (uLamp) take over the direct light, which the shadow would wrongly darken in the key's direction
+float mgRlKeyW(){
+  if (uKeyDir.y <= 0.0 || dot(uKeyColor, vec3(0.2126, 0.7152, 0.0722)) <= 1e-4) return 0.0;
+  return 1.0 - clamp(uLamp, 0.0, 1.0);
+}
 float mgRlFade(vec3 wp){
   if (isOrthographic || uRelief <= 0.0) return 0.0;
   return 1.0 - smoothstep(uReliefFar * 0.6, uReliefFar, length(cameraPosition - wp));
@@ -73,7 +79,7 @@ vec3 mgRlSunProbe(vec3 wp, vec3 N, float depth, float reach){
 // the ray toward the light is 'reach' (in depth units) higher at the probe: shadowed where the relief there (hL)
 // stands above it. Faces turned from the light return 1 (already dark).
 float mgRlSelfShadow(vec3 N, float h, float hL, float reach, float soft){
-  if (dot(uKeyDir, N) <= 0.0) return 1.0;
+  if (dot(uKeyDir, N) <= 0.0 || mgRlKeyW() <= 0.0) return 1.0;
   return 1.0 - smoothstep(0.0, soft, hL - h - reach);
 }
 // gradient of a smooth field f in surface coordinates q, from f's and q's screen derivatives (taken in uniform
@@ -108,11 +114,9 @@ float mgRlValue2(vec2 p){
   return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
 }
 // the hand-applied render: two octaves of slow undulation (~0.5 and ~0.22 m, what a raking light picks out) and
-// overlapping fan-shaped trowel strokes (~0.3 x 0.2 m cells, each thick at its leading edge, soft lap lines).
-// Wall coordinates (along the wall, y) on walls, xz on tops. Height in metres.
-float mgRlRenderH(vec3 wp, vec3 wn, float und, float swp){
-  vec2 tg = normalize(vec2(-wn.z, wn.x) + vec2(1e-5, 0.0));
-  vec2 q = abs(wn.y) < 0.7 ? vec2(dot(wp.xz, tg), wp.y) : wp.xz;
+// overlapping fan-shaped trowel strokes (~0.3 x 0.2 m cells, each thick at its leading edge, soft lap lines), on the
+// plane coordinates q. Height in metres.
+float mgRlRenderQ(vec2 q, float und, float swp){
   float h = und * (0.65 * (mgRlValue2(q * 2.1 + 3.7) * 2.0 - 1.0) + 0.35 * (mgRlValue2(q * 4.6 + 11.3) * 2.0 - 1.0));
   if (swp > 0.0) {
     vec2 cq = q / vec2(0.3, 0.17);
@@ -140,15 +144,27 @@ float mgRlRenderH(vec3 wp, vec3 wn, float und, float swp){
   }
   return h;
 }
-// full to 4 m, gone by 10 m, off in orthographic views and while switched off
+// on any surface: the three axis projections blended by the normal (planes whose weight is negligible are skipped,
+// so a flat wall pays for one), no per-pixel tangent: curved surfaces do not stripe and nothing switches abruptly
+float mgRlRenderH(vec3 wp, vec3 wn, float und, float swp){
+  vec3 w = pow(abs(wn), vec3(4.0)); w /= w.x + w.y + w.z;
+  w = max(w - 0.02, 0.0); w /= w.x + w.y + w.z;
+  float h = 0.0;
+  if (w.x > 0.0) h += w.x * mgRlRenderQ(wp.zy + vec2(17.3, 0.0), und, swp);
+  if (w.y > 0.0) h += w.y * mgRlRenderQ(wp.xz, und, swp);
+  if (w.z > 0.0) h += w.z * mgRlRenderQ(wp.xy, und, swp);
+  return h;
+}
+// full to half the relief's reach, gone by 1.25 x it (4 .. 10 m at full), off in orthographic views and while off
 float mgRlRenderK(vec3 wp){
   if (isOrthographic || uRelief <= 0.0) return 0.0;
-  return 1.0 - smoothstep(4.0, 10.0, length(cameraPosition - wp));
+  return 1.0 - smoothstep(uReliefFar * 0.5, uReliefFar * 1.25, length(cameraPosition - wp));
 }
 #endif
 `;
 
-/** `lighting` hook snippet: the relief's self-shadow on the direct light (key light and lamps; ambient stays). */
+/** `lighting` hook snippet: the relief's self-shadow on the direct light (ambient stays). The shadow is cast toward
+ *  the key light only while it shines and the lamps are out (mgRlKeyW), since this scales all direct light. */
 export const RELIEF_LIGHT = 'reflectedLight.directDiffuse *= mgRlSh; reflectedLight.directSpecular *= mgRlSh;';
 
 /** The relief GLSL and uniforms put in front of a hooks object's fragmentDecl (for materials with their own GLSL). */

@@ -102,8 +102,8 @@ float mgTexBlend(float m, float hA, float hB, float soft){
 `;
 
 // The relief taps (compiled in only by the relief opt-ins): the same projections as mgTexTri / Wall / Ground, read at
-// a shifted point with the gradients of the UNSHIFTED surface (dpx, dpy = dFdx / dFdy of the true world position,
-// taken in uniform control flow), so the shifted samples keep their mip level and no derivative is taken inside a
+// a shifted point with the uv gradients of the UNSHIFTED surface (dFdx / dFdy of its projected uv, taken in uniform
+// control flow), so the shifted samples keep their mip level and no derivative is taken inside a
 // branch. The repetition breaker's patch choice is made once, at the unshifted point, and shared by the three reads
 // (probe, sample, light probe) of one fragment.
 export const TEX_RELIEF_GLSL = /* glsl */ `
@@ -139,9 +139,9 @@ void mgTexAddV(bool full, sampler2D C, sampler2D N, float v, vec2 uv, vec2 gx, v
     nW += (T * t.x + B * t.y + wn * sqrt(max(1.0 - dot(t, t), 0.0))) * w;
   }
 }
-MgTex mgTexAt(int map, bool full, sampler2D C, sampler2D N, vec4 A, vec4 B, vec3 p, vec3 dpx, vec3 dpy, vec3 wn, float s, float k, vec3 w, vec3 bv){
-  vec2 u0, u1, u2, x0, x1, x2, y0, y1, y2;
-  mgTexProj(map, p, wn, s, u0, u1, u2); mgTexProj(map, dpx, wn, s, x0, x1, x2); mgTexProj(map, dpy, wn, s, y0, y1, y2);
+MgTex mgTexAt(int map, bool full, sampler2D C, sampler2D N, vec4 A, vec4 B, vec3 p, vec2 x0, vec2 x1, vec2 x2, vec2 y0, vec2 y1, vec2 y2, vec3 wn, float s, float k, vec3 w, vec3 bv){
+  vec2 u0, u1, u2;
+  mgTexProj(map, p, wn, s, u0, u1, u2);
   vec3 T0 = map == 2 ? vec3(1, 0, 0) : map == 1 ? mgTexWallT(wn) : vec3(0, 0, 1), B0 = map == 2 ? vec3(0, 0, 1) : vec3(0, 1, 0);
   vec3 c = vec3(0.0), nW = vec3(0.0); float h = 0.0;
   if (w.x > 0.0) mgTexAddV(full, C, N, bv.x, u0, x0, y0, T0, B0, wn, w.x, k, c, nW, h);
@@ -153,17 +153,22 @@ MgTex mgTexAt(int map, bool full, sampler2D C, sampler2D N, vec4 A, vec4 B, vec3
 // one parallax step on the set's own height, then the relief's shadow toward the key light (into mgRlSh)
 MgTex mgTexRelief(int map, sampler2D C, sampler2D N, vec4 A, vec4 B, vec3 p, vec3 wn, float tile, float k, float depth){
   float s = tile > 0.0 ? tile : B.x;
-  vec3 dpx = dFdx(p), dpy = dFdy(p), w = mgTexProjW(map, wn);
+  vec3 w = mgTexProjW(map, wn);
   vec2 u0, u1, u2; mgTexProj(map, p, wn, s, u0, u1, u2);
+  // the uv gradients of the unshifted surface, taken here in uniform flow (they include a turning tangent: smooth
+  // normals on rounded edges)
+  vec2 x0 = dFdx(u0), x1 = dFdx(u1), x2 = dFdx(u2), y0 = dFdy(u0), y1 = dFdy(u1), y2 = dFdy(u2);
+  vec3 fn = gl_FrontFacing ? wn : -wn;   // the side seen (DoubleSide): the relief is cut into it
   vec3 bv = vec3(w.x > 0.0 ? mgValue2(u0 * 0.37 + 1.3) * 8.0 : 0.0, w.y > 0.0 ? mgValue2(u1 * 0.37 + 1.3) * 8.0 : 0.0,
                  w.z > 0.0 ? mgValue2(u2 * 0.37 + 1.3) * 8.0 : 0.0);
   float fade = mgRlFade(p), D = depth * fade;
   vec3 q = p;
-  if (D > 0.0) q += mgRlShift(p, wn, mgTexAt(map, false, C, N, A, B, p, dpx, dpy, wn, s, k, w, bv).h, D);
-  MgTex t = mgTexAt(map, true, C, N, A, B, q, dpx, dpy, wn, s, k, w, bv);
-  if (D > 0.0 && dot(uKeyDir, wn) > 0.0) {
-    float hL = mgTexAt(map, false, C, N, A, B, mgRlSunProbe(q, wn, D, 0.4), dpx, dpy, wn, s, k, w, bv).h;
-    mgRlSh = min(mgRlSh, mix(1.0, mgRlSelfShadow(wn, t.h, hL, 0.4, 0.2), fade));
+  if (D > 0.0) q += mgRlShift(p, fn, mgTexAt(map, false, C, N, A, B, p, x0, x1, x2, y0, y1, y2, wn, s, k, w, bv).h, D);
+  MgTex t = mgTexAt(map, true, C, N, A, B, q, x0, x1, x2, y0, y1, y2, wn, s, k, w, bv);
+  float kw = mgRlKeyW();
+  if (D > 0.0 && kw > 0.0 && dot(uKeyDir, fn) > 0.0) {
+    float hL = mgTexAt(map, false, C, N, A, B, mgRlSunProbe(q, fn, D, 0.4), x0, x1, x2, y0, y1, y2, wn, s, k, w, bv).h;
+    mgRlSh = min(mgRlSh, mix(1.0, mgRlSelfShadow(fn, t.h, hL, 0.4, 0.2), fade * kw));
   }
   return t;
 }
@@ -173,7 +178,8 @@ MgTex mgTexGroundRelief(sampler2D C, sampler2D N, vec4 A, vec4 B, vec3 p, vec3 w
 #endif
 `;
 
-const f = (v) => (Number.isInteger(+v) ? (+v).toFixed(1) : String(+(+v).toFixed(5)));
+// a GLSL float literal (never an int: 0 for a tiny relief would not compile)
+const f = (v) => { const n = +(+v).toFixed(5); return Number.isInteger(n) ? n.toFixed(1) : String(n); };
 const vec4 = (a) => `vec4(${a.map(f).join(', ')})`;
 /** The GLSL spelling of a set name in MG_TEX_<name>: letters, digits and _ stay; anything else ('stone-wall') becomes
  *  _<hex code>_ (stone_2d_wall), so any manifest name compiles. */

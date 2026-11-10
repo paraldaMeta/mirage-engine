@@ -167,18 +167,22 @@ setRelief(0.7);                          // 0 off (one uniform test), 1 full: fa
   parallax step on the set's own height (B channel), sampled again at the shifted point with the UNSHIFTED
   gradients (`textureGrad`, derivatives taken once in uniform flow), so the mip level never jumps and TAA stays
   stable; then one more height read toward the key light (`uKeyDir`, capped at 7 cm sideways) gives the relief's
-  own shadow, applied to the direct light only (`RELIEF_LIGHT` in `lighting`; lamps are dimmed with it too). The
-  repetition breaker's patch choice is made once per fragment. Faded out between 4.8 and 8 m, off in orthographic
-  cameras (the game view) and with `setRelief(0)`.
+  own shadow, applied to the direct light (`RELIEF_LIGHT` in `lighting`). It scales all direct light, so it only
+  acts while the key light shines (above the horizon) and fades out as the lamps come on (`uLamp`). Back faces of
+  DoubleSide materials are cut from the side seen. The repetition breaker's patch choice is made once per fragment.
+  Faded out between 4.8 and 8 m, off in orthographic cameras (the game view) and with `setRelief(0)`.
 - **Render relief** (`render: undulation`, `PROC.plaster(base, { render })`, or `renderHeight` + `renderShade` in your
   own hooks): a hand-applied render's slow undulation (~0.5 / 0.22 m) and overlapping trowel swipes (0.7× the
-  undulation), a real-slope bump in metres plus a little shade in the hollows; full to 4 m, gone by 10 m.
+  undulation), a real-slope bump in metres plus a little shade in the hollows, on the three axis planes blended by
+  the normal (curved surfaces do not stripe); full to half the relief's reach, gone by 1.25× it (4–10 m at full).
 - **GLSL helpers** (`RELIEF_GLSL`, `withRelief(hooks)` to include them): `mgRlFade`, `mgRlShift`, `mgRlSunProbe`,
   `mgRlSelfShadow`, `mgRlRenderH`, `mgRlRenderK`, and for recesses and corners `mgRlGradQ` + `mgRlLip` (a lip's
   cast shadow and edge occlusion from a mask field's screen derivatives) and `mgRlArris` (0 on a face, 1 across a
   rounded corner); the last three are not used by any example yet.
-- **Geometry** (`geom`): `wall({ …, round })` and `softExtrude(shape, depth, r)` round every arris inside the plain
-  extrusion's bounds (faces inset, sides exact: walk grids do not change); `softBox(w, h, d, r)` (parts under 12 cm
+- **Geometry** (`geom`): `wall({ …, round })` chamfers (45°) every arris inside the plain wall's bounds (faces inset,
+  sides exact: walk grids do not change); the chamfer shrinks to 0.35× the narrowest strip of wall (an opening near
+  the top, an end, another opening) and the foot's is cut below ground. `softExtrude(shape, depth, r)` is the raw
+  tool: keep r under ~0.35× the shape's narrowest strip or the inset contours fold; `softBox(w, h, d, r)` (parts under 12 cm
   stay sharp); `sootPlumes([{ pos, rotY | normal, scale, up }])` multiply-blended soot above lamps (no depth writes,
   no shadows, ignored by the walk grid and SSAO).
 - **Cost** (hello-courtyard, 1440×900, Apple M4 Pro, uncapped, A/B against `?nodetail` on a shared GPU): walk view
