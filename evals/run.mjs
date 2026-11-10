@@ -156,6 +156,8 @@ try {
           row.agentMs += a.ms;
           if (a.toolCalls !== null) row.toolCalls = (row.toolCalls || 0) + a.toolCalls;
           if (a.costUsd !== null) row.costUsd = (row.costUsd || 0) + a.costUsd;
+          // the reference fixes live in this repository, which an agent sandbox can usually read: flag a run that looked
+          if (/evals[\\/]+tasks[\\/]/.test(fs.readFileSync(path.join(runDir, `agent-${turn}.stdout`), 'utf8'))) row.leak = true;
           row.exit = a.signal ? a.signal : a.code;
           // the agent never worked on the task (account, auth, quota, crash): not a repair failure
           if (a.agentError) { row.agentError = a.agentError; row.why = 'agent error: ' + a.agentError; break; }
@@ -168,6 +170,7 @@ try {
       row.wallMs = Date.now() - t0;
       results.push(row);
       if (row.agentError && STOP_ON.test(row.agentError)) { fs.writeFileSync(path.join(OUT, 'results.json'), JSON.stringify(results, null, 1)); console.log(`agent error, stopping: ${row.agentError}`); stop = true; break; }
+      if (row.leak) console.log(`warning: ${task.id} [${arm}]: the agent's output mentions evals/tasks (it may have read the reference fix)`);
       console.log(`${row.agentError ? 'AGENT ERROR' : row.pass ? 'pass' : 'fail'} ${task.id} [${arm}] turns ${row.turns}${row.toolCalls !== null ? `, tools ${row.toolCalls}` : ''}, ${(row.wallMs / 1000).toFixed(0)} s${row.pass ? '' : ' -- ' + row.why}`);
       fs.writeFileSync(path.join(OUT, 'results.json'), JSON.stringify(results, null, 1));
     }
@@ -182,7 +185,7 @@ const lines = [`# Repair-rate eval ${stamp}`, '', `agent: \`${dry ? '(dry run: n
   ...arms.map((a) => { const all = by(a), r = all.filter((x) => !x.agentError), p = r.filter((x) => x.pass), tc = r.filter((x) => x.toolCalls !== null).map((x) => x.toolCalls);
     return `| ${a} | ${all.length} | ${all.length - r.length} | ${p.length} | ${r.length ? Math.round((100 * p.length) / r.length) + ' %' : '-'} | ${p.length ? mean(p.map((x) => x.turns)).toFixed(2) : '-'} | ${tc.length ? mean(tc).toFixed(1) : '-'} | ${all.length ? mean(all.map((x) => x.wallMs / 1000)).toFixed(0) : '-'} |`; }),
   '', '| task | ' + arms.join(' | ') + ' |', '|---|' + arms.map(() => '---|').join(''),
-  ...[...new Set(results.map((r) => r.task))].map((t) => `| ${t} | ` + arms.map((a) => { const r = results.find((x) => x.task === t && x.arm === a); return r ? (r.agentError ? 'agent error' : `${r.pass ? 'pass' : 'fail'} (${r.turns})`) : ''; }).join(' | ') + ' |')];
+  ...[...new Set(results.map((r) => r.task))].map((t) => `| ${t} | ` + arms.map((a) => { const r = results.find((x) => x.task === t && x.arm === a); return r ? (r.agentError ? 'agent error' : `${r.pass ? 'pass' : 'fail'} (${r.turns})${r.leak ? ' LEAK?' : ''}`) : ''; }).join(' | ') + ' |')];
 fs.writeFileSync(path.join(OUT, 'summary.md'), lines.join('\n') + '\n');
 console.log(lines.slice(0, 4 + arms.length + 2).join('\n'));
 console.log(`results: ${path.join(OUT, 'summary.md')}`);
