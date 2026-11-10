@@ -71,17 +71,17 @@ Module failures fail a playtest through the console errors they log (allowed wit
 
 | code | severity | problem | fix |
 |---|---|---|---|
-| MG301 | error | `walkTo` stuck | measured at the stuck point: an opening narrower than 0.62 m (and the plan field that sets it, e.g. `plan.yard.gate`), a step above 0.4 m, head room under 1.8 m, or the object in the way |
+| MG301 | error | `walkTo` stuck | measured at the stuck point: an opening narrower than 0.62 m (and the plan field that sets it, e.g. `plan.yard.gate`), a step above 0.4 m, head room under 1.8 m, or the object in the way: an invisible collision proxy that does not line up with the meshes it stands in for (the box to make it), or a solid too tall for a step (move it, or raise its bottom to 1.9 m if it belongs overhead) |
 | MG302 | error | `walkTo` timed out while still moving | `"run": true` or a longer `timeout` |
 | MG303 | error | the walker fell below the expected height | a closed floor inside `plan.walk` |
-| MG304 | error | walked through a barrier (moved past the expected stop) | names what it crossed and why the walk grid ignores it (`userData.collide = false`, transparent, thinner than a cell, an open plane) with the `ctx.collider` box to add; or, when nothing is there, the gap: which two objects end where |
+| MG304 | error | walked through a barrier (moved past the expected stop) | names what it crossed and why the walk grid ignores it (`userData.collide = false`, transparent, thinner than a cell, an open plane) with the `ctx.collider` box to add (when the module already has a proxy that misses: that proxy, corrected, not a second one); or, when nothing is there, the gap: which two objects end where |
 | MG305 | error | stopped short of the expected point | what blocks, as MG301 |
 | MG306 | error | ended higher than expected | it climbed onto something of <= 0.4 m |
 | MG307 | error | not on the ground | the eye 1.62 m above a solid floor |
 | MG310 | error | the spawn's or a viewpoint's eye or body is inside a solid | the nearest free spot as the new eye, and the solid's name |
 | MG311 | error | no floor under a walking view | an eye over a floor inside the plan, or mode `fly` |
 | MG312 | warning | spawn more than 0.5 m above its floor (drops on load) | eye height = floor + 1.62 |
-| MG320 | warning | an object floats above the floor under it | lower it by the measured gap in its module file, or `userData.float = true` |
+| MG320 | warning | an object floats above the floor under it (0.25 m or more; gaps thinner than the walk grid keeps are measured with a ray) | lower it by the measured gap in its module file, or `userData.float = true` |
 
 ### MG4xx: what the frame shows
 
@@ -161,6 +161,13 @@ one-turn self-repair, but on whole worlds and with the browser in the loop.
 - `evals/tasks/<id>/`: `task.json` (title, the symptom as a user would report it, `expect`: the codes the broken
   world must show, `forbid`: codes that fail the check even as warnings), `scenario.json` (the machine check),
   `start/` (files that break the base) and `fix/` (the reference fix, applied over start).
+- Two sets of tasks. The single-fault ones (11) break one thing in one file. The `hard-*` ones (6) are what one turn
+  rarely fixes: several faults in different files (`hard-three-faults`), a fault hidden behind another
+  (`hard-masked-hole`: nothing builds until the shared materials are fixed, then the north wall has a hole), a cause
+  in another module than the symptom (`hard-glass-crate`: a shared material made transparent), a wrong collision proxy
+  where "add a collider" is not enough (`hard-turned-proxy`), a budget fix that must keep the object
+  (`hard-heavy-crate`), and a larger world with a new module (`hard-hut-door`: a lintel in the doorway and a door too
+  low). Their scenarios also re-run the base checks, so a fix that breaks something else fails.
 - The machine check: the task's own scenario (never the copy an agent can edit) passes, with no error diagnostics and
   none of `forbid`.
 - `node evals/check.mjs`: no model calls; proves the base passes quietly, every broken start fails and shows its

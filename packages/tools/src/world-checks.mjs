@@ -143,6 +143,7 @@ export function worldChecksInPage(opts, lib) {
   // nothing touches it from the side, nothing is just above it (hanging), and it is not marked userData.float
   if (opts.floating !== false) {
     const [bx0, bz0, bx1, bz1] = plan.bounds;
+    const ray = new T.Raycaster(), DOWN = new T.Vector3(0, -1, 0);
     for (const o of solids) {
       if (o.userData.collider) continue;
       let marked = false; for (let p = o; p; p = p.parent) if (p.userData.float) marked = true;
@@ -154,7 +155,11 @@ export function worldChecksInPage(opts, lib) {
       let gap = Infinity, floorAt = null;
       for (let i = 0; i < nx && gap >= 0.25; i++) for (let j = 0; j < nz; j++) {
         const x = b.min.x + ((i + 0.5) / nx) * size.x, z = b.min.z + ((j + 0.5) / nz) * size.z;
-        const f = grid.groundAt(x, z, b.min.y + 0.02, 0);
+        let f = grid.groundAt(x, z, b.min.y + 0.02, 0);
+        // the walk grid keeps no air thinner than its MIN_GAP (0.3 m): no floor under a box 0.3 m up is still a gap,
+        // measured with a ray down to the first other solid (from just above the bottom: a ray that starts inside a
+        // supporting box would not see that box's top face)
+        if (Number.isNaN(f)) { ray.set(new T.Vector3(x, b.min.y + 0.01, z), DOWN); const hit = ray.intersectObjects(solids, false).find((h) => h.object !== o && !o.getObjectById(h.object.id)); if (hit) f = hit.point.y; }
         const g = Number.isNaN(f) ? 0 : b.min.y - f;
         if (g < gap) { gap = g; floorAt = f; }
         if (gap < 0.25) break;
@@ -329,10 +334,23 @@ export function probeInPage(o) {
       return res;
     }
     // the object ahead (knee, waist, head)
+    let hitObj = null;
     for (const h of [0.25, 1.0, 1.7]) {
       rc.set(new T.Vector3(fx, feet + h, fz), new T.Vector3(dx, 0, dz)); rc.far = 1.5;
       const hit = rc.intersectObjects(all, false)[0];
-      if (hit && (!res.hit || hit.distance < res.hit[1])) res.hit = [label(hit.object), r2(hit.distance), h];
+      if (hit && (!res.hit || hit.distance < res.hit[1])) { res.hit = [label(hit.object), r2(hit.distance), h]; hitObj = hit.object; }
+    }
+    if (hitObj) {
+      // what it is: its box; for an (invisible) collision proxy also the box of the visible meshes of its module, so a
+      // proxy that does not line up with what it stands in for shows
+      const B = (b) => [r2(b.min.x), r2(b.min.y), r2(b.min.z), r2(b.max.x), r2(b.max.y), r2(b.max.z)];
+      res.hitBox = B(boxOf(hitObj));
+      if (hitObj.userData.collider) {
+        res.hitCollider = true;
+        const m0 = label(hitObj).split('/')[0], vb = new T.Box3();
+        for (const m of all) if (!m.userData.collider && label(m).split('/')[0] === m0) vb.union(boxOf(m));
+        if (!vb.isEmpty()) res.visibleBox = B(vb);
+      }
     }
     // a step too high, a ceiling too low, just ahead
     for (const d of [0.35, 0.5, 0.7]) {
@@ -386,7 +404,10 @@ export function probeInPage(o) {
         if (!why && thick < 0.125) why = `it is only ${r2(thick)} m thick along the walk (walk-grid cells are 0.125 m, sampled at their centres)`;
         if (!why && m.geometry && /Plane/.test(m.geometry.type)) why = 'it is an open surface (a plane): the top-down bake never sees a vertical face';
         if (!why) why = 'it should block: check its collider and plan.walk range';
-        res.crossed.push({ label: label(m), why, at: [r2(hit.point.x), r2(hit.point.y), r2(hit.point.z)], box: [r2(wb.min.x), r2(wb.min.y), r2(wb.min.z), r2(wb.max.x), r2(wb.max.y), r2(wb.max.z)] });
+        // collision proxies the module already has (they miss this crossing, or it would have stopped)
+        const m0 = label(m).split('/')[0];
+        const proxies = all.filter((q) => q.userData.collider && label(q).split('/')[0] === m0).map((q) => { const qb = boxOf(q); return [r2(qb.min.x), r2(qb.min.y), r2(qb.min.z), r2(qb.max.x), r2(qb.max.y), r2(qb.max.z)]; });
+        res.crossed.push({ label: label(m), why, at: [r2(hit.point.x), r2(hit.point.y), r2(hit.point.z)], box: [r2(wb.min.x), r2(wb.min.y), r2(wb.min.z), r2(wb.max.x), r2(wb.max.y), r2(wb.max.z)], proxies });
       }
     }
     if (!res.crossed.length && o.axis !== undefined && Number.isFinite(o.stop)) {

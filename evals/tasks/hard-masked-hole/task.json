@@ -1,0 +1,16 @@
+{
+  "title": "The yard is empty",
+  "prompt": "The yard loads with nothing in it. Once it builds, it must be closed except for the gate.",
+  "expect": [
+    "MG201"
+  ],
+  "forbid": [
+    "MG312",
+    "MG320",
+    "MG411",
+    "MG412",
+    "MG440",
+    "MG450",
+    "MG504"
+  ]
+}

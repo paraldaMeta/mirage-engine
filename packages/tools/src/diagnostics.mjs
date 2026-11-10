@@ -401,6 +401,22 @@ export function stuckWords(p, plan) {
   const hit = p.hit ? `${p.hit[0]} ${p.hit[1]} m ahead` : null;
   const sideMods = [...new Set((p.sides || []).map(mod))], file = p.hit ? `modules/${mod(p.hit[0])}.js` : sideMods.length ? sideMods.map((m) => `modules/${m}.js`).join(' / ') : 'the module that builds it';
   if (p.self) return { why: `the walker itself is inside a solid at [${p.self.join(', ')}]${p.selfIn ? ` (${p.selfIn})` : ''}`, fix: `Start the walker outside ${p.selfIn || 'the solid'}: move the spawn / the step's place / the viewpoint eye out of it.` };
+  const dims = (b) => `${+(b[3] - b[0]).toFixed(2)} x ${+(b[4] - b[1]).toFixed(2)} x ${+(b[5] - b[2]).toFixed(2)} m (x, y, z)`;
+  const mid = (b) => `[${+((b[0] + b[3]) / 2).toFixed(2)}, ${+((b[1] + b[4]) / 2).toFixed(2)}, ${+((b[2] + b[5]) / 2).toFixed(2)}]`;
+  if (p.hitCollider && p.hitBox) {
+    // an invisible collision proxy is what blocks: when it does not line up with the visible meshes of its module, say so
+    const v = p.visibleBox, b = p.hitBox;
+    const off = v && (Math.abs((b[3] - b[0]) - (v[3] - v[0])) > 0.5 || Math.abs((b[5] - b[2]) - (v[5] - v[2])) > 0.5 || Math.hypot((b[0] + b[3] - v[0] - v[3]) / 2, (b[2] + b[5] - v[2] - v[5]) / 2) > 0.5);
+    return { why: `blocked by the collision proxy of ${mod(p.hit[0])} (ctx.collider: invisible), ${p.hit[1]} m ahead: a box ${dims(b)} around ${mid(b)}${off ? `; the visible ${mod(p.hit[0])} it stands in for is ${dims(v)} around ${mid(v)}: the proxy does not line up with it` : ''}`,
+      fix: off ? `Make that proxy in ${file} match the visible ${mod(p.hit[0])}: BoxGeometry(${Math.max(+(v[3] - v[0]).toFixed(2), 0.2)}, ${+(v[4] - v[1]).toFixed(2)}, ${Math.max(+(v[5] - v[2]).toFixed(2), 0.2)}) centred at ${mid(v)} (BoxGeometry takes x, y, z sizes; a rotation turns it about y). Do not add a second proxy: this one would still block.`
+        : `Move or shrink that proxy in ${file} if the route should pass, or route around it.` };
+  }
+  if (p.rise !== undefined && p.rise >= 0.9 && p.hit && p.hitBox) {
+    // too tall to be a step: an object standing on the route (often something meant to be overhead, built too low)
+    const b = p.hitBox;
+    return { why: `blocked by ${p.hit[0]}, ${p.hit[1]} m ahead: a solid ${dims(b)} from y ${b[1]} to y ${b[4]}, standing on the route (too tall for a step)`,
+      fix: `Move ${p.hit[0]} off the route in ${file}; if it belongs overhead (a lintel, a beam, a sign), its bottom must be at least 1.9 m above the floor (now y ${b[1]}).` };
+  }
   if (p.width !== undefined && p.width < 0.62) {
     const fields = narrowPlanFields(plan, p.width), between = (p.sides || []).length ? ` between ${p.sides.join(' and ')}` : '';
     return { why: `the opening ahead${between} is about ${p.width} m wide at [${p.widthAt.join(', ')}]; the walker is 0.56 m wide (radius 0.28) and needs >= 0.62 m${hit ? ` (beside it: ${hit})` : ''}`,
@@ -419,6 +435,9 @@ export function throughWords(p) {
     const c = p.crossed[0], [x0, y0, z0, x1, y1, z1] = c.box, file = `modules/${mod(c.label)}.js`;
     const lx = +(x1 - x0).toFixed(2), lz = +(z1 - z0).toFixed(2), h = +(y1 - y0).toFixed(2);
     const proxy = `ctx.collider(new THREE.Mesh(new THREE.BoxGeometry(${Math.max(lx, 0.2)}, ${Math.max(h, 1)}, ${Math.max(lz, 0.2)}))) positioned at [${+((x0 + x1) / 2).toFixed(2)}, ${+((y0 + y1) / 2).toFixed(2)}, ${+((z0 + z1) / 2).toFixed(2)}]`;
+    const has = c.proxies && c.proxies.length ? c.proxies[0] : null;
+    if (has) return { why: `it passed through ${c.label}: ${c.why}; ${file} already has a collision proxy, a box ${+(has[3] - has[0]).toFixed(2)} x ${+(has[4] - has[1]).toFixed(2)} x ${+(has[5] - has[2]).toFixed(2)} m (x, y, z) around [${+((has[0] + has[3]) / 2).toFixed(2)}, ${+((has[1] + has[4]) / 2).toFixed(2)}, ${+((has[2] + has[5]) / 2).toFixed(2)}], but it does not cover this crossing`,
+      fix: `Correct that proxy in ${file} to ${proxy.replace(/^ctx\.collider\(new THREE\.Mesh\(new THREE\.BoxGeometry/, 'BoxGeometry').replace(/\)\)\) positioned/, ') positioned')} (BoxGeometry takes x, y, z sizes) instead of adding a second one: a wrong proxy also blocks where nothing is.`, at: c.at };
     const fix = /collide = false/.test(c.why) ? `Remove userData.collide = false from ${c.label} in ${file}, or add ${proxy}.`
       : /transparent/.test(c.why) ? `Add ${proxy} in ${file} (glass and water need a collision proxy).`
       : `Add ${proxy} in ${file} (a proxy at least 0.2 m thick that the walk grid sees).`;

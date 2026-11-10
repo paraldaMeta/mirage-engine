@@ -77,6 +77,21 @@ assert.match(thin.fix, /ctx\.collider\(new THREE\.Mesh\(new THREE\.BoxGeometry\(
 const plan = { paths: { rail: { width: 0.2 } }, yard: { gate: 0.4, wallHeight: 2.6 } };
 assert.deepEqual(narrowPlanFields(plan, 0.5), ['plan.yard.gate = 0.4']);
 const stuck = stuckWords({ width: 0.5, widthAt: [0, 7], sides: ['walls/wall-s-a', 'walls/wall-s-b'] }, plan);
+// a module that already has a proxy: correct it, do not add a second one
+const proxied = throughWords({ crossed: [{ label: 'rail/post', why: 'it is only 0.06 m thick along the walk', at: [-3.5, 0.3, 3], box: [-5.53, 0, 2.97, -0.47, 1.03, 3.03], proxies: [[-3.1, 0, 0.47, -2.9, 1, 5.53]] }] });
+assert.match(proxied.why, /already has a collision proxy, a box 0\.2 x 1 x 5\.06 m/);
+assert.match(proxied.fix, /^Correct that proxy in modules\/rail\.js to BoxGeometry\(5\.06, 1\.03, 0\.2\) positioned at \[-3, 0\.52, 3\].*instead of adding a second one/);
+// blocked by an invisible proxy that does not line up with the visible meshes it stands in for
+const byProxy = stuckWords({ hit: ['rail', 0.28, 1], hitCollider: true, hitBox: [-3.1, 0, 0.47, -2.9, 1, 5.53], visibleBox: [-5.53, 0, 2.97, -0.47, 1.03, 3.03], rise: 1 }, plan);
+assert.match(byProxy.why, /collision proxy of rail \(ctx\.collider: invisible\).*does not line up/);
+assert.match(byProxy.fix, /BoxGeometry\(5\.06, 1\.03, 0\.2\) centred at \[-3, 0\.52, 3\].*Do not add a second proxy/);
+// a 1 m solid on the route is not a step to ramp: move it, or raise it if it belongs overhead
+const tall = stuckWords({ hit: ['hut/hut-lintel', 0.25, 0.25], hitBox: [-2.95, 0, -3.1, -2.05, 1, -2.9], rise: 1, riseAt: [-2.5, -3.1] }, plan);
+assert.match(tall.why, /blocked by hut\/hut-lintel.*from y 0 to y 1.*too tall for a step/);
+assert.match(tall.fix, /bottom must be at least 1\.9 m above the floor/);
+assert.doesNotMatch(tall.fix, /ramp/);
+// a real step still reads as a step
+assert.match(stuckWords({ hit: ['hut/sill', 0.3, 0.25], hitBox: [0, 0, 0, 1, 0.6, 0.2], rise: 0.6, riseAt: [0.5, 0.1] }, plan).fix, /ramp/);
 assert.match(stuck.fix, /Set plan\.yard\.gate \(now 0\.4\) to at least 0\.8/);
 const st = fromStep({ step: 'w', pass: false, err: 'walkTo: stuck at 0, 0, 6.6 on the way to 0, 9 (no progress for 2.5 s)', from: [0, 0, 4], to: [0, 0, 6.6], checks: [{ k: 'z', e: '> 8.5', v: 6.6, ok: false }], metrics: {} }, { idx: 1, step: { name: 'w' }, probe: { stuck } });
 assert.deepEqual(st.map((x) => x.code), ['MG301'], 'a stuck walk is one diagnostic, not also "stopped short"');

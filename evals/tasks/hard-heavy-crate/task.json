@@ -1,0 +1,17 @@
+{
+  "title": "The yard view and the budget",
+  "prompt": "The yard is over its budget, and the yard view no longer shows the crate. The crate must stay.",
+  "expect": [
+    "MG401",
+    "MG504"
+  ],
+  "forbid": [
+    "MG312",
+    "MG320",
+    "MG411",
+    "MG412",
+    "MG440",
+    "MG450",
+    "MG504"
+  ]
+}

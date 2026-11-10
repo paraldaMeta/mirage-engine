@@ -1,0 +1,109 @@
+{
+  "title": "hard-hut-door",
+  "query": "mode=walk&ui=0&grain=0",
+  "w": 640,
+  "h": 400,
+  "steps": [
+    {
+      "name": "spawn",
+      "ms": 300,
+      "expect": {
+        "onGround": "== true",
+        "y": "~ 0 0.05"
+      }
+    },
+    {
+      "name": "north-wall-blocks",
+      "place": {
+        "eye": [
+          0,
+          1.62,
+          -3
+        ],
+        "look": [
+          0,
+          1.62,
+          -12
+        ],
+        "mode": "walk"
+      },
+      "keys": [
+        "KeyW"
+      ],
+      "ms": 3000,
+      "expect": {
+        "z": "~ -6.52 0.15",
+        "y": "~ 0 0.05"
+      }
+    },
+    {
+      "name": "rail-blocks",
+      "place": {
+        "eye": [
+          -3.5,
+          1.62,
+          5
+        ],
+        "look": [
+          -3.5,
+          1.62,
+          -5
+        ],
+        "mode": "walk"
+      },
+      "keys": [
+        "KeyW"
+      ],
+      "ms": 2000,
+      "expect": {
+        "z": "~ 3.38 0.15"
+      }
+    },
+    {
+      "name": "out-the-gate",
+      "walkTo": [
+        [
+          0,
+          6
+        ],
+        [
+          0,
+          9
+        ]
+      ],
+      "expect": {
+        "z": "> 8.5"
+      }
+    },
+    {
+      "name": "yard-view",
+      "viewpoint": 0,
+      "see": [
+        "crate"
+      ]
+    },
+    {
+      "name": "hut-view",
+      "viewpoint": 4,
+      "see": [
+        "hut-wall-s-a"
+      ]
+    },
+    {
+      "name": "into-the-hut",
+      "walkTo": [
+        [
+          -2.5,
+          -1.5
+        ],
+        [
+          -2.5,
+          -4.6
+        ]
+      ],
+      "expect": {
+        "z": "< -4.2"
+      }
+    }
+  ]
+}
