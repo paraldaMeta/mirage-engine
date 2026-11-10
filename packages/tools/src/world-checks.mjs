@@ -34,28 +34,55 @@ export function classifyEye(grid, eye, walk, yMax = Infinity) {
 }
 
 /** The nearest spot within 4 m where the eye fits (walk: a body on a floor near the same height; else air at the
- *  same height), as an eye [x, y, z], or null. */
-export function freeSpot(grid, eye, walk, yMax = Infinity) {
+ *  same height), as an eye [x, y, z], or null. With `look` (the point the eye looks at) a spot must also do what the
+ *  eye is for, because agents apply the fix as written (the repair eval caught both): it sees `look` through air,
+ *  and a walking body can walk 1.5 m toward it. The nearest spot that only fits is used when none does more; then
+ *  the result carries `fitsOnly: true`. -> [x, y, z] (+ .fitsOnly) or null */
+export function freeSpot(grid, eye, walk, yMax = Infinity, { look = null } = {}) {
   const [x, y, z] = eye, feet = y - 1.62;
+  const cell = grid.cell || 0.125, R = 0.28 + 0.12, n = Math.ceil(R / cell), disc = [];
+  for (let i = -n; i <= n; i++) for (let j = -n; j <= n; j++) if (Math.hypot(i, j) * cell <= R) disc.push([i * cell, j * cell]);
+  const air = (px, py, pz) => { if (grid.idx(px, pz) < 0) return true; const L = grid.layers(px, pz); return !L.length || L.some(([f, c]) => py >= f && py <= c); };
+  // the eye sees the look point: air all the way, stopping 0.8 m short (the look point is often inside its subject)
+  const sees = (ex, ey, ez) => {
+    const dx = look[0] - ex, dy = look[1] - ey, dz = look[2] - ez, d = Math.hypot(dx, dy, dz);
+    for (let t = 0.2; t < d - 0.8; t += 0.2) if (!air(ex + (dx * t) / d, ey + (dy * t) / d, ez + (dz * t) / d)) return false;
+    return true;
+  };
   const fitsAt = (px, pz) => {
     if (grid.idx(px, pz) < 0) return null;
     if (!walk) { const L = grid.layers(px, pz); return y <= yMax && L.some(([f, c]) => y >= f + 0.3 && y <= c - 0.3) ? y : null; }
+    // the walker's own test (walker.js fits): every grid cell of a disc of its radius, here with 0.12 m to spare.
+    // Four probes at 0.3 m (the first version) passed a spot 0.19 m from a crate, where the walker was wedged.
     let floor = -Infinity;
-    for (const [dx, dz] of [[0, 0], [0.3, 0], [-0.3, 0], [0, 0.3], [0, -0.3]]) {
+    for (const [dx, dz] of disc) {
       const s = grid.support(px + dx, pz + dz, feet, 0.4);
       if (!s || s[1] < Math.max(feet, s[0]) + 1.8 || Math.abs(s[0] - feet) > 0.45) return null;
       floor = Math.max(floor, s[0]);
     }
     return floor + 1.62;
   };
+  // a walking body can walk 1.5 m toward the look point from here
+  const walksAhead = (px, pz) => {
+    let dx = look[0] - px, dz = look[2] - pz; const d = Math.hypot(dx, dz);
+    if (d < 0.01) return true;
+    dx /= d; dz /= d;
+    for (let t = 0.25; t <= Math.min(1.5, d - 0.5) + 1e-6; t += 0.25) if (fitsAt(px + dx * t, pz + dz * t) === null) return false;
+    return true;
+  };
+  let fallback = null;
   for (let r = 0.25; r <= 4.001; r += 0.25) {
     const n = Math.max(8, Math.round((2 * Math.PI * r) / 0.25));
     for (let i = 0; i < n; i++) {
       const a = (i / n) * 2 * Math.PI, px = x + r * Math.cos(a), pz = z + r * Math.sin(a), ey = fitsAt(px, pz);
-      if (ey !== null) return [+px.toFixed(2), +ey.toFixed(2), +pz.toFixed(2)];
+      if (ey === null) continue;
+      const spot = [+px.toFixed(2), +ey.toFixed(2), +pz.toFixed(2)];
+      if (!look || (sees(px, ey, pz) && (!walk || walksAhead(px, pz)))) return spot;
+      if (!fallback) fallback = spot;
     }
   }
-  return null;
+  if (fallback) fallback.fitsOnly = true;
+  return fallback;
 }
 
 /** Load-time checks in the page; returns raw findings (see worldDiagnostics in diagnostics-world.mjs). */
@@ -106,7 +133,8 @@ export function worldChecksInPage(opts, lib) {
       const p = new T.Vector3(e.v.eye[0], walk && c.state === 'inside' ? e.v.eye[1] - 1.0 : e.v.eye[1], e.v.eye[2]);
       const hold = solids.filter((o) => box(o).containsPoint(p)).sort((a, b) => { const s = (o) => { const v = box(o).getSize(new T.Vector3()); return v.x * v.y * v.z; }; return s(a) - s(b); });
       if (hold.length) row.inside = label(hold[0]);
-      row.free = freeSpot(grid, e.v.eye, walk, yMax);
+      row.free = freeSpot(grid, e.v.eye, walk, yMax, { look: e.v.look || null });
+      if (row.free && row.free.fitsOnly) row.freeFitsOnly = true;
     }
     out.eyes.push(row);
   }
