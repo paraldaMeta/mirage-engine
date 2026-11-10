@@ -27,7 +27,8 @@
     "mirage-still-pop": "./src/still-pop.mjs",
     "mirage-export": "./src/export.mjs",
     "mirage-xr-check": "./src/xr-check.mjs",
-    "mirage-ship": "./src/ship.mjs"
+    "mirage-ship": "./src/ship.mjs",
+    "mirage-xr-stereo-check": "./src/xr-stereo-check.mjs"
   },
   "files": [
     "src",

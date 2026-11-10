@@ -4,6 +4,7 @@
 // URL: ?mode=walk (default) | fly | game | orbit   ?view=<viewpoint name>   ?time=golden | HH:MM [&date=YYYY-MM-DD]
 //      ?spp=N  ?w=&h=  ?grain=0  ?broken=1  ?ui=0  ?npc=N (N travellers wander the terraces: npc.js)
 //      ?lawn=fur | fur-fins | tufts (turf on one lawn panel)
+//      XR (all opt-in, xr-demo.js): ?xrpost=1 ?xrbudget=1 ?xrprofile=auto ?xrposture=seated ?xrbounds=1 ?xrsmooth=1 ?xrdemo=1 ?xrar=1
 import { createWorldRenderer, createTextures, placeDate, pickQuality, postFromQuery } from '@mirage/core';
 import { buildWorld } from '@mirage/world';
 import { createPlay, createXR, xrSupport } from '@mirage/play';
@@ -12,6 +13,7 @@ import plan from './plan.js';
 import modules from './modules/index.js';
 import { npcDemo } from './npc.js';   // ?npc=N only (static: a dynamic import would split the bundle in two)
 import { addLamps } from './lamps.js';
+import { xrDemo } from './xr-demo.js';   // ?xrpost ?xrbudget ?xrprofile ?xrposture ?xrbounds ?xrdemo ?xrar (docs/xr.md)
 
 const Q = new URLSearchParams(location.search);
 const W = +Q.get('w') || innerWidth, H = +Q.get('h') || innerHeight;
@@ -55,7 +57,7 @@ let npc = null;   // ?npc=N: made below, stepped with the player
 const play = createPlay(world, { plan: built.plan, canvas, mode, spp, ui: Q.get('ui') !== '0', shadowRadius: 26, fit: !Q.get('w'), quality, hud, onStep: (dt) => npc?.step(dt) });
 const v = plan.viewpoints.find((p) => p.name === Q.get('view'));
 if (v) play.place(v.eye, v.look, mode);
-const xr = createXR(play, { support: xrs });
+const xr = createXR(play, { support: xrs, ...xrDemo(Q, world, play, plan) });
 if (Q.has('npc')) npc = npcDemo(world, play, plan, Q.get('npc') === '' ? 6 : +Q.get('npc'));
 window.__mirage = { world, tex, built, play, xr, npc, render: (o = {}) => world.renderFrame(o.T ?? 0, { spp, frameIndex: 1, ...o }) };
 window.__READY = true;

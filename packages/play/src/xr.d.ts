@@ -3,6 +3,10 @@ import type { Play } from './play.js';
 import type { WalkerLike } from './walker.js';
 import type { XYZ } from '@mirage/world';
 import type { WorldRenderer } from '@mirage/core';
+import type { XRPost, XRPostOptions } from './xr-post.js';
+import type { XRProfile, XRProfileId, XRLevel, XRGovernorOptions } from './xr-quality.js';
+import type { XRInteraction, XRInteractionState } from './xr-interact.js';
+import type { XRAR, XRAROptions, XRARAnchor, XRARState } from './xr-ar.js';
 
 export interface XRSupport { vr: boolean; ar: boolean }
 /** Which immersive sessions this browser offers (both false without WebXR). Await it before creating the world. */
@@ -71,10 +75,30 @@ export interface XROptions {
    *  the index finger. Asks for the 'hand-tracking' feature. Default true (inert without tracked hands). */
   hands?: boolean;
   /** Thresholds of the hand gestures (packages/play/src/xr-hands.js HAND_GESTURE). */
-  handGesture?: Partial<{ pinchOn: number; pinchOff: number; pointHold: number; armWindow: number; straight: number; reach: number; curl: number }>;
+  handGesture?: Partial<{ pinchOn: number; pinchOff: number; pointHold: number; armWindow: number; straight: number; reach: number; curl: number; grabOn: number; grabOff: number }>;
   /** How labels draw text: 'canvas' (Canvas 2D), 'glyphs' (the built-in glyph font into a DataTexture, no canvas or
    *  document needed), or 'auto' (glyphs where Canvas 2D draws no text, e.g. a native host). Default 'auto'. */
   text?: 'auto' | 'canvas' | 'glyphs';
+  /** VR: the engine's post chain per eye (HDR + MSAA scene, AO, bloom, exposure, tone map, grade, LUT) in place of
+   *  the one-pass direct path. Default off (with `profile`: the device's default). */
+  post?: boolean | XRPostOptions;
+  /** A frame-time governor that steps quality down (resolution, AO, bloom, then the direct path) before frames are
+   *  dropped, and back up when there is room. Default off. */
+  budget?: boolean | XRGovernorOptions;
+  /** Device defaults for framebufferScale, foveation, frameRate and post: 'auto' (from the user agent) or a name.
+   *  What is set explicitly wins. None of the profiles was tested on hardware. */
+  profile?: 'auto' | XRProfileId;
+  /** 'room' (default: the real head height), 'standing' or 'seated' (the eyes go to the character's eye height;
+   *  seated also ignores walking about the room). */
+  posture?: 'room' | 'standing' | 'seated';
+  /** Eye height (m) the calibration aims for. Default the walker body's. */
+  eyeHeight?: number;
+  /** Show the play area's boundary (bounded-floor) within boundsWarn (0.5 m) of its edge, or 'always'. */
+  bounds?: boolean | 'always'; boundsWarn?: number;
+  /** Grab, throw, two-handed hold, snap zones, poke and UI panels: createXR feeds it controllers and hands. */
+  interact?: XRInteraction;
+  /** AR beyond the hit test: anchors, plane detection, light estimation, DOM overlay, a shadows-only ground. */
+  arFeatures?: boolean | XRAROptions;
 }
 export interface XRState {
   presenting: boolean; mode: 'vr' | 'ar' | null; rigYaw: number; rig: [number, number, number]; scale: number;
@@ -84,10 +108,17 @@ export interface XRState {
   /** How the labels draw text. */
   text: 'canvas' | 'glyphs';
   /** Per input slot: a tracked hand (not a controller) and its gesture state. */
-  hands: { handedness: string; hand: boolean; tracked: boolean; pinching: boolean; pointing: boolean; aiming: boolean }[];
+  hands: { handedness: string; hand: boolean; tracked: boolean; pinching: boolean; pointing: boolean; aiming: boolean; grabbing: boolean }[];
   ar: { placed: boolean; scale: number; hit: boolean; hitTest: boolean }; frames: number; size: [number, number];
   /** The meter's mean radiance of the view (linear rgb), null before the first reading. */
   meter: [number, number, number] | null;
+  /** The per-eye post chain while presenting with `post` (on: it is drawing), else null. */
+  post: { on: boolean; width: number; height: number; scale: number; resizes: number; eyes: number } | null;
+  quality: { level: number; scale: number };
+  /** Height calibration: the rig's lift (m) and the posture. */
+  lift: number; posture: 'room' | 'standing' | 'seated';
+  bounds: { points: number; distance: number; shown: boolean } | null;
+  arx: XRARState | null; interact: XRInteractionState | null; profile: XRProfileId | null;
 }
 export interface XRTraceRecord { dt: number; x: number; z: number; run: boolean; from: [number, number, number]; pos: [number, number, number]; blocked: boolean; onGround: boolean; yaw: number }
 export interface MirageXR {
@@ -114,6 +145,16 @@ export interface MirageXR {
   readonly offered: boolean; readonly offers: number;
   /** Tests: the prompt and panel sprites (world space). */
   labels: { prompt: THREE.Sprite; panel: THREE.Sprite };
+  /** The opt-in parts: the per-eye post chain (null until a VR session with `post`), the interaction, the AR features, the device profile. */
+  readonly post: XRPost | null; interact: XRInteraction | null; ar: XRAR | null; profile: (XRProfile & { id: XRProfileId }) | null;
+  /** Quality now; `governor` is null without `budget`. */
+  readonly quality: { level: number; scale: number; post: boolean; governor: { ema: number; late: number; steps: number; reason: string } | null };
+  /** Force a level of the governor's ladder (with `budget` it moves on from there). */
+  setLevel(index: number): XRLevel;
+  /** Standing / seated: measure the head again; returns the rig's lift (m). */
+  calibrateHeight(): number;
+  /** AR: an anchor at the current hit test; rejects without anchors or a hit. */
+  anchor(): Promise<XRARAnchor>;
   state(): XRState;
 }
 export function createXR<W extends WalkerLike>(play: Play<W>, options?: XROptions): MirageXR;

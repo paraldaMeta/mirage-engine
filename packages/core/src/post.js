@@ -757,7 +757,7 @@ export class Pipeline {
    *  bit-identical). Without dt the frame counts as still. */
   end(P, frameIndex = 0, target = null, opts = {}, setOnly = false) {
     const useAE = P.autoExposure > 0;
-    if (useAE) this._meter(P, P.exposure, opts);
+    if (useAE) { if (opts.meter !== false || !this.aeValid) this._meter(P, P.exposure, opts); }   // meter: false = keep the adapted exposure (XR: the second eye)
     else this.aeValid = false;
     // opt-in passes (postfx.js) on a moving frame: lens blur, then motion blur, over the resolved frame
     const live = opts.still === false && this._live;

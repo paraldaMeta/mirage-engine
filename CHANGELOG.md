@@ -42,6 +42,21 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
   this machine, so no wrapper was built or run (the Rust main has never been compiled) and the scaffolds are
   checked for structure only; consoles are out of reach. Try: `?platform=1` on hello-courtyard and garden-quest,
   `?bytetargets=1` on hello-courtyard; `npm run test:ship`, `test:context-loss`, `test:mobile`.
+- @mirage/play: XR towards parity, all opt-in and **exercised only in an emulated session** (no headset; `docs/xr.md`).
+  `createXR(play, { post })` draws each eye through the engine's post chain (HDR + MSAA, AO, bloom, auto exposure,
+  tone map, grade, LUT; TAA, motion blur, depth of field, chromatic aberration, grain and the lens vignette stay
+  off) and copies both eyes with depth into the layer: 35.1 dB PSNR per eye against the desktop frame of the same
+  camera with the same passes (direct path 24.5 dB; 6 spp vs 1 spp noise floor 39.2 dB), 39 render passes and 105
+  draw calls per stereo frame against 1 and 78, 4.12 ms against 2.06 ms median (walled-garden, 1024 x 1024 per eye,
+  desktop GPU). `budget` adds a frame-time governor with dynamic resolution (resolution, AO, resolution, bloom,
+  then the direct path; back up after calm), `profile` a device table (Quest 2 / 3, Vision Pro, PC VR: untested on
+  hardware), `posture` height calibration, `bounds` the play-area fence. `createXRInteraction`: near and ray grab,
+  throw (Rapier, or ballistic: landing within 1 cm of the prediction), two-handed turn and scale, snap zones, poke
+  buttons, canvas UI panels by ray and fingertip, fist / pinch / point gestures, haptics. `arFeatures`: anchors,
+  plane detection, light estimation onto the sun and a light probe, DOM overlay, a shadows-only ground. New tool
+  `mirage-xr-stereo-check` with its own WebXR shim (41 checks); walled-garden flags `?xrpost`, `?xrbudget`,
+  `?xrprofile`, `?xrposture`, `?xrbounds`, `?xrsmooth`, `?xrdemo`, `?xrar`. Without the options the desktop stills
+  of hello-courtyard and walled-garden are byte-identical.
 - @mirage/game: an audio engine on top of the mixer (`createAudioEngine`, `createMixer`, `createMusic`,
   `createAudioDebug`, occluders and DSP helpers; experimental, opt-in, `docs/audio.md`). `createAudio` is unchanged
   and, given to the engine, keeps playing through the new buses (`audio.play('pickup')` peak 0.284 alone, 0.284 again

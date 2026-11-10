@@ -248,6 +248,145 @@ been measured on a headset. Evidence images: `docs/media/xr/`.
 ![after the trigger](media/xr/garden-quest-after-trigger.jpg)
 ![AR: the courtyard as a table model (transparent background shown grey)](media/xr/hello-courtyard-ar.jpg)
 
+## Opt-in: the engine's look per eye, hands-on interaction, comfort, AR features
+
+Everything in this section is off unless asked for (with none of these options the frame is what it was: the
+desktop stills of hello-courtyard and walled-garden are byte-identical before and after). **None of it has run on a
+headset.** It was exercised in headless Chrome against an emulated session (`packages/tools/src/xr-shim.js`, an
+original WebXR shim: two views, controllers, hands, hit test, anchors, planes, light probe, bounded floor), so what
+is proved is the page's side of the WebXR contract, not a compositor, a mobile GPU or real tracking.
+
+```js
+const ix = createXRInteraction({ physics: g.physics });   // optional: @mirage/game physics for real throws
+const xr = createXR(play, {
+  post: { msaa: 4, ao: true, bloom: true },   // the post chain per eye (VR)
+  budget: true,                               // degrade quality before dropping frames
+  profile: 'auto',                            // device defaults (table below); explicit options win
+  posture: 'seated', bounds: true, snapTurn: 0,
+  interact: ix,
+  arFeatures: { anchors: true, planes: 'shadow', light: true, shadowGround: true, domOverlay: el },
+});
+```
+
+On walled-garden the same things are URL flags: `?xrpost=1` (`&xrmsaa=N&xrao=0&xrbloom=0`), `?xrbudget=1`,
+`?xrprofile=auto|quest-2|quest-3|vision-pro|pcvr`, `?xrposture=seated|standing`, `?xrbounds=1|always`,
+`?xrsmooth=1`, `?xrdemo=1` (a stand by the spawn: a ball to throw, a two-handed crate, a snap socket, a poke
+button, a canvas UI panel), `?xrar=1`.
+
+### Rendering (`post`, `budget`, `profile`)
+
+Without `post` an XR frame is one pass into the headset's layer with a fitted grade in the material shaders (the
+direct path, above). With `post`, each eye is drawn through a core `Pipeline` of its own and both are copied into
+the layer with their depth, so controllers, the teleport arc and panels are occluded by the world and not graded
+twice.
+
+| per eye | | why |
+|---|---|---|
+| HDR scene (RGBA16F) with MSAA, SSAO, bloom, auto exposure, tone map, white balance, grade, sharpen, LUT | yes | exposure is metered on the left eye and applied to both |
+| TAA / temporal upscale | no | sub-pixel jitter swims under the compositor's reprojection; two histories disagree |
+| motion blur, depth of field | no | the eye is the camera |
+| chromatic aberration, lens vignette, film grain | no | the lens correction is the compositor's; grain uncorrelated between the eyes reads as a surface at no depth |
+| screen-space reflections, volumetrics (`light2`) | no | not wired into the eye pipeline |
+
+The shadow map is drawn once per frame. AR keeps the direct path (the pipeline's frame is opaque). Foveation
+(`foveation`), the layer's MSAA and `framebufferScale` are as before; `budget` adds dynamic resolution (the eye
+pipeline's size with `post`, WebXR's `requestViewportScale` on the direct path) and a governor: it watches the
+frame callback's CPU time and late frame intervals (a page cannot read the compositor's GPU time), steps down
+resolution 1 -> 0.85, AO off, 0.7, bloom off, then the direct path, and climbs back one level per about 4 s of
+calm. `xr.quality` and `xr.setLevel(i)` expose it.
+
+Measured in the emulated session (walled-garden, quality high, 1024 x 1024 per eye, layer 2048 x 1024 with 4x
+MSAA, Apple M4 Pro, headless Chrome; `mirage-xr-stereo-check`):
+
+| | left / right eye |
+|---|---|
+| PSNR, post chain vs the desktop frame of the same camera with the same passes (6 spp) | 35.12 / 35.05 dB |
+| same, AO and bloom off on both | 32.06 / 31.95 dB |
+| direct path vs the same reference | 24.48 / 24.50 dB |
+| noise floor: the desktop frame at 6 spp vs 1 spp | 39.15 dB |
+| post chain vs the full desktop frame (TAA, grain, vignette on) | 29.31 dB |
+
+| per stereo frame | render passes | draw calls | triangles | time (median, min-max) |
+|---|---|---|---|---|
+| direct path | 1 | 78 | 668 k | 2.06 ms (1.90-4.55) |
+| post chain | 39 | 105 | 668 k | 4.12 ms (3.93-4.25) |
+| post chain, AO and bloom off | 11 | 77 | 668 k | not measured |
+| desktop frame (one view, 1 spp) | 17 | 64 | 407 k | not measured |
+
+Timing is A/B interleaved, 6 rounds of 40 frames, CPU-side submit time with a `gl.finish` on a desktop GPU: it
+says what the chain costs relative to the direct path here (2.0x), not what a headset will do (a second run of the check: 1.82 and 3.58 ms). Governor: fed 32 ms
+frames at 72 Hz it stepped at frames 3, 34, 65, 96 and 127 (eye 1024 -> 870 -> 716, then the direct path at
+viewport scale 0.7); on-time frames brought it back to level 0 in about 1580 frames (1575 and 1585 in two runs).
+
+Device defaults (`xrProfile()`, `XR_PROFILES`). **Untested on hardware**: chosen from published panel sizes and
+refresh rates and from the desktop cost above; a starting point to measure on the device.
+
+| profile | device | scale | foveation | Hz | post | AO | bloom | tested |
+|---|---|---|---|---|---|---|---|---|
+| `quest-2` | Meta Quest 2, Quest Browser | 0.8 | 1 | 72 | no | no | no | no |
+| `quest-3` | Meta Quest 3 / 3S / Pro, Quest Browser | 1 | 1 | 72 | no (try `post` without AO first) | no | yes | no |
+| `vision-pro` | Apple Vision Pro, Safari (visionOS 2+): VR only, gaze-and-pinch, no controllers | 1 | system | system | no | no | yes | no |
+| `pcvr` | Chrome / Edge through OpenXR (SteamVR, Link) | 1 | 0 | 90 | yes, 4x MSAA | yes | yes | no |
+| `default` | anything else | 0.9 | 1 | - | no | no | yes | no |
+
+### Interaction (`interact`)
+
+`createXRInteraction()` knows nothing of WebXR: it is fed pointers (grip pose, ray, fingertip, grab and select
+flags, a haptic pulse), which `createXR` builds from controllers (squeeze grabs, trigger selects) and tracked hands
+(a fist grabs, a pinch selects, the index tip pokes).
+
+- `ix.grabbable(obj, { body, radius, twoHanded, scale })`: near grab within reach, else along the ray; with a
+  Rapier body (`@mirage/game` physics) the held body is kinematic and is thrown with the hand's mean velocity over
+  the last 0.1 s; without physics it flies a ballistic arc to `ground(x, z)`. A second hand turns and scales.
+- `ix.snapZone({ position, radius, accepts, onSnap })`, `ix.pokeable(obj, { onPress })`.
+- `ix.panel(ui, ui.mesh())`: a canvas panel ([ui.md](ui.md)) by ray + trigger / pinch, or by a fingertip through
+  its surface (hysteresis; a hand from behind does not press).
+- Gestures (`xr-hands.js`): pinch, point, fist (`handCurl`), with hysteresis; haptics: 0.15 on hover, 0.5 on grab
+  (controllers only: hands have no actuator).
+
+Checked under emulation: hover and grab pulses, a throw (released at (1.6, 1.06, 0.8) m/s; landing within 1 cm and
+0.653 s vs 0.657 s of the ballistic prediction), snap, two-handed scale x2 with a 90 degree turn, button poke, ray
+toggle on the panel, fingertip press on the panel, fist grab, pinch. With real Rapier in Node (`xr2.check.mjs`):
+kinematic while held, dynamic with the hand's velocity on release.
+
+### Locomotion and comfort (`posture`, `bounds`, `snapTurn`)
+
+Teleport (validated arc on the walk grid), snap turn, smooth move with the comfort vignette were there. New:
+`snapTurn: 0` smooth turn also drives the vignette (0.77 while turning, 0.004 at rest in the check);
+`posture: 'standing' | 'seated'` puts the eyes at the character's eye height whatever the real one
+(`xr.calibrateHeight()` measures again; seated ignores walking about the room); `bounds` asks for `bounded-floor`
+and draws the play area's fence as the head comes within 0.5 m of an edge (`'always'` keeps it).
+
+### AR (`arFeatures`)
+
+Hit-test placement was there. New, each an optional session feature that stays idle where the browser lacks it:
+`anchors` (the placed world follows its anchor; `xr.anchor()` makes more), `planes: 'shadow' | 'debug'` (detected
+planes as shadow receivers or translucent polygons), `light` (light estimation: the main light's direction and
+colour on the world's sun, spherical harmonics as a light probe in place of most of the environment light; restored
+on exit), `domOverlay` (an element as the overlay; taps on it are not world selects), `shadowGround` (a ground that
+draws only shadow). The frame is cleared transparent (98.4 % of the eye's pixels at alpha 0 in the check).
+
+### Exercised only under emulation
+
+All of it: the stereo post path, the governor's effect on a compositor, foveation and frame rate requests,
+controller and hand input, haptics, teleport and turns in a headset, height calibration, the bounds fence, hit
+test, anchors, planes, light estimation, DOM overlay and passthrough blending. Run it again with
+`node packages/tools/src/xr-stereo-check.mjs examples/walled-garden/dist --out <dir>` (phases `--only
+render,time,governor,interact,move,ar`; 41 checks) and `node packages/play/xr2.check.mjs`.
+
+### What Unity (XR Interaction Toolkit, OpenXR) and Unreal still have
+
+- Native OpenXR: extensions a browser does not expose (composition layers beyond three's projection layer, quad /
+  cylinder layers for UI, space warp, passthrough styling, scene mesh, spatial entities, vendor extensions).
+- Late latching and reprojection control (ASW / motion smoothing settings, depth submission tuned for it): a page
+  gets whatever the browser's compositor does.
+- Multiview / single-pass instanced stereo: each eye is still drawn on its own here (three 0.186).
+- GPU frame timing for the governor; fixed foveation levels per vendor and eye-tracked foveation.
+- Eye tracking, face and body tracking, hand meshes and physical hands, controller models from input profiles.
+- Depth occlusion, mesh detection, image tracking, persistent and shared anchors.
+- An interaction toolkit of that breadth: sockets with attach poses, climb, grab-move, gaze interactors, UI
+  toolkit integration, an input action system, device simulators with recorded sessions.
+
 ## Limits
 
 - `offer` is on by default. On Quest Browser a page that also shows the Enter VR button keeps its offered session
@@ -264,10 +403,11 @@ been measured on a headset. Evidence images: `docs/media/xr/`.
 - Hands: pinch and point-then-pinch only (no walking, turning or menu by gesture); the hands are not drawn, only the
   index ray; tested on iwer's emulated hands and on Meta's captured poses, not on real tracking. No controller models from the WebXR input
   profiles (simple shapes instead, nothing is fetched from a CDN), no fly / game / orbit modes in VR (walk only).
-- Seated play gets a low head: there is no height calibration.
+- Seated play gets a low head unless `posture: 'seated'` is set (opt-in, above).
 - First entry compiles the XR variants of the materials (a pause on entering); a running clock (`?clock=`) keeps
   running, but the environment light fades are drawn with XR off between frames.
-- AR: no depth occlusion, anchors or plane detection; the model is clipped to the plan's rectangle only.
+- AR: no depth occlusion; anchors, plane detection and light estimation are opt-in (`arFeatures`, above) and ran
+  only against the emulated session; the model is clipped to the plan's rectangle only.
 
 ## Compared with three-live's XR
 

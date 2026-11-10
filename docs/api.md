@@ -193,6 +193,17 @@ Gaussian splats, `@mirage/world/kits/splat` (opt-in subpath, world README "Gauss
 | `createNavCrowd(nav, { separation, range })` | experimental | separation steering for many agents (`add`, `remove`, `update(dt)`) |
 | `createXR(play, opts)` | experimental | WebXR: Enter VR / Enter AR buttons, the walker in a headset, teleport, snap turn, in-world game prompts, AR table model; hand tracking (pinch, point-and-pinch teleport), `navigator.xr.offerSession` / `autoEnter` for hosts without a DOM, labels in a built-in glyph font where Canvas 2D draws no text (`opts.offer`, `autoEnter`, `hands`, `text`; `docs/xr.md`) |
 | `xrSupport()` | experimental | `{ vr, ar }`: which immersive sessions the browser offers; pass `vr \|\| ar` as the world's `xr` option |
+| `createXR` options `post`, `budget`, `profile`, `posture`, `bounds`, `interact`, `arFeatures` | experimental | opt-in XR parts ([xr.md](xr.md)): the post chain per eye, the frame-time governor, device defaults, height calibration, the play-area fence, interaction, AR features; `xr.post`, `xr.quality`, `xr.setLevel(i)`, `xr.calibrateHeight()`, `xr.anchor()`. Exercised only in an emulated session |
+| `createXRPost(world, { msaa, ao, bloom, lut, depth, scale })` | experimental | the engine's post chain per eye into the XR layer (`render(T, frame)`, `setLevel`, `stats`) |
+| `xrEyePost(post, level)`, `xrEyeSize(w, h, scale)`, `XR_POST_OFF` | experimental | an eye's post settings (temporal and lens passes off), its pipeline size, the passes a headset never gets |
+| `XR_PROFILES`, `xrProfile(nameOrUA)` | experimental | default quality per device class (Quest 2, Quest 3, Vision Pro, PC VR); none tested on hardware |
+| `createXRGovernor({ hz, levels, high, low, window, drops, calm, hold, warm })` | experimental | frame-time governor: `update(cpuMs, intervalMs)` -> level index; steps down before frames drop, up after calm |
+| `XR_LEVELS`, `XR_SCALE_LEVELS` | experimental | the governor's ladders with and without the post chain |
+| `heightOffset(posture, eye, headY)`, `boundsDistance(polygon, x, z)` | experimental | standing / seated rig lift; distance to the play area's edge |
+| `createXRInteraction({ physics, reach, rayReach, ground })` | experimental | grab (near and ray), throw (Rapier or ballistic), two-handed turn and scale, `snapZone`, `pokeable`, canvas UI `panel` by ray and poke, haptic pulses; fed pointers by `createXR` |
+| `createVelocityTracker(window)`, `twoHandTransform(a0, b0, a1, b1, out, range)`, `pokeTest(local, w, h, state)`, `POKE` | experimental | the interaction's pure parts: throw velocity, the two-hand transform, the fingertip press test and its thresholds |
+| `createXRAR(world, { anchors, planes, light, domOverlay })` | experimental | immersive-ar features: anchors, detected planes, light estimation onto the sun and a light probe, DOM overlay |
+| `shadowGround({ size, opacity })` | experimental | a ground that draws only the shadows cast on it (AR passthrough) |
 | `createAnimator(root, clips, { parameters, layers, rootMotion, fixedStep, events })` | experimental | the animation controller ([animation.md](animation.md)): per-layer state machines with cross-fades and conditions, 1D / 2D blend spaces on one phase, masked and additive layers, root motion returned from `update(dt)`, clip events, `snapshot` / `restore`, `poseClip`; `post` hooks for IK |
 | `blend1d(points, x)`, `blend2d(points, x, y, mode)` | experimental | the blend-space weights on their own |
 | `rootMotionInput(move, heading, body, dt)` | experimental | a root-motion step as the input `walker.update` takes, so clips drive the walker and the walk grid still decides where it may go |
@@ -288,5 +299,5 @@ Multiplayer for walked worlds; all of it experimental and opt-in (nothing else i
 
 Command-line tools (no JS entry point). Stable: `mirage-playtest` (scenario format in the playtest skill),
 `mirage-package`, `mirage-snap`, `mirage-deploy`. Experimental: `mirage-walktest`, `mirage-perf`, `mirage-e2e` (runs the `examples/` of the current folder or `--root`),
-`mirage-gpu-load`, `mirage-still-pop`, `mirage-xr-check` (WebXR in an emulated Quest 3; repository checks; some expect this repository's `examples/`). `mirage-ship` (web, PWA and wrapper scaffolds; with the subpaths `@mirage/core/platform`, `@mirage/core/byte-targets` and `@mirage/game/platform`: `docs/platforms.md`). The tools
+`mirage-gpu-load`, `mirage-still-pop`, `mirage-xr-stereo-check` (both eyes of an emulated session against the desktop frame, interaction, locomotion, AR), `mirage-xr-check` (WebXR in an emulated Quest 3; repository checks; some expect this repository's `examples/`). `mirage-ship` (web, PWA and wrapper scaffolds; with the subpaths `@mirage/core/platform`, `@mirage/core/byte-targets` and `@mirage/game/platform`: `docs/platforms.md`). The tools
 need Chrome: `$CHROME`, or the usual install place on macOS, Linux and Windows.
