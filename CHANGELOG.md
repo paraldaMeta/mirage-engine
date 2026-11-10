@@ -30,6 +30,27 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
   loops (32 sounding) and 9 rays: 0.070 ms median (0.053-0.075). In garden-quest it is a separate chunk
   (37.4 KB, 15.8 KB gzip) fetched only with the flag. Demo `examples/demos/audio`; garden-quest `?audio=engine` (pavilion reverb zone, an
   occluded wind chime, the overlay).
+- Model import and an animation stack (experimental, opt-in; `docs/import.md`, `docs/animation.md`).
+  `@mirage/core/assets` (a subpath) loads glTF / GLB through a reference-counted cache (`load`, `instantiate`,
+  `instances`, `release`), starts the Draco, meshopt and KTX2 decoders only for files that name them, patches
+  imported materials into the world's fog, shadows and light, and puts static models into the walk grid and Rapier
+  by the engine's one rule (`collide: 'mesh' | 'box' | 'hull' | false`). `writeGLB` (core) writes skinned, animated
+  GLB with an own meshopt vertex encoder, so the checks need no downloaded files. `@mirage/play` gains
+  `createAnimator` (layered state machines, 1D / 2D blend spaces on one phase, masked and additive layers, root
+  motion that drives the walker through `rootMotionInput`, clip events, fixed stepping, snapshot / restore),
+  `solveTwoBone`, `solveLookAt`, `createFootIK` (feet on the walk grid's floors), `retargetClip` between humanoid
+  skeletons, `createTimeline` (camera, transform, animation, audio, event tracks; `seek` is exact) and
+  `createRigCharacter` behind the new `createPlay({ character })` option. Measured: the code-authored rig (20 bones,
+  880 vertices, 9 clips) is 164 596 B as GLB, 137 932 B with meshopt, and imports in 8-10 ms in Chrome; one animator
+  update in Node 1.5 µs (one clip), 2.3 µs (3-clip blend with root motion), 5.7 µs with foot IK and look-at; a
+  1.5 m/s walk clip moves a walker 6.00 m in 4 s; across a 0.15 m kerb both ankles are 7 mm from their floor (143 mm
+  with `?ik=0`); retarget to the built-in traveller: limb error 4.9e-4 rad (1.35 rad without rest matching). The
+  single-file build inlines the decoders (3.48 MB of the demo's 4.58 MB) and both start from it; no Draco or KTX2
+  file was decoded (three ships no encoder; nothing was downloaded). Without the option nothing changes: the three
+  example bundles compared (hello-courtyard, garden-quest, walled-garden) grew 27 bytes each, and six stills of hello-courtyard and garden-quest are byte-identical. Demo:
+  `examples/demos/anim` (`?player=procedural`, `?ik=0`, `?npc=0`, `?retarget=0`, `?timeline=1`); checks:
+  `packages/core/assets.check.mjs`, `packages/play/anim.check.mjs`, `packages/play/rig.check.mjs` (Node, in
+  `npm test`) and `node examples/demos/anim/anim-check.mjs` (Chrome, 17 checks).
 - @mirage/play: NPC navigation on the walk grid (`createNavGrid`, `createNavAgent`, `createNavCrowd`; experimental,
   opt-in). No navmesh: per-radius fit bits from the walker's own disc / step / head-room test (equal to the walker
   on every floor of the node checks' grids and on 20 000 of 20 000 random floors of walled-garden), coarse A* (4 x 4

@@ -21,3 +21,4 @@ export { WET, WET_GLSL, setWetness, setRain, withWet } from './wet.js';
 export { createEnvLight } from './envlight.js';
 export { deviceProfile, pickQuality, QUALITY_LEVELS, QUALITY_KEY } from './device.js';
 export * as geom from './geom.js';
+export { writeGLB } from './gltf-write.js';

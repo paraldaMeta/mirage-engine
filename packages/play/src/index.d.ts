@@ -6,6 +6,12 @@ export { createWalker, BODY } from './walker.js';
 export { createNavGrid, createNavAgent, createNavCrowd } from './navgrid.js';
 export { mountWorld } from './embed.js';
 export { createXR, xrSupport } from './xr.js';
+export { createAnimator, blend1d, blend2d, rootMotionInput } from './anim.js';
+export { solveTwoBone, solveLookAt, createFootIK } from './ik.js';
+export { humanoidRoles, humanoidMap, retargetClip } from './retarget.js';
+export { createTimeline } from './timeline.js';
+export { createRigCharacter } from './rig-character.js';
+export { createRigModel, RIG } from './rig-model.js';
 
 export type { Play, PlayOptions, PlayPlan, SimulationDriver } from './play.js';
 export type { Character, CharacterPalette, CharacterAppearance, CharacterState } from './character.js';
@@ -14,3 +20,9 @@ export type { Body, GridBody, WalkerLike, GridWalker, MotionInput } from './walk
 export type { NavGrid, NavGridOptions, NavAgent, NavCrowd, FlowField, NavPoint, NavObstacle, NavProfile, NavStats, QueryOptions } from './navgrid.js';
 export type { MountedWorld } from './embed.js';
 export type { MirageXR, XROptions, XRSupport, XRState, XRMode, XRGameLike, XRTraceRecord } from './xr.js';
+export type { Animator, AnimatorOptions, AnimLayer, AnimState, AnimTransition, AnimCondition, AnimEvent, AnimParam, AnimClipInfo, RootMove } from './anim.js';
+export type { TwoBoneOptions, LookAtOptions, FootIK, FootIKOptions } from './ik.js';
+export type { HumanoidRoles, RetargetOptions } from './retarget.js';
+export type { Timeline, TimelineTrack, TimelineKey, TimelineEase, TimelineEvent } from './timeline.js';
+export type { RigCharacter, RigCharacterOptions } from './rig-character.js';
+export type { RigModel } from './rig-model.js';
