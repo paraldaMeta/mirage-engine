@@ -58,6 +58,7 @@ import { worldChecks, probe } from './world-checks.mjs';
 import { sheetInPage, PHONE } from './sheet.mjs';
 import { contrastAudit } from './contrast.mjs';
 import { routeMapInPage } from './route.mjs';
+import { unknownFields } from './scenario-fields.mjs';
 import { readPNG, encodePNG, regionSSIM, ssimVerdict, boxed, sideBySide } from './imgcmp.mjs';
 import { diag, sortDiagnostics, markdownDiagnostics, fromBuildReport, fromConsole, fromStep, fromWorldChecks, lintPlan, budgetAtLoad, heaviest, lightFix, stuckWords, throughWords, axisVerdict, parseExpect, formatDiagnostic } from './diagnostics.mjs';
 
@@ -91,6 +92,9 @@ const results = [], wait = (ms) => new Promise((r) => setTimeout(r, ms));
 // a step name in a file name: 'gate / prompt' or 'a:b' (Windows) made the screenshot throw and lost the report
 const fileName = (s) => String(s).replace(/[^\w.-]+/g, '-');
 const report = { title: sc.title || path.basename(scenarioFile), url, scenario: path.resolve(scenarioFile), at: new Date().toISOString(), w: W, h: H };
+// a field the runner does not read (a typo, a field from a newer skill) does nothing: say so, do not fail
+const unknown = unknownFields(sc);
+if (unknown.length) { report.unknownFields = unknown; log('scenario fields playtest does not know (ignored): ' + unknown.join(', ')); }
 let failed = 0, loadError = null, plan = null, light = null;
 const diagnostics = [];
 try {

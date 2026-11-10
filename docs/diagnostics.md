@@ -25,6 +25,7 @@ Where they appear:
   its codes in `row.diagnostics`.
 - `mirage-check <dist | page.html | url> [--json]` (packages/tools/src/check-world.mjs): the world check, no scenario
   needed. Loads the world once and lists everything below that needs no walking. Exit 1 on any error.
+- `mirage-snap --baseline dir` (MG460) and `--determinism` (MG461): in `snap.json` `diagnostics` and on the terminal.
 - `mirage-validate-plan <plan> [--json]`: the plan rules (MG1xx) without a browser. The text output still starts with
   definePlan's message.
 

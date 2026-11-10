@@ -98,9 +98,12 @@ try {
     const row = { name: s.name, file: f, mode: r.mode, renderMs: r.ms };
     if (adaptive) {
       Object.assign(row, { spp: r.used, diffs: r.diffs });
-      if (flag('adaptive-check')) {   // the same view at the full spp, for the time saved and the difference
-        const full = await still(s, SPP);
-        Object.assign(row, { fullMs: full.ms, vsFull: pixelDiff(readPNG(r.png), readPNG(full.png)) });
+      if (flag('adaptive-check')) {   // the same view at the full spp: the difference, and the time (5 interleaved
+        // pairs after the first, medians: the GPU is shared and the first drawing of a view pays its compiles)
+        const full = await still(s, SPP), a = [], f = [];
+        for (let k = 0; k < 5; k++) { a.push((await still(s, SPP, { converge: adaptive })).ms); f.push((await still(s, SPP)).ms); }
+        const med = (v) => v.sort((x, y) => x - y)[v.length >> 1];
+        Object.assign(row, { adaptiveMs: med(a), fullMs: med(f), vsFull: pixelDiff(readPNG(r.png), readPNG(full.png)) });
       }
     }
     report.views.push(row);

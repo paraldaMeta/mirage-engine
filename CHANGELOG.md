@@ -11,6 +11,43 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
 
 **New**
 
+- @mirage/tools, checking a world against itself (all opt-in; plain `snap` / `playtest` output unchanged, bit-identical
+  before / after on hello-courtyard and walled-garden, sheets included):
+  - **Regression baselines**: `mirage-snap --baseline dir` and a scenario's `"baseline"` compare each still with a
+    saved one by region SSIM in plain JS (`src/imgcmp.mjs`: 8 × 8 windows, 4 × 4 cells; fails under mean 0.92, 5th
+    percentile 0.85 or worst cell 0.75, `--ssim` to change), on the deterministic still path (grain 0, frameIndex 1).
+    A miss is the new **MG460** with the worst cell, its view and `baseline | now` with the cell boxed. The same build
+    scores 1.0; `?nodetail` (the wall relief off) is caught on the pergola view (5th percentile 0.83).
+  - **Determinism**: `mirage-snap --determinism` draws every view again after another view and after a reload and
+    requires bit-identical pixels (**MG461**); `npm run test:determinism` runs it over the seven examples: all pass.
+    It found and this fixes: snow-hut's snow and garden-quest's key ran on their own clocks through view jumps (now
+    `createPlay({ onPlace })`, which `startGame` turns into a game `'place'` event and a fresh simulation step);
+    garden-quest's crate pile settled while the first views were drawn (new `physics.settle()`, called at setup) and
+    its ball sat on the "axis" viewpoint, where standing kicked it away (moved 1.8 m). Chrome draws the first page it
+    loads ≤ 1 level apart from later loads in < 0.1 % of pixels (through the SSAO pass; not the HTTP cache, storage,
+    the program cache, the quality pick, MSAA or a warm-up context): the check loads the page once first.
+  - **Variant grids**: `mirage-snap --variants "time=dusk;post.bloom=0.2;quality=low"`: one labelled grid per view,
+    up to 16 variants, 4 columns.
+  - **Phone review**: `--phone` on snap and playtest: 375 × 812, sheets one phone wide per tile.
+  - **Text contrast**: a playtest step's `"contrast": true` measures every visible prompt / HUD line against the
+    pixels behind its glyphs (WCAG AA 4.5:1, large 3:1; **MG710**). garden-quest passes: prompt 15.5:1, the lowest
+    line is the power-saver button at 5.3:1 (phone) / 5.5:1 (desktop).
+  - **Route maps**: every `walkTo` writes `NN-<step>-route.png`: the walk grid from above, planned route, path
+    taken, stuck point, and an onion skin of game entities that moved.
+  - **Adaptive stills**: `renderFrame(T, { spp, converge })` (and `play.render`, `mirage-snap --adaptive`) compares
+    the estimate every spp / 4 sub-frames and stops once the mean change is ≤ 0.25 display levels. spp 16, the sum
+    of medians over 5 interleaved pairs per view: snow-hut 191 vs 324 ms (−41 %, stops at 8), walled-garden 304 vs
+    320 ms (−5 %), hello-courtyard 225 vs 208 ms (+8 %: never converges, pays two probes). Against the full still the
+    mean difference is ≤ 0.25 levels (< 1/255), the largest single pixel 25 levels (walled-garden) and 144 (snow-hut's
+    flakes sit at other shutter times). Off by default: exact.
+  - **Chrome**: capture flags beyond puppeteer's defaults (which already force sRGB and keep background pages
+    running; a unit check keeps them) and a lease pool, `lease()` / `MIRAGE_POOL=1`: one Chrome per tool run;
+    open + ready + one still, median 597 → 244 ms per page on woodland-path.
+  - **Skill drift**: `agent/check.mjs` fails a skill that names an MG code, a tool flag or a scenario field the tools
+    do not have (the vocabulary is `src/scenario-fields.mjs`; playtest lists unknown fields it was given).
+- Skills: mirage-playtest gains a review pass (a stranger's sentence per view, `where · problem → fix` notes ranked
+  P0 / P1 / P2, a fresh-eyes sub-agent given only BRIEF.md and the sheet, REVIEW.md at delivery);
+  mirage-brief-to-plan turns adjectives into numbers and keeps a BANNED-defaults line in the brief.
 - @mirage/tools: one diagnostic shape everywhere, `{ code, severity, target, message, fix, at? }`, with stable codes
   (MG1xx plan, MG2xx modules, MG3xx walking, MG4xx frame, MG5xx budgets, MG6xx console, MG7xx game state;
   `docs/diagnostics.md`). The playtest writes them to `report.json` `diagnostics` and the top of `report.md`;
