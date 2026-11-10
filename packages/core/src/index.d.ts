@@ -37,3 +37,4 @@ export type { EnvironmentLight } from './envlight.js';
 export type { WetOptions } from './wet.js';
 export type { Quality, DeviceProfile } from './device.js';
 export type { SoftShadowSettings, SoftShadowOption } from './softshadow.js';
+export { writeGLB } from './gltf-write.js';
