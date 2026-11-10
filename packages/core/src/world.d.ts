@@ -5,6 +5,7 @@ import type { EnvironmentUniforms, createEnv } from './env.js';
 import type { MaterialKit } from './materials.js';
 import type { Pipeline, PostSettings } from './post.js';
 import type { Light2Option, Light2Settings } from './light2.js';
+import type { SoftShadowOption, SoftShadowSettings } from './softshadow.js';
 import type { SkyTime, SkyState, LightState } from './daynight.js';
 import type { Place } from './sky-time.js';
 import type { Quality, DeviceProfile } from './device.js';
@@ -23,6 +24,8 @@ export interface WorldRendererOptions {
   post?: Partial<PostSettings>; preserveDrawingBuffer?: boolean; mobile?: boolean; shadowMapSize?: number; spp?: number;
   /** Lamp shadows, screen-space reflections, volumetric light, mixed bloom (off by default). */
   light2?: Light2Option;
+  /** Contact-hardening soft sun shadows, per pixel (off by default): still and walking frames alike. */
+  softShadows?: SoftShadowOption;
 }
 export interface RenderFrameOptions {
   camera?: RenderCamera; getCamera?: (seconds: number) => RenderCamera; spp?: number; dt?: number;
@@ -44,6 +47,8 @@ export interface WorldRenderer {
   mat: MaterialKit; geom: typeof geom; rng: typeof rng; post: PostSettings; device: DeviceProfile;
   /** The light2 settings in use (live), null when off. */
   light2: Light2Settings | null;
+  /** The soft-shadow settings in use (live: `on`, `sunAngle`, …), null when off. */
+  softShadows: SoftShadowSettings | null;
   /** Null before setTime(), prepare() or the first renderFrame(). */
   readonly light: LightState | null; readonly state: SkyState | null; readonly exposure: number;
   setTime(time: SkyTime, options?: { ease?: boolean }): LightState;
