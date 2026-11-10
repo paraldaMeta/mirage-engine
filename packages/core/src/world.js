@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { createEnv } from './env.js';
 import { installFog, FOG } from './fog.js';
-import { createSky, createSkyUniforms } from './sky.js';
+import { createSky, createSkyUniforms, createSkyLut } from './sky.js';
 import { createStars } from './stars.js';
 import { skyState, lightAt } from './daynight.js';
 import { Pipeline, DEFAULT_POST } from './post.js';
@@ -50,7 +50,9 @@ export function createWorldRenderer(config = {}) {
   const post = { ...DEFAULT_POST, ...config.post };
 
   installFog();
-  const renderer = config.renderer || new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false, stencil: false, powerPreference: 'high-performance', preserveDrawingBuffer: !!config.preserveDrawingBuffer });
+  // [xr] config.xr: the context is made multisampled and XR-compatible, because three gives the headset's framebuffer
+  // MSAA only when the canvas context has it (packages/play/src/xr.js); the pipeline never draws geometry to the canvas
+  const renderer = config.renderer || new THREE.WebGLRenderer({ canvas, antialias: !!config.xr, alpha: false, stencil: false, powerPreference: 'high-performance', preserveDrawingBuffer: !!config.preserveDrawingBuffer, ...(config.xr ? { xrCompatible: true } : {}) });
   renderer.setPixelRatio(pixelRatio);
   renderer.setSize(width, height, false);
   renderer.toneMapping = THREE.NoToneMapping;
@@ -65,6 +67,7 @@ export function createWorldRenderer(config = {}) {
   scene.fog = new THREE.FogExp2(0x8899aa, fogCfg.density);   // FogExp2 switches on Mirage's aerial perspective
   const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 2000);
   const skyU = createSkyUniforms();
+  const skyLut = createSkyLut(renderer, skyU);   // the sky's air, baked per setTime instead of marched per pixel
   skyU.uCloudCover.value = clouds;
   const sky = createSky(skyU);
   const stars = createStars(skyU);
@@ -109,6 +112,7 @@ export function createWorldRenderer(config = {}) {
     skyU.uNightGlow.value.fromArray(L.nightGlow).multiplyScalar(state.eqToWorld ? 1 : 0);
     skyU.uStarVis.value = L.starVis;
     if (L.eqToWorld) skyU.uEq.value.set(...L.eqToWorld);
+    skyLut.bake();
     G.uLamp.value = L.lamp; G.uSkyLight.value = L.skyLight; G.uNight.value = L.night;
     expTarget = L.exposure;
     if (!ease) { exposure = expTarget; envState = 'instant'; }
@@ -179,7 +183,21 @@ export function createWorldRenderer(config = {}) {
     if (!light) setTime(time);
     scene.environment = null;
     camera.updateMatrixWorld();
-    await renderer.compileAsync(scene, camera);
+    // Programs are compiled here in parallel (KHR_parallel_shader_compile); any program the first frames need that
+    // is not ready is compiled one after another on the main thread instead, ~50 ms each on a cold start. Two things
+    // decide which programs those are: the target (three keys a program on its output colour space: the screen is
+    // sRGB, the pipeline's half-float targets and the capture cube are linear) and the environment (a lit material
+    // with scene.environment set is another program). So compile against a pipeline target, once without the
+    // environment (the first capture pass) and once with it; a throwaway capture makes the texture exist, and the
+    // real capture below starts again from no environment, so the image is the same as before.
+    const compile = () => { const saved = renderer.getRenderTarget(); renderer.setRenderTarget(pipeline.sceneRT); const p = renderer.compileAsync(scene, camera); renderer.setRenderTarget(saved); return p; };
+    await Promise.all([compile(), pipeline.compileAsync()]);
+    if (!envLight.texture) {
+      envLight.capture(scene, envProbe, { instant: true });
+      scene.environment = envLight.texture;
+      await compile();
+      scene.environment = null;
+    }
     captureEnv(true);
   }
 
@@ -237,6 +255,23 @@ export function createWorldRenderer(config = {}) {
     pipeline.end(P, opts.frameIndex ?? frameCounter++, opts.target ?? null);
   }
 
+  // [xr] one plain draw of the scene into the current framebuffer (the headset's, inside an XR frame; see
+  // packages/play/src/xr.js): renderFrame's frame state (scene clock, ctx.onUpdate, fog, shadow fit), none of the
+  // pipeline. The renderer's tone mapping does the grade. A pending environment capture runs with XR off (its
+  // full-screen passes would otherwise be drawn through the headset's cameras).
+  function renderDirect(T = 0, opts = {}) {
+    if (!light) setTime(time);
+    if (envState === 'instant') { const xe = renderer.xr.enabled; renderer.xr.enabled = false; try { captureEnv(true); } finally { renderer.xr.enabled = xe; } }
+    writeFog();
+    if (opts.fog !== undefined) scene.fog.density *= opts.fog;   // AR: a table model is seen through metres of air, not km
+    G.uTime.value = T; G.uFrame.value = 0;
+    skyU.uCloudOffset.value.set(T * 0.004, T * 0.0015);
+    for (const fn of updates) fn(T);
+    const sh = opts.shadow || shadow;
+    fitShadow(sh.center, sh.radius, null);
+    renderer.render(scene, opts.camera || camera);
+  }
+
   /** Interiors: [{ min: [x,y,z], max: [x,y,z], factor = 0.3, soft = 0.6 }] scale the image-based light inside
    *  each box (up to 8). Recaptures the environment, so call it before prepare() or after building. */
   function setAmbientVolumes(list = []) {
@@ -262,7 +297,7 @@ export function createWorldRenderer(config = {}) {
   /** free what this world made on the GPU: geometries, materials (and their programs), the shadow map, the post and
    *  environment targets; and the renderer if the world created it. Take objects you still need out of the scene first. */
   function dispose() {
-    pipeline.dispose(); envLight.dispose();
+    pipeline.dispose(); envLight.dispose(); skyLut.dispose();
     const mats = new Set();
     scene.traverse((o) => { o.geometry && o.geometry.dispose(); for (const m of [].concat(o.material || [])) mats.add(m); });
     for (const m of mats) m.dispose();
@@ -274,6 +309,6 @@ export function createWorldRenderer(config = {}) {
   return {
     renderer, scene, camera, sun, sky, stars, pipeline, ctx, G, keyDir, mat, geom, rng, post, device,
     get light() { return light; }, get state() { return state; }, get exposure() { return exposure; },
-    setTime, tick, prepare, renderFrame, resize, dispose, captureEnv, setAmbientVolumes,
+    setTime, tick, prepare, renderFrame, renderDirect, resize, dispose, captureEnv, setAmbientVolumes,
   };
 }

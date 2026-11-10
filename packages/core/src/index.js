@@ -1,7 +1,7 @@
 // Mirage original code. Techniques informed by Golden Temple by Leon Lin (MIT) — see NOTICE.
 export { createWorldRenderer } from './world.js';
 export { createEnv, GOLDEN, dirFromElevAz, elevAzOf, WIND_GLSL } from './env.js';
-export { createSky, createSkyUniforms } from './sky.js';
+export { createSky, createSkyUniforms, createSkyLut } from './sky.js';
 export { ATMO, ATMOSPHERE_GLSL, transmit, transmitAtGround, scatter, skyLightAt } from './atmosphere.js';
 export { installFog, FOG } from './fog.js';
 export { skyState, lightAt } from './daynight.js';

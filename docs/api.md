@@ -49,6 +49,7 @@ The entry points `@mirage/<pkg>` are the API. Every file under `src/` can also b
 | `WIND_GLSL` | experimental | `mgWind()` for vertex hooks |
 | `createSky(uniforms)` | experimental | the sky dome mesh |
 | `createSkyUniforms()` | experimental | its uniforms |
+| `createSkyLut(renderer, uniforms, options?)` | experimental | bakes the sky's air into direction tables per `setTime` (call before `createSky`) |
 | `createStars(skyUniforms, { faint })` | experimental | stars and the Moon's disc |
 | `ATMO` | experimental | atmosphere constants (radii, scattering coefficients) |
 | `ATMOSPHERE_GLSL` | experimental | the atmosphere in GLSL |
@@ -95,6 +96,8 @@ see [world-protocol.md](world-protocol.md).
 | `BODY` | stable | the character's sizes and speeds |
 | `makeGrid(data)` | experimental | a grid from raw arrays (tests, saved grids) |
 | `MAXL` | experimental | floors per grid column (4) |
+| `createXR(play, opts)` | experimental | WebXR: Enter VR / Enter AR buttons, the walker in a headset, teleport, snap turn, in-world game prompts, AR table model (`docs/xr.md`) |
+| `xrSupport()` | experimental | `{ vr, ar }`: which immersive sessions the browser offers; pass `vr \|\| ar` as the world's `xr` option |
 
 ## @mirage/game
 
@@ -116,5 +119,5 @@ see [world-protocol.md](world-protocol.md).
 
 Command-line tools (no JS entry point). Stable: `mirage-playtest` (scenario format in the playtest skill),
 `mirage-package`, `mirage-snap`, `mirage-deploy`. Experimental: `mirage-walktest`, `mirage-perf`, `mirage-e2e` (runs the `examples/` of the current folder or `--root`),
-`mirage-gpu-load`, `mirage-still-pop` (repository checks; some expect this repository's `examples/`). The tools
+`mirage-gpu-load`, `mirage-still-pop`, `mirage-xr-check` (WebXR in an emulated Quest 3; repository checks; some expect this repository's `examples/`). The tools
 need Chrome: `$CHROME`, or the usual install place on macOS, Linux and Windows.

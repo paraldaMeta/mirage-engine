@@ -25,7 +25,8 @@
     "mirage-e2e": "./src/e2e.mjs",
     "mirage-gpu-load": "./src/gpu-load.mjs",
     "mirage-still-pop": "./src/still-pop.mjs",
-    "mirage-export": "./src/export.mjs"
+    "mirage-export": "./src/export.mjs",
+    "mirage-xr-check": "./src/xr-check.mjs"
   },
   "files": [
     "src",
@@ -47,6 +48,7 @@
   },
   "author": "灰叔 Racso",
   "devDependencies": {
-    "gltf-validator": "2.0.0-dev.3.10"
+    "gltf-validator": "2.0.0-dev.3.10",
+    "iwer": "^2.8.0"
   }
 }

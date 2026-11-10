@@ -21,5 +21,7 @@ export class Pipeline {
   end(post: PostSettings, frameIndex?: number, target?: THREE.WebGLRenderTarget | null): void;
   blend(a: THREE.WebGLRenderTarget, b: THREE.WebGLRenderTarget, t: number, target?: THREE.WebGLRenderTarget | null): void;
   /** Releases owned targets and post-processing resources; leaves the supplied renderer alive. */
+  /** Start compiling every pass's program in parallel; resolves when all are ready (world.prepare() calls it). */
+  compileAsync(): Promise<unknown>;
   dispose(): void;
 }

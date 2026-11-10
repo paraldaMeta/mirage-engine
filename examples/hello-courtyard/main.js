@@ -2,10 +2,10 @@
 // entirely in code by four modules on one site plan (plan.js, modules/), dressed with five CC0 texture sets.
 // URL: ?mode=orbit (default) | walk | fly | game   ?time=golden | HH:MM [&date=YYYY-MM-DD] [&lat=..&lon=..&tz=..]
 //      ?clock=N (N minutes per second)  ?spp=N  ?w=&h=  ?grain=0  ?dof=1  ?view=hero | corner | <viewpoint name>
-//      ?broken=1 (adds a module that throws)  ?ui=0
+//      ?broken=1 (adds a module that throws)  ?ui=0   (Enter VR / Enter AR appear in a WebXR browser: docs/xr.md)
 import { createWorldRenderer, createTextures, placeDate, pickQuality } from '@mirage/core';
 import { buildWorld } from '@mirage/world';
-import { createPlay } from '@mirage/play';
+import { createPlay, createXR, xrSupport } from '@mirage/play';
 import manifest from './tex/manifest.json';
 import plan from './plan.js';
 import modules from './modules/index.js';
@@ -19,7 +19,8 @@ let date = t === 'golden' ? null : placeDate(Q.get('date') || '2026-10-25', t, p
 const canvas = document.querySelector('canvas');
 canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
 const quality = Q.get('quality') || (await pickQuality()).quality, hud = Q.get('hud') !== '0';   // ?quality=low|medium|high
-const world = createWorldRenderer({ quality,
+const xrs = await xrSupport();   // a headset browser: an MSAA context for the headset, and the Enter VR / AR buttons
+const world = createWorldRenderer({ quality, xr: xrs.vr || xrs.ar,
   canvas, width: W, height: H, place, time: date || 'golden', preserveDrawingBuffer: true,
   shadow: { center: [0, 2, 0], radius: 17 }, envProbe: [0, 2.2, 0],
   fog: { groundDensity: 0.0022, height: 30 },
@@ -47,5 +48,6 @@ if (rate && date) (function clock(now) {
   world.setTime(date, { ease: true });
   requestAnimationFrame(clock);
 })(last);
-window.__mirage = { world, tex, built, play, render: (o = {}) => world.renderFrame(o.T ?? 0, { spp, frameIndex: 1, ...o }) };
+const xr = createXR(play, { support: xrs });
+window.__mirage = { world, tex, built, play, xr, render: (o = {}) => world.renderFrame(o.T ?? 0, { spp, frameIndex: 1, ...o }) };
 window.__READY = true;
