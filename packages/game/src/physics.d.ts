@@ -39,5 +39,18 @@ export interface Physics {
   /** Step until every dynamic prop sleeps (at most maxSteps of 1/60 s); returns the steps taken. */
   settle(maxSteps?: number): number;
   ray(from: XYZ, direction: XYZ, max?: number, exclude?: Collider): RayHit | null;
+  /** The whole physics state. `canonical` (default true) also replaces the live world by the snapshot, so that
+   *  carrying on and restoring later are the same computation (docs/physics.md). */
+  snapshot(options?: { canonical?: boolean }): PhysicsSnapshot;
+  /** Back to a snapshot. `world` and every `body` are new objects afterwards (handles are kept). */
+  restore(snapshot: PhysicsSnapshot): void;
+  /** Hooks of the physics kit (physics-kit.js); empty without it. */
+  ext: PhysicsExt;
+}
+export interface PhysicsSnapshot { bytes: Uint8Array; hinges: [number, number][]; chars: unknown[]; ext: Record<string, unknown> }
+export interface PhysicsExt {
+  queue: import('#rapier').EventQueue | undefined;
+  pre: ((dt: number) => void)[]; post: ((dt: number) => boolean | void)[];
+  save: Record<string, () => unknown>; load: Record<string, (state: any) => void>; rebind: (() => void)[];
 }
 export function createPhysics(scene: THREE.Object3D, options?: { gravity?: number }): Promise<Physics>;
