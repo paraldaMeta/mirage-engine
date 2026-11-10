@@ -2,13 +2,14 @@
 // interior, lawns, hedges, pools and trees; six modules on one site plan (plan.js, modules/, NOTES.md).
 // Textures: the courtyard's five CC0 sets (../hello-courtyard/tex).
 // URL: ?mode=walk (default) | fly | game | orbit   ?view=<viewpoint name>   ?time=golden | HH:MM [&date=YYYY-MM-DD]
-//      ?spp=N  ?w=&h=  ?grain=0  ?broken=1  ?ui=0
+//      ?spp=N  ?w=&h=  ?grain=0  ?broken=1  ?ui=0  ?npc=N (N travellers wander the terraces: npc.js)
 import { createWorldRenderer, createTextures, placeDate, pickQuality } from '@mirage/core';
 import { buildWorld } from '@mirage/world';
 import { createPlay, createXR, xrSupport } from '@mirage/play';
 import manifest from '../hello-courtyard/tex/manifest.json';
 import plan from './plan.js';
 import modules from './modules/index.js';
+import { npcDemo } from './npc.js';   // ?npc=N only (static: a dynamic import would split the bundle in two)
 
 const Q = new URLSearchParams(location.search);
 const W = +Q.get('w') || innerWidth, H = +Q.get('h') || innerHeight;
@@ -32,9 +33,11 @@ camera.aspect = W / H; camera.fov = 55; camera.near = 0.1; camera.far = 3000; ca
 await tex.ready();
 await world.prepare();
 const spp = +Q.get('spp') || 6, mode = Q.get('mode') || 'walk';
-const play = createPlay(world, { plan: built.plan, canvas, mode, spp, ui: Q.get('ui') !== '0', shadowRadius: 26, fit: !Q.get('w'), quality, hud });
+let npc = null;   // ?npc=N: made below, stepped with the player
+const play = createPlay(world, { plan: built.plan, canvas, mode, spp, ui: Q.get('ui') !== '0', shadowRadius: 26, fit: !Q.get('w'), quality, hud, onStep: (dt) => npc?.step(dt) });
 const v = plan.viewpoints.find((p) => p.name === Q.get('view'));
 if (v) play.place(v.eye, v.look, mode);
 const xr = createXR(play, { support: xrs });
-window.__mirage = { world, tex, built, play, xr, render: (o = {}) => world.renderFrame(o.T ?? 0, { spp, frameIndex: 1, ...o }) };
+if (Q.has('npc')) npc = npcDemo(world, play, plan, Q.get('npc') === '' ? 6 : +Q.get('npc'));
+window.__mirage = { world, tex, built, play, xr, npc, render: (o = {}) => world.renderFrame(o.T ?? 0, { spp, frameIndex: 1, ...o }) };
 window.__READY = true;
