@@ -14,6 +14,8 @@ export interface MaterialHooks {
   output?: string;
   uniforms?: Record<string, THREE.IUniform>;
   defines?: Record<string, string | number | boolean>;
+  /** Specular AA on the roughness: default where a hook mentions roughnessFactor; false never; a GLSL condition: while it holds. */
+  specAA?: boolean | string;
 }
 export type UniformSet = EnvironmentUniforms | Record<string, THREE.IUniform>;
 export interface ProceduralSurfaces {

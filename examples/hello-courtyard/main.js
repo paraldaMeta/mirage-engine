@@ -5,8 +5,11 @@
 //      ?broken=1 (adds a module that throws)  ?ui=0  ?nodetail (no close-range relief, soft edges or soot: A/B)
 //      ?light2=1 lamp shadows, reflections, volumetric light, mixed bloom (@mirage/core light2.js);
 //      &l2=nols,nossr,novol,nobloom switches single parts off
-import { createWorldRenderer, createTextures, placeDate, pickQuality, setRelief } from '@mirage/core';
+//      ?wet=0..1 wet ground and masonry, puddles (@mirage/core wet.js)  &rain=0..1 ripples on the puddles and falling
+//      streaks (@mirage/world/kits/rain); without ?wet / ?rain nothing of either is built
+import { createWorldRenderer, createTextures, placeDate, pickQuality, setRelief, setWetness, setRain } from '@mirage/core';
 import { buildWorld } from '@mirage/world';
+import { addRain } from '@mirage/world/kits/rain';
 import { createPlay } from '@mirage/play';
 import manifest from './tex/manifest.json';
 import plan from './plan.js';
@@ -32,7 +35,11 @@ const world = createWorldRenderer({ quality, light2,
 });
 const urls = import.meta.glob('./tex/*.webp', { eager: true, query: '?url', import: 'default' });
 const tex = createTextures(world, { manifest, url: (f) => urls['./tex/' + f] });
-const built = await buildWorld(world, { plan, modules: modules({ broken: Q.has('broken') }), shared: { tex, detail: !Q.has('nodetail') } });
+// wetness (opt-in): ?wet=0.8 re-patches the ground and masonry materials, ?rain=1 adds the streaks
+const wet = Q.has('wet') || Q.has('rain');
+if (wet) { setWetness(+(Q.get('wet') ?? 0)); setRain(+(Q.get('rain') ?? 0)); }
+const built = await buildWorld(world, { plan, modules: modules({ broken: Q.has('broken') }), shared: { tex, detail: !Q.has('nodetail'), ...(wet ? { wet: true } : {}) } });
+if (Q.has('rain')) addRain({ ...world.ctx, root: world.scene });
 
 const { camera } = world;
 camera.aspect = W / H; camera.fov = 48; camera.near = 0.1; camera.far = 3000; camera.updateProjectionMatrix();

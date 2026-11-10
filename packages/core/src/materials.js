@@ -25,6 +25,8 @@ import { RELIEF_GLSL, RELIEF, renderHeight, renderShade } from './relief.js';
 //   lighting      after <lights_fragment_end>        reflectedLight (e.g. translucency)
 //   output        before <opaque_fragment>           outgoingLight
 //   uniforms, defines                                extra uniforms (kept by reference) and defines
+//   specAA                                           mgSpecAA on the roughness: by default where a hook mentions
+//                                                    roughnessFactor; false never; a GLSL condition: while it holds
 // Materials with identical hooks share one program (the cache key is a hash of the hooks).
 // ---------------------------------------------------------------------------
 
@@ -91,7 +93,10 @@ export function patch(material, hooks, G) {
     // ambient volumes scale the image-based light (sky + world capture) inside interiors
     if (A) fs = fs.replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\n{ float mgAmb = mgAmbient(mgWorldPos); reflectedLight.indirectDiffuse *= mgAmb; reflectedLight.indirectSpecular *= mgAmb; }');
     for (const [name, inc] of Object.entries(FRAG_HOOKS)) if (hooks[name]) fs = fs.replace(inc, `${inc}\n${hooks[name]}`);
-    if (bump && fs.includes('roughnessFactor')) fs = fs.replace('#include <emissivemap_fragment>', 'roughnessFactor = mgSpecAA(roughnessFactor, normal);\n#include <emissivemap_fragment>');
+    // specular AA where the hooks touch the roughness; hooks.specAA overrides: false never, a GLSL condition (string)
+    // only while it holds (wet.js: a dry material that had none gets it only while wet)
+    const aa = hooks.specAA ?? fs.includes('roughnessFactor');
+    if (bump && aa) fs = fs.replace('#include <emissivemap_fragment>', (typeof aa === 'string' ? `if (${aa}) ` : '') + 'roughnessFactor = mgSpecAA(roughnessFactor, normal);\n#include <emissivemap_fragment>');
     if (hooks.output) fs = fs.replace('#include <opaque_fragment>', `${hooks.output}\n#include <opaque_fragment>`);
     shader.fragmentShader = fs;
   };

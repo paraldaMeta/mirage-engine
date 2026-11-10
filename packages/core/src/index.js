@@ -15,6 +15,7 @@ export { rng, hash32, sfc32, valueNoise2, fbm2 } from './rng.js';
 export { createLod } from './lod.js';
 export { createTextures, TEX_GLSL, TEX_RELIEF_GLSL, glslName } from './textures.js';
 export { RELIEF, RELIEF_GLSL, RELIEF_LIGHT, setRelief, withRelief, renderHeight, renderShade } from './relief.js';
+export { WET, WET_GLSL, setWetness, setRain, withWet } from './wet.js';
 export { createEnvLight } from './envlight.js';
 export { deviceProfile, pickQuality, QUALITY_LEVELS, QUALITY_KEY } from './device.js';
 export * as geom from './geom.js';
