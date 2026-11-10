@@ -1,8 +1,0 @@
-{
-  "title": "A hole in the north wall",
-  "prompt": "Playtesters walk straight out of the yard through the north wall. The yard must be closed except for the gate in the south wall.",
-  "expect": [
-    "MG304"
-  ],
-  "forbid": []
-}

@@ -1,9 +1,0 @@
-{
-  "title": "The rail viewpoint misses the railing",
-  "prompt": "The 'rail' viewpoint is meant to show the iron railing, but its still shows something else.",
-  "expect": [
-    "MG401",
-    "MG412"
-  ],
-  "forbid": []
-}

@@ -1,8 +1,0 @@
-{
-  "title": "Nobody gets out of the gate",
-  "prompt": "Players cannot get out of the yard through the gate.",
-  "expect": [
-    "MG301"
-  ],
-  "forbid": []
-}

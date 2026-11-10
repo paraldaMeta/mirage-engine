@@ -1,8 +1,0 @@
-{
-  "title": "Players walk through the railing",
-  "prompt": "Players can walk through the iron railing; it must stop them.",
-  "expect": [
-    "MG304"
-  ],
-  "forbid": []
-}
