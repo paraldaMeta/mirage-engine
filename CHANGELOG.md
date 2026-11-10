@@ -11,6 +11,10 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
 
 **New**
 
+- @mirage/core: optional `light2` (`createWorldRenderer({ light2: true })`): shadows for the 4 most important lamps
+  (PointLights or `addLampSource` tables) through one octahedral depth atlas, half-resolution screen-space
+  reflections on smooth surfaces, volumetric light (key light through its shadow map, lamps through the atlas),
+  bloom mixed instead of added. Off by default; frames without it are bit-identical. hello-courtyard: `?light2=1`.
 - @mirage/core: optional close-range relief (`relief.js`): one parallax step and the relief's own shadow on the
   photo sets (`tex.material(name, { relief, render })`, `tex.hooks(names, h, { relief: true })`,
   `mgTex{Tri,Wall,Ground}Relief`), a hand-applied render's undulation and trowel swipes (`PROC.plaster(base,
