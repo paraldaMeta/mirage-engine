@@ -1,7 +1,7 @@
 {
   "name": "@mirage/tools",
   "version": "1.0.0",
-  "description": "Mirage tools: the playtest runner (scripted inputs, expectations, flicker along a path, frame cost, markdown report, contact sheet), single-file packager, multi-view snapshots, a frame-cost sweep, a static-deploy folder, the texture packer.",
+  "description": "Mirage tools: the playtest runner (scripted inputs, expectations, flicker along a path, frame cost, coded diagnostics with fixes, markdown report, contact sheet), a world check, single-file packager, multi-view snapshots, a frame-cost sweep, a static-deploy folder, the texture packer.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -15,6 +15,7 @@
   "type": "module",
   "bin": {
     "mirage-validate-plan": "./src/validate-plan.mjs",
+    "mirage-check": "./src/check-world.mjs",
     "mirage-playtest": "./src/playtest.mjs",
     "mirage-package": "./src/package.mjs",
     "mirage-walktest": "./src/walktest.mjs",
@@ -42,7 +43,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "node validate-plan.check.mjs && node acceptance.check.mjs && node gpu-ci.check.mjs && node unit.mjs && node export.check.mjs"
+    "test": "node validate-plan.check.mjs && node diagnostics.check.mjs && node acceptance.check.mjs && node gpu-ci.check.mjs && node unit.mjs && node export.check.mjs"
   },
   "author": "灰叔 Racso",
   "devDependencies": {

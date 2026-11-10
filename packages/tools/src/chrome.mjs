@@ -71,18 +71,25 @@ export function serve(dir, port = 0) {
 }
 
 /** open a page, collect console errors and page errors (errors), console warnings (warnings), wait for window.__READY.
+ *  On failure the thrown error carries .errors / .warnings / .stacks (what the page said before it failed).
  *  viewport: set before loading (e.g. { width, height, hasTouch: true } for a touch screen) */
 export async function open(browser, url, { timeout = 180000, viewport } = {}) {
   const page = await browser.newPage();
   if (viewport) await page.setViewport(viewport);
-  const errors = [], warnings = [];
+  const errors = [], warnings = [], stacks = [];   // stacks: of page errors (file:line for the diagnostics)
   page.on('console', (m) => {
     if (m.type() === 'error') errors.push('error: ' + m.text());
     else if (m.type() === 'warn' || m.type() === 'warning') warnings.push('warning: ' + m.text());
   });
   page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
+  page.on('pageerror', (e) => { if (e.stack) stacks.push(e.stack); });
   const t0 = Date.now();
-  await page.goto(url, { waitUntil: 'load', timeout });
-  await page.waitForFunction('window.__READY === true', { timeout, polling: 100 });
-  return { page, errors, warnings, loadMs: Date.now() - t0 };
+  try {
+    await page.goto(url, { waitUntil: 'load', timeout });
+    await page.waitForFunction('window.__READY === true', { timeout, polling: 100 });
+  } catch (e) {   // the caller can still report what the page said before it failed
+    e.errors = errors; e.warnings = warnings; e.stacks = stacks; e.page = page;
+    throw e;
+  }
+  return { page, errors, warnings, stacks, loadMs: Date.now() - t0 };
 }
