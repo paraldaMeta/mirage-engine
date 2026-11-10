@@ -18,7 +18,24 @@ node ../../packages/tools/src/snap.mjs dist --out out/snap --game     # every pl
 ```
 
 The page contract: `window.__mirage = { world, built, play, g? }` and `window.__READY = true` (the skeleton's
-`main.js` and every example do it). A `.html` single file works as the target too (opened from file://).
+`main.js` and every example do it). A `.html` single file or an http(s) URL works as the target too.
+
+## Read the diagnostics first
+
+Every problem the tools find is one diagnostic `{ code, severity, target, message, fix, at? }`: in `report.json`
+`diagnostics`, as the **Diagnostics** table at the top of `report.md`, and on the terminal. They are ordered errors
+first, root causes (plan, modules, spawn) before the step failures they cause. **Work down that list: do what `fix`
+says** (it names the field, the value or position to use, the file), rerun, repeat. Codes: `docs/diagnostics.md`
+(MG1xx plan, MG2xx modules, MG3xx walking / collision, MG4xx what the frame shows, MG5xx budgets, MG6xx console,
+MG7xx game state). Errors fail the run; warnings (a floating object MG320, coplanar faces MG450, a black frame MG440,
+over the triangle budget MG504, a viewpoint that misses its subject MG412) are real defects too: fix them before
+calling a world done.
+
+Beyond your expectations, every playtest checks at load (scenario `"checks": false` turns it off): the spawn and every
+plan viewpoint against the walk grid (inside a solid, no floor), floating objects, coplanar surfaces, what each
+viewpoint shows (give a viewpoint `see: ["rail"]`, or name it after its subject, and it must show it), the triangle
+budget. Without a scenario: `node ../../packages/tools/src/check-world.mjs dist [--json]`; the plan alone:
+`node ../../packages/tools/src/validate-plan.mjs plan.js [--json]`.
 
 ## Scenario (`scenarios/*.json`)
 
@@ -73,6 +90,10 @@ check (`b.finish({ name: 'rail' })`).
    sky and mood the brief asked for); a black or clipped screenshot is listed as a warning in the report.
 
 ## Reading failures
+
+The diagnostics already measure most of these (the gap and the two objects either side of it, the width of an
+opening and the plan field behind it, the proxy box to add, the free spot for a spawn inside a crate). The table is
+for what they cannot see:
 
 | symptom | usual cause | fix |
 |---|---|---|

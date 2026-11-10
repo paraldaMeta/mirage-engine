@@ -34,20 +34,18 @@
 //       check says why: out of frame, hidden (and by what) or too small. Transparent surfaces do not hide.
 //   A screenshot that is black (98 % of pixels near black) or clipped (35 % near white) is listed as a warning.
 //   "shot": false  (default true)
+//   "checks": false (scenario level) skips the load-time world checks (spawn / viewpoints in solids, floating objects,
+//   coplanar surfaces, what each viewpoint shows); they run by default and their errors fail the run.
+// Every problem found is also listed as a diagnostic { code, severity, target, message, fix, at? } in report.json
+// `diagnostics` and at the top of report.md (codes: docs/diagnostics.md). Read those first.
+// The target may also be an http(s) URL (the query is appended).
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { launch, serve, open } from './chrome.mjs';
 import { seeInPage, frameStatsInPage, seeWhy, DARK_SHARE, CLIPPED_SHARE } from './see.mjs';
-
-const args = process.argv.slice(2);
-const flag = (k, d) => { const i = args.indexOf('--' + k); return i >= 0 ? args[i + 1] : d; };
-const [scenarioFile, target] = args.filter((a, i) => !a.startsWith('--') && !(i > 0 && args[i - 1].startsWith('--')));
-if (!scenarioFile || !target) { console.error('usage: mirage-playtest <scenario.json> <dist dir | page.html> [--out dir]'); process.exit(2); }
-const sc = JSON.parse(fs.readFileSync(scenarioFile, 'utf8'));
-const OUT = path.resolve(flag('out', 'out/playtest'));
-fs.mkdirSync(OUT, { recursive: true });
-const W = sc.w || 1440, H = sc.h || 900;
+import { worldChecks, probe } from './world-checks.mjs';
+import { diag, sortDiagnostics, markdownDiagnostics, fromBuildReport, fromConsole, fromStep, fromWorldChecks, lintPlan, budgetAtLoad, heaviest, lightFix, stuckWords, throughWords, axisVerdict, parseExpect, formatDiagnostic } from './diagnostics.mjs';
 
 function check(expr, v) {
   const [op, ...rest] = String(expr).trim().split(/\s+/);
@@ -60,23 +58,50 @@ function check(expr, v) {
   }
 }
 
-const isFile = target.endsWith('.html');
-const srv = isFile ? null : await serve(target);
-const url = (isFile ? pathToFileURL(path.resolve(target)).href : srv.url) + '?' + (sc.query || 'mode=walk&ui=0') + `&w=${W}&h=${H}`;
+const LOAD_FAILED = Symbol('load failed');
+/** Run one scenario against a page (dist folder, .html file or http(s) URL); writes report.json, report.md, the
+ *  shots and sheet.png into `out` and returns the report (report.pass, report.diagnostics). */
+export async function playtest(sc, target, { out = 'out/playtest', scenarioFile = '(scenario)', log = console.log } = {}) {
+const OUT = path.resolve(out);
+fs.mkdirSync(OUT, { recursive: true });
+const W = sc.w || 1440, H = sc.h || 900;
+const isUrl = /^https?:\/\//.test(target), isFile = !isUrl && target.endsWith('.html');
+const srv = isFile || isUrl ? null : await serve(target);
+const base = isUrl ? target : isFile ? pathToFileURL(path.resolve(target)).href : srv.url;
+const url = base + (base.includes('?') ? '&' : '?') + (sc.query || 'mode=walk&ui=0') + `&w=${W}&h=${H}`;
 const browser = await launch({ w: W, h: H, args: ['--autoplay-policy=no-user-gesture-required'] });
 const results = [], wait = (ms) => new Promise((r) => setTimeout(r, ms));
 // a step name in a file name: 'gate / prompt' or 'a:b' (Windows) made the screenshot throw and lost the report
 const fileName = (s) => String(s).replace(/[^\w.-]+/g, '-');
 const report = { title: sc.title || path.basename(scenarioFile), url, scenario: path.resolve(scenarioFile), at: new Date().toISOString(), w: W, h: H };
-let failed = 0;
+let failed = 0, loadError = null, plan = null, light = null;
+const diagnostics = [];
 try {
-  const { page, errors, warnings, loadMs } = await open(browser, url);
+  const opened = await open(browser, url).catch((e) => { loadError = e; return null; });
+  if (!opened) throw LOAD_FAILED;
+  const { page, errors, warnings, stacks, loadMs } = opened;
   Object.assign(report, { loadMs, ...(await page.evaluate(() => {
     const { play, built } = window.__mirage, gl = play.world.renderer.getContext(), x = gl.getExtension('WEBGL_debug_renderer_info');
     return { gpu: x ? gl.getParameter(x.UNMASKED_RENDERER_WEBGL) : '?', grid: play.grid.stats, build: built && built.report ? { ms: built.report.ms, failed: built.report.failed, modules: built.report.modules.map((m) => ({ name: m.name, ok: m.ok, ms: m.ms, tris: m.tris, consumes: m.consumes })), anchors: built.report.anchors } : null };
   })) });
-  console.log(JSON.stringify({ step: 'load', loadMs, grid: report.grid, build: report.build }));
+  log(JSON.stringify({ step: 'load', loadMs, grid: report.grid, build: report.build }));
   if (report.build?.failed.some(f => f.phase === 'consumes')) failed++;
+  // the load-time diagnostics: the build report, the plan, the budget, the world checks
+  ({ plan, light } = await page.evaluate(() => {
+    const { built, play } = window.__mirage, w = play.world;
+    let plan = null; try { plan = built && built.plan ? JSON.parse(JSON.stringify(built.plan)) : null; } catch { /* not JSON-able */ }
+    return { plan, light: { postExposure: w.post && w.post.exposure, autoExposure: w.exposure, sunElevation: w.state && w.state.sun ? w.state.sun.elevation : undefined, lamp: w.light ? w.light.lamp : undefined } };
+  }));
+  diagnostics.push(...fromBuildReport(report.build, plan, errors), ...lintPlan(plan), ...budgetAtLoad(report.build, plan));
+  if (sc.checks !== false) {
+    const found = await worldChecks(page).catch((e) => ({ error: String(e.message || e) }));
+    if (found.error) log('world checks failed: ' + found.error);
+    else { report.checks = { ms: found.ms, ...found.counted }; diagnostics.push(...fromWorldChecks(found)); }
+  }
+  // module failures are governed by the allowed console errors (and consumes, above); the others fail the run
+  if (diagnostics.some((d) => d.severity === 'error' && !d.code.startsWith('MG2'))) failed++;
+  const heavy = heaviest(report.build), lightWords = lightFix(light), loadDiags = diagnostics.slice();
+  let moved = false;   // every step so far started where the spawn put the walker
   const state = () => page.evaluate(() => {
     const m = window.__mirage, s = m.play.state(), g = m.g;
     if (g) Object.assign(s, { near: g.near ? g.near.id : null, prompt: g.near ? g.game.label(g.near) : null, flags: { ...g.game.flags }, inventory: g.game.inventory.items.map((i) => i.id), paused: g.game.paused });
@@ -233,12 +258,33 @@ try {
     if (!pass) failed++;
     const row = { step: s.name, pass, ...(err ? { err } : {}), from: start && start.pos, to: st.pos, maxY: +maxY.toFixed(3), fps: vals.fps, metrics, checks, shot,
       ...(shot ? { frame } : {}), ...(seen ? { see: seen.names, seeMs: seen.ms } : {}), ...(warn.length ? { warn } : {}) };
+    // why it failed: probes in the page (the view and the walker are as the checks saw them)
+    const probes = {};
+    if (!pass) {
+      try {
+        const yaw = typeof st.yaw === 'number' ? st.yaw : 0, ahead = [st.pos[0] + Math.cos(yaw), st.pos[2] + Math.sin(yaw)];
+        const m = err && err.match(/walkTo: stuck at ([-\d., ]+) on the way to ([-\d.]+), ([-\d.]+)/);
+        if (m) probes.stuck = stuckWords(await probe(page, { kind: 'stuck', from: m[1].split(',').map(Number), toward: [+m[2], +m[3]] }), plan);
+        for (const c of checks.filter((c) => !c.ok && (c.k === 'x' || c.k === 'z' || c.k === 'dist'))) {
+          const ax = c.k === 'z' ? 2 : 0, verdict = c.k === 'dist' ? 'short' : axisVerdict(c.e, start?.pos[ax], st.pos[ax]);
+          if (verdict === 'through' && !probes.through) probes.through = throughWords(await probe(page, { kind: 'through', from: start.pos, to: st.pos, axis: ax, stop: parseExpect(c.e).n }));
+          else if (verdict !== 'through' && !probes.stuck) probes.stuck = stuckWords(await probe(page, { kind: 'stuck', from: st.pos, to: st.pos, toward: ahead }), plan);
+        }
+        const seeFail = checks.filter((c) => !c.ok && c.k.startsWith('see.'));
+        if (seeFail.length && seen) probes.see = await probe(page, { kind: 'see', names: Object.fromEntries(seeFail.map((c) => [c.k.slice(4), { alone: seen.names[c.k.slice(4)].alone, need: +String(c.e).trim().split(/\s+/)[1] || 0.001 }])) });
+      } catch (e) { log('probe failed: ' + (e.message || e)); }
+    }
+    moved = moved || !!s.place || s.viewpoint !== undefined;
+    const stepDiags = fromStep(row, { idx, step: moved ? s : { ...s, atSpawn: true }, plan, probe: probes, heavy, lightFix: lightWords, loadDiags });
+    if (stepDiags.length) row.diagnostics = stepDiags.map((d) => d.code);
+    diagnostics.push(...stepDiags);
     results.push(row);
-    console.log(JSON.stringify(row));
+    log(JSON.stringify(row));
   }
   const allowed = sc.errors || 0;
   report.errors = errors; report.warnings = warnings;
-  if (errors.length > allowed) { console.log('console errors:', errors); failed++; }
+  if (errors.length > allowed) { log('console errors: ' + JSON.stringify(errors)); failed++; }
+  diagnostics.push(...fromConsole(errors, { allowed, stacks }));
   // the contact sheet: every step's screenshot with its name and verdict
   const items = results.filter((r) => r.shot).map((r) => ({ label: `${r.step}  ${r.pass ? 'pass' : 'FAIL'}`, ok: r.pass, data: 'data:image/png;base64,' + fs.readFileSync(path.join(OUT, r.shot)).toString('base64') }));
   if (items.length) {
@@ -258,15 +304,36 @@ try {
     }, items);
     fs.writeFileSync(path.join(OUT, 'sheet.png'), Buffer.from(sheet.split(',')[1], 'base64'));
   }
+} catch (e) {
+  if (e !== LOAD_FAILED) throw e;
+  failed++;
+  report.errors = loadError.errors || []; report.warnings = loadError.warnings || [];
+  diagnostics.push(diag('MG603', { target: url, message: `the page did not become ready: ${loadError.message}` + (report.errors.length ? `; console: ${report.errors.slice(0, 5).join(' | ')}` : '') }));
+  diagnostics.push(...fromConsole(report.errors, { stacks: loadError.stacks || [] }));
 } finally {
   await browser.close();
   if (srv) srv.close();
 }
-Object.assign(report, { failed, pass: !failed, steps: results });
+Object.assign(report, { failed, pass: !failed, steps: results, diagnostics: sortDiagnostics(diagnostics) });
 fs.writeFileSync(path.join(OUT, 'report.json'), JSON.stringify(report, null, 1));
 fs.writeFileSync(path.join(OUT, 'report.md'), markdown(report));
-console.log(`playtest: ${failed ? failed + ' failing' : 'all pass'} -> ${path.join(OUT, 'report.md')}`);
-process.exit(failed ? 1 : 0);
+return report;
+}
+
+// the CLI (also when run through the npm bin link)
+const self = (() => { try { return fs.realpathSync(process.argv[1] || '') === fs.realpathSync(new URL(import.meta.url).pathname); } catch { return false; } })();
+/** The command line: mirage-playtest <scenario.json> <target> [--out dir]; exits 1 on failure. */
+export async function main(args = process.argv.slice(2)) {
+  const flag = (k, d) => { const i = args.indexOf('--' + k); return i >= 0 ? args[i + 1] : d; };
+  const [scenarioFile, target] = args.filter((a, i) => !a.startsWith('--') && !(i > 0 && args[i - 1].startsWith('--')));
+  if (!scenarioFile || !target) { console.error('usage: mirage-playtest <scenario.json> <dist dir | page.html | http(s) url> [--out dir]'); process.exit(2); }
+  const sc = JSON.parse(fs.readFileSync(scenarioFile, 'utf8'));
+  const out = path.resolve(flag('out', 'out/playtest'));
+  const report = await playtest(sc, target, { out, scenarioFile });
+  for (const d of report.diagnostics.filter((d) => d.severity !== "info")) console.log(formatDiagnostic(d));
+  console.log(`playtest: ${report.failed ? report.failed + ' failing' : 'all pass'}; diagnostics: ${['error', 'warning', 'info'].map((s) => report.diagnostics.filter((d) => d.severity === s).length + ' ' + s).join(', ')} -> ${path.join(out, 'report.md')}`);
+  process.exit(report.failed ? 1 : 0);
+}
 
 function markdown(r) {
   const fmt = (v) => (Array.isArray(v) ? v.map((x) => (typeof x === 'number' ? x.toFixed(2) : x)).join(', ') : v === undefined ? '' : String(v));
@@ -282,6 +349,8 @@ function markdown(r) {
 - walk grid: ${r.grid ? JSON.stringify(r.grid) : '?'}
 - steps: ${r.steps.filter((s) => s.pass).length} / ${r.steps.length} pass; console errors: ${r.errors ? r.errors.length : '?'}, warnings: ${r.warnings ? r.warnings.length : '?'}
 
+${markdownDiagnostics(r.diagnostics || [])}
+
 | # | step | result | checks (value) | feet at end | fps | shot |
 |---|---|---|---|---|---|---|
 ${rows.join('\n')}
@@ -294,3 +363,4 @@ ${(r.errors || []).concat(r.warnings || []).map((e) => '- `' + e.replace(/`/g, "
 Contact sheet: [sheet.png](sheet.png)
 `;
 }
+if (self) await main();
