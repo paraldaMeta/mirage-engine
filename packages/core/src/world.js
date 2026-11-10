@@ -48,6 +48,15 @@ export function dynamicResConfig(c) {
   return { target: n(o.target, 60, 10, 240), min: n(o.min, 0.6, 0.25, 1), step: n(o.step, 0.1, 0.02, 0.5) };
 }
 
+/** reducedMotion option -> settings or null: true or { sway = 0.25, rain = 0.4 } (the wind sway's and the rain's
+ *  speed scales, 0..1); with it, renderFrame's default shutter is 0 (no motion blur in still frames) */
+export function reducedMotionConfig(c) {
+  if (!c) return null;
+  const o = c === true ? {} : c;
+  const n = (v, d) => (Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : d);
+  return { sway: n(o.sway, 0.25), rain: n(o.rain, 0.4) };
+}
+
 export function createWorldRenderer(config = {}) {
   const {
     canvas, width = canvas?.clientWidth || 1280, height = canvas?.clientHeight || 720, pixelRatio = 1,
@@ -132,6 +141,22 @@ export function createWorldRenderer(config = {}) {
   }
   const mat = createMaterials(G);
   const updates = [];
+  // reduced motion (opt-in; @mirage/play follows prefers-reduced-motion): the wind's strength is scaled while a frame
+  // renders (every sway reads uWind.z: no shader changes, so with it off the images are the same), kits read
+  // `motion` (the rain kit's fall speed), and the still path's shutter closes
+  let reduced = reducedMotionConfig(config.reducedMotion);
+  const motion = { reduced: !!reduced, sway: reduced ? reduced.sway : 1, rain: reduced ? reduced.rain : 1 };
+  function setReducedMotion(option) {
+    reduced = reducedMotionConfig(option);
+    Object.assign(motion, { reduced: !!reduced, sway: reduced ? reduced.sway : 1, rain: reduced ? reduced.rain : 1 });
+    return reduced;
+  }
+  const calm = (fn) => {
+    if (!reduced) return fn();
+    const w = G.uWind.value, z = w.z;
+    w.z = z * reduced.sway;
+    try { return fn(); } finally { w.z = z; }
+  };
   const envLight = createEnvLight(renderer, { size: Q.envSize, fade: config.envFade ?? 1.5 });
   // envState: 'instant' = recapture (two passes) before the next frame; 'fade' = one capture + cross-fade in tick()
   let envState = 'instant', light = null, state = null, frameCounter = 0, exposure = 1, expTarget = 1;
@@ -268,12 +293,22 @@ export function createWorldRenderer(config = {}) {
   /** Render the frame at time T (seconds). opts: { camera, getCamera(t), spp, dt, shutter, frameIndex, target, shadow,
    *  taa: true | alpha } — taa: one jittered sub-frame resolved against the reprojected history (moving cameras) */
   function renderFrame(T = 0, opts = {}) {
+    calm(() => {
+      const P = accumulate(T, opts);
+      pipeline.end(P, opts.frameIndex ?? frameCounter++, opts.target ?? null, { dt: opts.taa ? (opts.dt ?? P.frameDt) : 0, still: !opts.taa });
+    });
+    softShadowsIdle();   // host scenes drawn after this world see the stock path
+  }
+
+  // the sub-frames of one frame into the pipeline's accumulation (renderFrame, renderTransparent); returns the post
+  // settings of the frame (with frameDt: the seconds since the last moving frame)
+  function accumulate(T, opts) {
     if (!light) setTime(time);
     if (envState === 'instant') captureEnv(true);
     let spp = opts.spp ?? config.spp ?? Q.spp;
     const taa = !!opts.taa;
     if (taa) spp = 1; else taaValid = false;
-    const dt = opts.dt ?? 1 / 60, shutter = opts.shutter ?? 0.5;
+    const dt = opts.dt ?? 1 / 60, shutter = opts.shutter ?? (reduced ? 0 : 0.5);
     const sh = opts.shadow || shadow;
     const P = { ...post, exposure: post.exposure * exposure, temperature: post.temperature + light.warmth };
     if (P.autoExposure > 0) P.aeKey = post.aeKey * Math.pow(2, -(post.aeNight || 0) * Math.min(1, Math.max(0, light.lamp)));
@@ -327,15 +362,46 @@ export function createWorldRenderer(config = {}) {
       cam.projectionMatrixInverse.copy(cam.projectionMatrix).invert();
       if (!cam.position.equals(savedPos)) { cam.position.copy(savedPos); cam.updateMatrixWorld(); }
     }
-    pipeline.end(P, opts.frameIndex ?? frameCounter++, opts.target ?? null, { dt: opts.taa ? (opts.dt ?? frameDt) : 0, still: !taa });
-    softShadowsIdle();   // host scenes drawn after this world see the stock path
+    P.frameDt = frameDt;
+    return P;
+  }
+
+  /** A still with a transparent sky: the frame rendered twice, over black and over white (sky and stars hidden), and
+   *  straight alpha recovered per pixel from the two linear sums (pipeline.endClear). opts: renderFrame's (still path:
+   *  spp, shutter, frameIndex, camera, shadow). Returns { width, height, data } (RGBA8, straight alpha, top row first).
+   *  The object's own bloom is kept (the sky's glow over it is not); no auto exposure. */
+  function renderTransparent(T = 0, opts = {}) {
+    const o = { ...opts, taa: false, target: null }, hidden = [sky, stars].filter((m) => m.visible);
+    for (const m of hidden) m.visible = false;
+    const w = pipeline.w, h = pipeline.h, rt = new THREE.WebGLRenderTarget(w, h, { depthBuffer: false });
+    const data = new Uint8Array(w * h * 4), K = 1;
+    try {
+      calm(() => {
+        pipeline.clearColor = 0;
+        const P = accumulate(T, o);
+        pipeline.keepBlack(P);
+        pipeline.clearColor = K;
+        accumulate(T, o);
+        pipeline.endClear(P, opts.frameIndex ?? frameCounter++, rt, K);
+      });
+      renderer.readRenderTargetPixels(rt, 0, 0, w, h, data);
+    } finally {
+      pipeline.clearColor = null;
+      for (const m of hidden) m.visible = true;
+      rt.dispose();
+      softShadowsIdle();
+    }
+    const out = new Uint8Array(data.length), row = w * 4;   // GL rows run bottom-up
+    for (let y = 0; y < h; y++) out.set(data.subarray((h - 1 - y) * row, (h - y) * row), y * row);
+    return { width: w, height: h, data: out };
   }
 
   // [xr] one plain draw of the scene into the current framebuffer (the headset's, inside an XR frame; see
   // packages/play/src/xr.js): renderFrame's frame state (scene clock, ctx.onUpdate, fog, shadow fit), none of the
   // pipeline. The renderer's tone mapping does the grade. A pending environment capture runs with XR off (its
   // full-screen passes would otherwise be drawn through the headset's cameras).
-  function renderDirect(T = 0, opts = {}) {
+  function renderDirect(T = 0, opts = {}) { calm(() => direct(T, opts)); }
+  function direct(T, opts) {
     if (!light) setTime(time);
     if (envState === 'instant') { const xe = renderer.xr.enabled; renderer.xr.enabled = false; try { captureEnv(true); } finally { renderer.xr.enabled = xe; } }
     writeFog();
@@ -381,7 +447,7 @@ export function createWorldRenderer(config = {}) {
     if (!config.renderer) renderer.dispose();
   }
 
-  const ctx = { THREE, renderer, scene, camera, G, keyDir, mat, geom, rng, quality, place, onUpdate: (fn) => updates.push(fn) };
+  const ctx = { THREE, renderer, scene, camera, G, keyDir, mat, geom, rng, quality, place, motion, onUpdate: (fn) => updates.push(fn) };
   return {
     renderer, scene, camera, sun, sky, stars, pipeline, ctx, G, keyDir, mat, geom, rng, post, device, light2: l2cfg, dynamicRes: dynRes, softShadows: sscfg,
     /** the moving frames' render scale (1 = the canvas; below 1 only with `dynamicRes`) */
@@ -389,6 +455,9 @@ export function createWorldRenderer(config = {}) {
     /** forget the adapted exposure (auto exposure): the next frame is metered on its own, e.g. after a teleport */
     resetExposure: () => pipeline.resetExposure(),
     get light() { return light; }, get state() { return state; }, get exposure() { return exposure; },
+    /** reduced motion in use ({ sway, rain }), null when off; set it with setReducedMotion(true | { sway, rain } | false) */
+    get reducedMotion() { return reduced; },
+    setReducedMotion, renderTransparent,
     setTime, tick, prepare, renderFrame, renderDirect, resize, dispose, captureEnv, setAmbientVolumes,
   };
 }

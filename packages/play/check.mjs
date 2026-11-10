@@ -68,4 +68,31 @@ for (const [hz, cap] of [[50, 60], [60, 60], [75, 60], [90, 60], [120, 60], [144
   const wNo = createWalker(grid, { pos: [1000, 5, 1000] });
   ok(!wNo.onGround, 'placed over nothing is not on the ground');
 }
+// reduced motion: the option resolves against prefers-reduced-motion and follows its changes ('auto' only)
+{
+  const { resolveReducedMotion, followReducedMotion, REDUCED_MOTION_QUERY } = await import('./src/motion.js');
+  ok(resolveReducedMotion('auto', { matches: true }) === true && resolveReducedMotion(undefined, { matches: false }) === false && resolveReducedMotion('auto', null) === false, "'auto' follows the media query (none: off)");
+  ok(resolveReducedMotion(false, { matches: true }) === false && resolveReducedMotion(true, { matches: false }) === true, 'true / false override the system setting');
+  const s = { sway: 0.5 };
+  ok(resolveReducedMotion(s, { matches: false }) === s, 'settings force it on with those scales');
+  let threw = false; try { resolveReducedMotion('sometimes'); } catch (e) { threw = e instanceof RangeError; }
+  ok(threw, 'a bad option throws');
+  // a fake window: matchMedia with change listeners
+  const mq = { matches: false, ls: new Set(), addEventListener(t, f) { this.ls.add(f); }, removeEventListener(t, f) { this.ls.delete(f); } };
+  const win = { asked: null, matchMedia(q) { this.asked = q; return mq; } }, seen = [];
+  const stop = followReducedMotion('auto', win, (v) => seen.push(v));
+  ok(win.asked === REDUCED_MOTION_QUERY && seen.join() === 'false', 'applies the current setting at once');
+  mq.matches = true; for (const f of mq.ls) f();
+  mq.matches = false; for (const f of mq.ls) f();
+  ok(seen.join() === 'false,true,false', 'follows the system setting as it changes');
+  stop();
+  ok(mq.ls.size === 0, 'stop() removes the listener');
+  const forced = []; followReducedMotion(true, win, (v) => forced.push(v));
+  ok(forced.join() === 'true' && mq.ls.size === 0, 'an override does not listen');
+  const legacy = { matches: true, n: 0, addListener() { this.n++; }, removeListener() { this.n--; } }, out = [];
+  const stop2 = followReducedMotion('auto', { matchMedia: () => legacy }, (v) => out.push(v)); stop2();
+  ok(out.join() === 'true' && legacy.n === 0, 'older Safari: addListener / removeListener');
+  const none = []; followReducedMotion('auto', null, (v) => none.push(v));
+  ok(none.join() === 'false', 'no window (Node, a worker): off');
+}
 console.log('play check: ok');

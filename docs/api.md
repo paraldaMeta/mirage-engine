@@ -11,7 +11,7 @@ a release may change. `npm run test:pack` fails if a package exports a name that
 
 The entry points `@mirage/<pkg>` are the API. Every file under `src/` can also be imported as a subpath
 (`"./*"` in the export map) and has its own `.d.ts`; the world kits live there (`@mirage/world/kits/vegetation`,
-`/kits/terrain`, `/kits/water`, `/kits/rain`, documented in the world README). Which subpaths stay supported is open:
+`/kits/terrain`, `/kits/water`, `/kits/rain`, `/kits/fur` (experimental), documented in the world README). Which subpaths stay supported is open:
 [API-CANDIDATE.md](API-CANDIDATE.md) lists them; until a whitelist is decided, treat subpaths other than the kits,
 `@mirage/core/rng`, `@mirage/world/plan` and `@mirage/core/export` (`exportWorld`, experimental: [export.md](export.md)) as internal. Types: each package's root entry declares `types`
 ([TYPES.md](TYPES.md)).
@@ -23,9 +23,9 @@ The entry points `@mirage/<pkg>` are the API. Every file under `src/` can also b
 
 | export | stability | what it is |
 |---|---|---|
-| `createWorldRenderer(config)` | stable | the renderer for one world: sky, light, shadows, post, day / night; returns the `world` object (fields in the core README) |
+| `createWorldRenderer(config)` | stable | the renderer for one world: sky, light, shadows, post, day / night; returns the `world` object (fields in the core README; experimental fields: `setReducedMotion`, `reducedMotion`, `renderTransparent`, `ctx.motion`) |
 | `patch(material, hooks, G)` | stable | add GLSL hooks to a three.js material (vertex, albedo, roughness, normal, emissive, lighting, output) |
-| `PROC` | stable | ready hook sets: `plaster`, `stone`, `wood`, `terracotta` |
+| `PROC` | stable | ready hook sets: `plaster`, `stone`, `wood`, `terracotta` (experimental: the metals `brushed`, `hammered`, `patina`) |
 | `createTextures(world, { manifest, url, anisotropy })` | stable | the optional world-space texture layer for CC0 PBR sets |
 | `TEX_GLSL` | stable | the GLSL of the texture layer (`mgTexTri`, `mgTexWall`, `mgTexGround`, …) |
 | `glslName(name)` | stable | how a texture set name is spelled in `MG_TEX_<name>` (`'stone-wall'` → `stone_2d_wall`; plain names unchanged) |
@@ -109,7 +109,7 @@ see [world-protocol.md](world-protocol.md).
 
 | export | stability | what it is |
 |---|---|---|
-| `createPlay(world, opts)` | stable | walk / fly / game view / orbit, input, still refinement; returns `play` (fields in the play README) |
+| `createPlay(world, opts)` | stable | walk / fly / game view / orbit, input, still refinement; returns `play` (fields in the play README); experimental: the `reducedMotion` option and field (follows `prefers-reduced-motion`), `render({ transparent: true })` |
 | `createCharacter(world, { palette })` | experimental | the procedural traveller of the game view (rig, palette, locomotion); hosts can add its `root` to their own scene |
 | `mountWorld(opts)` | stable | build a world into a host page's own renderer (the embed API) |
 | `bakeWalkGrid(world, opts)` | stable | the walk grid baked from the geometry |

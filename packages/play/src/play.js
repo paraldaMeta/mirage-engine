@@ -7,6 +7,7 @@ import { createLifetime } from '@mirage/core/lifetime';
 import { bakeWalkGrid } from './walkgrid.js';
 import { createWalker } from './walker.js';
 import { createCharacter } from './character.js';
+import { followReducedMotion } from './motion.js';
 
 // ---------------------------------------------------------------------------
 // createPlay(world, { plan, canvas, mode, fit }): walk / fly / game / orbit over a built world.
@@ -24,6 +25,9 @@ import { createCharacter } from './character.js';
 // The scene clock (wind, water, clouds, ctx.onUpdate) runs while the view moves and stands still with it, so still
 // frames stay deterministic (M1b); place() (a viewpoint, the spawn) sets it back to 0, so fixed views are what they
 // were (B5). `animate: true` runs it on real time instead.
+// Reduced motion (opts.reducedMotion: 'auto' follows prefers-reduced-motion, true / false / { sway, rain } override;
+// play.reducedMotion sets it later): the world's wind sway and rain slow down and still frames get no motion blur
+// (world.setReducedMotion), and the eye eases over steps and jumps instead of following them exactly.
 // The game view animates the visible traveller using actual displacement. Its root follows the walker.
 // ---------------------------------------------------------------------------
 
@@ -274,7 +278,8 @@ function mountPlay(world, opts, life) {
       if (game && want.lengthSq() > 1e-4) { let d = Math.atan2(want.z, want.x) - yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); yaw += d * Math.min(1, dt * 10); pitch = 0; }
       const target = p[1] + B.eye;
       eyeY += (target - eyeY) * Math.min(1, dt * (Math.abs(target - eyeY) > 0.5 ? 30 : 14));   // eased over steps
-      if (!walker.onGround) eyeY = target;
+      if (calmEye) eyeY += (target - eyeY) * Math.min(1, dt * 7);   // reduced motion: a softer rise and fall
+      else if (!walker.onGround) eyeY = target;
       if (game) {
         const k = Math.min(1, dt * 6);
         gameTarget.x += (p[0] - gameTarget.x) * k; gameTarget.y += (p[1] + 0.9 - gameTarget.y) * k; gameTarget.z += (p[2] - gameTarget.z) * k;
@@ -311,12 +316,14 @@ function mountPlay(world, opts, life) {
     const c = camera.position.clone().addScaledVector(f, shadowR * 0.45); c.y = walker.pos[1];
     return { cam: camera, shadow: shadowAround(c, shadowR) };
   }
-  /** render the current view: moving -> temporal AA; still -> the still path (spp sub-frames) */
-  function render({ moving = true, spp: n = spp, frameIndex, target } = {}) {
+  /** render the current view: moving -> temporal AA; still -> the still path (spp sub-frames); transparent: a still
+   *  with a transparent sky, returned as { width, height, data } (world.renderTransparent; nothing is drawn) */
+  function render({ moving = true, spp: n = spp, frameIndex, target, transparent = false } = {}) {
     if (life.disposed) return;
     const { cam, shadow } = view();
     const T = animate ? (performance.now() - t0) / 1000 : clock;
     const o = { camera: cam, ...(shadow ? { shadow } : {}), ...(frameIndex !== undefined ? { frameIndex } : {}) };
+    if (transparent) return world.renderTransparent(T, { ...o, spp: n });
     rendering = true;
     try {
       world.renderFrame(T, moving ? { ...o, taa: true, target } : { ...o, spp: n, target });
@@ -434,6 +441,21 @@ function mountPlay(world, opts, life) {
     if (!hidden && running) { last = performance.now(); keys.clear(); wake(); schedule(); }
   });
 
+  // reduced motion: 'auto' turns the world's on and off with the system setting (off only if play turned it on, so a
+  // world created with reducedMotion keeps it); an explicit value always applies. dispose() gives the world back.
+  const worldMotion = world.reducedMotion ?? null;
+  let calmEye = false, ours = false, motionOption = opts.reducedMotion, stopMotion = () => {};
+  const applyMotion = (v) => {
+    if (life.disposed) return;
+    const auto = motionOption === undefined || motionOption === null || motionOption === 'auto';
+    if (v || !auto || ours) { if (world.setReducedMotion) world.setReducedMotion(v); ours = !!v && auto; }
+    calmEye = !!(world.reducedMotion ?? v);
+    changed = true; wake();
+  };
+  const followMotion = (o) => { stopMotion(); motionOption = o; stopMotion = followReducedMotion(o, typeof window === 'undefined' ? null : window, applyMotion); };
+  followMotion(motionOption);
+  life.defer(() => { stopMotion(); if (world.setReducedMotion) world.setReducedMotion(worldMotion); });
+
   place(spawn.eye, spawn.look, mode);
   schedule();
 
@@ -459,6 +481,8 @@ function mountPlay(world, opts, life) {
     /** the power saver (30 fps cap) and the frame-rate cap; wake(): count as input (restarts scene animation) */
     get powerSaver() { return power.saver; }, set powerSaver(v) { setSaver(v); },
     get maxFps() { return power.maxFps; }, wake, get idleFor() { return (performance.now() - lastInput) / 1000; },
+    /** reduced motion: true while on; set 'auto' (follow the system setting), true, false or { sway, rain } */
+    get reducedMotion() { return calmEye; }, set reducedMotion(o) { if (!life.disposed) followMotion(o); },
   };
 }
 

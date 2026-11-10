@@ -3,6 +3,7 @@
 // Textures: the courtyard's five CC0 sets (../hello-courtyard/tex).
 // URL: ?mode=walk (default) | fly | game | orbit   ?view=<viewpoint name>   ?time=golden | HH:MM [&date=YYYY-MM-DD]
 //      ?spp=N  ?w=&h=  ?grain=0  ?broken=1  ?ui=0  ?npc=N (N travellers wander the terraces: npc.js)
+//      ?lawn=fur | fur-fins | tufts (turf on one lawn panel)
 import { createWorldRenderer, createTextures, placeDate, pickQuality } from '@mirage/core';
 import { buildWorld } from '@mirage/world';
 import { createPlay, createXR, xrSupport } from '@mirage/play';
@@ -27,7 +28,7 @@ const world = createWorldRenderer({ quality, xr: xrs.vr || xrs.ar,
 });
 const urls = import.meta.glob('../hello-courtyard/tex/*.webp', { eager: true, query: '?url', import: 'default' });
 const tex = createTextures(world, { manifest, url: (f) => urls['../hello-courtyard/tex/' + f] });
-const built = await buildWorld(world, { plan, modules: modules({ broken: Q.has('broken') }), shared: { tex } });
+const built = await buildWorld(world, { plan, modules: modules({ broken: Q.has('broken'), lawn: Q.get('lawn') }), shared: { tex } });
 const { camera } = world;
 camera.aspect = W / H; camera.fov = 55; camera.near = 0.1; camera.far = 3000; camera.updateProjectionMatrix();
 await tex.ready();

@@ -143,4 +143,38 @@ ok(out.modules.walls.r === rng('t/walls').float(), 'per-module rng');
   for (const o of [{ count: 0 }, { box: [1, 2] }, { speed: NaN }]) try { addRain(rctx(), o); } catch (e) { threw += e instanceof RangeError; }
   ok(threw === 3, 'bad rain options throw RangeError');
 }
+// rain under reduced motion (world.setReducedMotion writes ctx.motion): slower streaks; without it, the speed as given
+{
+  const { addRain } = await import('./src/kits/rain.js'), { createMaterials, createEnv } = await import('@mirage/core');
+  const rG = createEnv({}).G, motion = { rain: 1 }, rd = { getRenderTarget: () => ({ height: 900 }) }, cam = new THREE.PerspectiveCamera(48, 1.6, 0.1, 100);
+  const r = addRain({ root: new THREE.Group(), mat: createMaterials(rG), G: rG, motion }, { count: 4, speed: 8.5 });
+  const sp = () => { r.onBeforeRender(rd, null, cam); return r.material.userData.hooks.uniforms.uRainShape.value.x; };
+  ok(sp() === 8.5, 'rain speed as given at full motion');
+  motion.rain = 0.4;
+  ok(Math.abs(sp() - 3.4) < 1e-12, 'reduced motion slows the rain');
+}
+// fur kit: one mesh (instanced shells), options checked, seeded, fins on request
+{
+  const { addFur } = await import('./src/kits/fur.js'), { createMaterials, createEnv } = await import('@mirage/core');
+  const fctx = (seed = 'f') => ({ root: new THREE.Group(), mat: createMaterials(createEnv({}).G), rng: (n) => rng(seed + '/' + n) });
+  const c = fctx(), f = addFur(c, { rect: [0, 0, 4, 2], shells: 12, segments: [4, 2], heightAt: (x) => x * 0.1 });
+  ok(c.root.children.length === 1 && f.fins === null && f.shells.geometry.isInstancedBufferGeometry && f.shells.geometry.instanceCount === 12, 'fur: one mesh, the shells as instances');
+  ok(f.shells.userData.collide === false && !f.shells.castShadow && f.shells.receiveShadow, 'fur: no collision, receives shadows, casts none by default');
+  ok(f.shells.geometry.index.count === 4 * 2 * 6, 'fur: the patch grid (segments) drawn once per shell');
+  const p = f.shells.geometry.attributes.position;
+  ok(Math.abs(p.getY(p.count - 1) - p.getX(p.count - 1) * 0.1) < 1e-6, 'fur: rect follows heightAt');
+  const U = f.shells.material.userData.hooks.uniforms;
+  ok(U.uFur.value.x === 12 && U.uFur.value.z === 1 && Math.abs(U.uFurBlade.value.x - 30) < 1e-9, 'fur: shells, no base layer, strands per metre');
+  const seedOf = (s) => addFur(fctx(s), { rect: [0, 0, 4, 2] }).shells.material.userData.hooks.uniforms.uFurBlade.value.z;
+  ok(seedOf('f') === seedOf('f') && seedOf('f') !== seedOf('g'), 'fur: strand layout seeded');
+  const shadowed = addFur(fctx(), { rect: [0, 0, 1, 1], shadows: true, fins: 0.25 });
+  ok(shadowed.shells.castShadow && shadowed.shells.customDepthMaterial.isMeshDepthMaterial && !!shadowed.fins.geometry.attributes.aFin, 'fur: shadows use a depth material with the same lift; fins');
+  const rock = new THREE.IcosahedronGeometry(1, 1), moss = addFur(fctx(), { geometry: rock, hooks: { lighting: 'reflectedLight.indirectDiffuse *= 1.0;', uniforms: { uX: { value: 1 } } } });
+  ok(moss.shells.geometry.attributes.position === rock.attributes.position, 'fur on a mesh shares its attributes');
+  const H = moss.shells.material.userData.hooks;
+  ok(H.lighting.includes('indirectDiffuse') && !!H.uniforms.uX && !!H.uniforms.uFur && H.albedo.includes('mgFurClip'), "fur: the caller's hooks after its own");
+  let bad = 0;
+  for (const o of [{}, { rect: [0, 0, 1, 1], geometry: rock }, { rect: [1, 0, 0, 1] }, { rect: [0, 0, 1, 1], shells: 1 }, { rect: [0, 0, 1, 1], length: 0 }, { geometry: new THREE.BufferGeometry() }]) try { addFur(fctx(), o); } catch (e) { bad += e instanceof RangeError; }
+  ok(bad === 6, 'fur: bad options throw RangeError');
+}
 console.log('world check: ok');
