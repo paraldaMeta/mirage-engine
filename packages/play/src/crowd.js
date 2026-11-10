@@ -38,7 +38,10 @@ export function createCrowd(nav, opts = {}) {
   const f64 = () => new Float64Array(max);
   const x = f64(), y = f64(), z = f64(), vx = f64(), vz = f64(), wx = f64(), wz = f64(), radius = f64(), speed = f64(), hx = f64(), hz = f64().fill(1), stall = f64();
   // state: 0 free slot, 1 idle, 2 path, 3 field, 4 wish (setVelocity), 5 on a link, 6 fixed, 7 waiting for a path
-  const state = new Uint8Array(max), done = new Uint8Array(max), gen = new Uint32Array(max), ver = new Uint32Array(max);
+  const state = new Uint8Array(max), done = new Uint8Array(max), gen = new Uint32Array(max), ver = new Uint32Array(max), asked = new Uint32Array(max);
+  // the navigation bakes one fit profile per radius: agents share them by rounding their radius UP to `radiusStep`
+  // (0.05 m) for everything asked of the nav (paths, the wall clamp); avoidance uses the true radius
+  const rStep = opts.radiusStep ?? 0.05, fitR = f64();
   const path = new Array(max).fill(null), pidx = new Int32Array(max), goal = new Array(max).fill(null), field = new Array(max).fill(null), link = new Array(max).fill(null), actors = new Array(max).fill(null), popts = new Array(max).fill(null);
   const queue = opts.queue || createPathQueue(nav, { budgetMs: opts.pathBudgetMs ?? 1 });
   // the bucket hash, rebuilt each step by a counting sort
@@ -110,7 +113,7 @@ export function createCrowd(nav, opts = {}) {
       const p = path[i];
       if (!p) { wx[i] = wz[i] = 0; return; }
       let q = pidx[i];
-      a3[0] = x[i]; a3[1] = y[i]; a3[2] = z[i]; vo.radius = radius[i];
+      a3[0] = x[i]; a3[1] = y[i]; a3[2] = z[i]; vo.radius = fitR[i];
       // on to the next waypoint when at this one, or (looked at every 4th step, or when close) when the next is in a
       // straight walk; a link's near end is walked to exactly
       while (q < p.length - 1 && !p[q].link) {
@@ -141,11 +144,17 @@ export function createCrowd(nav, opts = {}) {
     } else if (s !== 4) { wx[i] = wz[i] = 0; }
   }
 
+  // one query in the queue per agent: a nav that changes every step (a door sliding) must not pile up a query per
+  // change, so a waiting query stays where it is in the line and starts from where the agent is when it runs
   function request(i) {
     const g = gen[i];
     ver[i] = nav.version;
-    queue.request([x[i], y[i], z[i]], goal[i], { radius: radius[i], snap: 1.5, ...popts[i], then: (p) => {
+    if (asked[i] === g + 1) return;
+    asked[i] = g + 1;
+    queue.request([x[i], y[i], z[i]], goal[i], { radius: fitR[i], snap: 1.5, ...popts[i], origin: () => (state[i] && gen[i] === g ? [x[i], y[i], z[i]] : null), then: (p) => {
+      if (asked[i] === g + 1) asked[i] = 0;
       if (gen[i] !== g || !state[i]) return;
+      ver[i] = nav.version;
       if (state[i] === 5) { ver[i] = nav.version - 1; return; }   // mid-link: asked again after the landing
       path[i] = p; pidx[i] = p ? 1 : 0; state[i] = 2; stall[i] = 0;
       if (!p) crowd.onNoPath?.(i);
@@ -161,8 +170,9 @@ export function createCrowd(nav, opts = {}) {
       if (i === max) return -1;
       const p = a.pos || [0, 0, 0];
       radius[i] = a.radius ?? 0.28; speed[i] = a.speed ?? 1.5;
-      nav.profile(radius[i]);
-      const n = nav.nearest(p, { radius: radius[i], snap: 2 }) || p;
+      fitR[i] = rStep > 0 ? Math.ceil(radius[i] / rStep - 1e-6) * rStep : radius[i];
+      nav.profile(fitR[i]);
+      const n = nav.nearest(p, { radius: fitR[i], snap: 2 }) || p;
       x[i] = a.fixed ? p[0] : n[0]; y[i] = a.fixed ? p[1] : n[1]; z[i] = a.fixed ? p[2] : n[2];
       vx[i] = vz[i] = wx[i] = wz[i] = 0; hx[i] = 0; hz[i] = 1; done[i] = 0; stall[i] = 0;
       state[i] = a.fixed ? 6 : 1; path[i] = goal[i] = field[i] = link[i] = actors[i] = null; gen[i]++;
@@ -180,7 +190,7 @@ export function createCrowd(nav, opts = {}) {
     /** put a fixed agent (the player, a vehicle) where it is now; its velocity is taken from the move */
     move(i, px, py, pz, dt = 1 / 60) { vx[i] = (px - x[i]) / dt; vz[i] = (pz - z[i]) / dt; x[i] = px; y[i] = py; z[i] = pz; const a = actors[i]; if (a) { a.pos[0] = px; a.pos[1] = py; a.pos[2] = pz; } },
     /** teleport an agent (keeps its goal: it plans again from there) */
-    place(i, p) { const n = nav.nearest(p, { radius: radius[i], snap: 2 }) || p; x[i] = n[0]; y[i] = n[1]; z[i] = n[2]; vx[i] = vz[i] = 0; if (state[i] === 5) { link[i] = null; state[i] = 7; } if (goal[i]) { gen[i]++; state[i] = 7; request(i); } },
+    place(i, p) { const n = nav.nearest(p, { radius: fitR[i], snap: 2 }) || p; x[i] = n[0]; y[i] = n[1]; z[i] = n[2]; vx[i] = vz[i] = 0; if (state[i] === 5) { link[i] = null; state[i] = 7; } if (goal[i]) { gen[i]++; state[i] = 7; request(i); } },
     arrived: (i) => done[i] === 1,
     onLink: null, onNoPath: null,
     pathOf: (i) => path[i], waypoint: (i) => pidx[i], linkOf: (i) => link[i]?.link || null,
@@ -281,7 +291,7 @@ export function createCrowd(nav, opts = {}) {
           }
         } else {
           let ax = nvx[i], az = nvz[i];
-          a3[0] = x[i]; a3[1] = y[i]; a3[2] = z[i]; vo.radius = radius[i];
+          a3[0] = x[i]; a3[1] = y[i]; a3[2] = z[i]; vo.radius = fitR[i];
           b3[0] = x[i] + ax * dt; b3[1] = y[i]; b3[2] = z[i] + az * dt;
           if (ax || az) {
             if (!nav.visible(a3, b3, vo)) {

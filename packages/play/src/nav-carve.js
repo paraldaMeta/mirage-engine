@@ -41,7 +41,7 @@ export function carveSolids(nav, space, { tolerance = nav.base.cell / 2, turn = 
         dirty.delete(s);
         const h = held.get(s.id);
         if (!h) continue;
-        if (Math.hypot(s.pos[0] - h.x, s.pos[1] - h.y, s.pos[2] - h.z) < tolerance && Math.abs(s.yaw - h.yaw) < turn && Math.abs(s.quat[0] - h.qx) + Math.abs(s.quat[2] - h.qz) < turn) continue;
+        if (Math.hypot(s.pos[0] - h.x, s.pos[1] - h.y, s.pos[2] - h.z) < tolerance && (!s.box || Math.abs(s.yaw - h.yaw) < turn) && Math.abs(s.quat[0] - h.qx) + Math.abs(s.quat[2] - h.qz) < turn) continue;
         put(s); n++;
       }
       carve.stats.ms = +(performance.now() - t).toFixed(3); carve.stats.moved = n; carve.stats.total = held.size;

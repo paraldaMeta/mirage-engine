@@ -40,7 +40,9 @@ export function createPathQueue(nav, { budgetMs = 2, max = Infinity } = {}) {
       while (jobs.length && n < max) {
         const j = jobs.shift(), t1 = performance.now();
         j.dead = true;
-        const path = nav.findPath(j.from, j.to, j.opts);
+        // opts.origin(): where the asker is now (a query that waited starts from there); null: nobody is asking any more
+        const from = j.opts.origin ? j.opts.origin() : j.from;
+        const path = from ? nav.findPath(from, j.to, j.opts) : null;
         if (j.opts.then) j.opts.then(path);   // in this call, not a microtask later: a fixed-step loop sees it at once
         j.done(path);
         n++;
