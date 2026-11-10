@@ -70,4 +70,17 @@ assert.equal((await pickQuality({ storage: null, nav: { userAgent: SAFARI, maxTo
   const { refraction } = await import('./src/sky-time.js');
   for (let a = -3.5; a < 1; a += 0.01) assert.ok(Math.abs(refraction(a + 0.01) - refraction(a)) < 0.02, `refraction is continuous at ${a.toFixed(2)}°`);
 }
+// light2: importing it changes nothing; installing patches the light loop once, keeps three's code for other fog
+const L2 = await import('./src/light2.js');
+const chunk0 = THREE.ShaderChunk.lights_fragment_begin, common0 = THREE.ShaderChunk.common;
+assert.equal(L2.light2Config(false), null, 'light2 off by default');
+const c2 = L2.light2Config({ ssr: false, vol: { lamps: 3 } });
+assert.ok(c2.ls.on && !c2.ssr.on && c2.vol.lamps === 3 && c2.vol.sun === L2.LIGHT2_DEFAULTS.vol.sun && c2.bloom.on, 'light2 config merges');
+assert.equal(THREE.ShaderChunk.lights_fragment_begin, chunk0, 'importing light2 patches nothing');
+assert.ok(L2.installLight2() && L2.installLight2(), 'light2 installs (idempotent)');
+const lfb = THREE.ShaderChunk.lights_fragment_begin;
+assert.equal(lfb.split('mgLsVisV').length, 2, 'one lamp-shadow lookup in the point-light loop');
+assert.ok(THREE.ShaderChunk.common.startsWith(common0) && THREE.ShaderChunk.common.includes('defined( FOG_EXP2 )'), 'lamp shadows only under FogExp2');
+assert.ok(THREE.ShaderChunk.opaque_fragment.includes('gl_FragColor.a = 2.0'), 'smooth surfaces flag reflections');
+assert.ok(THREE.ShaderLib.standard.uniforms.mgLsAtlas.value === L2.LS_SHARED.atlas && L2.LS_SHARED.atlas.clone() === L2.LS_SHARED.atlas, 'one shared atlas, never cloned');
 console.log('core check: ok');

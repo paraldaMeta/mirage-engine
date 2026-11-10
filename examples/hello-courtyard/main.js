@@ -3,6 +3,8 @@
 // URL: ?mode=orbit (default) | walk | fly | game   ?time=golden | HH:MM [&date=YYYY-MM-DD] [&lat=..&lon=..&tz=..]
 //      ?clock=N (N minutes per second)  ?spp=N  ?w=&h=  ?grain=0  ?dof=1  ?view=hero | corner | <viewpoint name>
 //      ?broken=1 (adds a module that throws)  ?ui=0
+//      ?light2=1 lamp shadows, reflections, volumetric light, mixed bloom (@mirage/core light2.js);
+//      &l2=nols,nossr,novol,nobloom switches single parts off
 import { createWorldRenderer, createTextures, placeDate, pickQuality } from '@mirage/core';
 import { buildWorld } from '@mirage/world';
 import { createPlay } from '@mirage/play';
@@ -19,7 +21,9 @@ let date = t === 'golden' ? null : placeDate(Q.get('date') || '2026-10-25', t, p
 const canvas = document.querySelector('canvas');
 canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
 const quality = Q.get('quality') || (await pickQuality()).quality, hud = Q.get('hud') !== '0';   // ?quality=low|medium|high
-const world = createWorldRenderer({ quality,
+// light2 (opt-in): ?light2=1, parts off with &l2=nols,nossr,novol,nobloom
+const light2 = Q.get('light2') === '1' && Object.fromEntries((Q.get('l2') || '').split(',').filter(Boolean).map((k) => [k.replace(/^no/, ''), false]));
+const world = createWorldRenderer({ quality, light2,
   canvas, width: W, height: H, place, time: date || 'golden', preserveDrawingBuffer: true,
   shadow: { center: [0, 2, 0], radius: 17 }, envProbe: [0, 2.2, 0],
   fog: { groundDensity: 0.0022, height: 30 },

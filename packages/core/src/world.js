@@ -6,6 +6,7 @@ import { createSky, createSkyUniforms } from './sky.js';
 import { createStars } from './stars.js';
 import { skyState, lightAt } from './daynight.js';
 import { Pipeline, DEFAULT_POST } from './post.js';
+import { installLight2, light2Config } from './light2.js';
 import { createMaterials } from './materials.js';
 import { createEnvLight } from './envlight.js';
 import { deviceProfile } from './device.js';
@@ -50,6 +51,9 @@ export function createWorldRenderer(config = {}) {
   const post = { ...DEFAULT_POST, ...config.post };
 
   installFog();
+  // light2 (lamp shadows, reflections, volumetric light, mixed bloom): opt-in, patched before any material compiles
+  let l2cfg = light2Config(config.light2);
+  if (l2cfg && !installLight2()) l2cfg = null;
   const renderer = config.renderer || new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false, stencil: false, powerPreference: 'high-performance', preserveDrawingBuffer: !!config.preserveDrawingBuffer });
   renderer.setPixelRatio(pixelRatio);
   renderer.setSize(width, height, false);
@@ -77,6 +81,7 @@ export function createWorldRenderer(config = {}) {
   scene.add(sun, sun.target);
 
   const pipeline = new Pipeline(renderer, { width: width * pixelRatio, height: height * pixelRatio, msaa: device.msaa, aoSamples: Q.aoSamples });
+  if (l2cfg) pipeline.useLight2(l2cfg, { sun, G });
   const mat = createMaterials(G);
   const updates = [];
   const envLight = createEnvLight(renderer, { size: Q.envSize, fade: config.envFade ?? 1.5 });
@@ -225,7 +230,7 @@ export function createWorldRenderer(config = {}) {
       // soft shadows: the light moves over the solar disc (Vogel spiral, 0.27° radius)
       const r = spp > 1 ? Math.sqrt((k + 0.5) / spp) * 0.0047 : 0, th = k * 2.39996323 + 0.5;
       fitShadow(sh.center, sh.radius, r ? [r * Math.cos(th), r * Math.sin(th)] : null);
-      pipeline.add(scene, cam, W[k], k, P);
+      pipeline.add(scene, cam, W[k], k, P, taa ? taaK : k);
       if (taa) {
         pipeline.taa(invVP.copy(curVP).invert(), prevVP, taaValid ? (typeof opts.taa === 'number' ? opts.taa : 0.12) : 1);
         prevVP.copy(curVP); taaValid = true;
@@ -272,7 +277,7 @@ export function createWorldRenderer(config = {}) {
 
   const ctx = { THREE, renderer, scene, camera, G, keyDir, mat, geom, rng, quality, place, onUpdate: (fn) => updates.push(fn) };
   return {
-    renderer, scene, camera, sun, sky, stars, pipeline, ctx, G, keyDir, mat, geom, rng, post, device,
+    renderer, scene, camera, sun, sky, stars, pipeline, ctx, G, keyDir, mat, geom, rng, post, device, light2: l2cfg,
     get light() { return light; }, get state() { return state; }, get exposure() { return exposure; },
     setTime, tick, prepare, renderFrame, resize, dispose, captureEnv, setAmbientVolumes,
   };
