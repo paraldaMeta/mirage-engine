@@ -107,6 +107,20 @@ The entry points `@mirage/<pkg>` are the API. Every file under `src/` can also b
 | `effectRadius(emitter)` | experimental | radius of a sphere about a defined emitter that holds its particles, for culling |
 | `VFX_ENUMS` | experimental | the allowed values of the format's enumerated keys (shapes, blends, sorts, …) |
 | `createLod()` | experimental | merge-and-swap level-of-detail helper |
+| `chunkGeometry(geometry, { maxVertices, maxSize, minVertices })` | experimental | split one geometry into spatial pieces with tight bounds (also `@mirage/core/chunk`); guide: `docs/big-worlds.md` |
+| `chunkObject(root, options)` | experimental | replace every large static mesh under `root` by its chunks so frustum culling can work; `MeshBatch.finish({ chunk })` calls it |
+| `createSimplifier(mesh)` | experimental | Mirage's own quadric-error mesh simplifier (attributes, locked and border vertices), resumable: `run({ triangles, error, budgetMs })`, `extract()` |
+| `simplify(mesh, { triangles, ratio, error })` | experimental | one simplified level of a `{ positions, index, attributes }` mesh |
+| `createChain(mesh, { ratios, error, minGain })` | experimental | a chain of LOD levels in one pass, built in time slices with `step(budgetMs)` |
+| `createAutoLod(world, { ratios, errorPx, hysteresis, fade, workers, budgetMs })` | experimental | automatic LOD: `add(root)` builds chains in workers (or on a frame budget) and selects by screen-space error with hysteresis and a dithered cross-fade |
+| `buildProxy(roots, { ratio, triangles, material, lockBorder })` | experimental | HLOD: merge every mesh under `roots` into one vertex-coloured, simplified mesh |
+| `buildProxyAsync(roots, options, workers)` | experimental | the same with the simplifier in a worker |
+| `createSimplifyWorkers(count)` | experimental | a small pool of simplifier workers (falls back to the main thread) |
+| `createInstances(world, { source, matrices, impostor, cell, maxDistance })` | experimental | instanced drawing with per-instance frustum culling and per-instance LOD on the CPU, an octahedral impostor as the last level |
+| `bakeImpostor(world, object, { frames, tile })` | experimental | hemi-octahedral impostor atlas (albedo + alpha, normal) of an object |
+| `impostorMaterial(world, impostor, params)` | experimental | the lit billboard material that blends the atlas frames nearest the view |
+| `createOcclusion(world, { margin, confirm, cutMetres, cutDegrees })` | experimental | occlusion culling from the previous frame's depth (max-depth pyramid, async readback, CPU test; camera cuts show everything) |
+| `onView(scene, camera, before, after)` | experimental | run a function before / after every render of the scene through that camera (not the shadow pass); returns `off()` |
 | `hash32(string)` | experimental | 32-bit string hash used for seeds |
 | `sfc32(seed)` | experimental | the raw SFC32 generator |
 | `valueNoise2(x, z, seed)` | experimental | smooth 2D value noise on the CPU |
@@ -142,6 +156,8 @@ Model import, `@mirage/core/assets` (opt-in subpath, [import.md](import.md)):
 | `buildWorld(world, { plan, modules, shared, log, slice })` | stable | build modules in order with failure isolation; anchors, finalize, ambient volumes, report; `slice` (experimental, opt-in) yields to the frame between modules after a time budget and reports `slices` |
 | `createStreamer(world, { plan, modules, shared, camera, concurrency, budget, uploadBytes, hysteresis, sync, onChange })` | experimental | modules that come into the scene near the viewer and leave when far: queued nearest first, built, compiled off-frame (`compileAsync`), textures uploaded over frames, cached in an LRU byte budget; `update(position)` once a frame |
 | `regionOf(root, pad)` | experimental | the XZ rectangle an object covers (for a walk-grid region re-bake) |
+| `createPartition(world, { bounds, size, build, load, hysteresis, proxy, origin, onCell, onProxy, onRebase })` | experimental | world partition on the streamer: square cells that load around the viewer, an HLOD proxy for every cell that is out, floating-origin rebasing; guide: `docs/big-worlds.md` |
+| `createFloatingOrigin({ roots, threshold, snap, onRebase })` | experimental | the floating origin alone: `update(camera)` moves camera and roots back by multiples of `snap` |
 | `LAYER` | stable | `{ VIEW: 0, COLLIDE: 2 }` |
 
 The module interface (`name`, `build`, `finalize`, `anchors`, `ambientVolumes`, and the `ctx` fields) is stable;

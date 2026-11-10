@@ -65,6 +65,7 @@ if (NL) addLamps(world, { n: NL, min: [-8, 0.6, -8], max: [8, 2.6, 8], first: [[
 const { camera } = world;
 camera.aspect = W / H; camera.fov = 48; camera.near = 0.1; camera.far = 3000; camera.updateProjectionMatrix();
 await tex.ready();
+if (Q.get('perf')) window.__big = (await import('@mirage/core/bigworld')).applyBigWorld(world, world.scene, Q.get('perf'));   // ?perf=chunk,lod,occ (docs/big-worlds.md)
 await world.prepare();
 const spp = +Q.get('spp') || 6;
 const mode = Q.get('mode') || 'orbit';

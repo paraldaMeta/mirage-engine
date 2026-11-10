@@ -34,6 +34,7 @@ const S = { lawn: 'grass', hedge: 'grass', gravel: 'gravel', land: 'gravel', pla
 for (const [k, m] of Object.entries(shared.mats)) m.userData.surface = S[k] || 'stone';
 const { camera } = world;
 camera.aspect = W / H; camera.fov = 55; camera.near = 0.1; camera.far = 3000; camera.updateProjectionMatrix();
+if (Q.get('perf')) window.__big = (await import('@mirage/core/bigworld')).applyBigWorld(world, world.scene, Q.get('perf'));   // ?perf=chunk,lod,occ (docs/big-worlds.md)
 await tex.ready();
 async function mountQuest() {
   let quest;

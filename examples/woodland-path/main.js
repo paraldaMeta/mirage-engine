@@ -15,6 +15,7 @@ const xrs = await xrSupport();   // a headset browser: an MSAA context for the h
 const world = createWorldRenderer({ ...plan.render, canvas, width, height, quality, preserveDrawingBuffer: true, xr: xrs.vr || xrs.ar });
 const built = await buildWorld(world, { plan, modules: [ground, verge, backdrop] });
 if (built.report.failed.length) throw new Error(built.report.failed.map(row => row.name + ': ' + row.error).join('\n'));
+if (q.get('perf')) window.__big = (await import('@mirage/core/bigworld')).applyBigWorld(world, world.scene, q.get('perf'));   // ?perf=chunk,lod,occ (docs/big-worlds.md)
 await world.prepare();
 const play = createPlay(world, { canvas, quality, plan: built.plan, mode: q.get('mode') || 'walk',
   spp: Number(q.get('spp')) || 6, fit: !q.has('w'), ui: q.get('ui') !== '0', hud: q.get('hud') !== '0' });
