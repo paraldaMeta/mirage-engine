@@ -185,17 +185,18 @@ function draw(opts) {
   info.reset();
   world.renderFrame(T, { shadow, ...opts });
 }
-// settle: streaming idle, LODs built, then frames until the occlusion state stops changing
-async function settle(frames = 12) {
-  for (let i = 0; i < 4000; i++) { draw({ taa: true }); await new Promise((r) => requestAnimationFrame(r)); const s = Object.values(part.streamer.state()); if (!s.includes('loading') && !(lod && lod.stats.pending)) break; }
-  for (let i = 0; i < frames; i++) { draw({ taa: true }); await new Promise((r) => requestAnimationFrame(r)); }
+// settle: streaming idle, LODs built, every HLOD proxy baked (`proxies`: a still taken while they bake depends on how
+// far the bake got, so two runs of one page differed), then frames until no cross-fade runs and occlusion is steady
+async function settle(frames = 12, proxies = true) {
+  for (let i = 0; i < 20000; i++) { draw({ taa: true }); await new Promise((r) => requestAnimationFrame(r)); const s = Object.values(part.streamer.state()); if (!s.includes('loading') && !(lod && lod.stats.pending) && !(proxies && part.stats.proxyQueue)) break; }
+  for (let i = 0; i < frames || (lod && lod.stats.fading && i < frames + 240); i++) { draw({ taa: true }); await new Promise((r) => requestAnimationFrame(r)); }
 }
 const api = {
   world, part, lod, occ, trees, timing, onPath, settle, height,
   stats: () => ({ calls: info.render.calls, triangles: info.render.triangles, cellsIn: part.stats.in, proxies: part.stats.proxies, rebases: part.stats.rebases,
     lod: lod && { ...lod.stats }, occ: occ && { ...occ.stats }, trees: trees && { ...trees.stats, perLevel: [...trees.stats.perLevel] } }),
   // a still frame at path position u (settled; deterministic for a given set of switches)
-  async still(at, spp = 4) { auto = false; hold = true; u = at; onPath(u); await settle(); onPath(u); draw({ spp, frameIndex: 1 }); const s = api.stats(); hold = false; return s; },
+  async still(at, spp = 4, proxies = true) { auto = false; hold = true; u = at; onPath(u); await settle(12, proxies); onPath(u); draw({ spp, frameIndex: 1 }); const s = api.stats(); hold = false; return s; },
   // `frames` moving frames from path position a to b: per frame the CPU time of the draw, the time until the GPU
   // has finished it (1-px readback), draw calls and triangles (the whole frame: shadow pass and post included)
   async run(frames = 300, a = 0, b = 1, speed = 0) {
@@ -276,7 +277,7 @@ t = performance.now();
 part.update(camera);
 await world.prepare();
 timing.prepareMs = +(performance.now() - t).toFixed(1);
-await settle(4);
+await settle(4, false);   // ready to draw: the proxies go on baking
 timing.cells = { count: part.stats.cells, in: part.stats.in, trianglesEach: Math.round(cellTriangles / Math.max(1, part.stats.in)) };
 timing.sourceTriangles = timing.cells.trianglesEach * part.stats.cells + timing.town.triangles;
 timing.readyMs = +(performance.now() - T0).toFixed(1);

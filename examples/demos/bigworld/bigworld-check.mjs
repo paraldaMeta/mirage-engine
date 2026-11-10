@@ -59,7 +59,7 @@ async function measure(query, o) {
   const p = await open(query, o), out = {};
   // steady state: every HLOD proxy baked first (while they bake, each frame also pays for a slice of a cell build: --baking measures that)
   if (!args.includes('--baking')) out.proxies = await p.page.evaluate(async () => { const t = performance.now(), s = await window.__mirage.part.ready(); return { waitedMs: Math.round(performance.now() - t), proxies: s.proxies, proxyMs: Math.round(s.proxyMs), triangles: s.proxyTriangles, sourceTriangles: s.proxySourceTriangles }; });
-  for (const [name, a, b] of SEGMENTS) { await p.page.evaluate((a) => window.__mirage.still(a, 1), a); out[name] = await p.page.evaluate((f, a, b) => window.__mirage.run(f, a, b), FRAMES, a, b); }
+  for (const [name, a, b] of SEGMENTS) { await p.page.evaluate((a, w) => window.__mirage.still(a, 1, w), a, !args.includes('--baking')); out[name] = await p.page.evaluate((f, a, b) => window.__mirage.run(f, a, b), FRAMES, a, b); }
   out.timing = await p.page.evaluate(() => window.__mirage.timing);
   await p.close();
   return out;

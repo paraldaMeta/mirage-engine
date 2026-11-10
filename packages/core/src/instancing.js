@@ -16,8 +16,8 @@
 //   trees.object.position may move (a floating origin); the walk grid ignores the instances unless collide: true
 //   trees.stats                    // { instances, visible, perLevel: [...], cellsTested, instancesTested, triangles, ms }
 //
-// The work per frame is on the CPU: about 2-3 ns per culled-by-cell instance and 15-30 ns per individually
-// tested one (measured numbers are in docs/big-worlds.md). The frame is skipped when the camera did not move.
+// The work per frame is on the CPU: 0.4-0.9 ms a frame for 30 000 instances in examples/demos/bigworld (the
+// frame's CPU time with and without this module; docs/big-worlds.md). Skipped when the camera did not move.
 // A GPU-driven version is not here: WebGL2 has no compute shaders, no indirect draws and transform feedback
 // cannot drop or route primitives without a geometry shader, so the visible set would still have to come back to
 // the CPU to set instance counts; see docs/big-worlds.md.

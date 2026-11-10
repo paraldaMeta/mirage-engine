@@ -11,6 +11,26 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
 
 **New**
 
+- Big worlds (`docs/big-worlds.md`; all opt-in and experimental; with none of it called, hello-courtyard and
+  walled-garden render as at the base commit: SSIM 1.000, worst cell 0 in 15 views). @mirage/core: `simplify.js`
+  (own quadric-error simplifier with attribute quadrics, locked borders, a time budget: a 12 096-triangle sphere to
+  1 208 in 66 ms in Node), `chunk.js` (`chunkGeometry`, `chunkObject`, `MeshBatch.finish({ chunk })`), `autolod.js`
+  (`createAutoLod`: chains built in workers or slices, screen-size selection with hysteresis and a dithered
+  cross-fade; `buildProxy` for HLOD), `instancing.js` (`createInstances`: per-cell then per-instance frustum culling,
+  per-instance LOD), `impostor.js` (hemi-octahedral impostors lit by the live sun), `hiz.js` (`createOcclusion`:
+  the depth pyramid of the frame before, asynchronous readback, CPU test), `frame.js` (`onView`), and
+  `applyBigWorld(world, root, 'chunk,lod,occ')` (`@mirage/core/bigworld`), which every example takes as
+  `?perf=chunk,lod,occ`. @mirage/world: `createPartition` (streaming cells, an HLOD proxy for each cell that is out)
+  and `createFloatingOrigin`. Measured on `examples/demos/bigworld` (4096 m, 256 cells, 5.8 M source triangles,
+  30 000 trees; 1280 x 720, 3 interleaved runs, proxies baked): town 47.48 M triangles and 28.8 ms a frame to
+  1.26 M and 9.2 ms (8.1-10.7); 2 km out 44.96 M and 26.7 ms to 0.34 M and 7.5 ms; CPU per frame 0.5-0.7 ms to
+  1.1-1.8 ms. At 4x CPU throttle: 29.5 ms to 11.5 ms (p95 14.6). Occlusion: 0 differing pixels against the same
+  frame without it over 803 comparisons at 6 to 60 m/s. The shipped examples are too small to gain: with the flag
+  they submit 10-50 % fewer triangles in about twice the draw calls, and frame time is the same or 3-4 ms worse.
+  Not built: a GPU-driven path (WebGL2 has no indirect draws), offline proxy baking, virtualised geometry.
+- @mirage/play: fewer allocations in the frame loop (`walkgrid.support(x, z, y, step, out)` fills the caller's
+  array; scratch vectors in `play.js` and `world.renderFrame`): 42 641 to 36 083 bytes a frame in hello-courtyard,
+  44 363 to 37 292 in walled-garden (Chrome's sampling heap profiler, 3 runs). What is left is mostly three's own.
 - @mirage/play: NPC navigation on the walk grid (`createNavGrid`, `createNavAgent`, `createNavCrowd`; experimental,
   opt-in). No navmesh: per-radius fit bits from the walker's own disc / step / head-room test (equal to the walker
   on every floor of the node checks' grids and on 20 000 of 20 000 random floors of walled-garden), coarse A* (4 x 4
