@@ -22,7 +22,7 @@ export interface WorldRendererOptions {
   place?: Partial<Place>; time?: SkyTime; shadow?: ShadowRegion; envProbe?: XYZ;
   envIntensity?: number; envFade?: number; wind?: NonNullable<Parameters<typeof createEnv>[0]>['wind'];
   clouds?: number; fog?: Partial<{ density: number; groundDensity: number; height: number; air: number; level: number; color: number; glow: number }>;
-  post?: Partial<PostSettings>; preserveDrawingBuffer?: boolean; mobile?: boolean; shadowMapSize?: number; spp?: number;
+  post?: Partial<PostSettings>; preserveDrawingBuffer?: boolean; mobile?: boolean; byteTargets?: boolean; shadowMapSize?: number; spp?: number;
   /** A multisampled, XR-compatible context, so a WebXR session (@mirage/play/xr) gets MSAA. Pass `(await xrSupport()).vr`. */
   xr?: boolean;
   /** Lamp shadows, screen-space reflections, volumetric light, mixed bloom (off by default). */
@@ -43,7 +43,7 @@ export function reducedMotionConfig(option?: boolean | Partial<ReducedMotionSett
 /** renderTransparent's result: RGBA8, straight (not premultiplied) alpha, top row first. */
 export interface TransparentStill { width: number; height: number; data: Uint8Array }
 /** cap: the app's own frame cap (fps; @mirage/play sets it from maxFps / the power saver) — the budget is never tighter. */
-export interface DynamicResSettings { target: number; min: number; step: number; cap?: number }
+export interface DynamicResSettings { target: number; min: number; step: number; cap?: number; /** a ceiling on the scale (unset = 1): the quality governor of `@mirage/core/platform` lowers it */ max?: number }
 /** The full dynamic-resolution settings for `true` / a partial object; null when off. */
 export function dynamicResConfig(option?: boolean | Partial<DynamicResSettings> | null): DynamicResSettings | null;
 export interface RenderFrameOptions {
@@ -105,6 +105,8 @@ export interface WorldRenderer {
   /** Call after setTime() or prepare(). */
   captureEnv(instant?: boolean): void;
   setAmbientVolumes(volumes?: readonly AmbientVolume[]): void;
+  /** call after `webglcontextrestored`: re-bakes the sky, the image-based light and probe lighting (see `@mirage/core/platform`) */
+  contextRestored(): void;
   /** Releases pipeline, environment light and scene geometries; an injected renderer stays owned by its host.
    * Does not stop external loops/listeners or generally release scene materials/textures. No reuse after disposal. */
   dispose(): void;

@@ -12,6 +12,7 @@ import { createMaterials } from './materials.js';
 import { wetVersion } from './wet.js';
 import { createEnvLight } from './envlight.js';
 import { deviceProfile } from './device.js';
+import { byteTargets } from './byte-targets.js';
 import * as geom from './geom.js';
 import { rng } from './rng.js';
 import { createLighting } from './lighting.js';
@@ -86,6 +87,7 @@ export function createWorldRenderer(config = {}) {
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFShadowMap;
   const device = deviceProfile(renderer, { force: !!config.mobile });
+  device.byteTargets = byteTargets(renderer, !!config.byteTargets);   // no float render targets on this context: 8-bit ones, not a black canvas
 
   const env = createEnv({ wind });
   const { G, keyDir } = env;
@@ -366,8 +368,9 @@ export function createWorldRenderer(config = {}) {
     lastMoving = taa ? now : 0;
     if (dynRes) {
       if (taa) dynamicStep(now); else dr.last = 0;
-      fitPipeline(taa ? resScale : 1);
-      if (taa && resScale < 1) P.sharpen = post.sharpen + (1 - resScale) * 0.6;   // the stretch softens: sharpen a little more
+      const rs = Math.min(resScale, dynRes.max ?? 1);   // max: a ceiling a governor may lower (platform.js); unset = 1
+      fitPipeline(taa ? rs : 1);
+      if (taa && rs < 1) P.sharpen = post.sharpen + (1 - rs) * 0.6;   // the stretch softens: sharpen a little more
     } else if (post.upscale > 0 || pipeline.renderScale !== 1) {
       // post.upscale: render smaller and let taa2 reconstruct the output size (moving frames only)
       fitPipeline(taa && post.taa2 > 0 && post.upscale > 0 ? Math.min(1, Math.max(0.5, post.upscale)) : 1);
@@ -520,6 +523,14 @@ export function createWorldRenderer(config = {}) {
     if (!config.renderer) renderer.dispose();
   }
 
+  /** after `webglcontextrestored` (three has re-made its state; @mirage/core/platform calls this): what lived only on
+   *  the GPU is made again: the sky's air, the image-based light, the probe lighting; the histories start over */
+  function contextRestored() {
+    if (light) skyLut.bake();
+    scene.environment = null; envState = 'instant'; taaValid = false; pipeline.resetExposure(); pipeline.fx?.reset?.();
+    if (lighting) lighting.invalidate();
+  }
+
   const ctx = { THREE, renderer, scene, camera, G, keyDir, mat, geom, rng, quality, place, motion, onUpdate: (fn) => updates.push(fn) };
   return {
     renderer, scene, camera, sun, sky, stars, pipeline, ctx, G, keyDir, mat, geom, rng, post, device, light2: l2cfg, dynamicRes: dynRes, softShadows: sscfg, lighting,
@@ -531,6 +542,6 @@ export function createWorldRenderer(config = {}) {
     /** reduced motion in use ({ sway, rain }), null when off; set it with setReducedMotion(true | { sway, rain } | false) */
     get reducedMotion() { return reduced; },
     setReducedMotion, renderTransparent,
-    setTime, tick, prepare, renderFrame, renderDirect, resize, dispose, captureEnv, setAmbientVolumes,
+    setTime, tick, prepare, renderFrame, renderDirect, resize, dispose, captureEnv, setAmbientVolumes, contextRestored,
   };
 }

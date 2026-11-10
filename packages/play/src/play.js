@@ -486,6 +486,8 @@ function mountPlay(world, opts, life) {
     step,
     stop, dispose: life.dispose,
     start() { if (!life.disposed && !running) { running = true; last = performance.now(); schedule(); } },
+    /** false after stop() (context recovery and pause handling restart only what was running) */
+    get running() { return running; },
     /** the power saver (30 fps cap) and the frame-rate cap; wake(): count as input (restarts scene animation) */
     get powerSaver() { return power.saver; }, set powerSaver(v) { setSaver(v); },
     get maxFps() { return power.maxFps; }, wake, get idleFor() { return (performance.now() - lastInput) / 1000; },
