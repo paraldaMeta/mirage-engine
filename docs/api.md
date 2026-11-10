@@ -49,6 +49,7 @@ The entry points `@mirage/<pkg>` are the API. Every file under `src/` can also b
 | `WIND_GLSL` | experimental | `mgWind()` for vertex hooks |
 | `createSky(uniforms)` | experimental | the sky dome mesh |
 | `createSkyUniforms()` | experimental | its uniforms |
+| `createSkyLut(renderer, uniforms, options?)` | experimental | bakes the sky's air into direction tables per `setTime` (call before `createSky`) |
 | `createStars(skyUniforms, { faint })` | experimental | stars and the Moon's disc |
 | `ATMO` | experimental | atmosphere constants (radii, scattering coefficients) |
 | `ATMOSPHERE_GLSL` | experimental | the atmosphere in GLSL |
