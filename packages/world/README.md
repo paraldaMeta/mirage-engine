@@ -55,6 +55,48 @@ area yields no tufts. Placement makes at most eight attempts per requested tuft.
 heavily excluded terrain. An optional `seed` names the RNG stream within the world module. See the
 [Woodland Path example](../../examples/woodland-path) for a path exclusion and camera positions.
 
+## Fur, short grass and moss (shells)
+
+```js
+import { addFur } from '@mirage/world/kits/fur';
+
+// Inside build(ctx): a lawn panel, or moss on any mesh with normals (world space).
+const lawn = addFur(ctx, { rect: [6.5, 18.9, 31, 32], y: 0.061, length: 0.07, density: 900, shells: 16 });
+const moss = addFur(ctx, { geometry: rockGeometry, length: 0.025, density: 3000, thickness: 0.55, wind: 0.3 });
+```
+
+The patch's triangles drawn `shells` times in ONE draw call (an `InstancedBufferGeometry`, `gl_InstanceID` lifts
+shell i by (i + 1) / shells x `length` along the normal). Each shell keeps only the pixels inside a strand: one strand
+per cell of a jittered 3D lattice (`density` per m²), measured in the surface's plane (no projection seams on a
+rock), each with its own height (`spread`) and a radius that tapers to the tip (`thickness` at the root). The rest
+is discarded before the lighting (alpha-tested, depth written: no sorting). Kept pixels shade from `root` to `tip`
+(a cheap occlusion toward the ground) and lean their normal out from the strand's axis (round strands); the tips
+bend with the world's wind (`mgWind`, x layer²; `wind` 1: about 0.4 x length in a full gust). It is a patched
+Standard material: three's lighting, shadows received, Mirage's fog, TAA; `hooks` adds more patch() hooks after the
+fur's own. Where a strand falls under about a pixel the strands thicken and shorten into a solid lower shell, so a
+far lawn reads as a surface, not a shimmer. Options: `base` (an opaque layer at the surface too), `shadows` (cast:
+a depth material with the same lift and holes), `fins` (upright cards along rows every `fins` m (rect) or along the
+mesh's edges, shown only where the view grazes: a second draw), `segments` / `heightAt` (a rect following the
+ground), `seed`, `name`. Returns `{ shells, fins }`; neither collides.
+
+Against the tuft cards (`addGrass`) on walled-garden's lower east lawn (321 m² inside the hedge, `?lawn=tufts |
+fur | fur-fins`, 1440x900, Apple M4 Pro shared with other jobs, 60 moving TAA frames x 3 interleaved rounds):
+
+| | draw calls | triangles | frame ms (two sessions) |
+|---|---|---|---|
+| no turf | 58 | 405,524 | 4.03–4.14 / 4.45–4.50 |
+| tufts, 30 per m² (9,629) | +1 | +144,435 | 4.37–4.65 / 5.15–5.21 |
+| fur, 16 shells | +1 | +32 | 4.10–4.17 / 3.76–4.73 |
+| fur + fins (0.3 m) | +2 | +2,236 | 4.21–4.41 / 4.09–4.90 |
+
+Stills: [tufts left, fur right](../../docs/media/looks/lawn-tufts-vs-fur.jpg), [moss on a rock](../../docs/media/looks/moss.jpg).
+The fur costs ~0.1 ms where the tufts cost ~0.4–0.7 ms here, at 1/4500 of the triangles. Look: up close the shells
+read as dense short turf with lit and shaded strands; from walking height a few metres away they become an even
+felt (the far solid shell), where the tufts keep separate blades. Limits: no single blades standing above the
+turf, grazing views show the shell layers (fins help, at a cost), strands are cut at their lattice cell (no
+neighbour search), the pattern is in world space (a moving mesh slides through it), and alpha-tested edges rely on
+TAA / the still path's sub-frames for anti-aliasing.
+
 ## Terrain and water
 
 ```js
@@ -103,5 +145,6 @@ and rain"). In an orthographic view the box is centred where the view axis meets
 thinner than a pixel keeps at least `minAlpha` (0.25). The fall runs on the scene clock wrapped to 64 s on the CPU
 (each streak falls a whole number of box heights per period), so it stays smooth after hours; the wind drifts a
 streak only since it left the top of its column, so a change of wind does not throw the rain across the sky.
-Limits: no splashes, and no shelter: streaks fall inside arcades and rooms wherever the box reaches (hide the mesh
-indoors). Remove it with `mesh.removeFromParent()` and dispose its geometry and material.
+Under reduced motion (core's `world.setReducedMotion`, @mirage/play's `prefers-reduced-motion`) it falls at
+`ctx.motion.rain` x `speed` (0.4: 8.5 -> 3.4 m/s, shorter streaks). Limits: no splashes, and no shelter: streaks fall
+inside arcades and rooms wherever the box reaches (hide the mesh indoors). Remove it with `mesh.removeFromParent()` and dispose its geometry and material.

@@ -33,6 +33,19 @@ frame itself. `npm run test:still-pop` measures the change per frame after stopp
 `place()` sets it to 0, so a viewpoint looks as it always did (`play.clock`; `animate: true` runs it on real time). Shadows follow the view,
 their centre snapped to whole shadow texels.
 
+## Reduced motion (`reducedMotion`)
+
+`createPlay(world, { reducedMotion })`: `'auto'` (the default) follows the user's `prefers-reduced-motion`, live (a
+change of the system setting applies at once); `true`, `false` or `{ sway, rain }` override it; `play.reducedMotion`
+reads whether it is on and takes the same values later. On, the world's wind sway (x 0.25) and rain (x 0.4) slow
+down and still frames get no shutter motion blur (core's `world.setReducedMotion`), and the walking eye eases over
+steps and jumps instead of following them exactly (there is no head bob to remove). Without the system setting
+`'auto'` changes nothing (the frames are bit-identical); `'auto'` only switches off what it switched on, so a world
+created with `reducedMotion` keeps it; `dispose()` gives the world back its setting. The switch is in
+`src/motion.js` (`resolveReducedMotion`, `followReducedMotion`; Node-tested in `check.mjs`, live in Chrome with
+emulated media in `packages/tools/looks.check.mjs`). `play.render({ transparent: true })` returns the current view
+as a transparent still (core's `world.renderTransparent`).
+
 ## WebXR: VR and AR (`createXR(play, opts)`, experimental)
 
 ```js

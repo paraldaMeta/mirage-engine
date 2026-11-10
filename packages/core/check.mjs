@@ -255,3 +255,25 @@ console.log('core check: ok');
   assert.equal(SS.SS_SHARED.a[0], 0, 'a world without soft shadows writes off');
   console.log('softshadow check: ok');
 }
+
+// metal PROCs (brushed, hammered, patina) and reduced motion's settings
+{
+  const { PROC: PM, createMaterials: CM, createEnv: CE } = await import('./src/index.js');
+  const { reducedMotionConfig } = await import('./src/world.js');
+  for (const name of ['brushed', 'hammered', 'patina']) {
+    const h = PM[name]();
+    assert.ok(h.fragmentDecl.includes('float mgH;') && h.albedo.includes('mgH =') && h.normal.includes('mgBump'), name + ': a PROC like the others (mgH, a bump)');
+    assert.ok(h.roughness.includes('roughnessFactor'), name + ': the pattern reaches the roughness');
+    assert.equal(JSON.stringify(PM[name]()), JSON.stringify(h), name + ': the same hooks every call (one program)');
+    const m = CM(CE().G).std({ metalness: 1 }, h);
+    assert.equal(m.userData.hooks, h, name + ': patches a standard material');
+  }
+  assert.ok(PM.brushed(undefined, { axis: 'y' }).albedo.includes('vec3(160.000, 0.900, 160.000)'), 'brushed: stretched along its axis');
+  assert.throws(() => PM.brushed(undefined, { axis: 'w' }), /axis/);
+  assert.ok(PM.patina().metalness.includes('metalnessFactor') && PM.patina(undefined, { amount: 9 }).albedo === PM.patina(undefined, { amount: 1 }).albedo, 'patina: verdigris is not metal; amount clamped');
+  assert.equal(reducedMotionConfig(false), null);
+  assert.deepEqual(reducedMotionConfig(true), { sway: 0.25, rain: 0.4 });
+  assert.deepEqual(reducedMotionConfig({ sway: 2, rain: -1 }), { sway: 1, rain: 0 }, 'clamped to 0..1');
+  assert.deepEqual(reducedMotionConfig({ sway: NaN }), { sway: 0.25, rain: 0.4 });
+  console.log('metals, reduced-motion config: ok');
+}

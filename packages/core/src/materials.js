@@ -201,6 +201,69 @@ export const PROC = {
     }`,
     normal: 'normal = mgBump(normal, mgH, 0.0015);',
   }),
+  // Metals: use them on a metallic material (mat.std({ metalness: 1, roughness: 0.3 }, PROC.brushed())); `base` is the
+  // metal's reflectance colour (linear). Tuned under the world's captured sky light, where a metal is mostly its
+  // environment reflection: the pattern lives in the roughness and the normal more than in the colour.
+  /** brushed metal: streaks and fine hairlines along `axis` ('x' | 'y' | 'z'), stretched noise in the roughness and the
+   *  normal so highlights smear across the brushing; scale > 1 is finer, wear 0..1 adds fingerprint-like smudges */
+  brushed: (base = 'vec3(0.56, 0.57, 0.58)', { axis = 'x', scale = 1, wear = 1 } = {}) => {
+    const k = +scale, along = (a, x) => ({ x: `vec3(${a}, ${x}, ${x})`, y: `vec3(${x}, ${a}, ${x})`, z: `vec3(${x}, ${x}, ${a})` }[axis]);
+    if (!along('0', '0')) throw new RangeError("PROC.brushed axis must be 'x', 'y' or 'z'");
+    const S = along((0.9 * k).toFixed(3), (160 * k).toFixed(3)), F = along((4 * k).toFixed(3), (1400 * k).toFixed(3));
+    return {
+      fragmentDecl: 'float mgH; float mgB; float mgS;',
+      albedo: /* glsl */ `{
+        vec3 p = mgWorldPos;
+        float streak = smoothstep(0.25, 0.75, mgFbm3(p * ${S}, 3) * 0.5 + 0.5);
+        vec3 q = p * ${F};
+        float hair = mgValue3(q);
+        hair = mix(hair, 0.5, clamp(length(fwidth(q)) * 0.6 - 0.2, 0.0, 1.0));   // fade the hairlines before they alias
+        mgS = smoothstep(0.45, 0.85, mgFbm3(p * ${(2.3 * k).toFixed(3)} + 4.0, 3) * 0.5 + 0.5) * ${(+wear).toFixed(3)};
+        mgB = streak * 0.6 + hair * 0.4;
+        diffuseColor.rgb *= ${base} * (0.88 + 0.18 * mgB) * (1.0 - 0.05 * mgS);
+        mgH = streak + 0.25 * hair;   // the streaks (millimetres apart) tilt the normal across the brushing: the highlight smears
+      }`,
+      roughness: 'roughnessFactor = clamp(roughnessFactor * (0.7 + 0.6 * mgB) + 0.12 * mgS, 0.03, 1.0);',
+      normal: `normal = mgBump(normal, mgH, ${(0.0011 / k).toFixed(6)});`,
+    };
+  },
+  /** hammered / beaten metal: overlapping dimples (cells `size` m across, 0.035), polished ridges between them, the
+   *  hollows a little rougher and darker; depth scales the relief */
+  hammered: (base = 'vec3(0.62, 0.60, 0.56)', { size = 0.035, depth = 1 } = {}) => ({
+    fragmentDecl: 'float mgH; float mgD;',
+    albedo: /* glsl */ `{
+      vec3 p = mgWorldPos / ${(+size).toFixed(4)};
+      vec2 c = mgCell3(p);
+      float ridge = 1.0 - smoothstep(0.0, 0.12, c.y - c.x);   // where two dimples meet
+      mgD = 1.0 - clamp(c.x * c.x * 1.6, 0.0, 1.0);          // 1 at a dimple's bottom
+      float tone = mgFbm3(p * 0.21, 3) * 0.5 + 0.5;
+      diffuseColor.rgb *= ${base} * (0.86 + 0.12 * tone + 0.1 * ridge - 0.06 * mgD);
+      mgH = -mgD + 0.35 * ridge;
+    }`,
+    roughness: 'roughnessFactor = clamp(roughnessFactor + 0.1 * mgD - 0.06 * (1.0 - mgD), 0.03, 1.0);',
+    normal: `normal = mgBump(normal, mgH, ${(0.22 * size * depth).toFixed(6)});`,
+  }),
+  /** patina: verdigris on copper / bronze. amount 0..1 (0.5) of the surface turned green-blue, gathering on top faces
+   *  and running down walls; the bare metal oxidised darker; the verdigris rough and not metallic. base: the metal
+   *  (copper; bronze ~ 'vec3(0.55, 0.38, 0.2)'), verdigris: its colour */
+  patina: (base = 'vec3(0.78, 0.42, 0.27)', { amount = 0.5, verdigris = 'vec3(0.17, 0.42, 0.33)' } = {}) => ({
+    fragmentDecl: 'float mgH; float mgP;',
+    albedo: /* glsl */ `{
+      vec3 p = mgWorldPos; vec3 n = normalize(mgWorldNormal);
+      float big = mgFbm3(p * 2.2, 4) * 0.5 + 0.5, fine = mgFbm3(p * 16.0, 3) * 0.5 + 0.5;
+      float runs = (mgFbm3(p * vec3(7.0, 0.6, 7.0) + 3.0, 3) * 0.5 + 0.5) * (1.0 - abs(n.y));
+      float m = big * 0.6 + fine * 0.25 + runs * 0.35 + smoothstep(0.2, 0.95, n.y) * 0.2;
+      float t = ${(0.92 - 0.65 * Math.min(Math.max(+amount, 0), 1)).toFixed(4)};
+      mgP = smoothstep(t - 0.05, t + 0.05, m);
+      vec3 metal = ${base} * (0.5 + 0.3 * fine + 0.2 * big);
+      vec3 green = mix(${verdigris}, ${verdigris} * vec3(1.35, 1.25, 1.2) + 0.04, smoothstep(0.4, 0.8, fine));
+      diffuseColor.rgb *= mix(metal, green, mgP);
+      mgH = mgP * 0.7 + fine * 0.3;
+    }`,
+    roughness: 'roughnessFactor = mix(roughnessFactor, 0.88, mgP);',
+    metalness: 'metalnessFactor *= 1.0 - mgP;',
+    normal: 'normal = mgBump(normal, mgH, 0.0012);',
+  }),
 };
 
 // the render relief on a PROC set that bumps mgH with strength k: one bump of mgH * k + the render's height (m), a

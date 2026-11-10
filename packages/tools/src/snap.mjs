@@ -2,7 +2,9 @@
 // Mirage original code. Multi-view snapshots of a world and a contact sheet of them.
 //
 // usage: mirage-snap <dist dir | page.html> [--out dir] [--views all | 0,2,5] [--query "time=12:00"] [--w 1440 --h 900]
-//        [--spp 16] [--cols 3] [--game] (adds a game-view shot at the spawn)
+//        [--spp 16] [--cols 3] [--game] (adds a game-view shot at the spawn) [--alpha]
+// --alpha: each view is a PNG with a transparent sky (world.renderTransparent: rendered over black and over white,
+// straight alpha recovered per pixel; no bloom), written exactly by png.mjs.
 // For each of the plan's viewpoints: place the viewer there (play.viewpoint), render the still path at `spp`,
 // save <out>/vNN-name.png; then <out>/sheet.png (thumbnails with labels, composed in the page's 2D canvas)
 // and <out>/snap.json (load time, per-view render ms, console errors).
@@ -10,12 +12,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { launch, serve, open } from './chrome.mjs';
+import { encodePNG } from './png.mjs';
 
 const args = process.argv.slice(2);
 const flag = (k, d) => { const i = args.indexOf('--' + k); return i >= 0 ? (args[i + 1] && !args[i + 1].startsWith('--') ? args[i + 1] : true) : d; };
-const target = args.find((a, i) => !a.startsWith('--') && !(i > 0 && args[i - 1].startsWith('--') && args[i - 1] !== '--game'));
+const target = args.find((a, i) => !a.startsWith('--') && !(i > 0 && args[i - 1].startsWith('--') && args[i - 1] !== '--game' && args[i - 1] !== '--alpha'));
 if (!target) { console.error('usage: mirage-snap <dist dir | page.html> [--out dir] [--views all|0,1] [--query q] [--spp N]'); process.exit(2); }
-const W = +flag('w', 1440), H = +flag('h', 900), SPP = +flag('spp', 16), COLS = +flag('cols', 3);
+const W = +flag('w', 1440), H = +flag('h', 900), SPP = +flag('spp', 16), COLS = +flag('cols', 3), ALPHA = !!flag('alpha');
 const OUT = path.resolve(flag('out', 'out/snap'));
 fs.mkdirSync(OUT, { recursive: true });
 const isFile = target.endsWith('.html');
@@ -32,17 +35,24 @@ try {
   if (flag('game')) shots.push({ i: -1, name: 'game view' });
   const files = [];
   for (const s of shots) {
-    const r = await page.evaluate(async (s, spp) => {
+    const r = await page.evaluate(async (s, spp, alpha) => {
       const { play } = window.__mirage;
       play.stop();                                       // no animation frames in between: this task renders
       if (s.i >= 0) play.viewpoint(s.i);
       else { const p = window.__mirage.built.plan, sp = p.gameView || p.spawn; play.place(sp.eye, sp.look, 'game'); }
       for (let k = 0; k < 40; k++) play.step(1 / 30);    // settle: ground, eased eye, game camera follow
       const t = performance.now();
+      if (alpha) {
+        const im = play.render({ transparent: true, spp, frameIndex: 1 });
+        let bin = '';
+        for (let i = 0; i < im.data.length; i += 0x8000) bin += String.fromCharCode.apply(null, im.data.subarray(i, i + 0x8000));
+        return { ms: +(performance.now() - t).toFixed(1), rgba: btoa(bin), width: im.width, height: im.height, mode: play.mode };
+      }
       play.render({ moving: false, spp, frameIndex: 1 });
       const gl = play.world.renderer.getContext(); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
       return { ms: +(performance.now() - t).toFixed(1), png: document.querySelector('canvas').toDataURL('image/png'), mode: play.mode };
-    }, s, SPP);
+    }, s, SPP, ALPHA);
+    if (r.rgba) r.png = 'data:image/png;base64,' + encodePNG(r.width, r.height, Buffer.from(r.rgba, 'base64')).toString('base64');
     const f = `v${String(files.length).padStart(2, '0')}-${s.name.replace(/\W+/g, '-')}.png`;
     fs.writeFileSync(path.join(OUT, f), Buffer.from(r.png.split(',')[1], 'base64'));
     files.push({ f, name: s.name, data: r.png });

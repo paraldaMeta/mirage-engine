@@ -26,4 +26,4 @@ export interface RainOptions {
   minAlpha?: number;
 }
 /** Camera-following rain streaks (one instanced draw call, deterministic in G.uTime); density follows setRain(). */
-export function addRain(ctx: { root: THREE.Object3D; mat: Pick<MaterialKit, 'patch'>; G?: { uTime: { value: number } } }, options?: RainOptions): THREE.Mesh<THREE.InstancedBufferGeometry, THREE.MeshBasicMaterial>;
+export function addRain(ctx: { root: THREE.Object3D; mat: Pick<MaterialKit, 'patch'>; G?: { uTime: { value: number } }; motion?: { rain: number } }, options?: RainOptions): THREE.Mesh<THREE.InstancedBufferGeometry, THREE.MeshBasicMaterial>;

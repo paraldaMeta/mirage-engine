@@ -11,6 +11,33 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
 
 **New**
 
+- @mirage/world: shell fur, short grass and moss (`@mirage/world/kits/fur`, `addFur`, opt-in): a patch (a rect on
+  the ground or any mesh) drawn `shells` times in one instanced draw call, `gl_InstanceID` lifting each shell along the
+  normal; strands from a jittered 3D lattice (no projection seams), tapering, shaded root to tip with round-strand
+  normals, wind from `mgWind`, alpha-tested with depth writes (no sorting), a patched Standard material (shadows
+  received, fog, TAA, extra hooks); far strands merge into a solid shell instead of shimmering; optional cast shadows
+  and grazing-view fins. On walled-garden's lower east lawn (321 m², `?lawn=tufts | fur | fur-fins`, 1440x900 TAA,
+  shared GPU): tufts at 30 per m² +144,435 triangles, +1 draw, +0.3–0.7 ms; fur +32 triangles, +1 draw, ~+0.1 ms
+  (within the noise); fins +2,236 triangles, +2 draws. From walking height the fur reads as an even felt where the
+  tufts keep blades (world README, "Fur").
+- @mirage/core: metal PROCs `PROC.brushed` (streaks and hairlines stretched along an axis, in the roughness and the
+  normal: highlights smear across the brushing), `PROC.hammered` (dimples from a 3D cell noise, polished ridges) and
+  `PROC.patina` (verdigris on copper / bronze: rough, not metallic, on top faces and in run-off streaks). Stills on
+  spheres and panels from `node packages/tools/looks.check.mjs`. Cost not measured.
+- Reduced motion (opt-in in core, automatic in play): `world.setReducedMotion(true | { sway, rain })` scales the
+  wind's strength while a frame renders (x 0.25), slows the rain kit (x 0.4: 8.5 -> 3.4 m/s) and closes the still
+  path's shutter (no motion blur); @mirage/play's `reducedMotion` option (`'auto'` default: follows
+  `prefers-reduced-motion` live; `true` / `false` / `{ sway, rain }` override; `play.reducedMotion`) also eases the
+  eye over steps and jumps. No shader changes: off, the stills are bit-identical (hello-courtyard, walled-garden,
+  woodland-path, river-ford: 23 views, 0 px). A fur lawn in a 1.5 x wind changes 3.9 -> 1.5 /255 per channel between T 0 and 1.7 s.
+- Transparent stills (opt-in): `world.renderTransparent(T, opts)` renders the still over black and over white (sky hidden)
+  and recovers straight alpha from the two linear HDR sums (the grade's `CLEAR` variant, after illos.dev);
+  `mirage-snap --alpha` writes every viewpoint as an RGBA PNG (`src/png.mjs`, exact), `play.render({ transparent:
+  true })`. On a test object: background alpha 0, partial alpha only within 2 px of an edge, opaque pixels within
+  0.01/255 of the still over black, edges within 0.7 % in linear light; the object's own bloom kept. Cost: about two
+  stills plus a read-back.
+- @mirage/tools: `looks.check.mjs`, a browser check of the four (serves `check/looks.html` from the repository root,
+  no build).
 - @mirage/tools: one diagnostic shape everywhere, `{ code, severity, target, message, fix, at? }`, with stable codes
   (MG1xx plan, MG2xx modules, MG3xx walking, MG4xx frame, MG5xx budgets, MG6xx console, MG7xx game state;
   `docs/diagnostics.md`). The playtest writes them to `report.json` `diagnostics` and the top of `report.md`;
