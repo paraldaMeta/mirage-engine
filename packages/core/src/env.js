@@ -14,6 +14,10 @@ import * as THREE from 'three';
 
 const D2R = Math.PI / 180;
 export const AMB_MAX = 8;
+/** Bumped whenever a module patches three's shader chunks (light2, soft shadows): Mirage materials put it in their
+ *  program cache key, because three's key does not see chunk text and a program compiled before the patch (another
+ *  world on the same renderer) would otherwise be reused without it. 0 on pages that never patch (keys unchanged). */
+export const CHUNK_EPOCH = { n: 0 };
 
 /** The reference "golden hour": a low sun in the west-south-west. Exposure and the legacy look are tuned here. */
 export const GOLDEN = Object.freeze({ elevation: 6.8, azimuth: 250 });

@@ -26,6 +26,10 @@ export function taperedTube(points: readonly Triple[], radii: readonly number[] 
   radial?: number; segments?: number | null; capEnd?: boolean;
 }): THREE.BufferGeometry;
 export function archPath<P extends THREE.Path>(path: P, x0: number, x1: number, y: number, kind?: ArchKind, rise?: number | null, steps?: number): P;
-export function wall(options: { length: number; height: number; thickness?: number; openings?: readonly Opening[]; curveSteps?: number }): THREE.ExtrudeGeometry;
+export function wall(options: { length: number; height: number; thickness?: number; openings?: readonly Opening[]; curveSteps?: number; round?: number }): THREE.ExtrudeGeometry;
+export function softExtrude(shape: THREE.Shape | THREE.Shape[], depth: number, radius: number, curveSegments?: number, segments?: number): THREE.ExtrudeGeometry;
+export function softBox(width: number, height: number, depth: number, radius?: number): THREE.BoxGeometry;
+export interface SootPlume { pos: Triple; normal?: Triple; rotY?: number; scale?: number; up?: number }
+export function sootPlumes(list: readonly SootPlume[]): THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial> | null;
 export { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 export { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';

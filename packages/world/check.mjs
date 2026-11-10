@@ -112,4 +112,35 @@ ok(out.modules.walls.r === rng('t/walls').float(), 'per-module rng');
   const a = along({ points: [[0, 0], [0, 0], [10, 0]] }, 0), b = along({ points: [[0, 0], [10, 0], [10, 0]] }, 20);
   ok(a.dx === 1 && a.dz === 0 && b.dx === 1 && b.x === 10, 'along() keeps a unit direction on repeated points');
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// rain kit (kits/rain.js): one instanced draw, seeded, density on core's setRain, hidden from environment captures
+// ---------------------------------------------------------------------------------------------------------------
+{
+  const { addRain } = await import('./src/kits/rain.js');
+  const { createMaterials, createEnv, WET, setRain } = await import('@mirage/core');
+  const rctx = () => ({ root: new THREE.Group(), mat: createMaterials(createEnv({}).G) });
+  const before = WET.uRain.value;
+  const r1 = addRain(rctx(), { count: 500 }), r2 = addRain(rctx(), { count: 500 });
+  ok(WET.uRain.value === before, 'addRain without intensity leaves the rain level alone');
+  ok(r1.geometry.instanceCount === 500 && r1.geometry.isInstancedBufferGeometry && r1.geometry.index.count === 6, 'one quad, 500 instances');
+  ok(r1.geometry.attributes.aRain.array.every((v, i) => v === r2.geometry.attributes.aRain.array[i]), 'the same seed gives the same streaks');
+  ok(!r1.frustumCulled && !r1.castShadow && r1.userData.collide === false && r1.material.transparent && !r1.material.depthWrite, 'not culled, no shadow, no collision, no depth');
+  ok(r1.material.userData.hooks.uniforms.uRain === WET.uRain, 'density follows setRain');
+  addRain(rctx(), { count: 1, intensity: 0.6 });
+  ok(WET.uRain.value === 0.6, 'intensity sets the rain level');
+  setRain(before);
+  const u = r1.material.userData.hooks.uniforms, rd = { getRenderTarget: () => ({ height: 900 }) };
+  ok(r1.userData.mgNoCapture === true, 'hidden from the environment capture (world.captureEnv skips mgNoCapture)');
+  // the scene clock wraps to 64 s on the CPU: float32 stays exact after hours
+  const rG = createEnv({}).G, r3 = addRain({ root: new THREE.Group(), mat: createMaterials(rG), G: rG }, { count: 1 });
+  rG.uTime.value = 36000 + 5.25; r3.onBeforeRender(rd, null, new THREE.PerspectiveCamera(48, 1.6, 0.1, 100));
+  ok(Math.abs(r3.material.userData.hooks.uniforms.uRainT.value - 37.25) < 1e-9, 'rain time wrapped to the 64 s period');
+  const cam = new THREE.PerspectiveCamera(48, 1.6, 0.1, 100); cam.position.set(1, 2, 3); cam.updateMatrixWorld();
+  r1.onBeforeRender(rd, null, cam);
+  ok(u.uRainMinA.value === 0 && u.uRainView.value.x === 1 && Math.abs(u.uRainView.value.w - 2 / (cam.projectionMatrix.elements[5] * 900)) < 1e-12, 'follows the camera; pixel size per metre');
+  let threw = 0;
+  for (const o of [{ count: 0 }, { box: [1, 2] }, { speed: NaN }]) try { addRain(rctx(), o); } catch (e) { threw += e instanceof RangeError; }
+  ok(threw === 3, 'bad rain options throw RangeError');
+}
 console.log('world check: ok');

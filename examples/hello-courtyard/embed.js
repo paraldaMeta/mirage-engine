@@ -20,7 +20,7 @@ const urls = import.meta.glob('./tex/*.webp', { eager: true, query: '?url', impo
 const mw = await mountWorld({
   renderer, plan, modules: modules(),
   world: { place: { lat: 35.01, lon: 135.77, height: 50, tzHours: 9 }, time: 'golden', shadow: { center: [0, 2, 0], radius: 17 }, envProbe: [0, 2.2, 0], fog: { groundDensity: 0.0022, height: 30 } },
-  shared: (world) => ({ tex: createTextures(world, { manifest, url: (f) => urls['./tex/' + f] }) }),
+  shared: (world) => ({ tex: createTextures(world, { manifest, url: (f) => urls['./tex/' + f] }), detail: !Q.has('nodetail') }),
 });
 // ---- host objects: a spinning knot on the basin's spout, and a "character" (a ball) walking the courtyard
 const knot = new THREE.Mesh(new THREE.TorusKnotGeometry(0.28, 0.08, 128, 16), new THREE.MeshStandardMaterial({ color: 0x2a6cf0, metalness: 0.3, roughness: 0.35 }));

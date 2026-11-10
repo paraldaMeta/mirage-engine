@@ -14,10 +14,14 @@ export interface MaterialHooks {
   output?: string;
   uniforms?: Record<string, THREE.IUniform>;
   defines?: Record<string, string | number | boolean>;
+  /** Specular AA on the roughness: default where a hook mentions roughnessFactor; false never; a string: a preprocessor #if expression. */
+  specAA?: boolean | string;
+  /** Called with the material once patch() has set it up (not part of the program key). */
+  attach?: (material: THREE.Material) => void;
 }
 export type UniformSet = EnvironmentUniforms | Record<string, THREE.IUniform>;
 export interface ProceduralSurfaces {
-  plaster(base?: string, options?: { wear?: number; foot?: number }): MaterialHooks;
+  plaster(base?: string, options?: { wear?: number; foot?: number; render?: number | readonly [number, number] }): MaterialHooks;
   stone(base?: string, options?: { course?: number; block?: number }): MaterialHooks;
   wood(base?: string, axis?: 'x' | 'y' | 'z'): MaterialHooks;
   terracotta(base?: string): MaterialHooks;

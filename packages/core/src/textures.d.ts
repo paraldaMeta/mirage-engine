@@ -1,16 +1,21 @@
 import type * as THREE from 'three';
 import type { MaterialHooks, MaterialKit } from './materials.js';
 export const TEX_GLSL: string;
+export const TEX_RELIEF_GLSL: string;
 export interface TextureSetInfo {
   tile: number; mean: readonly [number, number, number]; hMean: number; rough: number; roughSlope?: number;
   files: { c: string; n: string }; [metadata: string]: unknown;
 }
 export type TextureMaterialOptions = THREE.MeshStandardMaterialParameters & {
   mapping?: 'tri' | 'wall' | 'ground'; tile?: number; tint?: readonly [number, number, number]; detail?: number; normal?: number;
+  /** close-range relief depth (m): one parallax step and the relief's own shadow, faded out by 8 m */
+  relief?: number;
+  /** undulation (m) of a hand-applied render, bumped (swipes 0.7x) */
+  render?: number;
 };
 export interface TextureLibrary {
   names: string[]; info(name: string): TextureSetInfo;
-  hooks(names: readonly string[], hooks?: MaterialHooks): MaterialHooks;
+  hooks(names: readonly string[], hooks?: MaterialHooks, options?: { relief?: boolean }): MaterialHooks;
   /** The set's name as spelled in MG_TEX_<name>. */
   glslName(name: string): string;
   material(name: string, options?: TextureMaterialOptions): THREE.MeshStandardMaterial;

@@ -49,6 +49,29 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
   compile was thrown away), with and without the environment map, plus the post passes
   (`pipeline.compileAsync()`). Before, ~40-70 programs compiled one after another on the first frame. Measured cold
   (shader cache defeated): woodland-path 3.8 → 1.8 s to ready, garden-quest 11 → 5.8 s; stills are unchanged.
+- @mirage/core: optional `light2` (`createWorldRenderer({ light2: true })`): shadows for the 4 most important lamps
+  (PointLights or `addLampSource` tables) through one octahedral depth atlas, half-resolution screen-space
+  reflections on smooth surfaces, volumetric light (key light through its shadow map, lamps through the atlas),
+  bloom mixed instead of added. Off by default; frames without it are bit-identical. hello-courtyard: `?light2=1`.
+- @mirage/core: optional `post.aoLit` (SSAO fades on lit pixels: occlusion belongs to ambient light),
+  `post.autoExposure` (centre-weighted metering on the GPU, eased in log space while moving, still frames metered
+  on their own) and `dynamicRes` (moving frames render smaller when over budget; stills stay full size). All off by
+  default; frames without them are bit-identical. hello-courtyard: `?aolit=1`, `?ae=1`, `?dynres=1`.
+- @mirage/core: optional contact-hardening soft sun shadows (`createWorldRenderer({ softShadows: true })`,
+  `softshadow.js`): a per-pixel blocker search and PCF over the sun's own shadow map (PCSS), so walking (TAA) frames
+  get the penumbrae still frames had from the sun-disc jitter, and both look alike. +0.55–0.85 ms at 1440 x 900.
+  Off by default; frames without it are bit-identical. hello-courtyard: `?soft=1` (`&sunAngle=` degrees).
+- @mirage/core: optional close-range relief (`relief.js`): one parallax step and the relief's own shadow on the
+  photo sets (`tex.material(name, { relief, render })`, `tex.hooks(names, h, { relief: true })`,
+  `mgTex{Tri,Wall,Ground}Relief`), a hand-applied render's undulation and trowel swipes (`PROC.plaster(base,
+  { render })`), `setRelief(level)`; geometry `geom.wall({ round })`, `softExtrude`, `softBox`, `sootPlumes`. Opt-in:
+  worlds that do not ask for it compile the same shaders. hello-courtyard uses it (`?nodetail` for A/B).
+- @mirage/core: optional wet surfaces (`wet.js`): `withWet(hooks, options)` gives any Standard / Physical material
+  one ramp dry → damp → soaked → standing water (world-space puddles, run-off streaks on walls, a damp band at the
+  ground, `porosity`), rain rings on standing water; `setWetness`, `setRain` (page-global). Only standing water is
+  flagged for light2's reflections. Off by default; the wet code compiles only while the wetness is above 0, so
+  `setWetness(0)` frames are bit-identical. `patch()` hooks gain `specAA` and `attach`. @mirage/world: rain kit
+  (`@mirage/world/kits/rain`, `addRain`): camera-following streaks, one draw call. hello-courtyard: `?wet=0.8&rain=1`.
 - Live examples on Cloudflare Pages (https://mirage-engine-4qj.pages.dev/): `npm run site` builds the seven examples
   as single files plus an index page (`scripts/build-site.mjs`); the owner deploys it with wrangler (see that file).
   Not rebuilt automatically: redeploy after changes to `main`.
