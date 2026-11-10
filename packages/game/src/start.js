@@ -54,7 +54,7 @@ async function mountGame(world, opts, life, dispose, ownAudio) {
   root.name = 'game'; root.userData.collide = false;     // entities move: the baked walk grid leaves them out
   life.defer(() => { root.removeFromParent(); root.clear(); });
   world.scene.add(root);
-  const game = createGame({ id, version, migrate });
+  const game = createGame({ id, version, migrate, ...(opts.storage ? { storage: opts.storage } : {}) });   // storage: a Storage-like for saves (@mirage/game/platform createSaveStorage)
   life.defer(() => game.dispose());
   const input = createInput();
   life.defer(() => input.dispose());

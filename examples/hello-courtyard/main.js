@@ -27,7 +27,9 @@ let date = t === 'golden' ? null : placeDate(Q.get('date') || '2026-10-25', t, p
 
 const canvas = document.querySelector('canvas');
 canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
-const quality = Q.get('quality') || (await pickQuality()).quality, hud = Q.get('hud') !== '0';   // ?quality=low|medium|high
+const PF = Q.get('platform') === '1' ? await import('./platform.js') : null;   // ?platform=1: device probe, context-loss recovery, quality governor, page lifecycle (docs/platforms.md)
+const caps = PF && await PF.probe();
+const quality = Q.get('quality') || (caps || await pickQuality()).quality, hud = Q.get('hud') !== '0';   // ?quality=low|medium|high
 const xrs = await xrSupport();   // a headset browser: an MSAA context for the headset, and the Enter VR / AR buttons
 setRelief({ low: 0, medium: 0.7, high: 1 }[quality] ?? 1);   // the relief's reach: off on low, 5.6 m on medium, 8 m on high
 // light2 (opt-in): ?light2=1, parts off with &l2=nols,nossr,novol,nobloom
@@ -45,7 +47,7 @@ const lighting = ['csm', 'gi', 'probes'].some(LF) || (NL && !stock) ? {
   probes: LF('probes') && [{ min: [-7.2, 0, -7.2], max: [7.2, 6, 7.2], position: [0, 2.6, 0], fade: 1.5 }],
   lights: NL > 0 && !stock && { cluster: Q.get('cluster') !== '0' },
 } : undefined;
-const world = createWorldRenderer({ quality, xr: xrs.vr || xrs.ar, light2, softShadows, lighting, dynamicRes: Q.get('dynres') ? (Q.get('dynres') === '1' || { target: +Q.get('dynres') }) : false,
+const world = createWorldRenderer({ quality, byteTargets: Q.get('bytetargets') === '1', xr: xrs.vr || xrs.ar, light2, softShadows, lighting, dynamicRes: Q.get('dynres') ? (Q.get('dynres') === '1' || { target: +Q.get('dynres') }) : (caps?.settings.dynamicRes ?? false),
   canvas, width: W, height: H, place, time: date || 'golden', preserveDrawingBuffer: true,
   shadow: { center: [0, 2, 0], radius: 17 }, envProbe: [0, 2.2, 0],
   fog: { groundDensity: 0.0022, height: 30 },
@@ -82,5 +84,6 @@ if (rate && date) (function clock(now) {
   requestAnimationFrame(clock);
 })(last);
 const xr = createXR(play, { support: xrs });
+if (PF) window.__platform = PF.mount({ world, play, canvas, caps });
 window.__mirage = { world, tex, built, play, xr, render: (o = {}) => world.renderFrame(o.T ?? 0, { spp, frameIndex: 1, ...o }), wet: { setWetness, setRain, rain } };
 window.__READY = true;

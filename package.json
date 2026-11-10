@@ -24,6 +24,9 @@
     "test:fixed-step": "node packages/tools/src/fixed-step-check.mjs examples/snow-hut/dist",
     "test:determinism": "node packages/tools/determinism.check.mjs",
     "test:still-pop": "node packages/tools/src/still-pop.mjs examples/hello-courtyard/dist examples/walled-garden/dist examples/garden-quest/dist examples/agent-trial/dist",
+    "test:ship": "node packages/tools/src/ship-browser-check.mjs",
+    "test:context-loss": "node packages/tools/src/context-loss-check.mjs examples/hello-courtyard/dist examples/garden-quest/dist",
+    "test:mobile": "node packages/tools/src/mobile-check.mjs examples/hello-courtyard/dist examples/garden-quest/dist",
     "test:touch": "node packages/tools/src/touch-check.mjs examples/hello-courtyard/dist examples/walled-garden/dist examples/garden-quest/dist examples/agent-trial/dist examples/snow-hut/dist",
     "test:gpu-load": "node packages/tools/src/gpu-load.mjs examples/hello-courtyard/dist examples/walled-garden/dist examples/garden-quest/dist examples/agent-trial/dist examples/snow-hut/dist"
   },

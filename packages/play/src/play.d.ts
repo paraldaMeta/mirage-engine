@@ -52,6 +52,8 @@ export interface Play<W extends WalkerLike = GridWalker> {
   /** Pauses automatic frames. start() resumes and step() still works. */
   stop(): void;
   start(): void; wake(): void;
+  /** false after stop() */
+  readonly running: boolean;
   /** Reads true while reduced motion is on; set 'auto', true, false or { sway, rain }. */
   get reducedMotion(): boolean;
   set reducedMotion(option: ReducedMotionOption);

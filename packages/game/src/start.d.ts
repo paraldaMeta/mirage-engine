@@ -17,6 +17,8 @@ export type StartGameOptions<P extends PlanInput> = Pick<PlayOptions<PhysicsChar
   /** Unlike createPlay, startGame requires an explicit spawn. */
   built: BuildResult<P> & { plan: { spawn: Viewpoint } };
   id?: string; version?: number; migrate?: Migrations;
+  /** Where saves go (default localStorage): createSaveStorage() of '@mirage/game/platform' inside a native wrapper. */
+  storage?: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
   setup?: (context: GameSetup<P>) => void | Promise<void>;
   objective?: (game: Game) => readonly [string, string]; summary?: (game: Game) => string;
   /** false: no overlay. A function: another overlay with createUI's contract (createKitUI from '@mirage/game/ui-menu'). */

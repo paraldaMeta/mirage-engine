@@ -11,6 +11,28 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
 
 **New**
 
+- Platforms (experimental, opt-in; `docs/platforms.md`). `mirage-ship <example> --target web | pwa | single |
+  desktop-electron | desktop-tauri | ios | android` (@mirage/tools) writes a static folder with caching rules, a PWA
+  (manifest, icons from one PNG, an own service worker with a versioned precache, install and update hooks) or a
+  project scaffold for Electron, Tauri 2 or Capacitor 8 (CSP, high-performance GPU switch, fullscreen, window
+  state, orientation and safe area, saves mapped to the app's folder through one `window.mirageNative` bridge). It
+  installs, downloads and signs nothing, and none of the wrappers is a dependency of this repository. Run-time
+  layer in two subpaths: `@mirage/core/platform` (`probeDevice` with mobile GPU tiers, `createContextRecovery`,
+  `createQualityGovernor` on battery, CPU pressure and frame time) and `@mirage/game/platform` (`createPlatform`:
+  pause on hidden, audio unlock, wake lock, fullscreen, orientation, safe-area insets, input mode, storage
+  persistence; `createSaveStorage`; `registerServiceWorker`; `createInstallPrompt`). `world.contextRestored()`,
+  `play.running`, `startGame({ storage })` and `createWorldRenderer({ byteTargets })` are the engine-side hooks;
+  8-bit render targets switch on by themselves only on a context without float colour targets (black canvas
+  before, mean 96/255 after, 97 with floats). Measured in headless Chrome on one Mac: garden-quest PWA (33 files,
+  3.98 MB) reloads with the server down in 793 ms; a new version waits and applies on request with one reload;
+  after a lost WebGL context hello-courtyard and garden-quest are back in 307-317 ms (300 ms held lost) with at
+  most 1/255 difference, against every pixel different without the recovery; under phone emulation with a
+  reduced GL at `low`, 6x CPU throttle: hello-courtyard 2.2 ms (2.0-2.5), garden-quest 7.9 ms (7.9-8.8) per frame
+  (CPU side only; spread between runs about 2 ms). With the flags off, six stills on two examples are
+  bit-identical to the base. **Not done:** no real phone was used; no Electron, Tauri or Capacitor toolchain is on
+  this machine, so no wrapper was built or run (the Rust main has never been compiled) and the scaffolds are
+  checked for structure only; consoles are out of reach. Try: `?platform=1` on hello-courtyard and garden-quest,
+  `?bytetargets=1` on hello-courtyard; `npm run test:ship`, `test:context-loss`, `test:mobile`.
 - @mirage/game: an audio engine on top of the mixer (`createAudioEngine`, `createMixer`, `createMusic`,
   `createAudioDebug`, occluders and DSP helpers; experimental, opt-in, `docs/audio.md`). `createAudio` is unchanged
   and, given to the engine, keeps playing through the new buses (`audio.play('pickup')` peak 0.284 alone, 0.284 again

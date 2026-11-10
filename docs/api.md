@@ -286,5 +286,5 @@ Multiplayer for walked worlds; all of it experimental and opt-in (nothing else i
 
 Command-line tools (no JS entry point). Stable: `mirage-playtest` (scenario format in the playtest skill),
 `mirage-package`, `mirage-snap`, `mirage-deploy`. Experimental: `mirage-walktest`, `mirage-perf`, `mirage-e2e` (runs the `examples/` of the current folder or `--root`),
-`mirage-gpu-load`, `mirage-still-pop`, `mirage-xr-check` (WebXR in an emulated Quest 3; repository checks; some expect this repository's `examples/`). The tools
+`mirage-gpu-load`, `mirage-still-pop`, `mirage-xr-check` (WebXR in an emulated Quest 3; repository checks; some expect this repository's `examples/`). `mirage-ship` (web, PWA and wrapper scaffolds; with the subpaths `@mirage/core/platform`, `@mirage/core/byte-targets` and `@mirage/game/platform`: `docs/platforms.md`). The tools
 need Chrome: `$CHROME`, or the usual install place on macOS, Linux and Windows.
