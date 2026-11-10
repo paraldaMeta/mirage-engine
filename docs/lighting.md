@@ -110,7 +110,61 @@ whole card. A cell keeps at most `perCell` (64) lights; `world.lighting.lights.i
 
 ## Measured
 
-MEASURED_SECTION
+Apple M4 Pro, headless Chrome (ANGLE Metal), a machine shared with other GPU jobs while measuring. Every variant
+is its own page in one Chrome; six rounds go round-robin over the pages (A/B interleaved), 40 walking (temporal-AA)
+frames a round, each frame ended by a 1-px `readPixels`. A number is the median of the six round medians, the
+bracket their lowest and highest. ms per frame; "100 lamps" = `?lights=100`, range 6 m.
+
+1440 x 900 (pixel ratio 1):
+
+| | hello-courtyard, hero | walled-garden, gate | walled-garden, interior |
+|---|---|---|---|
+| nothing on | 3.4 [3.2-3.5] | 3.8 [3.4-4.0] | 4.0 [3.8-4.2] |
+| `csm=1` | 3.4 [3.4-3.6] | 4.0 [3.8-4.2] | 4.3 [4.0-5.2] |
+| `gi=1` | 3.6 [3.3-3.6] | 3.5 [3.3-3.6] | 4.2 [3.8-4.8] |
+| `probes=1` | 3.2 [3.0-3.5] | 3.5 [3.4-4.2] | 4.0 [3.5-4.2] |
+| 100 lamps, clustered | 6.2 [5.9-6.3] | 3.6 [3.4-3.9] | 3.9 [3.6-4.4] |
+| 100 lamps, plain loop (`cluster=0`) | 7.0 [6.7-7.1] | 6.1 [5.3-6.3] | 6.7 [6.1-7.5] |
+| 100 lamps as three's own PointLights (`stock=1`) | 183.4 [175.7-185.3] | 121.6 [112.2-122.1] | 146.9 [143.0-147.3] |
+| 100 lamps clustered, 8 shadowed | 6.5 [6.4-6.6] | 3.8 [3.4-3.9] | 4.2 [3.8-4.4] |
+| everything | 7.5 [7.2-7.7] | 4.3 [3.8-4.5] | 5.3 [4.7-5.5] |
+
+2880 x 1800 (pixel ratio 2):
+
+| | hello-courtyard, hero | walled-garden, gate | walled-garden, interior |
+|---|---|---|---|
+| nothing on | 11.3 [9.8-12.3] | 18.8 [11.2-35.1] | 13.2 [12.6-18.6] |
+| `csm=1` | 10.9 [9.5-12.5] | 18.3 [11.0-38.8] | 13.1 [12.5-23.4] |
+| `gi=1` | 11.5 [10.0-13.1] | 17.0 [10.7-39.8] | 13.5 [12.6-24.2] |
+| `probes=1` | 10.2 [9.6-12.2] | 16.9 [10.5-37.8] | 12.4 [12.0-22.6] |
+| 100 lamps, clustered | 19.8 [18.0-21.1] | 16.8 [10.8-33.8] | 12.7 [12.2-22.1] |
+| 100 lamps, plain loop | 22.5 [19.9-25.6] | 22.7 [15.6-49.8] | 21.1 [19.8-41.1] |
+| 100 lamps as three's own PointLights | 542 [529-555] | 355 [345-463] | 499 [482-601] |
+| 100 lamps clustered, 8 shadowed | 21.5 [18.0-23.0] | 17.9 [10.8-30.0] | 15.9 [12.7-29.4] |
+| everything | 24.1 [20.0-31.8] | 19.4 [11.5-32.8] | 15.1 [14.9-22.9] |
+
+Reading it honestly:
+
+- Cascades, the probe volume and one reflection probe each cost less than the run-to-run spread on these scenes
+  (0.3 ms or so at pixel ratio 1, several ms at 2 on the loaded machine): their cost is **not resolved**, not zero.
+  The pixel-ratio-2 walled-garden rows are too noisy to rank anything but the lamp rows.
+- 100 lamps: three's own lights are 30-50 times the frame; the light texture alone (plain loop) brings that to
+  +2.3 to +3.6 ms at ratio 1; clustering brings it to within the spread of no lamps at all in walled-garden (lamps
+  spread over 40 x 40 m). In hello-courtyard 100 lamps of 6 m range sit in a 16 m court, nearly every lamp reaches
+  nearly every cell, and clustering saves little (6.2 against 7.0); there the 64-per-cell cap also dropped 782 cell
+  entries, so that image is not exact (walled-garden: 0 dropped).
+
+One-off costs, GPU-synced the same way:
+
+| | hello-courtyard | walled-garden |
+|---|---|---|
+| probe volume bake at load (2 bounces) | 400 probes: 369-452 ms | 196 probes: 315-495 ms (649-1225 ms in the ratio-2 run, machine loaded) |
+| a frame that captures one reflection probe | 9.9-12.6 ms against 3.1 (ratio 1); 15.0-19.7 against 11 (ratio 2) | 11.8-16.9 against 3.8-4.9; 18.9-31.7 against 17-19 |
+| a frame that redraws one shadow tile (a lamp moving every frame) | +0.7 to +1.2 ms | +0.1 to +1.6 ms (ratio 1), +0.7 to +3.2 (ratio 2) |
+| shadow tiles redrawn while nothing moves | 0 | 0 |
+
+Not measured: other GPUs (nothing here ran on a phone or an integrated Intel/AMD GPU), the incremental re-bake's
+per-frame cost while the clock moves, CSM with `softShadows`, more than one reflection probe, spot lights.
 
 ## Checks
 
@@ -122,4 +176,6 @@ MEASURED_SECTION
   shading equals the plain loop on three views; a quiet scene redraws no shadow tile and a moved lamp redraws one;
   a new caster darkens the ground after `invalidate()`; a red emitter beside a probe is read back from that side;
   a mirror off the probe's centre shows a marker on the wall where the parallax-corrected ray ends.
-- Off = unchanged: stills of both examples without any flag, before and after this work (`snap.mjs --baseline`).
+- Off = unchanged: stills of both examples without any flag (hello-courtyard hero and corner, walled-garden gate and
+  aerial, 1440 x 900), built from the commit before this work and from this branch in the same session: the PNGs
+  are byte-identical.

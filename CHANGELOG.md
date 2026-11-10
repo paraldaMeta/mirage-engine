@@ -11,6 +11,23 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
 
 **New**
 
+- @mirage/core realtime lighting, four opt-in features under `createWorldRenderer({ lighting })` (`docs/lighting.md`,
+  experimental; without the option the stills of hello-courtyard and walled-garden are byte-identical). `csm`: 2-4
+  cascaded sun shadows in the sun's own map (bounding spheres of view slices, texel-snapped, blended, the
+  contact-hardening filter per cascade with `softShadows`). `gi`: an irradiance probe volume baked on the GPU at load
+  (irradiance + distance moments per probe, visibility-weighted against leaks), re-baked 2 probes a frame when the
+  time of day moves. `probes`: up to 4 box-parallax reflection probes filtered by PMREM. `lights`: clustered local
+  lights (16 x 9 x 24 cells, lights in a float texture, the count is data) with a cached octahedral shadow atlas;
+  `world.lighting.addLight(light, { shadow })`. Shader parts go into the world's own materials through an
+  instance-scoped injector, not into `THREE.ShaderChunk`. Measured on an Apple M4 Pro (shared GPU, A/B interleaved,
+  median [spread of 6 rounds], 1440 x 900): 100 lamps cost 3.6 ms [3.4-3.9] a frame clustered against 3.8 [3.4-4.0]
+  with no lamps, 6.1 [5.3-6.3] as a plain loop and 121.6 [112.2-122.1] as three's own PointLights (walled-garden);
+  in hello-courtyard's small court 6.2 / 3.4 / 7.0 / 183.4. Cascades, the probe volume and one reflection probe are
+  each inside the spread (not resolved). Probe volume bake 315-495 ms (196-400 probes); a reflection probe capture
+  is a 10-17 ms frame; a shadow tile redraw +0.1 to +1.6 ms, none while nothing moves. 2880 x 1800 and the limits
+  (one GI box, cascades all redrawn each frame, spots pay six faces, 4 probes) are in the guide. Flags on both
+  examples: `?csm=1`, `?gi=1`, `?probes=1`, `?lights=N` (`&lshadows=K`, `&cluster=0`, `&stock=1`).
+  `node packages/tools/src/lighting-check.mjs` checks it in Chrome.
 - @mirage/play: NPC navigation on the walk grid (`createNavGrid`, `createNavAgent`, `createNavCrowd`; experimental,
   opt-in). No navmesh: per-radius fit bits from the walker's own disc / step / head-room test (equal to the walker
   on every floor of the node checks' grids and on 20 000 of 20 000 random floors of walled-garden), coarse A* (4 x 4
