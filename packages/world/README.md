@@ -105,3 +105,59 @@ thinner than a pixel keeps at least `minAlpha` (0.25). The fall runs on the scen
 streak only since it left the top of its column, so a change of wind does not throw the rain across the sky.
 Limits: no splashes, and no shelter: streaks fall inside arcades and rooms wherever the box reaches (hide the mesh
 indoors). Remove it with `mesh.removeFromParent()` and dispose its geometry and material.
+
+## Gaussian splats
+
+```js
+import { addSplats, loadSplats, splatEffects } from '@mirage/world/kits/splat';
+
+// Inside build(ctx), or with { ...world.ctx, root: world.scene } after building.
+const data = await loadSplats('scan.ply');   // .splat | 3DGS .ply | SOG meta.json (its webp files beside it)
+const splats = addSplats(ctx, data, { position: [0, 0, -4], effect: splatEffects.reveal() });
+createPlay(world, { ..., onStep: () => splats.changed() });   // a still view is drawn again when a fresh sort lands
+```
+
+An opt-in kit (8.8 KB min + gzip, three external; nothing else imports it). Loaders: antimatter15's `.splat`
+(32 bytes a splat), an uncompressed 3D Gaussian Splatting `.ply` (binary little endian; the view-independent SH0
+colour, higher harmonics ignored) and SOG versions 1-3 (PlayCanvas's `meta.json` + lossless webp: 16-bit log-space
+means, codebooks, quaternions; `shN` ignored). The parsed data (`{ count, center, scale, rot, color }`) is packed into
+one RGBA32UI texture (two texels a splat: centre floats + rgba8, smallest-three rotation + half-float scales).
+
+`addSplats` draws one instanced quad per splat (128 a draw instance) with one ShaderMaterial, back to front: a
+counting sort on view depth (2^10..2^20 buckets, about eight per visible splat, three quarters spread by a 32-bin
+depth histogram) runs in a Worker made from a Blob, so a single-file page works and no SharedArrayBuffer (COOP/COEP)
+is needed; the index buffer travels as a transferable, a camera that moved less than `resort` (1e-3) is not sorted
+again, splats behind the eye are left out, and the first frame is sorted on the main thread before it is drawn. The
+vertex shader culls splats behind the camera, off the frustum and smaller than `minPixelSize` (1 px) before the eigen
+decomposition, adds the 0.3 px low-pass (with opacity compensation when `antialias`, set from SOG
+`model: 'antialiased'`) and sizes each quad to where the splat falls under 1/255 (at most 3 sigma). The fragment
+applies the world's aerial perspective, so splats sit in its air. Splat colours are lit like a matte object of that
+colour by the world's key light and sky on average over its sides (`light: false`: the golden-hour level at any
+time; `gain` scales both). The mesh is transparent (depth test on, no depth write), drawn after the opaque meshes into
+the pipeline's scene target, casts no shadow, and stays out of the environment capture, the walk grid, physics and
+GLB export; `see` in the playtest counts it (as camera-facing squares of 1.5 sigma).
+
+Effects are GLSL run per splat in the vertex shader on `c` (model-space centre), `q` (rotation xyzw), `s` (sigma
+per axis) and `col` (sRGB + opacity), with `c0` (the original centre), `sid` (a 0..1 hash of the splat), `uFx.x` (the
+`progress`) and the effect's own `uFx.yzw` / `uFx2`: `{ decl, center, color, scale, params, bind(bounds), uniforms,
+rest }`. Two ship: `splatEffects.reveal({ origin, width, glow })` grows the splats in from `origin` behind a bright
+front as progress goes 0 -> 1, and `splatEffects.dissolve({ rise, glow })` lifts, warms, shrinks and fades each
+splat in its own quarter of the time. At rest (reveal 1, dissolve 0) both draw exactly the plain image.
+
+The handle: `progress`, `setEffect(fx)`, `changed()` (true once after an effect, its progress, or a sort that landed
+for a view drawn with an older one; at most twice per resting view, so a moving lens cannot loop), `sortNow(camera)`
+(main thread, for tests and one-off stills), `sorted()`, `stats` (sorts, ms, visible) and `dispose()`.
+
+Splats write no depth. Measured on the demo (examples/demos/splats): the SSAO and the temporal AA's reprojection see
+whatever is behind a splat. The TAA's neighbourhood clip hides it: after a 0.24 m-a-frame strafe past the tree the
+splat pixels keep their detail (Laplacian 3.80 vs 3.87 still) with or without depth. The SSAO of the surface behind
+does show through (0.03 levels of darkening on the hill over a flat meadow, but a splat in front of a wall corner gets
+the corner's occlusion). `depth: 0.5` adds a depth-only second pass where a splat is at least that opaque, after the
+colour pass: the SSAO then works on the splat surface (3.9 levels of contact darkening), at about +60 % of the splat
+cost (1M splats: 30 -> 53 ms); a capture already carries its own occlusion, so it is off by default.
+
+Limits: no spherical harmonics beyond SH0 (no view-dependent colour), no shadows cast or received, splats are lit
+by an orientation-free average (baked shading in a capture is multiplied by the world's light), no SOG `.sog` zip
+bundles and no compressed `.ply`. Opacity above 1 (SOG v3 merged splats) is clamped. Remove the splats with
+`splats.dispose()`. Demo, procedural test asset and checks: [examples/demos/splats](../../examples/demos/splats)
+(`make-fixtures.mjs` saves the asset in all three formats; `splat-check.mjs` checks it in the browser).
