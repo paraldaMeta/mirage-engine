@@ -18,6 +18,8 @@ import manifest from './tex/manifest.json';
 import plan from './plan.js';
 import modules from './modules/index.js';
 import { addLamps } from '../walled-garden/lamps.js';
+import { editable } from '@mirage/editor/runtime';
+import edits from './plan.edits.json';   // written by `npx mirage-editor examples/hello-courtyard --write` (docs/editor.md); {} = no edits
 
 const Q = new URLSearchParams(location.search);
 const W = +Q.get('w') || innerWidth, H = +Q.get('h') || innerHeight;
@@ -49,7 +51,8 @@ const lighting = ['csm', 'gi', 'probes'].some(LF) || (NL && !stock) || SCR ? {
   probes: LF('probes') && [{ min: [-7.2, 0, -7.2], max: [7.2, 6, 7.2], position: [0, 2.6, 0], fade: 1.5 }],
   lights: NL > 0 && !stock && { cluster: Q.get('cluster') !== '0', perCell: +Q.get('percell') || 0 },   // exact lists (&percell=64: the capped ones)
 } : undefined;
-const world = createWorldRenderer({ quality, byteTargets: Q.get('bytetargets') === '1', xr: xrs.vr || xrs.ar, light2, softShadows, lighting, dynamicRes: Q.get('dynres') ? (Q.get('dynres') === '1' || { target: +Q.get('dynres') }) : (caps?.settings.dynamicRes ?? false),
+const ed = editable(plan, edits);   // with an empty layer: the plan itself, and every ed. call below does nothing
+const world = createWorldRenderer({ quality, byteTargets: Q.get('bytetargets') === '1', xr: xrs.vr || xrs.ar, light2, softShadows, lighting: ed.lighting(lighting), dynamicRes: Q.get('dynres') ? (Q.get('dynres') === '1' || { target: +Q.get('dynres') }) : (caps?.settings.dynamicRes ?? false),
   canvas, width: W, height: H, place, time: date || 'golden', preserveDrawingBuffer: true,
   shadow: { center: [0, 2, 0], radius: 17 }, envProbe: [0, 2.2, 0],
   fog: { groundDensity: 0.0022, height: 30 },
@@ -62,7 +65,8 @@ const tex = createTextures(world, { manifest, url: (f) => urls['./tex/' + f] });
 // wetness (opt-in): ?wet=0.8 re-patches the ground and masonry materials, ?rain=1 adds the streaks
 const wet = Q.has('wet') || Q.has('rain');
 if (wet) { setWetness(+(Q.get('wet') ?? 0)); setRain(+(Q.get('rain') ?? 0)); }
-const built = await buildWorld(world, { plan, modules: modules({ broken: Q.has('broken') }), shared: { tex, detail: !Q.has('nodetail'), ...(wet ? { wet: true } : {}) } });
+const buildOpts = (p) => ({ plan: p, modules: modules({ broken: Q.has('broken') }), shared: { tex, detail: !Q.has('nodetail'), ...(wet ? { wet: true } : {}) } });
+const built = await buildWorld(world, buildOpts(ed.plan));
 const rain = Q.has('rain') ? addRain({ ...world.ctx, root: world.scene }) : null;
 
 if (NL) addLamps(world, { n: NL, min: [-8, 0.6, -8], max: [8, 2.6, 8], first: [[0, 1.8, 0], [4, 1.4, 3], [-4, 1.4, -3]], shadows: +Q.get('lshadows') || 0, stock });
@@ -70,12 +74,14 @@ const { camera } = world;
 camera.aspect = W / H; camera.fov = 48; camera.near = 0.1; camera.far = 3000; camera.updateProjectionMatrix();
 await tex.ready();
 if (Q.get('perf')) window.__big = (await import('@mirage/core/bigworld')).applyBigWorld(world, world.scene, Q.get('perf'));   // ?perf=chunk,lod,occ (docs/big-worlds.md)
+await ed.apply(world, built);
 await world.prepare();
 const spp = +Q.get('spp') || 6;
 const mode = Q.get('mode') || 'orbit';
-const play = createPlay(world, { plan: built.plan, canvas, mode, spp, ui: Q.get('ui') !== '0', fit: !Q.get('w'), quality, hud });
+const playOpts = { plan: built.plan, canvas, mode, spp, ui: Q.get('ui') !== '0', fit: !Q.get('w'), quality, hud };
+const play = createPlay(world, playOpts);
 if (mode === 'orbit' || Q.has('view')) {
-  const v = plan.viewpoints.find((p) => p.name === (Q.get('view') || 'hero')) || plan.viewpoints[0];
+  const v = ed.plan.viewpoints.find((p) => p.name === (Q.get('view') || 'hero')) || ed.plan.viewpoints[0];
   play.place(v.eye, v.look, mode);
 }
 // a running clock (?clock=N): the core eases exposure and cross-fades the environment
@@ -88,4 +94,5 @@ if (rate && date) (function clock(now) {
 const xr = createXR(play, { support: xrs });
 if (PF) window.__platform = PF.mount({ world, play, canvas, caps });
 window.__mirage = { world, tex, built, play, xr, render: (o = {}) => world.renderFrame(o.T ?? 0, { spp, frameIndex: 1, ...o }), wet: { setWetness, setRain, rain } };
+ed.attach({ world, built, play, rebuild: buildOpts, makePlay: (o) => createPlay(world, { ...playOpts, mode: 'walk', fit: true, ...o }) });
 window.__READY = true;

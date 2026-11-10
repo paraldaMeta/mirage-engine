@@ -1,0 +1,59 @@
+{
+  "name": "@mirage/editor",
+  "version": "1.0.0",
+  "description": "Mirage editor: a visual editor that runs in the browser against a live Mirage world. Viewport with gizmos, hierarchy, a typed inspector generated from the plan schema, asset browser, undo/redo, play-in-editor, and edits saved back as plan data the project loads.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/paraldaMeta/mirage-engine.git",
+    "directory": "packages/editor"
+  },
+  "homepage": "https://github.com/paraldaMeta/mirage-engine/tree/main/packages/editor#readme",
+  "bugs": {
+    "url": "https://github.com/paraldaMeta/mirage-engine/issues"
+  },
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    },
+    "./runtime": {
+      "types": "./src/runtime.d.ts",
+      "default": "./src/runtime.js"
+    },
+    "./server": "./src/server.mjs",
+    "./*": "./src/*.js",
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "mirage-editor": "./bin/mirage-editor.mjs"
+  },
+  "files": [
+    "src",
+    "bin",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "dependencies": {
+    "@mirage/tools": "1.0.0",
+    "vite": "8.3.4"
+  },
+  "peerDependencies": {
+    "@mirage/core": "^1.0.0",
+    "@mirage/play": "^1.0.0",
+    "@mirage/world": "^1.0.0",
+    "three": ">=0.186.1 <0.187.0"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node check.mjs",
+    "check:browser": "node editor-check.mjs"
+  },
+  "author": "灰叔 Racso",
+  "types": "./src/index.d.ts"
+}
