@@ -7,8 +7,18 @@
 // as interact with the in-world prompt, AR placement, and both eyes saved as PNGs.
 //
 // usage: mirage-xr-check <dist dir> [more dist dirs] [--out dir] [--w 1600 --h 800] [--perf | --perf-only] [--perf-w 3360 --perf-h 1760]
+//        [--native | --native-only] [--alloc | --alloc-only] [--alloc-frames 300]
 //   --perf: one more short session at a Quest 3-like framebuffer (two 1680 x 1760 eyes side by side): the cost of
 //           a stereo frame (CPU + GPU to a 1-pixel readback; GPU time from EXT_disjoint_timer_query when offered)
+//   --native: one more page per world as a native WebXR host shows it (webxr-to-native on Quest: no layout engine,
+//           Canvas 2D without text): fillText / strokeText draw nothing, roundRect is gone, everything but the canvas
+//           is display:none. The session must start through navigator.xr.offerSession (granted as the platform
+//           would), labels must use the built-in glyphs and show text in the eye image (a pixel check), and with
+//           iwer's emulated hands a pinch interacts and point-then-pinch teleports.
+//   --alloc: a heap sample (CDP HeapProfiler, objects collected by minor and major GCs included) over N steady VR
+//           frames, standing and walking, plus the GCs in a trace of the same frames: bytes per frame by script and,
+//           in an unminified build (vite build --minify false), by function, with createXR's own share; after a
+//           10 s warm-up
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
@@ -16,10 +26,13 @@ import { launch, serve, open } from './chrome.mjs';
 
 const args = process.argv.slice(2);
 const flag = (k, d) => { const i = args.indexOf('--' + k); return i >= 0 ? (args[i + 1] && !args[i + 1].startsWith('--') ? args[i + 1] : true) : d; };
-const targets = args.filter((a, i) => !a.startsWith('--') && !(i > 0 && args[i - 1].startsWith('--') && !['--perf', '--perf-only'].includes(args[i - 1])));
+const BOOL = ['--perf', '--perf-only', '--native', '--native-only', '--alloc', '--alloc-only', '--native-control'];
+const targets = args.filter((a, i) => !a.startsWith('--') && !(i > 0 && args[i - 1].startsWith('--') && !BOOL.includes(args[i - 1])));
 if (!targets.length) { console.error('usage: mirage-xr-check <dist dir> [...] [--out dir] [--perf]'); process.exit(2); }
 const W = +flag('w', 1600), H = +flag('h', 800), OUT = path.resolve(flag('out', 'out/xr-check'));
 const PERF = !!flag('perf', false) || !!flag('perf-only', false), PW = +flag('perf-w', 3360), PH = +flag('perf-h', 1760);
+const NATIVE = !!flag('native', false) || !!flag('native-only', false), ALLOC = !!flag('alloc', false) || !!flag('alloc-only', false), AF = +flag('alloc-frames', 300);
+const CONTROL = !!flag('native-control', false);   // the negative control: a canvas label whose fillText draws nothing
 const IWER = fs.readFileSync(createRequire(import.meta.url).resolve('iwer/build/iwer.min.js'), 'utf8');
 // the emulated headset: Meta Quest 3, stereo, controllers connected
 const INSTALL = `${IWER};
@@ -65,6 +78,39 @@ async function shot(page, file) {
     return { mean: +m.toFixed(1), sd: +Math.sqrt(Math.max(m2 / n - m * m, 0)).toFixed(1), width: img.width, height: img.height };
   }, png);
 }
+
+// the prompt label in the left eye of a saved frame: its sprite projected through the eye's camera, then over the
+// text part of the label (right of the key chip, the middle rows) the share of panel-dark and text-light pixels and
+// the most dark-to-light edges along one row. Text drawn: light 3-60 %, edges >= 6; a label whose text did not
+// draw (a no-op fillText) has its panel and chip but no light pixels there.
+const labelPixels = (page, file) => page.evaluate(async (src, W, H) => {
+  const { world, xr } = window.__mirage, THREE = world.ctx.THREE, s = xr.labels.prompt;
+  if (!s.visible) return { visible: false };
+  const eye = world.renderer.xr.getCamera().cameras[0], inv = eye.matrixWorld.clone().invert();
+  const right = new THREE.Vector3().setFromMatrixColumn(eye.matrixWorld, 0).normalize(), up = new THREE.Vector3().setFromMatrixColumn(eye.matrixWorld, 1).normalize();
+  const c = s.getWorldPosition(new THREE.Vector3()), sc = s.getWorldScale(new THREE.Vector3());
+  const at = (u, v) => { const p = c.clone().addScaledVector(right, (u - 0.5) * sc.x).addScaledVector(up, (0.5 - v) * sc.y).applyMatrix4(inv).applyMatrix4(eye.projectionMatrix); return [(p.x * 0.5 + 0.5) * (W / 2), (0.5 - p.y * 0.5) * H]; };
+  const [x0, y0] = at(0, 0), [x1, y1] = at(1, 1);
+  const img = new Image(); img.src = src; await img.decode();
+  const cv = document.createElement('canvas'); cv.width = img.width; cv.height = img.height;
+  const g = cv.getContext('2d'); g.drawImage(img, 0, 0);
+  const tx0 = Math.round(x0 + 0.3 * (x1 - x0)), tx1 = Math.round(x0 + 0.74 * (x1 - x0)), ty0 = Math.round(y0 + 0.3 * (y1 - y0)), ty1 = Math.round(y0 + 0.7 * (y1 - y0));
+  if (tx1 - tx0 < 8 || ty1 - ty0 < 3 || tx0 < 0 || ty0 < 0 || tx1 > W / 2 || ty1 > H) return { visible: true, offscreen: true, box: [x0, y0, x1, y1].map(Math.round) };
+  const d = g.getImageData(tx0, ty0, tx1 - tx0, ty1 - ty0).data, w = tx1 - tx0, h = ty1 - ty0;
+  let dark = 0, light = 0, edges = 0;
+  for (let y = 0; y < h; y++) {
+    let e = 0, prev = false;
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4, l = 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
+      if (l < 80) dark++; if (l > 150) light++;
+      const on = l > 120; if (on && !prev) e++; prev = on;
+    }
+    edges = Math.max(edges, e);
+  }
+  const n = w * h;
+  return { visible: true, box: [x0, y0, x1, y1].map(Math.round), textArea: [w, h], dark: +(dark / n).toFixed(3), light: +(light / n).toFixed(3), edges };
+}, 'data:image/png;base64,' + fs.readFileSync(file).toString('base64'), W, H);
+const textShows = (m) => m.visible && !m.offscreen && m.dark > 0.3 && m.light > 0.03 && m.light < 0.6 && m.edges >= 6;
 
 async function enterXR(page, mode) {
   await page.waitForFunction((m) => { const b = window.__mirage.xr.buttons[m]; return b && !b.hidden; }, { timeout: 15000 }, mode);
@@ -182,6 +228,8 @@ async function run(dir) {
       const p = await page.evaluate(() => window.__mirage.xr.state());
       r.shots.push({ file: `${r.name}-vr-prompt.png`, ...(await shot(page, path.join(OUT, `${r.name}-vr-prompt.png`))) });
       check(r, `in-world prompt over "${I.id}"`, p.near === I.id && !!p.prompt, { near: p.near, prompt: p.prompt });
+      const lp = await labelPixels(page, path.join(OUT, `${r.name}-vr-prompt.png`));
+      check(r, `the prompt's text shows in the eye image (${p.text} labels; pixel check)`, textShows(lp), lp);
       await ctl(page, 'right', 'updateButtonValue', 'trigger', 1); await frames(page, 3);
       await ctl(page, 'right', 'updateButtonValue', 'trigger', 0); await frames(page, 6);
       await sleep(200);
@@ -352,7 +400,208 @@ async function perf(dir) {
   }
 }
 
-if (!flag('perf-only', false)) for (const t of targets) await run(t);
+// ---- --native: the page as a native WebXR host runs it (see the usage at the top)
+const nativeStubs = (control) => `(() => {
+  const no = function () {};
+  const est = function (t) { const m = /(\\d+(?:\\.\\d+)?)px/.exec(this.font); const px = m ? +m[1] : 10; return { width: 0.6 * px * String(t).length }; };
+  for (const P of [${control ? 'globalThis.CanvasRenderingContext2D && CanvasRenderingContext2D.prototype' : 'globalThis.CanvasRenderingContext2D && CanvasRenderingContext2D.prototype, globalThis.OffscreenCanvasRenderingContext2D && OffscreenCanvasRenderingContext2D.prototype'}]) {
+    if (!P) continue;
+    P.fillText = no; P.strokeText = no;${control ? '' : ' delete P.roundRect; P.measureText = est;'}
+  }
+  // no layout engine: nothing but the canvas is drawn (the Enter VR buttons, a game's DOM UI)
+  document.addEventListener('DOMContentLoaded', () => { const st = document.createElement('style'); st.textContent = 'body > :not(canvas) { display: none !important; }'; document.head.appendChild(st); });
+})();`;
+
+async function native(dir) {
+  const srv = await serve(dir);
+  const browser = await launch({ w: W, h: H });
+  const r = { dir, native: true, checks: [], shots: [] };
+  try {
+    const page = await browser.newPage();
+    await page.evaluateOnNewDocument(INSTALL);
+    await page.evaluateOnNewDocument(nativeStubs(CONTROL));
+    await page.setViewport({ width: W, height: H, deviceScaleFactor: 1 });
+    const errors = [];
+    page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+    page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
+    await page.goto(srv.url + `?mode=walk&ui=0&hud=0&start=1&grain=0&w=${W}&h=${H}`, { waitUntil: 'load', timeout: 180000 });
+    await page.waitForFunction('window.__READY === true', { timeout: 180000, polling: 100 });
+    r.name = (await page.evaluate(() => window.__mirage.built.plan.name)) + (CONTROL ? ' (control)' : ' (native)');
+    const name = r.name.split(' ')[0], C = CASES[name] || { walks: [] }, tag = name + (CONTROL ? '-control' : '-native');
+    const game = await page.evaluate(() => !!window.__mirage.g);
+    // no layout: the buttons exist but take no space and are never pressed; the session comes from offerSession
+    await page.waitForFunction(() => window.__mirage.xr.offered, { timeout: 15000 }).catch(() => {});
+    const pre = await page.evaluate(() => {
+      const xr = window.__mirage.xr, b = xr.buttons['immersive-vr'], box = b ? b.getBoundingClientRect() : null;
+      return { offered: xr.offered, offers: xr.offers, text: xr.text, button: box ? [box.width, box.height] : null, presenting: xr.presenting };
+    });
+    check(r, 'no DOM layout: the Enter VR button takes no space; the page offers the session (navigator.xr.offerSession)', pre.offered && !pre.presenting && (!pre.button || pre.button[0] === 0), pre);
+    check(r, CONTROL ? 'control: canvas labels (detection fooled: OffscreenCanvas draws text)' : 'labels use the built-in glyphs (Canvas 2D fillText draws nothing here)', pre.text === (CONTROL ? 'canvas' : 'glyphs'), { text: pre.text });
+    const f0 = await page.evaluate(() => window.__mirage.xr.stats.frames);
+    await page.evaluate(() => window.__iwer.grantOfferedSession());   // the platform's Enter VR (a native host: on launch)
+    await page.waitForFunction((f0) => window.__mirage.xr.mode === 'vr' && window.__mirage.xr.stats.frames > f0 + 10, { timeout: 30000, polling: 50 }, f0);
+    const s0 = await page.evaluate(() => window.__mirage.xr.state());
+    check(r, 'the offered session starts with no click: VR presenting', s0.presenting && s0.mode === 'vr', { size: s0.size });
+
+    // hands: iwer's emulated hands instead of the controllers (Quest hand tracking)
+    await page.evaluate(() => { const d = window.__iwer; d.primaryInputMode = 'hand'; for (const h of [d.hands.left, d.hands.right]) { h.poseId = 'default'; h.updatePinchValue(0); } });
+    await sleep(500);
+    const hs = await page.evaluate(() => window.__mirage.xr.state().hands);
+    check(r, 'hands tracked (iwer hand emulation): joints read, no controller', hs.filter((h) => h.hand && h.tracked).length === 2, { hands: hs });
+    const right = hs.findIndex((h) => h.handedness === 'right');
+    const pinch = async (v) => { await page.evaluate((v) => window.__iwer.hands.right.updatePinchValue(v), v); await frames(page, 4); };
+
+    if (game && C.interact) {
+      const I = C.interact;
+      const at = await page.evaluate((id) => { const g = window.__mirage.g; return g.game.where(g.game.entities.get(id)); }, I.id);
+      const eye = I.eye.slice(); const gy = await page.evaluate((x, z) => window.__mirage.play.grid.groundAt(x, z), eye[0], eye[2]); eye[1] = gy + 1.62;
+      await page.evaluate((e, l) => window.__mirage.xr.place(e, l), eye, at);
+      const pitch = Math.atan2(at[1] - (gy + 1.6), Math.hypot(at[0] - eye[0], at[2] - eye[2]));
+      await page.evaluate((p) => window.__iwer.quaternion.set(Math.sin(p / 2), 0, 0, Math.cos(p / 2)), pitch);
+      await sleep(600);
+      const p = await page.evaluate(() => window.__mirage.xr.state());
+      const file = path.join(OUT, `${tag}-prompt.png`);
+      r.shots.push({ file: path.basename(file), ...(await shot(page, file)) });
+      const lp = await labelPixels(page, file);
+      check(r, CONTROL ? `control: the prompt over "${I.id}" shows no text (fillText draws nothing; the pixel check must fail)` : `the prompt over "${I.id}" shows its text in the eye image (glyphs; pixel check)`,
+        CONTROL ? p.near === I.id && lp.visible && !textShows(lp) : p.near === I.id && /^Pinch: /.test(p.prompt || '') && textShows(lp), { prompt: p.prompt, ...lp });
+      if (!CONTROL) {
+        await pinch(1); await pinch(0); await sleep(300);
+        const st = await page.evaluate(() => { const g = window.__mirage.g; return { inventory: g.game.inventory.items.map((i) => i.id), panel: window.__mirage.xr.state().panel }; });
+        r.shots.push({ file: `${tag}-after-pinch.png`, ...(await shot(page, path.join(OUT, `${tag}-after-pinch.png`))) });
+        check(r, `a pinch interacts (the trigger's job): ${I.want}; the toast on the panel`, I.flag(st) && !!st.panel, st);
+      }
+      await page.evaluate(() => window.__iwer.quaternion.set(0, 0, 0, 1));
+      await sleep(200);
+    }
+
+    // point, then pinch: teleport along the index finger
+    if (C.teleport && !CONTROL) {
+      const eye = C.teleport.eye.slice(), look = C.teleport.look.slice();
+      if (eye[1] === 0) { const g = await page.evaluate((x, z) => window.__mirage.play.grid.groundAt(x, z), eye[0], eye[2]); eye[1] = g + 1.62; look[1] = g + 1.62; }
+      await page.evaluate((e, l) => window.__mirage.xr.place(e, l), eye, look);
+      await page.evaluate(() => { const h = window.__iwer.hands.right; h.poseId = 'point'; h.quaternion.set(0, 0, 0, 1); });
+      await sleep(300);
+      // turn the hand so the index points ahead and 30 degrees down (three's joints are in the reference space)
+      await page.evaluate((i) => {
+        const { world } = window.__mirage, THREE = world.ctx.THREE, J = world.renderer.xr.getHand(i).joints;
+        const dir = J['index-finger-tip'].position.clone().sub(J['index-finger-phalanx-proximal'].position).normalize();
+        const want = new THREE.Vector3(0, -Math.sin(0.52), -Math.cos(0.52)), q = new THREE.Quaternion().setFromUnitVectors(dir, want);
+        const h = window.__iwer.hands.right, hq = new THREE.Quaternion(h.quaternion.x, h.quaternion.y, h.quaternion.z, h.quaternion.w).premultiply(q);
+        h.quaternion.set(hq.x, hq.y, hq.z, hq.w);
+      }, right);
+      await sleep(500);
+      const before = await page.evaluate(() => window.__mirage.xr.state());
+      r.shots.push({ file: `${tag}-hand-aim.png`, ...(await shot(page, path.join(OUT, `${tag}-hand-aim.png`))) });
+      await pinch(1);
+      await sleep(300);
+      const after = await page.evaluate(() => window.__mirage.xr.state());
+      await pinch(0);
+      const t = before.teleport, hop = Math.hypot(after.walker[0] - before.walker[0], after.walker[2] - before.walker[2]);
+      const onTarget = t.target && Math.hypot(after.walker[0] - t.target[0], after.walker[2] - t.target[2]) < 0.3;
+      check(r, 'point aims the arc from the index finger; pinch teleports there', t.aiming && t.by === 'hand' && t.valid && onTarget && hop > 1.5 && !after.teleport.aiming,
+        { aim: t, before: before.walker, after: after.walker, hop: +hop.toFixed(2) });
+    }
+    await page.evaluate(() => window.__mirage.xr.exit());
+    await page.waitForFunction(() => !window.__mirage.xr.presenting, { timeout: 10000 });
+    await sleep(300);
+    const again = await page.evaluate(() => ({ offered: window.__mirage.xr.offered, offers: window.__mirage.xr.offers }));
+    check(r, 'after the session ends the page offers again', again.offered && again.offers >= 2, again);
+    const noise = errors.filter((e) => !/fillText|roundRect/.test(e));
+    check(r, 'no console errors', noise.length === 0, noise.length ? { errors: noise.slice(0, 5) } : undefined);
+  } finally {
+    await browser.close();
+    srv.close();
+  }
+  report.worlds.push(r);
+}
+
+// ---- --alloc: what a steady VR frame allocates (see the usage at the top)
+async function alloc(dir) {
+  const srv = await serve(dir);
+  const browser = await launch({ w: W, h: H });
+  try {
+    const page = await browser.newPage();
+    await page.evaluateOnNewDocument(INSTALL);
+    await page.setViewport({ width: W, height: H, deviceScaleFactor: 1 });
+    await page.goto(srv.url + `?mode=walk&ui=0&hud=0&start=1&grain=0&w=${W}&h=${H}`, { waitUntil: 'load', timeout: 180000 });
+    await page.waitForFunction('window.__READY === true', { timeout: 180000, polling: 100 });
+    const name = await page.evaluate(() => window.__mirage.built.plan.name);
+    // createXR's lines in an unminified bundle: from xrSupport to createXR's closing brace (+ glyphs.js, xr-hands.js)
+    const regions = [];
+    for (const f of fs.readdirSync(path.join(dir, 'assets')).filter((f) => f.endsWith('.js'))) {
+      const L = fs.readFileSync(path.join(dir, 'assets', f), 'utf8').split('\n');
+      const find = (re, from = 0) => { for (let i = from; i < L.length; i++) if (re.test(L[i])) return i; return -1; };
+      const close = (i) => find(/^}$/, i);
+      const a = find(/^async function xrSupport\(/), cx = find(/^function createXR\(/);
+      if (a >= 0 && cx >= 0) regions.push({ file: f, name: 'xr.js', from: find(/^const TM = /) >= 0 ? find(/^const TM = /) : a, to: close(cx) });
+      const g0 = find(/^const FONT = /), g1 = find(/^const resetCanvasTextCheck/);
+      if (g0 >= 0 && g1 >= 0) regions.push({ file: f, name: 'glyphs.js', from: g0, to: g1 });
+      const h0 = find(/^const HAND_JOINTS = /), h1 = find(/^function createHandGesture\(/);
+      if (h0 >= 0 && h1 >= 0) regions.push({ file: f, name: 'xr-hands.js', from: h0, to: close(h1) });
+    }
+    await enterXR(page, 'immersive-vr');
+    const sp = await page.evaluate(() => window.__mirage.built.plan.spawn);
+    await page.evaluate((e, l) => window.__mirage.xr.place(e, l), sp.eye, sp.look);
+    // warm up (10 s of frames) so the frame's functions run optimised, as they do a few seconds into a session
+    // (unoptimised code boxes every intermediate double: that would be measured instead of the code's own garbage)
+    await frames(page, 600);
+    const cdp = await page.target().createCDPSession();
+    await cdp.send('HeapProfiler.enable');
+    const out = { name, dir, frames: AF, regions: regions.map((g) => `${g.name} ${g.file}:${g.from + 1}-${g.to + 1}`), phases: {} };
+    for (const phase of ['standing', 'walking']) {
+      if (phase === 'walking') { await ctl(page, 'left', 'updateAxes', 'thumbstick', 0, -1); await sleep(300); }
+      await cdp.send('HeapProfiler.collectGarbage');
+      await page.tracing.start({ categories: ['devtools.timeline', 'v8'] });
+      const t0 = await page.evaluate(() => ({ f: window.__mirage.xr.stats.frames, t: performance.now() }));
+      await cdp.send('HeapProfiler.startSampling', { samplingInterval: 256, includeObjectsCollectedByMajorGC: true, includeObjectsCollectedByMinorGC: true });
+      await frames(page, AF);
+      const { profile } = await cdp.send('HeapProfiler.stopSampling');
+      const t1 = await page.evaluate(() => ({ f: window.__mirage.xr.stats.frames, t: performance.now() }));
+      const trace = JSON.parse(Buffer.from(await page.tracing.stop()).toString("utf8"));
+      const n = t1.f - t0.f;
+      const byScript = {}, byFn = {}, byRegion = {};
+      let total = 0;
+      (function walk(node) {
+        const cf = node.callFrame, sz = node.selfSize;
+        if (sz) {
+          total += sz;
+          const file = cf.url ? cf.url.split('/').pop() : '(no url: iwer and other injected code, natives)';
+          byScript[file] = (byScript[file] || 0) + sz;
+          const reg = regions.find((g) => cf.url.endsWith(g.file) && cf.lineNumber >= g.from && cf.lineNumber <= g.to);
+          const key = `${cf.functionName || '(anonymous)'} ${reg ? reg.name : file}:${cf.lineNumber + 1}`;
+          byFn[key] = (byFn[key] || 0) + sz;
+          if (reg) byRegion[reg.name] = (byRegion[reg.name] || 0) + sz;
+        }
+        for (const c of node.children) walk(c);
+      })(profile.head);
+      const gcs = { minor: 0, major: 0 };
+      for (const e of trace.traceEvents) { if (e.name === 'MinorGC' && e.ph !== 'E') gcs.minor++; else if (e.name === 'MajorGC' && e.ph !== 'E') gcs.major++; }
+      const per = (b) => Math.round(b / n);
+      out.phases[phase] = {
+        frames: n, seconds: +((t1.t - t0.t) / 1000).toFixed(2), bytesPerFrame: per(total),
+        createXR: Object.fromEntries(Object.entries(byRegion).map(([k, v]) => [k, per(v)])),
+        byScript: Object.fromEntries(Object.entries(byScript).sort((a, b) => b[1] - a[1]).map(([k, v]) => [k, per(v)])),
+        top: Object.entries(byFn).sort((a, b) => b[1] - a[1]).slice(0, 15).map(([k, v]) => [k, per(v)]),
+        topCreateXR: Object.entries(byFn).filter(([k]) => regions.some((g) => k.includes(' ' + g.name + ':'))).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([k, v]) => [k, per(v)]),
+        gcs,
+      };
+      console.log('alloc', name, phase, JSON.stringify(out.phases[phase]));
+    }
+    await ctl(page, 'left', 'updateAxes', 'thumbstick', 0, 0);
+    await page.evaluate(() => window.__mirage.xr.exit());
+    report.alloc = report.alloc || [];
+    report.alloc.push(out);
+  } finally {
+    await browser.close();
+    srv.close();
+  }
+}
+
+const only = flag('perf-only', false) || flag('native-only', false) || flag('alloc-only', false);
+if (!only) for (const t of targets) await run(t);
+if (NATIVE || CONTROL) for (const t of targets) await native(t);
+if (ALLOC) for (const t of targets) await alloc(t);
 if (PERF) for (const t of targets) await perf(t);
 fs.writeFileSync(path.join(OUT, 'xr-check.json'), JSON.stringify(report, null, 1));
 console.log(`xr-check: ${report.worlds.reduce((n, w) => n + w.checks.length, 0)} checks, ${failed} failed; ${path.join(OUT, 'xr-check.json')}`);

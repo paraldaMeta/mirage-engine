@@ -31,6 +31,14 @@ browser nothing changes: no buttons, the same context, the same image (checked b
 | trigger (either hand) | a game's interact (E); closes a game message ("Continue") |
 | walking around the room | moves the walker too, through the same collisions: at a wall the view is pushed back |
 
+Hands (tracked hands, controllers put down; `hands: false` turns this off):
+
+| | |
+|---|---|
+| pinch (thumb tip to index tip) | the trigger: a game's interact; closes a game message. Prompts then say **Pinch** |
+| point with the index (other fingers curled), then pinch | point: after 0.15 s the teleport arc follows the index finger; curl the index onto the thumb within 0.6 s: teleport there |
+| the index finger | a short ray from its tip, along the finger |
+
 AR: the world appears on the floor about a metre in front of you (on the hit-tested surface where the device offers
 hit testing; the ring shows where); the trigger puts it where the ring is, the right stick turns it (x) and scales it
 (y). `arSize` (default 0.9 m) is the model's largest side.
@@ -70,6 +78,14 @@ the shadow map reused, points left out), read back through a pixel-pack buffer a
 Not reproduced: SSAO, sharpening, grain, the screen vignette, depth of field, `post.sky`; shadows are one sample (no
 soft sub-frame shadows); anti-aliasing is the headset framebuffer's 4× MSAA (no TAA).
 
+**The frame allocates almost nothing in createXR's code.** The XR frame reuses its objects: the merged stick input,
+the shadow region and `renderDirect`'s options, the grade written straight into `XR_GRADE`, the meter's mean, the
+teleport arc's grid queries (no `[floor, ceil]` arrays), labels compared field by field instead of a string key per
+frame, the frame's numbers on an object (a double in a closure variable is a new heap number at every write), and a
+game's DOM toasts read ten times a second instead of every frame. Measured with `mirage-xr-check --alloc` (below):
+createXR's own code went from about 2 KB to about 0.1 KB per frame. The rest of the frame's garbage is three.js's
+renderer, the walker and the emulator (numbers below), not touched here.
+
 **MSAA**: three gives the XR framebuffer multisampling only when the canvas context has it, and Mirage's context
 had none (the pipeline does its own MSAA). `createWorldRenderer({ xr: true })` makes the context multisampled and
 XR-compatible; examples pass `xrs.vr || xrs.ar`, so desktops keep the old context. Without it XR still works,
@@ -86,6 +102,46 @@ culling is off while presenting (three's stereo culling frustum mixes the scaled
 near / far and culled what was in view). The world is a viewer's model in AR: the walker and a game's simulation
 do not step.
 
+## Hands
+
+`createXR` asks for the `hand-tracking` feature and reads three's hand joints (`renderer.xr.getHand(i)`, the
+reference space, not added to the scene). The gestures are pure functions of the 25 joints
+(`packages/play/src/xr-hands.js`): **pinch** is thumb tip to index tip under 2 cm (released over 4 cm, so
+tracking jitter at the threshold makes one pinch, not several); **point** is the index straight (its chord over 90 %
+of its bone lengths) and reaching out (tip 1.5 times further from the wrist than its knuckle) with the middle and ring
+fingers curled (tips under 1.15 times their knuckles' distance). The thresholds were read off Meta's captured hand
+poses in iwer: relaxed hand pinch 9.4 cm, `pinch` 0.2 cm, `ok` 1.3 cm; `point` index 1.00 / 1.84 with middle 0.89 and
+ring 0.76, a fist's index 0.40 / 0.71. A held point aims (0.15 s); curling the index into a pinch within 0.6 s of
+aiming teleports to the target frozen when the finger started to move, so the curl does not drag the aim. A pinch
+otherwise is the trigger (`select` events from a hand are ignored, so a pinch does not act twice). Both hands work,
+one teleport at a time. Not done: two-hand gestures, snap turn or walking by gesture, the palm-up system menu.
+
+## Native hosts: no browser, no DOM
+
+A WebXR page can run without a browser: Srile/webxr-to-native (MIT) runs a three.js build natively on Quest (V8,
+WebGL 2 bound to GLES, WebXR through IWER in host mode). Its source shows what such a host does not have: no
+layout engine (the page's HTML is never drawn: no Enter VR button), no `Intl`, and a Canvas 2D subset whose
+`fillText` / `strokeText` draw nothing and that has no `roundRect` (`runtime/src/images/canvas2d.js`); it enters XR
+through `navigator.xr.offerSession`, granted at once when its `host.json` sets `xr.autoEnter`. So:
+
+- **offerSession.** Where `navigator.xr.offerSession` exists, `createXR` offers the session once support is known
+  (`offer: true`, the default; `'immersive-ar'` offers AR; `false` never offers) and again after each session ends.
+  Quest Browser shows its own Enter VR for it; a native host starts the session. `autoEnter: true` (or a mode)
+  offers even with `offer: false`, and where there is no offerSession requests the session right away (a browser
+  may refuse that without a click: the buttons stay). Desktop browsers have no offerSession: nothing changes there.
+- **No DOM needed.** The buttons are made only where there is a `document` with a body; nothing else in the XR
+  path touches layout (a game's toasts are mirrored from its DOM when it has one).
+- **Text without Canvas 2D.** The prompt and the panel draw with Canvas 2D where it draws text, and otherwise with a
+  built-in glyph font (`packages/play/src/glyphs.js`; `text: 'auto'`, `'canvas'` or `'glyphs'`): printable ASCII on
+  a 5 x 9 grid drawn for Mirage (`packages/play/scripts/glyph-font.mjs` is its source; 855 bytes encoded), sampled
+  bilinearly and cut at a threshold with a one-pixel smoothstep, so the outline is smooth at any size; the panel and
+  key chip are signed-distance rounded rectangles; the result is a DataTexture (no canvas, no document). `auto` tests
+  once whether a 'M' filled on a 32 x 32 canvas leaves pixels. Other characters fold to ASCII without `Intl` (é to
+  e, curly quotes to straight, a dash to '-') or show as '?'.
+- **Multiview: not used.** webxr-to-native and Quest Browser offer `OVR_multiview2`, but three 0.186's
+  `WebGLRenderer` has no multiview path (only the WebGPU renderer does): each eye is a separate view of one draw
+  per object, so draw calls are doubled. A known limit; not attempted.
+
 ## Games
 
 `createXR(g.play, { game: g })`: the trigger taps the game's `interact` action (the same `input.tap` the touch
@@ -99,6 +155,8 @@ closes a message. Entering VR passes the start screen. Pages without a game can 
 ```sh
 npm run build:examples
 node packages/tools/src/xr-check.mjs examples/hello-courtyard/dist examples/garden-quest/dist [--out dir] [--perf]
+node packages/tools/src/xr-check.mjs examples/garden-quest/dist examples/hello-courtyard/dist --native-only   # a native host
+node packages/tools/src/xr-check.mjs <an unminified dist> --alloc-only                                    # garbage per frame
 node packages/tools/src/xr-fit.mjs examples/*/dist        # refit XR_FIT
 ```
 
@@ -115,6 +173,20 @@ desktop still before and after the sessions bit-identical (skipped where the sce
 snow-hut's snowfall); no console errors. `--perf` adds a short session at two 1680 × 1760 eyes and times
 `renderDirect` (CPU + GPU to a 1-pixel readback, and GPU time from `EXT_disjoint_timer_query_webgl2`).
 
+`--native` opens each world again as a native host shows it: `fillText` / `strokeText` do nothing, `roundRect` is
+gone (Canvas 2D and OffscreenCanvas), and everything but the canvas is `display: none`. It checks that the button
+takes no space and the page offers a session; granting the offer (as the platform would) starts VR with no click;
+the labels use the glyphs; with iwer's emulated hands (`primaryInputMode = 'hand'`) both hands are tracked, the
+prompt over garden-quest's key reads "Pinch: Pick up the key" **and its text is visible in the eye image** (the
+prompt sprite projected through the left eye, then over the text part of the label: panel-dark pixels, light
+pixels and dark-to-light edges along a row), a pinch picks the key up, pointing aims the arc from the index finger
+and a pinch teleports onto its target; after the session the page offers again. `--native-control` is the
+negative control: only the page's Canvas 2D loses its text (OffscreenCanvas keeps it, so the detection is fooled and
+canvas labels are used): the same pixel check must then find no text. `--alloc` takes a heap sample over 300 steady
+VR frames (after 600 to warm up), standing and walking, objects collected by minor and major GCs included, and counts
+the GCs in a trace of the same frames; build the example with `vite build --minify false` to see functions and
+createXR's own share.
+
 ### Results (2026-11-10, Apple M4 Pro, Chrome headless, iwer 2.8.0 as a Quest 3)
 
 All seven examples: 84 checks, 0 failed (`docs/media/xr/xr-check.json`). The walks and their desktop replays:
@@ -125,6 +197,19 @@ All seven examples: 84 checks, 0 failed (`docs/media/xr/xr-check.json`). The wal
 | hello-courtyard | through the gate (z > 8.6) | z = 9.75 | same |
 | hello-courtyard | into the basin rim (z ≈ 2.15) | z = 2.125, blocked 85 frames | same |
 | garden-quest (Rapier character) | up the terrace stairs to the locked door | y 1.67 → 3.67, z = −20.6, blocked 66 frames | same |
+
+Native-host mode and hands (`--native`, 2026-11-10): hello-courtyard, walled-garden and garden-quest start VR from
+the offered session with no button, labels in glyphs; garden-quest's prompt "Pinch: Pick up the key" shows in the eye
+image (text area 81 x 9 px: 59 % panel-dark, 23 % light, 14 edges along a row; the canvas label in the normal run
+58 % / 22 % / 13; the negative control 100 % / 0 % / 0), a pinch picks up the key, point-then-pinch teleports 2.7 m
+(garden-quest) and 2.4 m (hello-courtyard) onto the arc's target. With the normal run: 67 checks, 0 failed.
+
+Garbage per VR frame (`--alloc`, unminified builds, 300 frames after 600 to warm up, two interleaved runs, before /
+after this change): createXR's own code 1988-2085 / 163-195 bytes; the whole frame 77.9-78.9 / 76.5-79.8 KB
+(hello-courtyard) and 102.6-108.4 / 100.6-104.7 KB (garden-quest); minor GCs per 300 frames 14-31 both before and
+after. Most of the rest: three's `WebGLPrograms.getParameters` (about 15 KB: a transparent double-sided material is
+drawn back then front, and three sets `needsUpdate` for each side, e.g. hello-courtyard's soot decals), its uniform
+setters, the walker's `fits` and the emulator itself.
 
 Snap turn: +30.00° per push. Teleport: hello-courtyard 4.9 m onto the court, garden-quest 4.9 m along the path,
 both landing on the arc's target and on the ground. garden-quest: the prompt "Trigger: Pick up the key" floats over
@@ -165,12 +250,16 @@ been measured on a headset. Evidence images: `docs/media/xr/`.
 
 ## Limits
 
-- Not tried on a real headset yet: everything above ran in the emulator. Hit testing was not exercised (iwer needs
+- Not tried on a real headset yet: everything above ran in the emulator, and the native-host mode is an emulation
+  of webxr-to-native's limits read from its source, not a run inside it. Hit testing was not exercised (iwer needs
   its synthetic-environment module for it; the floor fallback was), nor real controller layouts beyond Quest Touch,
   `layers` (three's projection layer path), real foveation, or the frame rate at 72–120 Hz on mobile GPUs.
+- No multiview: three 0.186's WebGLRenderer draws each eye as its own view (two draw calls per object), though
+  Quest Browser and webxr-to-native offer `OVR_multiview2`. Not attempted.
 - A game's DOM UI (pause menu, inventory, save / load, settings) is not reachable in the headset; messages and toasts
   are mirrored, the menu is not. Exit VR to use it.
-- No hand tracking input (hands show nothing; pinch is not select), no controller models from the WebXR input
+- Hands: pinch and point-then-pinch only (no walking, turning or menu by gesture); the hands are not drawn, only the
+  index ray; tested on iwer's emulated hands and on Meta's captured poses, not on real tracking. No controller models from the WebXR input
   profiles (simple shapes instead, nothing is fetched from a CDN), no fly / game / orbit modes in VR (walk only).
 - Seated play gets a low head: there is no height calibration.
 - First entry compiles the XR variants of the materials (a pause on entering); a running clock (`?clock=`) keeps
@@ -186,6 +275,7 @@ anchors, shared rooms, spatial UI cards and head-follow HUDs, spatial audio, Gau
 visionOS targets. Mirage now matches the locomotion set (teleport with validation, snap / smooth turn, vignette,
 lazy head-follow panels) and goes beyond it where Mirage is strong: locomotion is the same collision walker and
 physics character as on the desktop (proved frame for frame), and the XR image is graded to match the desktop
-pipeline (measured per example). Not matched: hand tracking and gestures, gaze input, world understanding (planes,
+pipeline (measured per example). Partly matched since: hand tracking (pinch, point-and-pinch teleport; no gesture
+classification beyond those). Not matched: gaze input, world understanding (planes,
 meshes, depth occlusion), anchors and persistence, multi-user, spatial audio in XR beyond the game's own listener,
 iOS / non-WebXR fallbacks.

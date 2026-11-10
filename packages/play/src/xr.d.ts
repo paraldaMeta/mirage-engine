@@ -55,16 +55,36 @@ export interface XROptions {
   meter?: boolean;
   /** Shadow region radius around the view (m). Default 22. */
   shadowRadius?: number;
-  /** Called on a controller's select (trigger) in VR. */
+  /** Called on a controller's select (trigger) or a tracked hand's pinch in VR. */
   onSelect?: (handedness: string) => void;
   /** An in-world prompt for pages without a game (shown in front of the view; null hides it). */
   prompt?: () => string | null;
+  /** Where navigator.xr.offerSession exists (Quest Browser, native WebXR hosts), offer this session so the platform
+   *  can start it without a DOM button; offered again after each session. true = 'immersive-vr'. Default true
+   *  (nothing happens where offerSession is missing: desktop browsers). */
+  offer?: boolean | XRMode;
+  /** Start a session as soon as support is known: through offerSession where it exists (a host with
+   *  xr.autoEnter grants it at once), else requestSession (a browser may refuse it without a user gesture; the
+   *  buttons stay). true = 'immersive-vr'. Default false. */
+  autoEnter?: boolean | XRMode;
+  /** Hand tracking: pinch is the trigger, point with the index to aim the teleport, pinch to go; the ray comes from
+   *  the index finger. Asks for the 'hand-tracking' feature. Default true (inert without tracked hands). */
+  hands?: boolean;
+  /** Thresholds of the hand gestures (packages/play/src/xr-hands.js HAND_GESTURE). */
+  handGesture?: Partial<{ pinchOn: number; pinchOff: number; pointHold: number; armWindow: number; straight: number; reach: number; curl: number }>;
+  /** How labels draw text: 'canvas' (Canvas 2D), 'glyphs' (the built-in glyph font into a DataTexture, no canvas or
+   *  document needed), or 'auto' (glyphs where Canvas 2D draws no text, e.g. a native host). Default 'auto'. */
+  text?: 'auto' | 'canvas' | 'glyphs';
 }
 export interface XRState {
   presenting: boolean; mode: 'vr' | 'ar' | null; rigYaw: number; rig: [number, number, number]; scale: number;
   head: [number, number, number]; yaw: number; walker: [number, number, number]; onGround: boolean; blocked: boolean;
-  teleport: { aiming: boolean; valid: boolean; target: [number, number, number] | null };
+  teleport: { aiming: boolean; valid: boolean; target: [number, number, number] | null; by: 'stick' | 'hand' | null };
   prompt: string | null; panel: string | null; near: string | null; vignette: number;
+  /** How the labels draw text. */
+  text: 'canvas' | 'glyphs';
+  /** Per input slot: a tracked hand (not a controller) and its gesture state. */
+  hands: { handedness: string; hand: boolean; tracked: boolean; pinching: boolean; pointing: boolean; aiming: boolean }[];
   ar: { placed: boolean; scale: number; hit: boolean; hitTest: boolean }; frames: number; size: [number, number];
   /** The meter's mean radiance of the view (linear rgb), null before the first reading. */
   meter: [number, number, number] | null;
@@ -88,6 +108,12 @@ export interface MirageXR {
   place(eye: XYZ, look: XYZ): void;
   /** Tests: an array receives one record per VR frame. */
   trace: XRTraceRecord[] | null;
+  /** How the in-headset labels draw text. */
+  readonly text: 'canvas' | 'glyphs';
+  /** A navigator.xr.offerSession is pending (the platform may start the session); offers made so far. */
+  readonly offered: boolean; readonly offers: number;
+  /** Tests: the prompt and panel sprites (world space). */
+  labels: { prompt: THREE.Sprite; panel: THREE.Sprite };
   state(): XRState;
 }
 export function createXR<W extends WalkerLike>(play: Play<W>, options?: XROptions): MirageXR;
