@@ -349,13 +349,15 @@ export function createAnimator(root, clips, options = {}) {
     root, parameters: params, clips: clipData, unbound: [...unbound], layers,
     /** functions run after every pose write (IK, look-at): fn(animator) */
     post: [],
+    /** the dt of the last update (post hooks that ease need it) */
+    dt: 0,
     set(name, value) { params[name] = value; return api; },
     get: (name) => params[name],
     trigger(name) { params[name] = true; return api; },
     /** Advance by dt seconds and pose the bones. Returns the root bone's travel in the model's frame (zeros without
      *  rootMotion); the same object every call. */
     update(dt) {
-      move.x = move.y = move.z = move.yaw = 0;
+      move.x = move.y = move.z = move.yaw = 0; api.dt = dt;
       if (fixed) { carry += dt; const n = Math.floor(carry / fixed + 1e-9); carry -= n * fixed; for (let i = 0; i < n; i++) step(fixed); ticks += n; time = ticks * fixed; } else { step(dt); time += dt; }
       evaluate();
       return move;
@@ -380,7 +382,7 @@ export function createAnimator(root, clips, options = {}) {
     weights(layer = 0) { const c = layerOf(layer).cur; return c ? c.state.children.map((cd, i) => [cd.name, c.bw[i]]) : []; },
     on(name, fn) { if (!listeners.has(name)) listeners.set(name, new Set()); listeners.get(name).add(fn); return () => listeners.get(name).delete(fn); },
     /** Pose from one clip at `t` seconds, outside the state machine (timeline scrubbing, thumbnails). */
-    poseClip(name, t, weight = 1) {
+    poseClip(name, t, weight = 1, apply = true) {
       const cd = need(name), tt = cd.loop ? ((t % cd.duration) + cd.duration) % cd.duration : Math.min(Math.max(t, 0), cd.duration);
       if (weight >= 1) pose.set(rest);
       for (const tr of cd.tracks) {
@@ -389,7 +391,7 @@ export function createAnimator(root, clips, options = {}) {
         else if (tr.s.quat) Q.slerpFlat(pose, at, pose, at, v, 0, weight); else for (let k = 0; k < tr.s.n; k++) pose[at + k] += weight * (v[k] - pose[at + k]);
       }
       if (rootPos) { const at = rootPos.at; pose[at] = rest[at]; pose[at + 2] = rest[at + 2]; }
-      write();
+      if (apply) write();
       return api;
     },
     /** back to the bind pose and the start states */

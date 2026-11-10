@@ -65,7 +65,7 @@ function mountPlay(world, opts, life) {
     camera.position.copy(hostCamera.position); camera.quaternion.copy(hostCamera.quaternion);
     camera.updateProjectionMatrix(); camera.updateMatrixWorld();
   });
-  const avatar = createCharacter(world, opts.appearance), figure = avatar.root;
+  const avatar = opts.character ? opts.character(world) : createCharacter(world, opts.appearance), figure = avatar.root;   // opt-in: any Character, e.g. createRigCharacter
   figure.visible = false;
   life.defer(() => avatar.dispose());
   scene.add(figure);
