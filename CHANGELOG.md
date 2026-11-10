@@ -81,6 +81,29 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
   players, 1.7-1.8 ms with 64; p99 tick inside budget up to 128 players at 20 Hz and 64 at 60 Hz. Browser check, 3
   Chrome clients at 150 ms + 5 % loss each way: 0 prediction corrections, positions converge to 1.66 mm. Guide,
   limits and what a public server needs: `docs/multiplayer.md`.
+- @mirage/game: an in-game UI toolkit (`docs/ui.md`; experimental, opt-in; `createUI` is unchanged and the default).
+  `createUIKit` (`@mirage/game/ui-kit`): descriptions as plain data (`h`, `each`, `show`), signals bound one
+  attribute at a time (no diffing), `stack` / `row` / `grid` / `anchor` / `safeArea`, em sizes that follow the screen
+  and a text-scale setting, four token themes (dark, light, contrast, colour-blind-safe), reduced motion. Widgets
+  (`ui-widgets`): button, toggle, slider, select, tabs, text input, progress, health / stamina bar, tooltip,
+  virtualised list, drag-and-drop inventory grid, minimap frame, objective tracker, rebinding list, and modal stack,
+  dialogue (typewriter by grapheme, choices), toasts and radial menu services. `createFocusNav`: spatial focus for
+  keyboard and gamepad, focus trapped in modals, glyphs that follow the last device used and a rebind.
+  `createI18n` with English, Traditional Chinese and Arabic tables: plurals, ordinals, numbers and dates through
+  `Intl`, a runtime language switch, RTL, CJK line breaking. `createWorldUI`: labels, markers and health bars at 3D
+  points with distance fade and ray occlusion, `transform` and `opacity` writes only. `createCanvasUI`: a subset of
+  the widgets drawn into a texture for screens in the world and XR. `createKitUI` (`ui-menu`): the start screen and
+  pause menu on the toolkit, through `startGame`'s `ui: (o) => createKitUI(o)`; snow-hut `?ui=kit`. Demo:
+  `examples/demos/ui/`. Measured there in headless Chrome, 1280 x 720, median (min-max) of 5 interleaved rounds of
+  180 frames: with the HUD idle 0.000 layouts a frame; with the camera orbiting (labels, minimap, a distance
+  read-out) 0.111 layouts a frame (0.017 ms); UI work 0.139 (0.108-0.147) ms a frame, the frame callback 0.277
+  (0.229-0.323) ms against 0.133 (0.112-0.182) with the HUD hidden and 0.141 (0.122-0.179) without the toolkit.
+  Worst text contrast per theme 7.73 / 4.88 / 10.50 / 7.67; the colour-blind theme's good and bad colours stay
+  74.0 dE apart under simulated dichromacy (the default theme's 10.3). Sources 2 428 lines, about 64 KB gzip in all
+  as separate modules; a game that does not import them is unchanged: hello-courtyard, river-ford, walled-garden
+  and woodland-path build byte-identical, garden-quest +12 B gzip (one expression in `startGame`), and snow-hut and
+  garden-quest stills are pixel-identical with it off. `node packages/game/ui.check.mjs` (in `npm test`) and
+  `node examples/demos/ui/ui-check.mjs` (keyboard, touch, scripted gamepad, languages, layout counts, the menu).
 - @mirage/play: NPC navigation on the walk grid (`createNavGrid`, `createNavAgent`, `createNavCrowd`; experimental,
   opt-in). No navmesh: per-radius fit bits from the walker's own disc / step / head-room test (equal to the walker
   on every floor of the node checks' grids and on 20 000 of 20 000 random floors of walled-garden), coarse A* (4 x 4

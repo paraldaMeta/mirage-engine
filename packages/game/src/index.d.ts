@@ -11,6 +11,12 @@ export { createMusic } from './audio-music.js';
 export { gridOccluder, physicsOccluder, sceneOccluder } from './audio-occlusion.js';
 export { createAudioDebug, audioStatsText } from './audio-debug.js';
 export { REVERBS, impulseResponse, encodeWav, decodeWav, distanceGain, coneGain, dopplerRatio, occlusionResponse, dbToGain, gainToDb, rms, peak, toneLevel, onset } from './audio-dsp.js';
+export { createUIKit } from './ui-kit.js';
+export { createI18n } from './ui-i18n.js';
+export { createFocusNav } from './ui-nav.js';
+export { createWorldUI } from './ui-world.js';
+export { createCanvasUI } from './ui-canvas.js';
+export { createKitUI } from './ui-menu.js';
 
 export type { GameSession, GameSetup, StartGameOptions, PlayerSnapshot } from './start.js';
 export type { Physics, PhysicsBody, PhysicsCharacter, DynamicProp, PropState, Hinge, RayHit } from './physics.js';
@@ -25,3 +31,9 @@ export type { Music, MusicOptions, MusicSection, TransitionOptions, Quantize } f
 export type { Occluder } from './audio-occlusion.js';
 export type { AudioDebug } from './audio-debug.js';
 export type { DistanceModel, DistanceOptions, RolloffCurve, ReverbParams, ReverbPreset, ReverbSpec } from './audio-dsp.js';
+export type { UIKit, UIKitOptions, Description, Component, ThemeTokens } from './ui-kit.js';
+export type { I18n, StringTable } from './ui-i18n.js';
+export type { FocusNav, FocusNavOptions } from './ui-nav.js';
+export type { WorldUI, WorldItem } from './ui-world.js';
+export type { CanvasUI, CanvasNode } from './ui-canvas.js';
+export type { KitUIOptions } from './ui-menu.js';

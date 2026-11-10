@@ -216,6 +216,12 @@ Gaussian splats, `@mirage/world/kits/splat` (opt-in subpath, world README "Gauss
 | `peak(samples, from, to)` | experimental | largest absolute sample (checks) |
 | `toneLevel(samples, sampleRate, freq)` | experimental | amplitude of one frequency in samples (Goertzel; checks) |
 | `onset(samples, level)` | experimental | index of the first sample at or over a level (checks) |
+| `createUIKit(opts)` | experimental | the UI toolkit on the DOM: reactive descriptions, layout, themes, layers (`docs/ui.md`; widgets in `@mirage/game/ui-widgets`) |
+| `createI18n({ locale, tables })` | experimental | string tables, plurals and formats through `Intl`, runtime language switch, direction and font stack |
+| `createFocusNav({ root, input })` | experimental | spatial focus for keyboard and gamepad, focus scopes, last-used device |
+| `createWorldUI({ kit, camera })` | experimental | labels, markers and health bars anchored to 3D points, with occlusion and distance fade |
+| `createCanvasUI({ description })` | experimental | a widget panel drawn into a texture, for screens in the world and XR |
+| `createKitUI(opts)` | experimental | `createUI`'s overlay rebuilt on the toolkit: pass as `startGame`'s `ui` |
 
 ## @mirage/net
 
