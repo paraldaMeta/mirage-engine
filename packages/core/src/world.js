@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { createEnv } from './env.js';
 import { installFog, FOG } from './fog.js';
-import { createSky, createSkyUniforms } from './sky.js';
+import { createSky, createSkyUniforms, createSkyLut } from './sky.js';
 import { createStars } from './stars.js';
 import { skyState, lightAt } from './daynight.js';
 import { Pipeline, DEFAULT_POST } from './post.js';
@@ -65,6 +65,7 @@ export function createWorldRenderer(config = {}) {
   scene.fog = new THREE.FogExp2(0x8899aa, fogCfg.density);   // FogExp2 switches on Mirage's aerial perspective
   const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 2000);
   const skyU = createSkyUniforms();
+  const skyLut = createSkyLut(renderer, skyU);   // the sky's air, baked per setTime instead of marched per pixel
   skyU.uCloudCover.value = clouds;
   const sky = createSky(skyU);
   const stars = createStars(skyU);
@@ -109,6 +110,7 @@ export function createWorldRenderer(config = {}) {
     skyU.uNightGlow.value.fromArray(L.nightGlow).multiplyScalar(state.eqToWorld ? 1 : 0);
     skyU.uStarVis.value = L.starVis;
     if (L.eqToWorld) skyU.uEq.value.set(...L.eqToWorld);
+    skyLut.bake();
     G.uLamp.value = L.lamp; G.uSkyLight.value = L.skyLight; G.uNight.value = L.night;
     expTarget = L.exposure;
     if (!ease) { exposure = expTarget; envState = 'instant'; }
@@ -276,7 +278,7 @@ export function createWorldRenderer(config = {}) {
   /** free what this world made on the GPU: geometries, materials (and their programs), the shadow map, the post and
    *  environment targets; and the renderer if the world created it. Take objects you still need out of the scene first. */
   function dispose() {
-    pipeline.dispose(); envLight.dispose();
+    pipeline.dispose(); envLight.dispose(); skyLut.dispose();
     const mats = new Set();
     scene.traverse((o) => { o.geometry && o.geometry.dispose(); for (const m of [].concat(o.material || [])) mats.add(m); });
     for (const m of mats) m.dispose();

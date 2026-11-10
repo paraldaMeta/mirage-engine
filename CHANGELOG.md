@@ -11,6 +11,10 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
 
 **New**
 
+- @mirage/core: the sky's air (Sun and Moon scattering, airglow, the ground below the horizon) is baked per
+  `setTime` into two 512x256 direction tables (`createSkyLut`) instead of being marched 16 steps per pixel. Sky cost
+  at 2880x1800: 1.5-2 ms -> 0.25-0.4 ms (whole frame 11.5 -> 10.0 ms walled-garden, 12.5 -> 10.6 ms garden-quest).
+  Stills at dawn, noon, sunset and night differ from before by at most 2/255.
 - @mirage/core: faster cold start. `world.prepare()` now compiles every program the first frames use in parallel:
   against the pipeline's linear target (three keys programs on the output colour space, so the old screen-target
   compile was thrown away), with and without the environment map, plus the post passes
