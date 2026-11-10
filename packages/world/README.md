@@ -117,11 +117,12 @@ const splats = addSplats(ctx, data, { position: [0, 0, -4], effect: splatEffects
 createPlay(world, { ..., onStep: () => splats.changed() });   // a still view is drawn again when a fresh sort lands
 ```
 
-An opt-in kit (8.8 KB min + gzip, three external; nothing else imports it). Loaders: antimatter15's `.splat`
+An opt-in kit (9.1 KB min + gzip, three external; nothing else imports it). Loaders: antimatter15's `.splat`
 (32 bytes a splat), an uncompressed 3D Gaussian Splatting `.ply` (binary little endian; the view-independent SH0
 colour, higher harmonics ignored) and SOG versions 1-3 (PlayCanvas's `meta.json` + lossless webp: 16-bit log-space
 means, codebooks, quaternions; `shN` ignored). The parsed data (`{ count, center, scale, rot, color }`) is packed into
-one RGBA32UI texture (two texels a splat: centre floats + rgba8, smallest-three rotation + half-float scales).
+one RGBA32UI texture (two texels a splat: centre floats + rgba8, smallest-three rotation + half-float scales; rows up
+to 8192 texels wide, so 33M splats on a GPU with 8192-texel textures, 8.4M with 4096; more throws a RangeError).
 
 `addSplats` draws one instanced quad per splat (128 a draw instance) with one ShaderMaterial, back to front: a
 counting sort on view depth (2^10..2^20 buckets, about eight per visible splat, three quarters spread by a 32-bin

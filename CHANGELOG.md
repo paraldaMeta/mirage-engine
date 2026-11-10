@@ -17,7 +17,7 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
   buckets, still cameras skipped, nothing behind the eye) in a Blob worker with a transferable index buffer, so
   single-file pages work without SharedArrayBuffer / COOP-COEP; culls tiny and off-screen splats before the eigen
   decomposition; AA opacity compensation; effect hooks (centre, rotation / scale, colour) with `reveal` and
-  `dissolve`; an optional depth pass for SSAO / TAA. 8.8 KB min + gzip (three external) vs Spark 2.4's 979 KB and
+  `dissolve`; an optional depth pass for SSAO / TAA. 9.1 KB min + gzip (three external) vs Spark 2.4's 979 KB and
   GaussianSplats3D 0.4.7's 106 KB. Measured (Apple M4 Pro, headless Chrome, 1280x720, TAA, GPU shared with other
   jobs): 1M splats 30 ms a moving frame (p10-p90 21-51; the world alone 2.5 ms; + depth pass 53 ms), worker sort
   10.4 ms mean (max 20), first main-thread sort 16 ms; 1M sort in Node 9 ms. `examples/demos/splats`: a procedural
