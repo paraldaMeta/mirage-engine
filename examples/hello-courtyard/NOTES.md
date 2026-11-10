@@ -64,3 +64,32 @@ frames; `none` = light2 compiled in, every part off):
 (The parts share work: switching off lamp shadows also drops the lamps' in-scatter through the atlas.) A later run
 was disturbed by another GPU job on the machine (every view at 11–13 ms) and is not used. Without `?light2` the
 frames are bit-identical to before (checked on three views). Single file: 2.2 MB with both light2 and the relief.
+
+## Soft sun shadows (contact-hardening; optional)
+`?soft=1` (`&sunAngle=2` for a softer, larger sun; 0.53° is the real one). Walking frames (TAA) get the penumbrae the
+still frames had from the sun-disc jitter: the palm's fronds blur on the paving, the pergola slats sharpen toward the
+posts' feet, the arch-shaped patch of low sun on the north wall has the same soft rim walking and standing.
+
+- **Still against walking** (6 frames: hero / pergola / basin, golden hour and noon; the walking frame after 32 TAA
+  frames of a still camera): pixels more than 16 levels apart 4 400–38 800 without, 62–1 800 with (the rest is
+  geometry anti-aliasing). A plate's shadow edge (10–90 %) at 1 / 3 / 8 m above the ground: 1.2 / 1.8 / 4.4 cm in
+  both kinds of frame, against 1.5 / 2.1 / 4.3 cm for the old stills and ~1.3 cm everywhere for the old walking frames.
+- **Frame cost**, 1440 × 900, 1 sub-frame + TAA, Apple M4 Pro, `quality=high`; in one browser, page A with `?soft=1`
+  toggled live (`world.softShadows.on`), page B without it, the three interleaved in rotating order (8 rounds × 40
+  frames, medians; two quiet runs, a third under another agent's GPU load not used):
+
+  | view | without | on − without | on − off (same page) | off − without |
+  |---|---|---|---|---|
+  | hero, golden hour | 3.2–3.3 ms | 0.63 ms (one run; the other disturbed) | 0.54 | 0.14–0.16 |
+  | pergola, golden hour | 2.9–3.0 | 0.57–0.64 | 0.35–0.36 | 0.22–0.23 |
+  | basin, golden hour | 2.8 | 0.69–0.72 | 0.48 | 0.22–0.24 |
+  | hero, noon | 3.0–3.1 | 0.58–0.67 | 0.43–0.47 | 0.16–0.22 |
+  | pergola, noon | 2.9–3.2 | 0.82–0.85 | 0.55–0.61 | 0.20–0.31 |
+  | basin, noon | 2.8–3.0 | 0.70–0.80 | 0.46–0.50 | 0.22–0.35 |
+
+  With 6 / 4 / 8 taps instead of 8 / 5 / 12: on − off 0.31–0.36 ms (hero, basin at noon). The first version (uniform
+  loop bounds, an indexed array, a sin / cos per tap) cost +1.6–3.2 ms and 1–1.9 ms even switched off.
+- Without `?soft` the frames are bit-identical to before (12 frames: 3 views × golden hour / noon × still / walking,
+  against the parent commit: 0 px). With it, still and walking frames are bit-identical between runs.
+- With `?light2=1` the lamp shadows are unchanged; the Moon's shadows (the key light at night) soften as the Sun's.
+

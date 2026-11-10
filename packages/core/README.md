@@ -48,8 +48,9 @@ requestAnimationFrame(loop);
 | `shadowMapSize`, `mobile`, `preserveDrawingBuffer` | | overrides |
 | `dynamicRes` | off | `true` or `{ target: 60 fps, min: 0.6, step: 0.1 }`: moving frames render smaller when they run over budget (see below) |
 | `light2` | off | `true` or `{ ls, ssr, vol, bloom }` overriding `LIGHT2_DEFAULTS` (each part `false` to drop it): lamp shadows, screen-space reflections, volumetric light, mixed bloom (see below) |
+| `softShadows` | off | `true` or fields overriding `SOFTSHADOW_DEFAULTS`: contact-hardening soft sun shadows, per pixel, in still and walking frames alike (see below) |
 
-Returns `{ renderer, scene, camera, sun, sky, stars, pipeline, ctx, G, keyDir, mat, geom, rng, post, device,
+Returns `{ renderer, scene, camera, sun, sky, stars, pipeline, ctx, G, keyDir, mat, geom, rng, post, device, light2, softShadows,
 light, state, exposure, setTime(time, { ease }), tick(dt), prepare(), renderFrame(T, opts), resize(w, h), dispose(), captureEnv(),
 setAmbientVolumes(list) }`.
 
@@ -136,6 +137,40 @@ All three are off by default; off, frames are bit-identical to before.
   restarts TAA (a brief shimmer). Still frames always render at full size. The interval includes the page's own
   work and the display's refresh: on a 60 Hz display a 60 fps target can only be met, never beaten, so steps up are
   probes.
+## Soft sun shadows (opt-in): `softShadows`
+
+`createWorldRenderer({ ..., softShadows: true })` (or an object: `{ sunAngle: 1.5 }`). Off, nothing is patched and
+a world renders bit-identical to before.
+
+- **What it changes.** Still frames (`spp > 1`) always had soft sun shadows: the sun moves over its disc between
+  the sub-frames. Walking frames (`taa: true`, one sub-frame each) had hard ones. With `softShadows` the sun stays
+  put and each lit pixel finds its own penumbra from the sun's shadow map: sharp where a post meets the ground,
+  wider the further the caster is from what it shades. Still and walking frames then look alike (measured on a
+  plate's shadow edge, 10–90 %: 1.2 / 1.8 / 4.4 cm at 1 / 3 / 8 m above the ground in both, against 1.5 / 2.1 /
+  4.3 cm for the sun-disc stills and ~1.3 cm everywhere for the walking frames before).
+- **How.** A blocker search (the pixel and `blockerSamples` taps on a Vogel disc as wide as the widest penumbra;
+  each blocked tap binary-searches its blocker's distance, `blockerSteps`, in log distance), penumbra = mean blocker
+  distance x 2 tan(`sunAngle` / 2) clamped by `maxPenumbra` (m) and `maxPenumbraTexels`, then `filterSamples` PCF
+  taps over it. Everything goes through three's comparison sampler (no second view of the map, no extra texture
+  unit). Each tap's reference depth follows the receiver's plane (slope clamped by `slopeMax`) against acne; the
+  shadow fades out over `edgeFade` of the map at its edge. The taps turn per pixel (interleaved gradient noise) and
+  per sub-frame by a golden-ratio step of `k` in a still frame, of the TAA index while moving: the average and the
+  history converge to a smooth penumbra, and still frames stay bit-identical between runs.
+- **Settings.** `sunAngle` 0.53° is the real sun (and matches the old sub-frame jitter); larger reads softer, raise
+  `maxPenumbra` with it (it caps the width and is the search's reach). Live: `world.softShadows` (`on`, `sunAngle`,
+  `maxPenumbra`, …; `on: false` gives three's PCF and the old jitter back). The tap counts (8 / 5 / 12) are compiled
+  in once per page, by the first world that installs them; a later world asking for others gets those (warning).
+- **Cost** (hello-courtyard, 1440 x 900, 1 sub-frame + TAA, Apple M4 Pro, interleaved in one browser; see the
+  example's NOTES): +0.55–0.85 ms against a page without it (frames of 2.8–3.3 ms), of which 0.15–0.35 ms is paid
+  even with `on: false` in a page that installed it (the code is compiled in). 6 / 4 / 8 taps save about 0.12 ms.
+- Only the first shadow-casting directional light (the world's sun) of Standard / Physical / Lambert / Phong
+  materials under `FogExp2` takes this path; spot and point lights (light2's lamps too), other directional lights,
+  other materials and `ShadowMaterial` keep three's. `#define MG_NO_SS` on a material opts it out. Page-global once
+  installed: another world without `softShadows` on the same page writes "off" before it draws.
+- **Limits.** A caster much thinner than the search taps' spacing (palm leaflets) is found only by some taps:
+  its penumbra is noisier per frame (the average converges). The blocker distance is a per-tap median, so
+  overlapping casters at very different heights average to one penumbra (PCSS's usual approximation). Install
+  before the first compile (as light2).
 
 ## Materials: `world.mat`
 
@@ -232,6 +267,6 @@ setRelief(0.7);                          // 0 off (one uniform test), 1 full: fa
 
 `skyAt(date, place)`, `placeDate(day, time, tzHours)`, `placeClock(date, tzHours)` (astronomy, pure JS);
 `skyState`, `lightAt` (pure light model); `transmit`, `scatter`, `skyLightAt` (the atmosphere on the CPU);
-`createSky`, `createStars`, `Pipeline`, `installFog`, `LIGHT2_DEFAULTS`, `light2Config`, `installLight2`, `addLampSource`, `LampShadows`, `createLod`, `deviceProfile`, `createEnvLight`, `TEX_GLSL`,
+`createSky`, `createStars`, `Pipeline`, `installFog`, `LIGHT2_DEFAULTS`, `light2Config`, `installLight2`, `addLampSource`, `LampShadows`, `SOFTSHADOW_DEFAULTS`, `softShadowConfig`, `installSoftShadows`, `createLod`, `deviceProfile`, `createEnvLight`, `TEX_GLSL`,
 `geom.*`, `NOISE_GLSL`.
 `npm test -w @mirage/core` runs `check.mjs`.

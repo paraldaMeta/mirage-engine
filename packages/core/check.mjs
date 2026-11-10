@@ -129,3 +129,57 @@ assert.equal(dynamicResConfig(undefined), null); assert.equal(dynamicResConfig(f
 assert.deepEqual(dynamicResConfig(true), { target: 60, min: 0.6, step: 0.1 });
 assert.deepEqual(dynamicResConfig({ target: 1000, min: 0, step: NaN }), { target: 240, min: 0.25, step: 0.1 }, 'clamped, NaN falls back');
 console.log('core check: ok');
+
+// ---------------------------------------------------------------- soft sun shadows (softshadow.js, opt-in)
+// config parsing; nothing patched or written before install; a chunk mismatch warns and patches nothing; install
+// patches the sun's call once (idempotent), leaves spot / point / light2 paths alone; uniforms depend on k only
+{
+  const SS = await import('./src/softshadow.js');
+  const C = THREE.ShaderChunk;
+  assert.equal(SS.softShadowConfig(false), null, 'soft shadows off by default');
+  assert.equal(SS.softShadowConfig(undefined), null);
+  assert.deepEqual(SS.softShadowConfig(true), SS.SOFTSHADOW_DEFAULTS, 'true = the defaults');
+  const sc = SS.softShadowConfig({ sunAngle: 2, blockerSamples: 99, filterSamples: 0.2, blockerSteps: 0, maxPenumbra: 'wide', on: false });
+  assert.ok(sc.sunAngle === 2 && sc.blockerSamples === 32 && sc.filterSamples === 1 && sc.blockerSteps === 0 && !sc.on, 'clamped to the compiled maxima');
+  assert.equal(sc.maxPenumbra, SS.SOFTSHADOW_DEFAULTS.maxPenumbra, 'a non-number keeps the default');
+  const cam = new THREE.OrthographicCamera(-17, 17, 17, -17, 17, 85), size = new THREE.Vector2(4096, 4096);
+  SS.softShadowUniforms(SS.softShadowConfig(true), cam, size, 3);
+  assert.ok(!SS.softShadowsInstalled() && SS.SS_SHARED.a.every((v) => v === 0), 'no uniform written before install');
+  const pars0 = C.shadowmap_pars_fragment, lfb0 = C.lights_fragment_begin;
+  // fallback: a three whose chunks moved keeps its PCF (warning, nothing patched)
+  const warn = console.warn; let warned = 0;
+  console.warn = () => { warned++; };
+  C.lights_fragment_begin = lfb0.replace('? getShadow( directionalShadowMap', '? getShadowMoved( directionalShadowMap');
+  const moved = C.lights_fragment_begin;
+  assert.equal(SS.installSoftShadows(), false, 'chunk mismatch: not installed');
+  console.warn = warn;
+  assert.ok(warned === 1 && C.lights_fragment_begin === moved && C.shadowmap_pars_fragment === pars0 && !THREE.ShaderLib.standard.uniforms.mgSsA && !SS.softShadowsInstalled(), 'mismatch: one warning, nothing patched');
+  C.lights_fragment_begin = lfb0;
+  assert.ok(SS.installSoftShadows() && SS.installSoftShadows(), 'soft shadows install (idempotent)');
+  const pars = C.shadowmap_pars_fragment, lfb = C.lights_fragment_begin;
+  assert.ok(pars.startsWith(pars0) && pars.split('float mgSoftShadow(').length === 2, 'mgSoftShadow appended once');
+  assert.ok(pars.includes('defined( FOG_EXP2 )') && pars.includes('NUM_DIR_LIGHT_SHADOWS > 0'), 'only Mirage materials with a sun shadow');
+  assert.equal(lfb.split('mgSoftShadow(').length, 2, 'one soft call: the directional loop');
+  assert.ok(/#ifdef MG_SS[\s\S]*UNROLLED_LOOP_INDEX == 0 && mgSsA\.x > 0\.5[\s\S]*#else[\s\S]*getShadow\( directionalShadowMap[\s\S]*#endif/.test(lfb), 'the first directional light, runtime switch, stock path kept');
+  const lp = lfb.indexOf('mgSoftShadow('), loopA = lfb.lastIndexOf('#pragma unroll_loop_start', lp), loopB = lfb.indexOf('#pragma unroll_loop_end', lp);
+  assert.ok(loopA >= 0 && loopB > lp && lfb.slice(loopA, lp).includes('directionalLights[ i ]'), 'inside the unrolled directional loop');
+  assert.equal(lfb.split('getShadow( spotShadowMap').length, lfb0.split('getShadow( spotShadowMap').length, 'spot shadows untouched');
+  assert.equal(lfb.split('getPointShadow(').length, lfb0.split('getPointShadow(').length, 'point shadows untouched');
+  assert.equal(lfb.split('mgLsVisV').length, 2, 'light2 lamp shadows untouched');
+  assert.equal(C.shadowmask_pars_fragment.includes('mgSoftShadow'), false, 'ShadowMaterial keeps three\'s');
+  const U = THREE.ShaderLib.standard.uniforms;
+  assert.ok(U.mgSsA.value === SS.SS_SHARED.a && THREE.UniformsUtils.clone(U).mgSsA.value === SS.SS_SHARED.a, 'shared uniforms, kept by reference');
+  // uniforms: on, a golden-ratio phase of the sub-frame index, the penumbra scale in map uv, the depth scale
+  SS.softShadowUniforms(SS.softShadowConfig(true), cam, size, 3);
+  const a1 = [...SS.SS_SHARED.a], b1 = [...SS.SS_SHARED.b];
+  assert.ok(a1[0] === 1 && Math.abs(a1[1] - ((3 * 0.6180339887498949) % 1)) < 1e-6, 'on, phase of k = 3');
+  assert.ok(Math.abs(a1[2] - Math.tan((0.53 * Math.PI) / 360) / 34) < 1e-9 && Math.abs(a1[3] - Math.min(0.3 / 68, 48 / 8192)) < 1e-9, 'penumbra scale and clamp (uv)');
+  assert.ok(Math.abs(b1[0] - 1 / 68) < 1e-9 && Math.abs(b1[2] - a1[3] / a1[2]) < 1e-3, 'depth per metre, farthest blocker searched');
+  SS.softShadowUniforms(SS.softShadowConfig(true), cam, size, 3);
+  assert.deepEqual([...SS.SS_SHARED.a], a1, 'the same sub-frame index gives the same pattern');
+  SS.softShadowUniforms(SS.softShadowConfig({ on: false }), cam, size, 3);
+  assert.equal(SS.SS_SHARED.a[0], 0, 'on: false switches the patched path off');
+  SS.softShadowUniforms(SS.softShadowConfig(true), cam, size, 1); SS.softShadowUniforms(null, cam, size, 1);
+  assert.equal(SS.SS_SHARED.a[0], 0, 'a world without soft shadows writes off');
+  console.log('softshadow check: ok');
+}

@@ -7,6 +7,7 @@ import { createStars } from './stars.js';
 import { skyState, lightAt } from './daynight.js';
 import { Pipeline, DEFAULT_POST } from './post.js';
 import { installLight2, light2Config } from './light2.js';
+import { installSoftShadows, softShadowConfig, softShadowUniforms } from './softshadow.js';
 import { createMaterials } from './materials.js';
 import { createEnvLight } from './envlight.js';
 import { deviceProfile } from './device.js';
@@ -62,6 +63,9 @@ export function createWorldRenderer(config = {}) {
   // light2 (lamp shadows, reflections, volumetric light, mixed bloom): opt-in, patched before any material compiles
   let l2cfg = light2Config(config.light2);
   if (l2cfg && !installLight2()) l2cfg = null;
+  // soft sun shadows (contact-hardening, per pixel; softshadow.js): opt-in, patched before any material compiles
+  let sscfg = softShadowConfig(config.softShadows);
+  if (sscfg && !installSoftShadows(sscfg)) sscfg = null;
   const renderer = config.renderer || new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false, stencil: false, powerPreference: 'high-performance', preserveDrawingBuffer: !!config.preserveDrawingBuffer });
   renderer.setPixelRatio(pixelRatio);
   renderer.setSize(width, height, false);
@@ -186,7 +190,7 @@ export function createWorldRenderer(config = {}) {
     scene.fog.density = fogCfg.density;
   }
 
-  function fitShadow(center, radius, jitter) {
+  function fitShadow(center, radius, jitter, k = 0) {
     const d = keyDir.clone();
     if (jitter) {
       const right = new THREE.Vector3().crossVectors(d, Math.abs(d.y) > 0.99 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0)).normalize();
@@ -202,6 +206,7 @@ export function createWorldRenderer(config = {}) {
     cam.near = Math.max(0.5, D - 2 * radius); cam.far = D + 2 * radius;
     cam.updateProjectionMatrix();
     sun.shadow.needsUpdate = true;
+    softShadowUniforms(sscfg, cam, sun.shadow.mapSize, k);
   }
 
   function captureEnv(instant = true) {
@@ -277,9 +282,10 @@ export function createWorldRenderer(config = {}) {
         pm[8] -= (pm[0] * dx) / P.focus; pm[9] -= (pm[5] * dy) / P.focus;
       }
       cam.projectionMatrixInverse.copy(cam.projectionMatrix).invert();
-      // soft shadows: the light moves over the solar disc (Vogel spiral, 0.27° radius)
-      const r = spp > 1 ? Math.sqrt((k + 0.5) / spp) * 0.0047 : 0, th = k * 2.39996323 + 0.5;
-      fitShadow(sh.center, sh.radius, r ? [r * Math.cos(th), r * Math.sin(th)] : null);
+      // soft shadows: the light moves over the solar disc (Vogel spiral, 0.27° radius); with softShadows on, the
+      // sun stays put and each pixel takes its own penumbra (pattern rotated by the sub-frame / TAA index)
+      const r = spp > 1 && !sscfg?.on ? Math.sqrt((k + 0.5) / spp) * 0.0047 : 0, th = k * 2.39996323 + 0.5;
+      fitShadow(sh.center, sh.radius, r ? [r * Math.cos(th), r * Math.sin(th)] : null, taa ? taaK : k);
       pipeline.add(scene, cam, W[k], k, P, taa ? taaK : k, !taa && spp > 1);
       if (taa) {
         pipeline.taa(invVP.copy(curVP).invert(), prevVP, taaValid ? (typeof opts.taa === 'number' ? opts.taa : 0.12) : 1);
@@ -328,7 +334,7 @@ export function createWorldRenderer(config = {}) {
 
   const ctx = { THREE, renderer, scene, camera, G, keyDir, mat, geom, rng, quality, place, onUpdate: (fn) => updates.push(fn) };
   return {
-    renderer, scene, camera, sun, sky, stars, pipeline, ctx, G, keyDir, mat, geom, rng, post, device, light2: l2cfg, dynamicRes: dynRes,
+    renderer, scene, camera, sun, sky, stars, pipeline, ctx, G, keyDir, mat, geom, rng, post, device, light2: l2cfg, dynamicRes: dynRes, softShadows: sscfg,
     /** the moving frames' render scale (1 = the canvas; below 1 only with `dynamicRes`) */
     get resolutionScale() { return resScale; },
     /** forget the adapted exposure (auto exposure): the next frame is metered on its own, e.g. after a teleport */

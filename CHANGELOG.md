@@ -19,6 +19,10 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
   `post.autoExposure` (centre-weighted metering on the GPU, eased in log space while moving, still frames metered
   on their own) and `dynamicRes` (moving frames render smaller when over budget; stills stay full size). All off by
   default; frames without them are bit-identical. hello-courtyard: `?aolit=1`, `?ae=1`, `?dynres=1`.
+- @mirage/core: optional contact-hardening soft sun shadows (`createWorldRenderer({ softShadows: true })`,
+  `softshadow.js`): a per-pixel blocker search and PCF over the sun's own shadow map (PCSS), so walking (TAA) frames
+  get the penumbrae still frames had from the sun-disc jitter, and both look alike. +0.55–0.85 ms at 1440 x 900.
+  Off by default; frames without it are bit-identical. hello-courtyard: `?soft=1` (`&sunAngle=` degrees).
 - @mirage/core: optional close-range relief (`relief.js`): one parallax step and the relief's own shadow on the
   photo sets (`tex.material(name, { relief, render })`, `tex.hooks(names, h, { relief: true })`,
   `mgTex{Tri,Wall,Ground}Relief`), a hand-applied render's undulation and trowel swipes (`PROC.plaster(base,

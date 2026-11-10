@@ -5,6 +5,7 @@ import type { EnvironmentUniforms, createEnv } from './env.js';
 import type { MaterialKit } from './materials.js';
 import type { Pipeline, PostSettings } from './post.js';
 import type { Light2Option, Light2Settings } from './light2.js';
+import type { SoftShadowOption, SoftShadowSettings } from './softshadow.js';
 import type { SkyTime, SkyState, LightState } from './daynight.js';
 import type { Place } from './sky-time.js';
 import type { Quality, DeviceProfile } from './device.js';
@@ -25,6 +26,8 @@ export interface WorldRendererOptions {
   light2?: Light2Option;
   /** Moving frames render below the canvas size when they run over budget (off by default; stills stay full size). */
   dynamicRes?: boolean | Partial<DynamicResSettings>;
+  /** Contact-hardening soft sun shadows, per pixel (off by default): still and walking frames alike. */
+  softShadows?: SoftShadowOption;
 }
 export interface DynamicResSettings { target: number; min: number; step: number }
 /** The full dynamic-resolution settings for `true` / a partial object; null when off. */
@@ -55,6 +58,8 @@ export interface WorldRenderer {
   readonly resolutionScale: number;
   /** Auto exposure: forget the adapted exposure, so the next frame is metered on its own (after a teleport or cut). */
   resetExposure(): void;
+  /** The soft-shadow settings in use (live: `on`, `sunAngle`, …), null when off. */
+  softShadows: SoftShadowSettings | null;
   /** Null before setTime(), prepare() or the first renderFrame(). */
   readonly light: LightState | null; readonly state: SkyState | null; readonly exposure: number;
   setTime(time: SkyTime, options?: { ease?: boolean }): LightState;
