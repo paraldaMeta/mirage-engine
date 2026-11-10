@@ -11,6 +11,25 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
 
 **New**
 
+- @mirage/game: an audio engine on top of the mixer (`createAudioEngine`, `createMixer`, `createMusic`,
+  `createAudioDebug`, occluders and DSP helpers; experimental, opt-in, `docs/audio.md`). `createAudio` is unchanged
+  and, given to the engine, keeps playing through the new buses (`audio.play('pickup')` peak 0.284 alone, 0.284 again
+  after `engine.dispose()`). Sound files decoded into a reference-counted cache with preload groups, streams through
+  a media element, both working from the single-file build opened from file:// (533 KB with two WAV fixtures
+  inlined). A bus tree with effect chains (EQ, filters, compressor, limiter, delay, convolution reverb from
+  code-made impulse responses, drive, pan), sends, snapshots with timed and weighted transitions, and ducking that
+  runs in the audio graph (music 1.000 -> 0.250 under dialogue, half-way down in 50 ms, back in 325 ms). HRTF or
+  equal-power panning, inverse / linear / exponential / custom-curve distance, cones, Doppler (1111.1 / 909.1 Hz from
+  1000 Hz at 34.3 m/s), spread. Reverb zones (boxes / spheres, `plan.audio.zones`) blended by listener position;
+  occlusion by rays on the walk grid, Rapier or the scene with a ray budget (shut: x0.299 at 200 Hz, -41.1 dB at
+  4 kHz). A voice cap with priorities, stealing and virtual voices (12 loops, cap 4: output equal to the nearest
+  four alone to 1.2e-7; a voice silent for 1.28 s resumes 0.00 samples off). Cues (variants, ranges, sequences,
+  cooldowns; the same seed is sample-identical) and adaptive music (stems, cross-fades, bar / beat-quantised
+  transitions: first changed sample 1 after the boundary). Checked with OfflineAudioContext in headless Chrome:
+  `node examples/demos/audio/audio-check.mjs`, 26 of 26, plus Node checks in `npm test`. `update()` with 64 moving
+  loops (32 sounding) and 9 rays: 0.070 ms median (0.053-0.075). In garden-quest it is a separate chunk
+  (37.4 KB, 15.8 KB gzip) fetched only with the flag. Demo `examples/demos/audio`; garden-quest `?audio=engine` (pavilion reverb zone, an
+  occluded wind chime, the overlay).
 - @mirage/play: NPC navigation on the walk grid (`createNavGrid`, `createNavAgent`, `createNavCrowd`; experimental,
   opt-in). No navmesh: per-radius fit bits from the walker's own disc / step / head-room test (equal to the walker
   on every floor of the node checks' grids and on 20 000 of 20 000 random floors of walled-garden), coarse A* (4 x 4

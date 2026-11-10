@@ -162,6 +162,31 @@ Gaussian splats, `@mirage/world/kits/splat` (opt-in subpath, world README "Gauss
 | `createUI(opts)` | experimental | the HTML overlay (HUD, menus, touch controls) |
 | `PAD` | experimental | default gamepad buttons per action |
 | `loadRapier()` | experimental | load the Rapier WASM ahead of `createPhysics` |
+| `createAudioEngine({ audio, voices, buses, snapshots, ducks, zones, occlusion, cues })` | experimental | the audio engine (docs/audio.md): files and streams, voices with a cap and virtual voices, 3D placement, reverb zones, occlusion, cues; opt-in, keeps `createAudio` working |
+| `createMixer(ctx)` | experimental | bus tree with effect chains, sends, snapshots, ducking and meters on any (offline) audio context |
+| `EFFECT_TYPES` | experimental | the effect names a bus takes: eq, filters, compressor, limiter, delay, reverb, drive, pan, gain |
+| `createMusic(engine, { bpm, sections })` | experimental | adaptive music: sections of stems, bar / beat-quantised transitions, layers, stingers |
+| `zonesFromPlan(plan)` | experimental | the reverb zones of a world plan (`plan.audio.zones`) |
+| `zoneWeights(zones, pos)` | experimental | weight of each zone for a listener position; the last entry is the ambient share |
+| `gridOccluder(grid)` | experimental | occlusion test on the walk grid |
+| `physicsOccluder(physics)` | experimental | occlusion test by a Rapier ray |
+| `sceneOccluder(root, { raycaster })` | experimental | occlusion test by a three.js raycast |
+| `createAudioDebug(engine)` | experimental | overlay: voices, virtual voices, rays, zone weights, a meter per bus |
+| `audioStatsText(engine)` | experimental | the same stat block as a string |
+| `REVERBS` | experimental | reverb presets: room, hall, cave, cathedral, outdoor, plate |
+| `impulseResponse({ decay, damping, seed })` | experimental | a stereo impulse response made from seeded noise (unit energy) |
+| `encodeWav(channels, sampleRate, bits)` | experimental | PCM / float WAV bytes from Float32Arrays |
+| `decodeWav(bytes)` | experimental | `{ sampleRate, channels }` from a WAV file |
+| `distanceGain(d, { model, ref, max, rolloff, curve })` | experimental | the gain of a distance model or a custom roll-off curve |
+| `coneGain(dir, toListener, inner, outer, outerGain)` | experimental | the gain of a sound cone |
+| `dopplerRatio(src, vSrc, lis, vLis)` | experimental | the playback-rate factor of a moving source and listener |
+| `occlusionResponse(occlusion)` | experimental | the gain and low-pass corner for an occlusion of 0..1 |
+| `dbToGain(db)` | experimental | decibels to a linear gain |
+| `gainToDb(gain)` | experimental | a linear gain to decibels |
+| `rms(samples, from, to)` | experimental | root mean square of samples (checks) |
+| `peak(samples, from, to)` | experimental | largest absolute sample (checks) |
+| `toneLevel(samples, sampleRate, freq)` | experimental | amplitude of one frequency in samples (Goertzel; checks) |
+| `onset(samples, level)` | experimental | index of the first sample at or over a level (checks) |
 
 ## @mirage/tools
 

@@ -48,6 +48,7 @@ async function mountQuest() {
 const mounted = await mountQuest();
 const { g } = mounted;
 mounted.xr = createXR(g.play, { game: g, support: xrs });   // in the headset the trigger is E, prompts float in the garden
+if (Q.get('audio') === 'engine') mounted.audioEngine = (await import('./audio-engine.js')).mountAudioEngine(g, world, plan);   // ?audio=engine: reverb zone, occlusion, voices, overlay (docs/audio.md)
 if (Q.get('load')) g.load(+Q.get('load'));
 if (Q.has('start')) g.ui.begin();
 window.__mirage = { world, built, ...mounted, mountQuest, tex, render: (o = {}) => world.renderFrame(o.T ?? 0, { spp: 6, frameIndex: 1, ...o }) };

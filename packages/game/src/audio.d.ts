@@ -15,6 +15,9 @@ export interface AudioLoop {
 export interface AudioMixer {
   dispose(): Promise<void>;
   readonly ctx: AudioContext | null; readonly volumes: Record<AudioBus, number>;
+  /** The bus gain nodes and generated buffers (null before unlock), and an optional redirect of a bus's input: used by createAudioEngine. */
+  readonly buses: Record<AudioBus, GainNode> | null; readonly buffers: Record<string, AudioBuffer | AudioBuffer[]> | null;
+  route: ((bus: AudioBus) => AudioNode | null) | null;
   stats: { played: Record<string, number>; skipped: number; state: 'locked' | AudioContextState; genMs: number };
   /** Invoke from a user gesture; may leave ctx null when Web Audio is unavailable. */
   unlock(): void;
