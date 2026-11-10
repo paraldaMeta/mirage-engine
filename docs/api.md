@@ -162,6 +162,12 @@ Gaussian splats, `@mirage/world/kits/splat` (opt-in subpath, world README "Gauss
 | `createUI(opts)` | experimental | the HTML overlay (HUD, menus, touch controls) |
 | `PAD` | experimental | default gamepad buttons per action |
 | `loadRapier()` | experimental | load the Rapier WASM ahead of `createPhysics` |
+| `createUIKit(opts)` | experimental | the UI toolkit on the DOM: reactive descriptions, layout, themes, layers (`docs/ui.md`; widgets in `@mirage/game/ui-widgets`) |
+| `createI18n({ locale, tables })` | experimental | string tables, plurals and formats through `Intl`, runtime language switch, direction and font stack |
+| `createFocusNav({ root, input })` | experimental | spatial focus for keyboard and gamepad, focus scopes, last-used device |
+| `createWorldUI({ kit, camera })` | experimental | labels, markers and health bars anchored to 3D points, with occlusion and distance fade |
+| `createCanvasUI({ description })` | experimental | a widget panel drawn into a texture, for screens in the world and XR |
+| `createKitUI(opts)` | experimental | `createUI`'s overlay rebuilt on the toolkit: pass as `startGame`'s `ui` |
 
 ## @mirage/tools
 

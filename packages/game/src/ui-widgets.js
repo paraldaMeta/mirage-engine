@@ -11,7 +11,7 @@
 // kit.mount(h(Bar, { value: hp, max: 100, tone: 'health', label: kit.tx('ui.health') }));
 // const menu = modals(kit).open((close) => stack({ gap: 0.5 },
 //   h(Slider, { value: volume, label: 'Volume', onChange: (v) => audio.volume('master', v) }),
-//   h(Button, { label: 'Resume', onPress: close, glyph: 'back' })), { label: 'Paused' });
+//   h(Button, { label: 'Resume', onPress: close, glyph: 'cancel' })), { label: 'Paused' });
 // toasts(kit).push({ text: 'Key found', tone: 'good' });
 // const pick = await dialogue(kit).say({ speaker: 'Ana', text: 'Which way?', choices: ['Left', 'Right'] });
 // Components: Button Glyph Prompt Toggle Slider Select Tabs TextInput Progress Bar Tooltip VirtualList
@@ -30,6 +30,7 @@ const CSS = `
 .mk-btn-ghost{background:transparent;border-color:transparent}
 .mk-btn-wide{width:100%;justify-content:space-between}
 .mk-root[data-device=touch] .mk-btn,.mk-root[data-device=touch] .mk-toggle,.mk-root[data-device=touch] .mk-select,.mk-root[data-device=touch] .mk-slider{min-height:var(--mk-touch)}
+.mk-root[data-device=touch] .mk-btn{min-width:var(--mk-touch)}
 .mk-glyph{display:inline-flex;align-items:center;justify-content:center;min-width:1.7em;height:1.7em;padding:0 .4em;font:600 .8em/1 var(--mk-mono);color:var(--mk-text);background:var(--mk-bg);border:.1em solid var(--mk-border);border-bottom-width:.2em;border-radius:var(--mk-radius-sm);direction:ltr}
 .mk-glyph[data-kind=pad]{border-radius:1em;border-bottom-width:.1em;font-family:inherit}
 .mk-glyph[data-kind=touch]{border-style:dashed;border-bottom-width:.1em;font-family:inherit}
@@ -133,7 +134,7 @@ const clamp01 = (v) => Math.min(1, Math.max(0, +v || 0));
 const isRTL = (kit) => kit.i18n.dir.peek() === 'rtl';
 
 // ---- small things
-/** The button glyph of an action ('interact', 'jump', or a UI verb: 'confirm', 'back', 'tabPrev', 'tabNext') on the
+/** The button glyph of an action ('interact', 'jump', or a UI verb: 'confirm', 'cancel', 'tabPrev', 'tabNext') on the
  *  device in the player's hands. Follows the device, the pad family and rebinding. */
 export function Glyph({ action, class: c }, ctx) {
   const kit = use(ctx);
@@ -203,7 +204,7 @@ export function Tabs({ tabs, value, label, ...rest }, ctx) {
   const kit = use(ctx), id = 'mk-tabs-' + (++uid);
   value ||= signal(tabs[0].id);
   let el = null;
-  const step = (d, focus) => { const i = tabs.findIndex((t) => t.id === value.peek()); value.value = tabs[(i + d + tabs.length) % tabs.length].id; if (focus && el) { const b = el.querySelector('[aria-selected=true]'); if (b) b.focus(); } };
+  const step = (d, focus) => { const i = tabs.findIndex((t) => t.id === value.peek()); value.value = tabs[(i + d + tabs.length) % tabs.length].id; const a = kit.doc.activeElement; if (el && (focus || !a || a === kit.doc.body || !a.isConnected)) { const b = el.querySelector('[aria-selected=true]'); if (b) b.focus(); } };   // the panel that held focus is gone: focus would fall to <body>, out of the scope
   const mine = () => el && el.isConnected && (!kit.nav.scope || kit.nav.scope.el.contains(el));
   const onTab = (e) => { if (mine()) { step(e.detail.step, el.contains(kit.doc.activeElement) && kit.doc.activeElement.getAttribute('role') === 'tab'); e.preventDefault(); } };
   const onKey = (e) => { if ((e.code === 'KeyQ' || e.code === 'KeyE') && kit.nav.depth && mine() && !/^(INPUT|TEXTAREA)$/.test(e.target.tagName) && !kit.nav.suspended) step(e.code === 'KeyE' ? 1 : -1, false); };

@@ -74,18 +74,19 @@ export function padKind(id = '') {
   return 'xbox';
 }
 const TOUCH_LABELS = { interact: 'Use', jump: 'Jump', menu: '☰', inventory: 'Bag' };
-// UI verbs that are not game actions: confirm / back / tabs
-const UI_PAD = { confirm: 0, back: 1, tabPrev: 4, tabNext: 5, up: 12, down: 13, left: 14, right: 15 };
-const UI_KEYS = { confirm: 'Enter', back: 'Escape', tabPrev: 'KeyQ', tabNext: 'KeyE', up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight' };
+// UI verbs that are not game actions (and share no name with one: 'back', 'left' and 'right' are movement, so the
+// way out of a menu is 'cancel' and the directions are navUp..navRight)
+const UI_PAD = { confirm: 0, cancel: 1, tabPrev: 4, tabNext: 5, navUp: 12, navDown: 13, navLeft: 14, navRight: 15 };
+const UI_KEYS = { confirm: 'Enter', cancel: 'Escape', tabPrev: 'KeyQ', tabNext: 'KeyE', navUp: 'ArrowUp', navDown: 'ArrowDown', navLeft: 'ArrowLeft', navRight: 'ArrowRight' };
 const KEY_SYMBOL = { Up: '↑', Down: '↓', Left: '←', Right: '→', Enter: '↵', Space: '␣', Esc: 'Esc' };
-/** The label for an action (a game action from the bindings, or a UI verb: confirm, back, tabPrev, tabNext) on a
+/** The label for an action (a game action from the bindings, or a UI verb: confirm, cancel, tabPrev, tabNext) on a
  *  device. kind: 'key' | 'pad' | 'touch' (the kit styles them apart). */
 export function glyphFor(action, { device = 'keyboard', bindings = {}, padKind: kind = 'xbox', touchLabels = TOUCH_LABELS } = {}) {
   if (device === 'gamepad') {
     const b = PAD[action] ? PAD[action][0] : UI_PAD[action];
     if (b != null) return { text: (PAD_GLYPHS[kind] || PAD_GLYPHS.xbox)[b] || String(b), kind: 'pad', button: b };
   }
-  if (device === 'touch') return { text: touchLabels[action] || (action === 'confirm' ? 'Tap' : action === 'back' ? 'Back' : action), kind: 'touch' };
+  if (device === 'touch') return { text: touchLabels[action] || (action === 'confirm' ? 'Tap' : action === 'cancel' ? 'Back' : action), kind: 'touch' };
   const code = (bindings[action] || [])[0] || UI_KEYS[action];
   const name = code ? keyName(code) : '?';
   return { text: KEY_SYMBOL[name] || name, kind: 'key', code };

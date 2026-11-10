@@ -100,7 +100,7 @@ async function mountGame(world, opts, life, dispose, ownAudio) {
     if (game.settings.bindings) input.bindings = game.settings.bindings;
     for (const [b, v] of Object.entries(game.settings.volumes || {})) audio.volume(b, v);
   };
-  const ui = opts.ui === false ? null : createUI({ game, input, audio, canvas, title: opts.title || plan.name, subtitle: opts.subtitle, onSave: save, onLoad: load, onRestart: opts.onRestart || (() => location.reload()) });
+  const ui = opts.ui === false ? null : (typeof opts.ui === 'function' ? opts.ui : createUI)({ game, input, audio, canvas, title: opts.title || plan.name, subtitle: opts.subtitle, onSave: save, onLoad: load, onRestart: opts.onRestart || (() => location.reload()) });
   if (ui) life.defer(() => ui.dispose());
   game.ui = ui || { toast() {}, message() {}, prompt() {}, objective() {} };   // entities talk to the overlay through the game
   const refresh = () => { if (ui && objective) ui.objective(...objective(game)); };

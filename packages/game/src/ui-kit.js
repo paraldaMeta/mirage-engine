@@ -25,6 +25,7 @@ import { createI18n } from './ui-i18n.js';
 import { LOCALES } from './ui-locales.js';
 
 export { signal, computed, memo, effect, batch, untracked, scope, onCleanup, read, store } from './ui-reactive.js';
+export { createI18n } from './ui-i18n.js';
 
 // ---- descriptions
 /** An element or component description: plain data until it is mounted. */
@@ -246,7 +247,7 @@ export function computeScale(width, height, { reference = [1280, 720], mode = 'f
 }
 
 // ---- themes: tokens only; widgets never name a colour
-const BASE = { radius: '0.5em', radiusSm: '0.3em', pad: '0.75em', gap: '0.5em', touch: '2.75em', fast: '120ms', slow: '240ms',
+const BASE = { radius: '0.5em', radiusSm: '0.3em', pad: '0.75em', gap: '0.5em', touch: 'max(2.75em, 44px)', fast: '120ms', slow: '240ms',
   shadow: '0 0.25em 1em #0008', font: '', mono: 'ui-monospace,SFMono-Regular,Menlo,Consolas,monospace' };
 export const THEMES = {
   dark: { ...BASE, scheme: 'dark', bg: '#14100c', surface: '#1e1711', surface2: '#2e241a', text: '#f6ecd8', muted: '#c9bca4', accent: '#ffcf6e', onAccent: '#1b120a',

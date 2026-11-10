@@ -1,7 +1,7 @@
 // snow-hut: a log hut on a snowy slope at blue hour; walk in out of the falling snow and light the stove.
 // Three modules on one site plan (plan.js, modules/, NOTES.md); direction in BRIEF.md; the game in game.js.
 // URL: ?view=<viewpoint name>  ?modules=a,b (build only these: a module owner's self-test; no game)
-//      ?start=1 (skip the start screen)  ?spp=N  ?w=&h=  ?grain=0  ?ui=0 (play's help line; with ?modules only)
+//      ?start=1 (skip the start screen)  ?spp=N  ?w=&h=  ?grain=0  ?ui=0 (play's help line; with ?modules only)  ?ui=kit (the overlay on the UI toolkit)
 // Contract with the tools: window.__mirage = { world, built, play, g? } and window.__READY = true once playable.
 import { createWorldRenderer, pickQuality } from '@mirage/core';
 import { buildWorld } from '@mirage/world';
@@ -36,6 +36,7 @@ if (only) {   // a module owner's self-test: the world alone, walk / fly / game 
   g = await startGame(world, {
     built, canvas, id: plan.name, version: 1, title: 'The Snow Hut', subtitle: 'Walk in out of the snow · light the stove',
     spp, shadowRadius, fit: !Q.get('w'), quality, hud, setup: (ctx) => setupGame(ctx, { built }), objective,
+    ...(Q.get('ui') === 'kit' ? { ui: (await import('@mirage/game/ui-menu')).createKitUI } : {}),   // the overlay on the UI toolkit (docs/ui.md)
   });
   if (Q.has('start')) g.ui.begin();
   play = g.play;
