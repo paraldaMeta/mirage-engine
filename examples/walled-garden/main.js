@@ -20,7 +20,9 @@ const canvas = document.querySelector('canvas');
 canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
 const quality = Q.get('quality') || (await pickQuality()).quality, hud = Q.get('hud') !== '0';   // ?quality=low|medium|high
 const xrs = await xrSupport();   // a headset browser: an MSAA context for the headset, and the Enter VR / AR buttons
-const world = createWorldRenderer({ quality, xr: xrs.vr || xrs.ar,
+// realtime lighting (opt-in, docs/lighting.md): ?csm=1 cascaded sun shadows
+const lighting = Q.get('csm') === '1' ? { csm: Q.get('csm') === '1' && { cascades: +Q.get('cascades') || 4 } } : undefined;
+const world = createWorldRenderer({ quality, xr: xrs.vr || xrs.ar, lighting, softShadows: Q.get('soft') === '1',
   canvas, width: W, height: H, place, time: t === 'golden' ? 'golden' : placeDate(Q.get('date') || '2026-10-25', t, place.tzHours), preserveDrawingBuffer: true,
   shadow: { center: [0, 2, 0], radius: 42 }, envProbe: [0, 4, 6],
   fog: { groundDensity: 0.0018, height: 40 },

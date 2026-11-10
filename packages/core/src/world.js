@@ -14,6 +14,7 @@ import { createEnvLight } from './envlight.js';
 import { deviceProfile } from './device.js';
 import * as geom from './geom.js';
 import { rng } from './rng.js';
+import { createLighting } from './lighting.js';
 
 // ---------------------------------------------------------------------------
 // createWorldRenderer(config): one world = renderer + scene + sky + key light + fog + pipeline + day/night,
@@ -104,6 +105,8 @@ export function createWorldRenderer(config = {}) {
   sun.shadow.mapSize.setScalar(config.shadowMapSize || Q.shadowMap);
   sun.shadow.bias = -0.0002; sun.shadow.normalBias = 0.02; sun.shadow.radius = 1;
   scene.add(sun, sun.target);
+  // realtime lighting features (opt-in, lighting.js): cascades, probe GI, reflection probes, clustered local lights
+  const lighting = config.lighting ? createLighting({ renderer, scene, sun, G, keyDir, quality, Q, soft: sscfg, envProbe }, config.lighting) : null;
 
   const pipeline = new Pipeline(renderer, { width: width * pixelRatio, height: height * pixelRatio, msaa: device.msaa, aoSamples: Q.aoSamples });
   if (l2cfg) pipeline.useLight2(l2cfg, { sun, G });
@@ -228,7 +231,7 @@ export function createWorldRenderer(config = {}) {
     scene.fog.density = fogCfg.density;
   }
 
-  function fitShadow(center, radius, jitter, k = 0) {
+  function fitShadow(center, radius, jitter, k = 0, view = null) {
     const d = keyDir.clone();
     if (jitter) {
       const right = new THREE.Vector3().crossVectors(d, Math.abs(d.y) > 0.99 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0)).normalize();
@@ -245,6 +248,7 @@ export function createWorldRenderer(config = {}) {
     cam.updateProjectionMatrix();
     sun.shadow.needsUpdate = true;
     softShadowUniforms(sscfg, cam, sun.shadow.mapSize, k);
+    if (lighting) lighting.fitSun(d, view, center, radius, k);
   }
 
   function captureEnv(instant = true) {
@@ -265,6 +269,7 @@ export function createWorldRenderer(config = {}) {
     for (const o of hidden) o.visible = true;
     softShadowsIdle();
     lastCap.dir.copy(keyDir); lastCap.lamp = light.lamp; lastCap.sky = light.skyLight;
+    if (lighting) lighting.envCaptured(instant);
     envState = null;
   }
 
@@ -289,6 +294,7 @@ export function createWorldRenderer(config = {}) {
       await compile();
       scene.environment = null;
     }
+    if (lighting) { lighting.adopt(); await compile(); }
     captureEnv(true);
     if (warm) return { warmMs: warmUp() };
   }
@@ -355,6 +361,7 @@ export function createWorldRenderer(config = {}) {
     // penumbra and AA footprint until the pattern fills in). Off (the default): nothing below runs.
     const on = opts.converge !== undefined && opts.converge !== null && opts.converge !== false;   // 0 = stop only when nothing moves
     const cv = !taa && spp >= 8 && on ? { tol: opts.converge === true ? 0.25 : +opts.converge, every: Math.floor(spp / 4), wsum: 0, diffs: [], used: spp } : null;
+    if (lighting) lighting.frame(opts.getCamera ? opts.getCamera(T) : opts.camera || camera, taa ? frameDt : 0);
     pipeline.begin();
     for (let k = 0; k < spp; k++) {
       const tk = T + (spp > 1 ? ((shutterSlot(k, spp) + 0.5) / spp - 0.5) * shutter * dt : 0);
@@ -383,7 +390,7 @@ export function createWorldRenderer(config = {}) {
       // soft shadows: the light moves over the solar disc (Vogel spiral, 0.27° radius); with softShadows on, the
       // sun stays put and each pixel takes its own penumbra (pattern rotated by the sub-frame / TAA index)
       const r = spp > 1 && !sscfg?.on ? Math.sqrt((k + 0.5) / spp) * 0.0047 : 0, th = k * 2.39996323 + 0.5;
-      fitShadow(sh.center, sh.radius, r ? [r * Math.cos(th), r * Math.sin(th)] : null, taa ? taaK : k);
+      fitShadow(sh.center, sh.radius, r ? [r * Math.cos(th), r * Math.sin(th)] : null, taa ? taaK : k, cam);
       pipeline.add(scene, cam, W[k], k, P, taa ? taaK : k, !taa && spp > 1);
       if (taa) {
         pipeline.taa(invVP.copy(curVP).invert(), prevVP, taaValid ? (typeof opts.taa === 'number' ? opts.taa : 0.12) : 1);
@@ -452,7 +459,8 @@ export function createWorldRenderer(config = {}) {
     skyU.uCloudOffset.value.set(T * 0.004, T * 0.0015);
     for (const fn of updates) fn(T);
     const sh = opts.shadow || shadow;
-    fitShadow(sh.center, sh.radius, null);
+    if (lighting) lighting.frame(opts.camera || camera, 0);
+    fitShadow(sh.center, sh.radius, null, 0, opts.camera || camera);
     renderer.render(scene, opts.camera || camera);
   }
 
@@ -481,7 +489,7 @@ export function createWorldRenderer(config = {}) {
   /** free what this world made on the GPU: geometries, materials (and their programs), the shadow map, the post and
    *  environment targets; and the renderer if the world created it. Take objects you still need out of the scene first. */
   function dispose() {
-    pipeline.dispose(); envLight.dispose(); skyLut.dispose();
+    pipeline.dispose(); envLight.dispose(); skyLut.dispose(); if (lighting) lighting.dispose();
     const mats = new Set();
     scene.traverse((o) => { o.geometry && o.geometry.dispose(); for (const m of [].concat(o.material || [])) mats.add(m); });
     for (const m of mats) m.dispose();
@@ -491,7 +499,7 @@ export function createWorldRenderer(config = {}) {
 
   const ctx = { THREE, renderer, scene, camera, G, keyDir, mat, geom, rng, quality, place, motion, onUpdate: (fn) => updates.push(fn) };
   return {
-    renderer, scene, camera, sun, sky, stars, pipeline, ctx, G, keyDir, mat, geom, rng, post, device, light2: l2cfg, dynamicRes: dynRes, softShadows: sscfg,
+    renderer, scene, camera, sun, sky, stars, pipeline, ctx, G, keyDir, mat, geom, rng, post, device, light2: l2cfg, dynamicRes: dynRes, softShadows: sscfg, lighting,
     /** the moving frames' render scale (1 = the canvas; below 1 only with `dynamicRes`) */
     get resolutionScale() { return resScale; },
     /** forget the adapted exposure (auto exposure): the next frame is metered on its own, e.g. after a teleport */
