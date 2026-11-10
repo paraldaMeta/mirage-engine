@@ -117,7 +117,7 @@ see [world-protocol.md](world-protocol.md).
 | `BODY` | stable | the character's sizes and speeds |
 | `makeGrid(data)` | experimental | a grid from raw arrays (tests, saved grids) |
 | `MAXL` | experimental | floors per grid column (4) |
-| `createXR(play, opts)` | experimental | WebXR: Enter VR / Enter AR buttons, the walker in a headset, teleport, snap turn, in-world game prompts, AR table model (`docs/xr.md`) |
+| `createXR(play, opts)` | experimental | WebXR: Enter VR / Enter AR buttons, the walker in a headset, teleport, snap turn, in-world game prompts, AR table model; hand tracking (pinch, point-and-pinch teleport), `navigator.xr.offerSession` / `autoEnter` for hosts without a DOM, labels in a built-in glyph font where Canvas 2D draws no text (`opts.offer`, `autoEnter`, `hands`, `text`; `docs/xr.md`) |
 | `xrSupport()` | experimental | `{ vr, ar }`: which immersive sessions the browser offers; pass `vr \|\| ar` as the world's `xr` option |
 
 ## @mirage/game

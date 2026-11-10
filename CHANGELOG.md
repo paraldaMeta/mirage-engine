@@ -11,6 +11,20 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
 
 **New**
 
+- @mirage/play `createXR` for native WebXR hosts and hands (`docs/xr.md`, experimental). Where
+  `navigator.xr.offerSession` exists the session is offered (`offer`, default on; `autoEnter` to start at once), so a
+  host without a DOM (Srile/webxr-to-native on Quest: no layout, no `Intl`, a Canvas 2D whose `fillText` draws
+  nothing) starts VR with no button. Labels draw with a built-in 5 x 9 glyph font into a DataTexture where Canvas 2D
+  draws no text (`text: 'auto' | 'canvas' | 'glyphs'`; `packages/play/src/glyphs.js`, drawn for Mirage). Hand
+  tracking (`hands`, default on, inert without tracked hands): pinch is the trigger, point then pinch teleports
+  along the index finger's ray (`xr-hands.js`, thresholds measured on iwer's captured poses). The XR frame's own
+  garbage: createXR's code 1988-2085 -> 163-195 bytes per frame (heap sample over 300 frames after a 10 s warm-up,
+  hello-courtyard and garden-quest, two interleaved runs each); the whole frame is still 76-108 KB per frame
+  (three.js, the walker, the emulator) and the GC count did not change measurably (14-31 minor per 300 frames,
+  before and after). `mirage-xr-check --native` (no layout, no text in Canvas 2D, offerSession, glyph labels with a
+  pixel check in the eye image, iwer's emulated hands), `--native-control` (the negative control) and `--alloc`.
+  Desktop stills unchanged (mirage-snap: hello-courtyard 6/6, garden-quest 9/9 views pixel-identical). No multiview
+  (three 0.186's WebGLRenderer has none): a known limit.
 - @mirage/tools: one diagnostic shape everywhere, `{ code, severity, target, message, fix, at? }`, with stable codes
   (MG1xx plan, MG2xx modules, MG3xx walking, MG4xx frame, MG5xx budgets, MG6xx console, MG7xx game state;
   `docs/diagnostics.md`). The playtest writes them to `report.json` `diagnostics` and the top of `report.md`;
