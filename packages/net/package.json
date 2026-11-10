@@ -1,0 +1,47 @@
+{
+  "name": "@mirage/net",
+  "version": "1.0.0",
+  "description": "Mirage net: multiplayer for walked worlds. An authoritative room that runs the walker headlessly in Node or in one browser, delta-compressed snapshots, client prediction and reconciliation, lag compensation, a lobby with room codes, reconnect and host migration, over WebSocket, WebRTC or an in-memory loopback.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/paraldaMeta/mirage-engine.git",
+    "directory": "packages/net"
+  },
+  "homepage": "https://github.com/paraldaMeta/mirage-engine/tree/main/packages/net#readme",
+  "bugs": {
+    "url": "https://github.com/paraldaMeta/mirage-engine/issues"
+  },
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    },
+    "./*": "./src/*.js",
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "mirage-net": "./bin/mirage-net.mjs"
+  },
+  "files": [
+    "src",
+    "bin",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "peerDependencies": {
+    "@mirage/core": "^1.0.0",
+    "@mirage/play": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node check.mjs && node server.check.mjs"
+  },
+  "author": "灰叔 Racso",
+  "types": "./src/index.d.ts"
+}

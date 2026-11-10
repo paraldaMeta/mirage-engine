@@ -163,6 +163,37 @@ Gaussian splats, `@mirage/world/kits/splat` (opt-in subpath, world README "Gauss
 | `PAD` | experimental | default gamepad buttons per action |
 | `loadRapier()` | experimental | load the Rapier WASM ahead of `createPhysics` |
 
+## @mirage/net
+
+Multiplayer for walked worlds; all of it experimental and opt-in (nothing else imports it). Guide and numbers:
+`docs/multiplayer.md`. The Node server is not in the index: `import { createServer } from '@mirage/net/server'`
+(`createServer({ protocol, grid, dir, setup, conditions, origins, host })`, 127.0.0.1 by default), and the
+`mirage-net` command (`serve`, `bake`) wraps it.
+
+| export | stability | what it is |
+|---|---|---|
+| `createRoom(options)` | experimental | the authoritative room: runs the play walker on a walk grid from client inputs at `tickRate` (must divide 60); `accept(transport)`, `spawn` / `despawn`, `rpc`, `emit`, `hitscan` (lag compensated), `serialize` / `restore`; no GPU or DOM |
+| `createClient(options)` | experimental | prediction, reconciliation and interpolation: `walker` (give it to `createPlay`), `entities`, `input`, `rpc`, `on`, `stats` |
+| `connectLobby(url)` | experimental | the lobby client: `list`, `create`, `join`, `host`, `leave` |
+| `joinRoom(options)` | experimental | join a room by code wherever it runs; resolves to a session `{ client, room, mode, lobby }` |
+| `hostRoom(options)` | experimental | run the room in this page (host mode); members come over the relay or WebRTC; migrates when the host leaves |
+| `defineProtocol(def)` | experimental | entity, RPC and event schemas compiled to quantised bit layouts; both ends compare `hash` |
+| `field` | experimental | schema field makers: `q`, `angle`, `u`, `bool`, `f32`, `str`, `pos` |
+| `kitProtocol(options)` | experimental | a ready protocol: named players with a score, `pickup` entities, `chat` / `take` / `tag` RPCs |
+| `installKit(room, options)` | experimental | the server side of `kitProtocol`: pickups with reach checks and respawn, chat rate limit, tag by `hitscan` |
+| `createLoopbackNetwork(defaults)` | experimental | in-memory transports with seeded latency, jitter, loss, duplication and reordering on a virtual clock |
+| `conditioned(transport, conditions)` | experimental | the same network conditions around any real transport; the conditions object stays live |
+| `webSocketTransport(target)` | experimental | a transport over the platform's `WebSocket` (browser, Node 22) |
+| `rtcTransport(options)` | experimental | a transport over an unreliable, unordered WebRTC data channel; signalling is the caller's (the lobby's) |
+| `preferTransport(fallback, better)` | experimental | start on one transport, switch to the other when it opens |
+| `createChannel(options)` | experimental | acks, a reliable ordered stream over unreliable packets, rtt and loss estimates |
+| `serializeGrid(grid)` | experimental | a walk grid as bytes (what `mirage-net bake` writes) |
+| `deserializeGrid(bytes)` | experimental | bytes back to a walk grid, validated before anything is allocated |
+| `bakeGridCPU(triangles, options)` | experimental | a walk grid from triangles without a GPU (coarser than the GPU bake: do not mix the two in one room) |
+| `boxTriangles(boxes)` | experimental | triangles for `bakeGridCPU` from boxes |
+| `sceneTriangles(scene)` | experimental | triangles for `bakeGridCPU` from a three.js scene's meshes |
+| `createNetOverlay(client, options)` | experimental | debug overlay: rtt, loss, bytes/s per entity type, prediction error; keys change the simulated network |
+
 ## @mirage/tools
 
 Command-line tools (no JS entry point). Stable: `mirage-playtest` (scenario format in the playtest skill),

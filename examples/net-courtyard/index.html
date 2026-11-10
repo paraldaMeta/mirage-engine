@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <link rel="icon" href="data:,">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mirage · net-courtyard</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #000; overflow: hidden; font: 13px/1.4 system-ui, sans-serif; }
+    canvas { display: block; }
+    #labels { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+    #labels div { position: absolute; transform: translate(-50%, -100%); padding: 1px 6px; border-radius: 3px; background: rgba(0, 0, 0, .55); color: #fff; white-space: nowrap; }
+    #chat { position: fixed; left: 8px; bottom: 8px; width: min(340px, 70vw); color: #fff; }
+    #log { max-height: 9.8em; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; text-shadow: 0 1px 2px #000; }
+    #say { width: 100%; box-sizing: border-box; margin-top: 4px; padding: 4px 6px; border: 0; border-radius: 3px; background: rgba(0, 0, 0, .55); color: #fff; font: inherit; outline: none; }
+    #say::placeholder { color: #bbb; }
+    #status { position: fixed; right: 8px; top: 8px; padding: 3px 8px; border-radius: 3px; background: rgba(0, 0, 0, .55); color: #fff; }
+  </style>
+</head>
+<body>
+  <canvas></canvas>
+  <div id="labels"></div>
+  <div id="status"></div>
+  <div id="chat"><div id="log"></div><input id="say" maxlength="160" placeholder="Enter: chat" autocomplete="off"></div>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

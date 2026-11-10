@@ -11,6 +11,19 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
 
 **New**
 
+- @mirage/net (new package, experimental, opt-in; nothing else imports it): multiplayer for walked worlds. An
+  authoritative room (`createRoom`) runs the play walker on a serialised walk grid in Node with no GPU, or in one
+  player's page (`hostRoom`, with migration when the host leaves); quantised delta snapshots against acknowledged
+  baselines, interest by distance, reliable events and RPCs over unreliable packets, clock sync; client prediction
+  and reconciliation (`createClient().walker` goes straight into `createPlay`); lag-compensated `hitscan`; a lobby
+  with room codes, reconnect and late join; transports: seeded in-memory loopback, WebSocket (own 100-line server,
+  no dependency), WebRTC data channels signalled through the lobby. Server-side validation of every message, input
+  rate and size limits. `mirage-net` dev server (127.0.0.1 only) with a network simulator and `bake` for the grid;
+  `createNetOverlay`; example `examples/net-courtyard` (names, shared lanterns, chat). Measured (bench, 3 runs):
+  941 B/s down and 1213 up per player at 20 Hz with 4 players, 2772 down at 60 Hz; tick 0.16 ms mean with 16
+  players, 1.7-1.8 ms with 64; p99 tick inside budget up to 128 players at 20 Hz and 64 at 60 Hz. Browser check, 3
+  Chrome clients at 150 ms + 5 % loss each way: 0 prediction corrections, positions converge to 1.66 mm. Guide,
+  limits and what a public server needs: `docs/multiplayer.md`.
 - @mirage/play: NPC navigation on the walk grid (`createNavGrid`, `createNavAgent`, `createNavCrowd`; experimental,
   opt-in). No navmesh: per-radius fit bits from the walker's own disc / step / head-room test (equal to the walker
   on every floor of the node checks' grids and on 20 000 of 20 000 random floors of walled-garden), coarse A* (4 x 4

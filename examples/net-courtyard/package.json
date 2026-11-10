@@ -1,0 +1,29 @@
+{
+  "name": "net-courtyard",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Mirage multiplayer example: hello-courtyard walked by several players at once, with names, shared pickups and chat.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 5187 --strictPort",
+    "build": "vite build",
+    "bake": "node ../../packages/net/bin/mirage-net.mjs bake ../hello-courtyard/dist --out public/grid.bin",
+    "serve": "node ../../packages/net/bin/mirage-net.mjs --dir dist --grid public/grid.bin --game game.js",
+    "check": "node scripts/net-check.mjs",
+    "bench": "node scripts/bench.mjs"
+  },
+  "dependencies": {
+    "@mirage/core": "1.0.0",
+    "@mirage/net": "1.0.0",
+    "@mirage/play": "1.0.0",
+    "@mirage/world": "1.0.0",
+    "three": "0.186.1"
+  },
+  "devDependencies": {
+    "@mirage/tools": "1.0.0",
+    "puppeteer-core": "25.13.0",
+    "vite": "8.3.4"
+  },
+  "author": "灰叔 Racso"
+}
