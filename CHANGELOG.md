@@ -11,6 +11,23 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
 
 **New**
 
+- @mirage/editor (new package, experimental, opt-in, `docs/editor.md`): a visual editor in the browser against a
+  live world. `npx mirage-editor <project dir> [--write]` serves the project's own page with the editor added:
+  fly/orbit viewport, click selection with an outline, move/rotate/scale gizmos (local/world, grid and surface
+  snap), multi-select, duplicate, copy/paste, undo/redo for every edit; hierarchy, an inspector typed from
+  `plan.schema.json`, asset browser, console with the `MG` diagnostics, play-in-editor, time/weather/post/light2
+  fields, wall/path/region drawing, a material value editor, a timeline on `createTimeline`, an animator viewer.
+  Twelve placed-object types (models, lights, probe and GI volumes, audio zones, VFX emitters, nav areas, triggers,
+  spawn points...) saved as data in `plan.edits.json`, which a project applies with `editable(plan, edits)`. The
+  server binds 127.0.0.1 only, checks Host and Origin, needs a per-run token for POSTs and writes one fixed file
+  inside the project, only with `--write`. Wired into `examples/hello-courtyard` and `examples/walled-garden`: with
+  the empty layer their `mirage-snap` stills are byte-identical to the base commit (6 and 9 views) and the first
+  load grows by 16.8 kB and 25.1 kB of JavaScript before compression. The browser check
+  (`node packages/editor/editor-check.mjs`: select, gizmo drag, undo, save, reload, compare) passes on both: 28 undo
+  steps, undo-all still SSIM 0.9961-0.9997 / 0.9998, saved layer 5,360 / 5,393 bytes, equal plan hash after reload, reload
+  still SSIM 0.9844 (a placed probe and GI volume only take effect on reload) / 0.9997, `?editor=0` page identical
+  to the editor's (0 differing pixels); editor open 726-1,698 ms / 953-1,004 ms. No prefabs, visual scripting,
+  material graph, profiler, build UI, collaboration, plugins or terrain drawing: the guide lists what is missing.
 - @mirage/game: an audio engine on top of the mixer (`createAudioEngine`, `createMixer`, `createMusic`,
   `createAudioDebug`, occluders and DSP helpers; experimental, opt-in, `docs/audio.md`). `createAudio` is unchanged
   and, given to the engine, keeps playing through the new buses (`audio.play('pickup')` peak 0.284 alone, 0.284 again

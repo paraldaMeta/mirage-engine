@@ -15,7 +15,8 @@
 //     directory after symlinks are resolved, and is only written with `write: true` (--write). Without it a save is
 //     kept in memory: reloads see it, the disk does not. No request names a path to write;
 //   - the asset listing walks the project directory only, follows no symlinks and skips dot folders, node_modules
-//     and build output. Files themselves are served by Vite under its own fs.strict rules.
+//     and build output. Files themselves are served by Vite under its own fs.strict rules, after a check here that
+//     the path, with links resolved, is still inside the workspace.
 // GET  /__editor/state    { name, write, layerFile, layer }
 // GET  /__editor/assets   { models, textures, audio }: project-relative URLs
 // POST /__editor/save     { layer } -> { ok, where: 'disk' | 'memory', bytes, hash }
@@ -122,11 +123,25 @@ export async function startEditor({ root, port = 5190, write = false, layerFile 
 
   const { createServer: createVite, searchForWorkspaceRoot } = await import('vite');
   const client = join(HERE, 'client', 'main.js');
+  const allow = [realpathSync(searchForWorkspaceRoot(root)), realpathSync(dirname(HERE))];
+  // Vite checks the path as written; a link inside the project that points out of it would pass. Resolve it first.
+  const linkedOut = (pathname) => {
+    let rel; try { rel = decodeURIComponent(pathname); } catch { return true; }
+    if (rel.includes('\0')) return true;
+    if (rel.startsWith('/@fs/')) { const f = resolve(rel.slice(4)); return existsSync(f) && !allow.some((a) => inside(a, realpathSync(f))); }
+    if (rel.startsWith('/@')) return false;   // Vite's own virtual ids
+    for (const base of [root, join(root, 'public')]) {
+      const f = resolve(base, '.' + (rel.startsWith('/') ? rel : '/' + rel));
+      if (!inside(base, f)) return true;
+      if (existsSync(f)) { const real = realpathSync(f); if (!allow.some((a) => inside(a, real))) return true; }
+    }
+    return false;
+  };
   const boot = () => ({ token, write, name, layerFile: relative(root, file).split(sep).join('/'), layer });
   const vite = await createVite({
     root, clearScreen: false, logLevel: 'warn', appType: 'mpa',
     cacheDir: join(root, 'node_modules', '.vite-editor'),   // not the project's own dev cache
-    server: { middlewareMode: true, hmr: false, ws: false, fs: { strict: true, allow: [searchForWorkspaceRoot(root), dirname(HERE)] } },
+    server: { middlewareMode: true, hmr: false, ws: false, fs: { strict: true, allow } },
     optimizeDeps: { include: ['three', 'three/addons/controls/TransformControls.js'] },
     plugins: [{
       name: 'mirage-editor',
@@ -187,6 +202,7 @@ export async function startEditor({ root, port = 5190, write = false, layerFile 
     let url; try { url = new URL(req.url, 'http://127.0.0.1'); } catch { return send(res, 400, { error: 'url' }); }
     if (url.pathname.startsWith('/__editor/')) return api(req, res, url.pathname.slice('/__editor/'.length)).catch((e) => send(res, e.status || 400, { error: String(e.message || e) }));
     res.setHeader('X-Content-Type-Options', 'nosniff');
+    if (linkedOut(url.pathname)) return send(res, 403, { error: 'path' });
     if (url.pathname === '/@vite/client') { res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-store' }); return res.end(VITE_CLIENT); }
     vite.middlewares(req, res, () => send(res, 404, { error: 'not found' }));
   });

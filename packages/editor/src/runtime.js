@@ -212,7 +212,8 @@ function envSlot(world, k) {
 export async function applyEnv(world, env = {}, only) {
   const keys = only || Object.keys(env);
   if (!keys.length) return;
-  const core = await import('@mirage/core');
+  // the two modules it needs, not the whole of @mirage/core: a build keeps them out of the page's first load
+  const [sky, wetm] = await Promise.all([import('@mirage/core/sky-time'), import('@mirage/core/wet')]), core = { ...sky, ...wetm };
   let base = ENV_BASE.get(world);
   if (!base) ENV_BASE.set(world, base = {});
   for (const k of keys) {

@@ -282,6 +282,36 @@ Multiplayer for walked worlds; all of it experimental and opt-in (nothing else i
 | `sceneTriangles(scene)` | experimental | triangles for `bakeGridCPU` from a three.js scene's meshes |
 | `createNetOverlay(client, options)` | experimental | debug overlay: rtt, loss, bytes/s per entity type, prediction error; keys change the simulated network |
 
+## @mirage/editor
+
+A visual editor in the browser against a live world; all of it experimental and opt-in (nothing else imports it).
+Guide, keys, numbers and limits: `docs/editor.md`. The command is `mirage-editor <project dir> [--write] [--port n]
+[--layer file.json] [--open]`; the Node server behind it is not in the index: `import { startEditor } from
+'@mirage/editor/server'` (`startEditor({ root, port, write, layerFile })`, 127.0.0.1 only). The page side of a
+project imports `@mirage/editor/runtime` (the last six rows). The editor's client (`src/client`) is not an API.
+
+| export | stability | what it is |
+|---|---|---|
+| `LAYER_VERSION` | experimental | the version number written into an edit layer (1) |
+| `emptyLayer()` | experimental | `{ version, set, objects, nodes, env, timelines }` with nothing in it |
+| `normalizeLayer(layer)` | experimental | a checked copy of a layer with every section present; throws on a layer that would not load |
+| `isEmptyLayer(layer)` | experimental | true for `{}` and for a layer whose sections are all empty |
+| `applyEdits(plan, layer)` | experimental | the plan with the layer applied: `set` paths written into a copy, placed objects as `plan.objects` and as the fields their systems read (`lighting`, `audio.zones`, `nav.areas`, `triggers`, `spawns`); the plan object itself for an empty layer |
+| `planHash(plan)` | experimental | 16 hex digits of a plan, independent of key order, the same in Node and in the page |
+| `serializeLayer(layer)` | experimental | the text Save writes: JSON with sorted keys |
+| `createDocument(plan, layer)` | experimental | the command stack: `exec(label, changes, { merge })`, `undo`, `redo`, `history`, `on`, `plan`, `layer`, `hash`, `dirty`, `markSaved`, `load` |
+| `OBJECT_TYPES` | experimental | the twelve placed-object types (`model`, `primitive`, `wall`, `light`, `probe`, `gi`, `audioZone`, `sound`, `vfx`, `nav`, `trigger`, `spawnPoint`) with their defaults and typed fields |
+| `newObject(type, at, extra)` | experimental | a new placed object: the type's defaults plus a pose |
+| `planElements(plan)` | experimental | every plan entry the editor can select: points, footprints, regions, paths, viewpoints, spawn |
+| `schemaAt(schema, path)` | experimental | the node of `plan.schema.json` a plan path points at, or null |
+| `fieldsFromSchema(schema, node, value)` | experimental | typed inspector fields (number, vector, color, enum, bool, string, asset, points, json) for a value |
+| `editable(plan, layer)` | experimental | the runtime half: `plan`, `lighting(cfg)`, `apply(world, built)`, `attach(host)`, `hash()`; every call is a no-op for an empty layer |
+| `createPlaced(world)` | experimental | the placed objects in a scene: `set(id, def)`, `get`, `ready`, `dispose` |
+| `applyNodes(scene, nodes)` | experimental | write node overrides (pose, visibility, material values) onto the nodes at their scene paths |
+| `applyEnv(world, env)` | experimental | apply environment edits: `time`, `date`, `wet`, `rain`, `post.<setting>`, `light2.<part>.<setting>` |
+| `createTimelines(plan, world, placed)` | experimental | `plan.timelines` as `createTimeline` instances of `@mirage/play`, bound to placed objects, nodes and the camera |
+| `createTriggers(plan, { onEnter, onLeave })` | experimental | `plan.triggers` as a test of a position against the boxes, with enter and leave callbacks |
+
 ## @mirage/tools
 
 Command-line tools (no JS entry point). Stable: `mirage-playtest` (scenario format in the playtest skill),
