@@ -1,7 +1,11 @@
 // Mirage original code. Shared by evals/check.mjs and evals/run.mjs: the tasks, materialising a task's world into a
 // folder (base + the task's start overlay [+ its fix overlay]), and the machine check (one playtest of the task's
-// scenario against that folder, served from the repository root so the world loads the packages from source).
+// scenario against that folder).
+// The worlds live outside the repository (WORK, default <tmp>/mirage-evals; MIRAGE_EVAL_WORK to move it), so an agent
+// working in one does not find the reference fixes next door. WORK holds symlinks to the repository's packages/ and
+// node_modules/, and the server serves WORK: the worlds load the packages from source through their import map.
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
@@ -10,7 +14,13 @@ import { playtest } from '../packages/tools/src/playtest.mjs';
 
 export const EVALS = path.dirname(fileURLToPath(import.meta.url));
 export const ROOT = path.resolve(EVALS, '..');
-export const WORK = path.join(EVALS, '.work');
+export const WORK = path.resolve(process.env.MIRAGE_EVAL_WORK || path.join(os.tmpdir(), 'mirage-evals'));
+for (const d of ['packages', 'node_modules']) {
+  const link = path.join(WORK, d);
+  fs.mkdirSync(WORK, { recursive: true });
+  let target = null; try { target = fs.readlinkSync(link); } catch { /* none yet */ }
+  if (target !== path.join(ROOT, d)) { fs.rmSync(link, { force: true }); fs.symlinkSync(path.join(ROOT, d), link, 'dir'); }
+}
 
 /** Every task: evals/tasks/<id>/task.json (+ scenario.json, start/, fix/). */
 export function tasks(filter) {
@@ -52,9 +62,9 @@ export function worldHash(dir) {
 }
 
 let server = null;
-/** The static server at the repository root (one per process). */
+/** The static server at WORK (one per process). */
 export async function rootServer() {
-  if (!server) server = await serve(ROOT);
+  if (!server) server = await serve(WORK);
   return server;
 }
 export const closeServer = () => { if (server) { server.close(); server = null; } };
@@ -64,8 +74,8 @@ export const closeServer = () => { if (server) { server.close(); server = null; 
  *  -> { pass, codes, report, why } */
 export async function machineCheck(task, dir, { out } = {}) {
   const srv = await rootServer();
-  const rel = path.relative(ROOT, dir).split(path.sep).join('/');
-  if (rel.startsWith('..')) throw new Error('the world folder must be inside the repository: ' + dir);
+  const rel = path.relative(WORK, dir).split(path.sep).join('/');
+  if (rel.startsWith('..')) throw new Error('the world folder must be inside ' + WORK + ': ' + dir);
   const report = await playtest(task ? task.scenario : BASE_SCENARIO, srv.url + rel + '/index.html', { out: out || path.join(dir, 'out', 'playtest'), scenarioFile: task ? path.join(task.dir, 'scenario.json') : 'base', log: () => {} });
   const codes = report.diagnostics.map((d) => d.code);
   const errors = report.diagnostics.filter((d) => d.severity === 'error').map((d) => d.code);

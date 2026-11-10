@@ -6,5 +6,4 @@ out/
 .chrome-profile*/
 release/
 deploy/
-evals/.work/
 evals/results/

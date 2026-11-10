@@ -155,7 +155,9 @@ Do the diagnostics let an agent fix the problem? `evals/` measures it, the way g
 one-turn self-repair, but on whole worlds and with the browser in the loop.
 
 - `evals/base/`: a small world (a walled yard with a gate, a crate, a railing, lamps) that loads the packages from
-  source through an import map (no build step; the eval serves the repository root).
+  source through an import map (no build step). Worlds are materialised outside the repository (`<tmp>/mirage-evals`,
+  or `MIRAGE_EVAL_WORK`), next to symlinks to `packages/` and `node_modules/`, so an agent editing one does not find
+  the reference fixes beside it.
 - `evals/tasks/<id>/`: `task.json` (title, the symptom as a user would report it, `expect`: the codes the broken
   world must show, `forbid`: codes that fail the check even as warnings), `scenario.json` (the machine check),
   `start/` (files that break the base) and `fix/` (the reference fix, applied over start).
