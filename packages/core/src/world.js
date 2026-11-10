@@ -179,7 +179,21 @@ export function createWorldRenderer(config = {}) {
     if (!light) setTime(time);
     scene.environment = null;
     camera.updateMatrixWorld();
-    await renderer.compileAsync(scene, camera);
+    // Programs are compiled here in parallel (KHR_parallel_shader_compile); any program the first frames need that
+    // is not ready is compiled one after another on the main thread instead, ~50 ms each on a cold start. Two things
+    // decide which programs those are: the target (three keys a program on its output colour space: the screen is
+    // sRGB, the pipeline's half-float targets and the capture cube are linear) and the environment (a lit material
+    // with scene.environment set is another program). So compile against a pipeline target, once without the
+    // environment (the first capture pass) and once with it; a throwaway capture makes the texture exist, and the
+    // real capture below starts again from no environment, so the image is the same as before.
+    const compile = () => { const saved = renderer.getRenderTarget(); renderer.setRenderTarget(pipeline.sceneRT); const p = renderer.compileAsync(scene, camera); renderer.setRenderTarget(saved); return p; };
+    await Promise.all([compile(), pipeline.compileAsync()]);
+    if (!envLight.texture) {
+      envLight.capture(scene, envProbe, { instant: true });
+      scene.environment = envLight.texture;
+      await compile();
+      scene.environment = null;
+    }
     captureEnv(true);
   }
 

@@ -11,6 +11,11 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
 
 **New**
 
+- @mirage/core: faster cold start. `world.prepare()` now compiles every program the first frames use in parallel:
+  against the pipeline's linear target (three keys programs on the output colour space, so the old screen-target
+  compile was thrown away), with and without the environment map, plus the post passes
+  (`pipeline.compileAsync()`). Before, ~40-70 programs compiled one after another on the first frame. Measured cold
+  (shader cache defeated): woodland-path 3.8 → 1.8 s to ready, garden-quest 11 → 5.8 s; stills are unchanged.
 - Live examples on Cloudflare Pages (https://mirage-engine-4qj.pages.dev/): `npm run site` builds the seven examples
   as single files plus an index page (`scripts/build-site.mjs`); the owner deploys it with wrangler (see that file).
   Not rebuilt automatically: redeploy after changes to `main`.

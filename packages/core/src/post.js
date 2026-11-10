@@ -221,6 +221,22 @@ export class Pipeline {
     this._draw(this.blendMat, target);
   }
 
+  /** Start compiling every pass's program at once (KHR_parallel_shader_compile); resolves when all are ready. Left to
+   *  the first frames, each one compiles on the main thread in turn (~50-370 ms each on a cold start). Programs are
+   *  keyed on the output colour space and on the geometry's attributes, so this uses the passes' own full-screen
+   *  triangle and compiles the passes that draw to the canvas for both kinds of target. */
+  compileAsync() {
+    const r = this.r, cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), geo = this.quad._mesh.geometry;   // FullScreenQuad's (shared)
+    const bloom = Object.values(this.bloomPass).flat().filter((m) => m && m.isMaterial);
+    const passes = [this.ao, this.acc, this.taaMat, this.copyMat, this.grade, this.blendMat, ...bloom];
+    const sceneOf = (mats) => { const s = new THREE.Scene(); for (const m of mats) { const q = new THREE.Mesh(geo, m); q.frustumCulled = false; s.add(q); } return s; };
+    const saved = r.getRenderTarget(), jobs = [];
+    r.setRenderTarget(this.accRT); jobs.push(r.compileAsync(sceneOf(passes), cam));
+    r.setRenderTarget(null); jobs.push(r.compileAsync(sceneOf([this.grade, this.blendMat]), cam));
+    r.setRenderTarget(saved);
+    return Promise.all(jobs);
+  }
+
   dispose() {
     for (const t of [this.sceneRT, this.aoRT, this.accRT, this.histA, this.histB]) t.dispose();
     this.bloomPass.dispose(); this.quad.dispose();
