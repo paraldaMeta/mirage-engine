@@ -2,9 +2,10 @@
 // numbers in the panel and take the JSON away.
 // URL: ?fx=fire | smoke | sparks | dust | splash | snow | leaves | fireflies | magic | explosion | lightning | all
 //      ?time=dusk | golden | HH:MM   ?mode=orbit | walk   ?w=&h=  ?ui=0  ?spp=N  ?panel=0
-//      ?bench=N (N particles of a plain emitter, for the timing check)  ?dpr=1|2  ?vfx=0 (the yard with no effects)
+//      ?fx=none (an empty yard with the system on: vfx-check.mjs and vfx-bench.mjs drive it)  ?dpr=1|2  ?max=N (the global cap)
+//      ?vfx=0 (the yard with no effect system at all)
 import * as THREE from 'three';
-import { createWorldRenderer, placeDate, createVfx, VFX_LIBRARY } from '@mirage/core';
+import { createWorldRenderer, placeDate, createVfx, defineEffect, VFX_LIBRARY } from '@mirage/core';
 import { buildWorld, definePlan } from '@mirage/world';
 import { createPlay } from '@mirage/play';
 
@@ -50,8 +51,8 @@ function strike(T) {
   const r = (k) => { const x = Math.sin((shots + 1) * 12.9898 * k) * 43758.5453; return x - Math.floor(x); };
   const at = [r(1) * 6 - 3, 0, r(2) * 4 - 1];
   vfx.beam({ from: [at[0] + r(3) * 4 - 2, 14, at[2] - 2], to: at, width: 0.14, jitter: 1.1, branches: 3, life: 0.35, intensity: 9, seed: shots + 1 });
-  vfx.decal({ position: at, size: 1.6, pattern: 'scorch', life: 12, fade: 3, seed: shots + 1 });
-  vfx.decal({ position: at, size: 0.9, pattern: 'soft', blend: 'add', color: '#ff7a2a', intensity: 3, life: 1.2, fade: 1.2 });
+  vfx.decal({ position: at, size: 1.6, depth: 1.4, pattern: 'scorch', life: 12, fade: 3, seed: shots + 1 });   // deep enough to mark the step's top too
+  vfx.decal({ position: at, size: 0.9, depth: 1.4, pattern: 'soft', blend: 'add', color: '#ff7a2a', intensity: 3, life: 1.2, fade: 1.2 });
   vfx.burst(lib.sparks, [at[0], 0.1, at[2]]);
 }
 function start(name) {
@@ -60,7 +61,7 @@ function start(name) {
   if (!vfx) return;
   const names = name === 'all' ? Object.keys(lib) : [name];
   names.forEach((n, i) => {
-    if (n === 'lightning' || ONE_SHOT.includes(n)) return;
+    if (!lib[n] || ONE_SHOT.includes(n)) return;
     const p = name === 'all' ? [(i % 5) * 4 - 8, 0, i < 5 ? 0 : 4] : SPOT[n];
     handles.push(vfx.spawn(lib[n], { position: p }));
   });
@@ -127,5 +128,5 @@ let frames = 0, last = performance.now(), fps = 0;
   const s = vfx.stats;
   $('stats').textContent = `${fps.toFixed(0)} fps   particles ${s.particles} of ${s.capacity} slots   pools ${s.pools}   instances ${s.instances}\nspawned ${s.spawned}   dropped ${s.dropped}   budget ${s.budget.toFixed(2)}   update ${s.simMs.toFixed(2)} ms (CPU side)   depth copy ${vfx.depth.valid ? 'on' : 'off'}`;
 })();
-window.__mirage = { world, built, play, vfx, lib, THREE, start, VFX_LIBRARY, get fps() { return fps; }, render: (o = {}) => world.renderFrame(o.T ?? 0, { spp, frameIndex: 1, ...o }) };
+window.__mirage = { world, built, play, vfx, lib, THREE, start, VFX_LIBRARY, createVfx, defineEffect, get fps() { return fps; }, render: (o = {}) => world.renderFrame(o.T ?? 0, { spp, frameIndex: 1, ...o }) };
 window.__READY = true;

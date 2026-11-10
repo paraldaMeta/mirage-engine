@@ -11,7 +11,7 @@
 // `collision.ground` needs vfx.setGround(walkGrid); `collision.depth` uses what the camera sees and needs nothing.
 
 const smokePuff = (o) => ({
-  life: [2.6, 4.2], shape: { type: 'sphere', radius: 0.18 }, velocity: { speed: [0.5, 0.9], spread: 12 }, gravity: 0.3, drag: 0.5, wind: 1,
+  life: [2.6, 4.2], shape: { type: 'sphere', radius: 0.18 }, velocity: { speed: [0.6, 1.0], spread: 12 }, gravity: 0.55, drag: 0.5, wind: 0.45,
   turbulence: { strength: 0.45, scale: 1.2, speed: 0.35 }, size: [0.7, 1.0], sizeOverLife: [[0, 0.35], [0.4, 1], [1, 2.2]],
   color: [[0, '#2c2824'], [0.5, '#5f5a54'], [1, '#8a857e']], alpha: [[0, 0], [0.15, 0.55], [0.6, 0.3], [1, 0]], rotation: [0, 360], spin: [-25, 25],
   render: { blend: 'alpha', lit: 1, soft: 0.6, sort: 'oldest', order: -1, flipbook: { sheet: 'smoke', fps: 0, blend: true } }, ...o,
@@ -51,11 +51,12 @@ export const VFX_LIBRARY = {
       size: [0.25, 0.45], sizeOverLife: [[0, 0.5], [1, 1.8]], color: '#eef6fa', alpha: [[0, 0.35], [1, 0]], render: { lit: 1, soft: 0.2 } },
   ] },
   // snowfall over a 30 m square that follows whatever it is attached to (spawn it with follow: the camera rig)
-  snow: { name: 'snow', rate: 500, life: [7, 10], shape: { type: 'box', size: [30, 1, 30], offset: [0, 9, 0] }, velocity: { dir: [0, -1, 0], speed: [0.9, 1.5], spread: 8 }, wind: 1.2,
-    turbulence: { strength: 0.5, scale: 2.5, speed: 0.25 }, drag: 0.4, size: [0.025, 0.05], color: '#f4f7fb', alpha: [[0, 0], [0.05, 0.9], [0.92, 0.9], [1, 0]], rotation: [0, 360], spin: [-60, 60],
-    render: { sprite: 'flake', lit: 1, nearFade: 0.25 }, collision: { mode: 'stick', ground: true, depth: true, lifeLoss: 0.7 }, lod: { near: 60, far: 200, min: 0.5 } },
+  snow: { name: 'snow', rate: 700, life: [7, 10], shape: { type: 'box', size: [30, 1, 30], offset: [0, 9, 0] }, velocity: { dir: [0, -1, 0], speed: [0.9, 1.5], spread: 8 }, wind: 1.2,
+    turbulence: { strength: 0.5, scale: 2.5, speed: 0.25 }, gravity: -2.4, drag: 0.6, size: [0.05, 0.1], color: '#f4f7fb', alpha: [[0, 0], [0.05, 0.9], [0.92, 0.9], [1, 0]], rotation: [0, 360], spin: [-60, 60],
+    render: { sprite: 'soft', lit: 1, nearFade: 0.25 }, collision: { mode: 'stick', ground: true, depth: true, lifeLoss: 0.7 }, lod: { near: 60, far: 200, min: 0.5 } },
+  // (wind couples on every axis, so it is drag too: the terminal fall speed is gravity / (drag + wind))
   // leaves coming down from a canopy: they tumble (mesh particles), drift on the wind and lie where they land
-  leaves: { name: 'leaves', rate: 7, life: [6, 9], shape: { type: 'box', size: [8, 0.5, 8], offset: [0, 5, 0] }, velocity: { dir: [0, -1, 0], speed: [0.3, 0.8], spread: 30 }, gravity: -0.9, drag: 1.4, wind: 1.6,
+  leaves: { name: 'leaves', rate: 7, life: [6, 9], shape: { type: 'box', size: [8, 0.5, 8], offset: [0, 5, 0] }, velocity: { dir: [0, -1, 0], speed: [0.3, 0.8], spread: 30 }, gravity: -2.6, drag: 1.4, wind: 1.6,
     turbulence: { strength: 1.3, scale: 1.4, speed: 0.4 }, size: [0.07, 0.12], color: [[0, '#a8842c'], [1, '#7a4a1c']], alpha: [[0, 0], [0.05, 1], [0.9, 1], [1, 0]], rotation: [0, 360], spin: [-220, 220],
     spinOverLife: [[0, 1], [1, 0.6]], render: { type: 'mesh', mesh: 'shard', lit: 1 }, collision: { mode: 'stick', ground: true, depth: true, lifeLoss: 0.4 } },
   // fireflies wandering in a 4 m sphere at dusk: each blinks three times over its life
