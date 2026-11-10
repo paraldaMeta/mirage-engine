@@ -7,7 +7,7 @@ import { createSolids } from './src/solids.js';
 import { carveSolids } from './src/nav-carve.js';
 import { createPathQueue, smoothPath, pathLength } from './src/nav-path.js';
 import { createCrowd } from './src/crowd.js';
-import { bt, createBlackboard, createSenses, createBehaviorTree, agentActor, patrol, chase, flee, follow, investigate, guard, SUCCESS, FAILURE, RUNNING } from './src/ai.js';
+import { bt, createBlackboard, createSenses, createBehaviorTree, agentActor, patrol, chase, flee, follow, guard, SUCCESS, FAILURE, RUNNING } from './src/ai.js';
 
 const ok = (c, m) => { if (!c) { console.error('FAIL', m); process.exit(1); } console.log('  ok', m); };
 const cell = 0.125, WALL = [[3.5, Infinity]], OPEN = [[0, Infinity]];
@@ -123,7 +123,7 @@ let rebake;
   const g = gridOf(160, 160, -10, -10, (x, z) => (Math.abs(x) < 0.2 && Math.abs(z) > 0.6 ? WALL : OPEN));   // a wall with a 1.2 m doorway
   const space = createSolids(g), nav = createNavGrid(g);
   const door = space.add({ box: [0.08, 1, 0.6], pos: [0, 1, 0], kind: 'kinematic' });
-  const lift = space.add({ box: [1, 0.1, 1], pos: [6, 0.1, 6], kind: 'kinematic', data: { carve: false } });
+  space.add({ box: [1, 0.1, 1], pos: [6, 0.1, 6], kind: 'kinematic', data: { carve: false } });
   const carve = carveSolids(nav, space);
   ok(carve.stats.total === 0 || nav.obstacles().length === 1, 'the door is carved, the lift ({ carve: false }) is not');
   ok(!nav.fits(0, 0, 0) && nav.fits(6, 0, 6) && nav.findPath([-3, 0, 0], [3, 0, 0]) === null, 'door shut: no path');

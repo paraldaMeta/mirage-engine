@@ -102,12 +102,12 @@ try {
     w.place([18, 0, 18]);
     const x0 = Float64Array.from(c.x.subarray(0, N)), z0 = Float64Array.from(c.z.subarray(0, N));
     const s = m.stats, ms0 = s.crowdMs, st0 = s.steps;
-    let deep = 0, sum = 0, samples = 0;
+    let deep = 0, samples = 0;
     for (let k = 0; k < 600; k++) {
       m.step(1);
       if (k % 20 === 19) for (let i = 0; i < N; i++) for (let j = i + 1; j < N; j++) {
         const d = Math.hypot(c.x[i] - c.x[j], c.z[i] - c.z[j]) - c.radius[i] - c.radius[j];
-        if (Math.abs(c.y[i] - c.y[j]) < 1 && d < 0) { deep = Math.max(deep, -d); sum -= d; samples++; }
+        if (Math.abs(c.y[i] - c.y[j]) < 1 && d < 0) { deep = Math.max(deep, -d); samples++; }
       }
     }
     let moved = 0; for (let i = 0; i < N; i++) if (Math.hypot(c.x[i] - x0[i], c.z[i] - z0[i]) > 1) moved++;

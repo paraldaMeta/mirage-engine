@@ -53,7 +53,7 @@ const modules = [{
     const rail = mesh(new THREE.BoxGeometry(0.7, DECK_TOP, 0.05), 0x4a3a2a, -13, DECK_TOP / 2, 1.96); rail.userData.collide = false;
   },
 }];
-const built = await buildWorld(world, { plan, modules, shared: {} });
+await buildWorld(world, { plan, modules, shared: {} });
 const { camera, scene } = world;
 camera.aspect = W / H; camera.fov = 55; camera.near = 0.1; camera.far = 2000; camera.updateProjectionMatrix();
 await world.prepare();
