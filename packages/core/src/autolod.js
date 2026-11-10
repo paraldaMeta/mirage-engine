@@ -9,6 +9,7 @@
 //   lod.add(built.root);            // after buildWorld (and chunkObject, if used): chains start building
 //   await lod.ready();              // optional: selection works with whatever is built so far
 //   lod.stats                       // { meshes, built, pending, levels, sourceTriangles, drawnTriangles, fading, buildMs }
+//   lod.remove(root)                // a streamed part that left the scene
 //   lod.freeze(0) / lod.freeze(null)   // hold every mesh at one level (0 = source: do this around a walk-grid bake)
 //   lod.dispose()                   // back to the source geometry, LOD geometry freed
 // It updates itself before each render of world.camera (frame.js); `auto: false` and lod.update(camera, heightPx, dt)
@@ -88,6 +89,7 @@ export function createAutoLod(world, opts = {}) {
   }
   const chainOpts = { ratios, error: maxError };
   function finish(en, levels) {
+    if (en.gone) { stats.pending--; return; }
     for (const l of levels) { en.geos.push(levelGeometry(l, en.names, en.geos[0])); en.errs.push(l.error * en.scale); stats.levels++; }
     en.built = true; stats.built++; stats.pending--;
     if (!stats.pending) { for (const r of readyResolve) r(stats); readyResolve = []; }
@@ -127,6 +129,21 @@ export function createAutoLod(world, opts = {}) {
     return api;
   }
 
+  // forget every mesh under root (a streamed cell that left): its source geometry and material come back
+  function remove(root) {
+    const gone = new Set(); root.traverse((o) => gone.add(o));
+    for (let i = entries.length - 1; i >= 0; i--) {
+      const en = entries[i];
+      if (!gone.has(en.mesh)) continue;
+      endFade(en); en.mesh.geometry = en.geos[0];
+      for (let k = 1; k < en.geos.length; k++) en.geos[k].dispose();
+      en.mats?.forEach((m) => m.dispose());
+      en.gone = true; entries.splice(i, 1); stats.meshes--;
+      if (!en.built) { const q = queue.indexOf(en); if (q >= 0) { queue.splice(q, 1); stats.pending--; } }
+      else stats.built--;
+    }
+    if (!stats.pending) { for (const r of readyResolve) r(stats); readyResolve = []; }
+  }
   function endFade(en) {
     if (!en.partner) return;
     en.partner.removeFromParent(); en.partner.geometry = en.geos[0];
@@ -189,7 +206,7 @@ export function createAutoLod(world, opts = {}) {
   const off = auto && scene.isScene ? onView(scene, camera0, (cam, h) => update(cam, h)) : null;
 
   const api = {
-    add, update, stats, entries,
+    add, remove, update, stats, entries,
     ready: () => (stats.pending ? new Promise((r) => { readyResolve.push(r); if (!pool.length && !auto) { while (stats.pending) slice(50); } }) : Promise.resolve(stats)),
     // build everything now on this thread (tests, tools); with workers, await ready() instead
     buildNow() { while (!pool.length && (current || queue.length)) slice(1000); return stats; },
@@ -209,7 +226,45 @@ export function createAutoLod(world, opts = {}) {
 // under the roots (instances expanded) in the space of `origin` (a Matrix4 inverse is applied; default world space),
 // its material's colour baked to vertex colours, simplified to `triangles` (or `ratio`). One draw call, one material
 // (pass one with vertexColors: true). -> Mesh, with userData.proxy = { sourceTriangles, triangles, error }
-export function buildProxy(roots, { material, triangles, ratio = 0.05, error = Infinity, origin = null, colorOf = null, lockBorder = false } = {}) {
+export function buildProxy(roots, opts) {
+  const job = collectProxy(roots, opts);
+  if (!job.src) return null;
+  const chain = createChain(job.mesh, job.opts);
+  chain.step();
+  return proxyMesh(job, chain.levels[0]);
+}
+// the same with the simplification in a worker of createSimplifyWorkers() (the collection, a copy loop, stays here)
+export async function buildProxyAsync(roots, opts, workers) {
+  const job = collectProxy(roots, opts);
+  if (!job.src) return null;
+  const keep = job.src < 8 ? null : await workers.run({ ...job.mesh, positions: job.mesh.positions.slice(), attributes: job.mesh.attributes.map((a) => ({ ...a, array: a.array.slice() })) }, job.opts);
+  return proxyMesh(job, keep && keep[0]);
+}
+// simplify.js in `n` module workers: run(mesh, chainOptions) -> Promise of createChain's levels. Where module
+// workers do not start (file://), run() falls back to this thread.
+export function createSimplifyWorkers(n = 1) {
+  const idle = [], wait = [], jobs = new Map();
+  let id = 0, dead = false, all = [];
+  const local = (mesh, opts) => { const c = createChain(mesh, opts); c.step(); return c.levels; };
+  const next = () => { while (idle.length && wait.length) { const w = idle.pop(), j = wait.shift(); w.job = j; jobs.set(j.id, j); w.postMessage({ id: j.id, mesh: j.mesh, opts: j.opts }, [j.mesh.positions.buffer, ...j.mesh.attributes.map((a) => a.array.buffer)]); } };
+  try {
+    for (let i = 0; i < n && typeof Worker !== 'undefined'; i++) {
+      const w = new Worker(new URL('./simplify.worker.js', import.meta.url), { type: 'module' });
+      w.onmessage = (e) => { const j = jobs.get(e.data.id); jobs.delete(e.data.id); w.job = null; idle.push(w); if (j) e.data.error ? j.reject(new Error(e.data.error)) : j.resolve(e.data.levels); next(); };
+      w.onerror = () => { dead = true; all = all.filter((x) => x !== w); const j = w.job; if (j) { jobs.delete(j.id); j.reject(new Error('simplify worker failed to start')); } };
+      idle.push(w); all.push(w);
+    }
+  } catch { dead = true; }
+  return {
+    get workers() { return dead ? 0 : all.length; },
+    run(mesh, opts) {
+      if (dead || !all.length) return Promise.resolve().then(() => local(mesh, opts));
+      return new Promise((resolve, reject) => { wait.push({ id: ++id, mesh, opts, resolve, reject }); next(); });
+    },
+    dispose() { for (const w of all) w.terminate(); all = []; dead = true; },
+  };
+}
+function collectProxy(roots, { material, triangles, ratio = 0.05, error = Infinity, origin = null, colorOf = null, lockBorder = false } = {}) {
   const P = [], N = [], C = [], col = new THREE.Color(), nm = new THREE.Matrix3(), mw = new THREE.Matrix4(), inv = origin ? origin.clone().invert() : null, n = new THREE.Vector3();
   const take = (o, matrix) => {
     const g = o.geometry, pa = g.attributes.position, na = g.attributes.normal, ca = g.attributes.color, idx = g.index;
@@ -234,14 +289,17 @@ export function buildProxy(roots, { material, triangles, ratio = 0.05, error = I
     });
   }
   const positions = new Float32Array(P), src = positions.length / 9;
-  const chain = createChain({ positions, attributes: [{ array: new Float32Array(N), itemSize: 3, weight: 0.05 }, { array: new Float32Array(C), itemSize: 3, weight: 0.2 }], lockBorder },
-    { ratios: [triangles ? Math.min(1, triangles / Math.max(1, src)) : ratio], error, minGain: 0 });
-  chain.step();
-  const l = chain.levels[0], g = new THREE.BufferGeometry();
+  return { src, material, mesh: { positions, attributes: [{ array: new Float32Array(N), itemSize: 3, weight: 0.05 }, { array: new Float32Array(C), itemSize: 3, weight: 0.2 }], lockBorder },
+    opts: { ratios: [triangles ? Math.min(1, triangles / Math.max(1, src)) : ratio], error, minGain: 0 } };
+}
+function proxyMesh(job, l) {
+  const g = new THREE.BufferGeometry(), src = job.src, material = job.material;
+  // nothing to simplify (a few triangles): the collected soup itself
+  if (!l) l = { positions: job.mesh.positions, attributes: job.mesh.attributes.map((a) => a.array), index: null, triangles: src, error: 0 };
   g.setAttribute('position', new THREE.BufferAttribute(l.positions, 3));
   g.setAttribute('normal', new THREE.BufferAttribute(l.attributes[0], 3));
   g.setAttribute('color', new THREE.BufferAttribute(l.attributes[1], 3));
-  g.setIndex(new THREE.BufferAttribute(l.index, 1));
+  if (l.index) g.setIndex(new THREE.BufferAttribute(l.index, 1));
   g.computeBoundingBox(); g.computeBoundingSphere();
   const mesh = new THREE.Mesh(g, material || new THREE.MeshLambertMaterial({ vertexColors: true }));
   mesh.name = 'hlod'; mesh.castShadow = false; mesh.receiveShadow = true;

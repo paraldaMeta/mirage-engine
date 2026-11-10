@@ -8,6 +8,7 @@
 //   const occ = createOcclusion(world, { margin: 1, cutMetres: 3, cutDegrees: 12, confirm: 2 });
 //   occ.add(built.root);            // every mesh under it (best after chunkObject: a chunk is something a wall can hide)
 //   occ.stats                       // { objects, tested, hidden, hiddenTriangles, age, cuts, readbacks, ms }
+//   occ.remove(root); occ.shift(dx, dy, dz)   // a streamed part left; the origin was rebased
 //   occ.enabled = false             // everything visible again; occ.dispose()
 //
 // Per frame, before world.camera's render:
@@ -43,10 +44,10 @@ export function createOcclusion(world, opts = {}) {
   quad.frustumCulled = false;
   const qScene = new THREE.Scene(), qCam = new THREE.Camera();
   qScene.add(quad);
-  let rtA = null, rtB = null, pending = false, frame = 0, disposed = false;
+  let rtA = null, rtB = null, pending = false, frame = 0, disposed = false, epoch = 0;
   let drawn = null;          // { vp: Float64Array(16), pos: [x,y,z], dir: [x,y,z], frame } of the depth now in the depth texture
   let have = null;           // the newest readback: { mips: [{ w, h, d: Float32Array }], vp, pos, dir, frame }
-  const api = { enabled: true, stats, add, remove, dispose, test: null };
+  const api = { enabled: true, bypass: false, stats, add, remove, shift, dispose, test: null };
 
   function add(root) {
     root.updateMatrixWorld(true);
@@ -61,6 +62,11 @@ export function createOcclusion(world, opts = {}) {
     });
     stats.objects = items.length;
     return api;
+  }
+  // the world moved under the camera (a floating origin): boxes follow, and the depth on its way is of no use
+  function shift(dx, dy, dz) {
+    for (const it of items) { const b = it.box; b[0] += dx; b[3] += dx; b[1] += dy; b[4] += dy; b[2] += dz; b[5] += dz; }
+    showAll(); have = null; drawn = null; epoch++;
   }
   function remove(root) {
     const gone = new Set(); root.traverse((o) => gone.add(o));
@@ -81,11 +87,11 @@ export function createOcclusion(world, opts = {}) {
     quad.material.uniforms.tDepth.value = src; renderer.setRenderTarget(rtA); renderer.render(qScene, qCam);
     quad.material.uniforms.tDepth.value = rtA.texture; renderer.setRenderTarget(rtB); renderer.render(qScene, qCam);
     renderer.setRenderTarget(keep); renderer.autoClear = auto; renderer.xr.enabled = xr; renderer.shadowMap.autoUpdate = sh;
-    const buf = new Float32Array(w2 * h2 * 4), tag = drawn;
+    const buf = new Float32Array(w2 * h2 * 4), tag = drawn, ep = epoch;
     pending = true;
     renderer.readRenderTargetPixelsAsync(rtB, 0, 0, w2, h2, buf).then(() => {
       pending = false;
-      if (disposed) return;
+      if (disposed || ep !== epoch) return;
       const d0 = new Float32Array(w2 * h2);
       for (let i = 0; i < d0.length; i++) d0[i] = buf[i * 4];
       const mips = [{ w: w2, h: h2, d: d0 }];
@@ -167,6 +173,7 @@ export function createOcclusion(world, opts = {}) {
   function after() { for (let i = 0; i < items.length; i++) if (items[i].hidden) items[i].o.visible = true; rehide = true; }
   let rehide = false;
   const off = onView(scene, camera0, (cam, h, r, target) => {
+    if (api.bypass) { for (let i = 0; i < items.length; i++) if (items[i].hidden) items[i].o.visible = true; rehide = true; return; }   // one render with nothing hidden, state untouched (the popping check)
     if (rehide) { for (let i = 0; i < items.length; i++) if (items[i].hidden) items[i].o.visible = false; rehide = false; }
     before(cam, h, r, target);
   }, after);

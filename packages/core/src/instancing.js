@@ -13,6 +13,7 @@
 //     impostor: true | bakeImpostor(...), impostorPx: 90,               // a quad once the instance is under 90 px tall
 //     maxDistance: Infinity, cell: 32, castShadow: true, shadowMargin: 10 });
 //   scene.add(trees.object);       // culls itself before each render of world.camera (auto: false -> trees.update(camera, heightPx))
+//   trees.object.position may move (a floating origin); the walk grid ignores the instances unless collide: true
 //   trees.stats                    // { instances, visible, perLevel: [...], cellsTested, instancesTested, triangles, ms }
 //
 // The work per frame is on the CPU: about 2-3 ns per culled-by-cell instance and 15-30 ns per individually
@@ -96,7 +97,8 @@ export function createInstances(world, opts) {
   index();
 
   const stats = { instances: n, visible: 0, perLevel: new Array(L).fill(0), cells: cells.length, cellsTested: 0, instancesTested: 0, triangles: 0, ms: 0, frames: 0 };
-  const planes = new Float32Array(24), dist2 = new Float64Array(L + 1), lastCam = new Float64Array(19);
+  const planes = new Float32Array(24), dist2 = new Float64Array(L + 1), lastCam = new Float64Array(22);
+  object.userData.collide = opts.collide ?? false;   // the walk-grid bake has its own camera: it would see the last view's set
   const put = (l, i) => {
     const v = lv[l];
     if ((v.count + 1) * 16 > v.attr.array.length) { const a = new Float32Array(v.attr.array.length * 2); a.set(v.attr.array); const na = new THREE.InstancedBufferAttribute(a, 16); na.setUsage(THREE.DynamicDrawUsage); v.attr = na; for (const m of v.meshes) m.instanceMatrix = na; }
@@ -110,11 +112,15 @@ export function createInstances(world, opts) {
     for (let i = 0; i < 16; i++) if (lastCam[i] !== me[i]) { same = false; lastCam[i] = me[i]; }
     if (lastCam[16] !== pe[0] || lastCam[17] !== pe[5]) { same = false; lastCam[16] = pe[0]; lastCam[17] = pe[5]; }
     lastCam[18] = heightPx;
+    // the group may be moved as a whole (a floating origin): the test runs in its space (translation only)
+    object.updateWorldMatrix(true, false);
+    const oe = object.matrixWorld.elements;
+    for (let i = 0; i < 3; i++) if (lastCam[19 + i] !== oe[12 + i]) { same = false; lastCam[19 + i] = oe[12 + i]; }
     if (same) return;
-    _pm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse.copy(camera.matrixWorld).invert());
+    _pm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse.copy(camera.matrixWorld).invert()).multiply(object.matrixWorld);
     _fr.setFromProjectionMatrix(_pm, camera.coordinateSystem, camera.reversedDepth);
     for (let p = 0; p < 6; p++) { const pl = _fr.planes[p]; planes[p * 4] = pl.normal.x; planes[p * 4 + 1] = pl.normal.y; planes[p * 4 + 2] = pl.normal.z; planes[p * 4 + 3] = pl.constant; }
-    const ex = me[12], ey = me[13], ez = me[14];
+    const ex = me[12] - oe[12], ey = me[13] - oe[13], ez = me[14] - oe[14];
     // switch distances per level for a unit-scale instance: error * K / d = errorPx  ->  d = error * K / errorPx
     const K = camera.isPerspectiveCamera ? heightPx / (2 * Math.tan(camera.fov * Math.PI / 360)) : 0;
     for (let l = 1; l < nLevels; l++) dist2[l] = K ? errs[l] * K / errorPx : 0;
