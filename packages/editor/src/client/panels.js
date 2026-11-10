@@ -274,7 +274,7 @@ export function createPanels(app, { top, left, right, bottom, schema }) {
     };
     bar.append(dur, h('span', null, 's'), loop, h('span', null, 'loop'), h('div', { class: 'mg-sep' }),
       btn(live?.playing ? '❚❚' : '▶', 'tl-play', () => { const t = app.timelines[TL.name]; if (!t) return; if (t.playing) t.pause(); else t.play(TL.time >= tlLength(d) ? 0 : TL.time); app.kick(2); B2.show('Timeline'); }, 'Play / pause the timeline'),
-      btn('■', 'tl-stop', () => { app.timelines[TL.name]?.stop(); TL.time = 0; for (const [id, def] of Object.entries(doc.layer.objects)) app.placed.set(id, def); app.kick(3); B2.show('Timeline'); }, 'Stop: objects go back to their saved pose'),
+      btn('■', 'tl-stop', () => { app.timelines[TL.name]?.stop(); TL.time = 0; app.restPose(); B2.show('Timeline'); }, 'Stop: objects go back to their saved pose'),
       h('div', { class: 'mg-sep' }),
       btn('+ Track', 'tl-track', () => { const target = tlTarget(); if (!target) return app.log('warning', 'timeline: select a placed object or a scenery node first (or use + Camera)'); TL.track = d.tracks.length; tlSave('Add track', { ...d, tracks: [...d.tracks, { type: 'transform', target, keys: [] }] }); }, 'A transform track for the selection'),
       btn('+ Camera', 'tl-camera', () => { TL.track = d.tracks.length; tlSave('Add camera track', { ...d, tracks: [...d.tracks, { type: 'camera', target: 'camera', keys: [] }] }); }),

@@ -218,8 +218,10 @@ export async function applyEnv(world, env = {}, only) {
   for (const k of keys) {
     let v = env[k];
     if (k === 'time' || k === 'date') {
-      if (env.time === undefined && env.date === undefined) continue;
       if (k === 'date' && keys.includes('time')) continue;   // set once, with the time
+      // what the project itself had set, kept the first time it is replaced: undo and "As the plan" go back to it
+      if (!('time' in base)) { const st = world.state; base.time = st?.date ?? (st?.sun ? { elevation: st.sun.elevation, azimuth: st.sun.azimuth } : 'golden'); }
+      if (env.time === undefined && env.date === undefined) { world.setTime(base.time); continue; }
       const t = env.time ?? 'golden';
       world.setTime(t === 'golden' ? 'golden' : core.placeDate(env.date || '2026-10-25', t, world.ctx?.place?.tzHours ?? 0));
     } else if (k === 'wet' || k === 'rain') {

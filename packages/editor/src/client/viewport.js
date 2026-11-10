@@ -345,6 +345,7 @@ export function createViewport({ world, view, pickRoots = new Set(), onPick = ()
       const factor = pos.distanceTo(camera.position) * Math.min(1.9 * Math.tan(Math.PI * camera.fov / 360) / camera.zoom, 7) * tc.size / 4;
       const dir = V(axis === 'X' ? 1 : 0, axis === 'Y' ? 1 : 0, axis === 'Z' ? 1 : 0);
       if (G.space === 'local' || G.mode === 'scale') dir.applyQuaternion(pivot.quaternion);
+      if (dir.dot(camera.position.clone().sub(pos)) < 0) dir.negate();   // the gizmo draws an axis that points away from the camera on its other side
       return toClient(pos.addScaledVector(dir, at * factor));
     },
     dispose() { removeEventListener('keydown', key, true); removeEventListener('keyup', key, true); tc.dispose(); renderer.dispose(); maskRT.dispose(); canvas.remove(); },

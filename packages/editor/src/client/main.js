@@ -21,7 +21,7 @@ import { createPanels } from './panels.js';
 import { createDocument } from '../document.js';
 import { clone, getPath, setPath, joinPath, planHash, stableStringify } from '../layer.js';
 import { OBJECT_TYPES, newObject, planElements, elementMoved, elementScaled } from '../schema.js';
-import { createPlaced, applyNodeOverride, applyNodes, applyEnv, createTimelines, createTriggers, getPose, resolveNode } from '../runtime.js';
+import { createPlaced, applyNodeOverride, applyNodes, applyEnv, createTimelines, createTriggers, getPose, setPose, resolveNode } from '../runtime.js';
 
 export const SHORTCUTS = [
   ['Viewport', [['Right drag', 'look around'], ['Right drag + W A S D Q E', 'fly (Shift: faster)'], ['Alt + drag / middle drag', 'orbit'], ['Shift + middle drag', 'pan'], ['Wheel', 'dolly'], ['F', 'focus the selection']]],
@@ -43,7 +43,7 @@ function waitHost() {
     const poll = setInterval(() => {
       if (globalThis.__mirageEditorHost) { clearInterval(poll); return; }
       const M = globalThis.__mirage;
-      if (globalThis.__READY && M?.world && M.built?.plan) { clearInterval(poll); done({ world: M.world, built: M.built, play: M.play, base: M.built.plan, layer: E.layer, placed: null, bare: true }); }
+      if (globalThis.__READY && M?.world && M.built?.plan) { clearInterval(poll); done({ world: M.world, built: M.built, play: M.play, base: { name: String(M.built.plan) },   /* the report holds the plan's name only */ layer: E.layer, placed: null, bare: true }); }
     }, 200);
   });
 }
@@ -307,6 +307,13 @@ async function boot() {
     document.body.append(h('button', { id: 'mg-stop', onclick: () => stop(), title: 'Ctrl + Enter' }, '■ Stop (Ctrl + Enter)'));
     return true;
   }
+  /** Everything a timeline or play mode posed goes back to the pose the document holds: outside a scrub the view
+   *  shows what Save would write, which is also what a reload shows. */
+  function restPose() {
+    for (const [id, def] of Object.entries(doc.layer.objects)) { const o = placed.get(id); if (o) setPose(o, def); }
+    applyNodes(scene, doc.layer.nodes);
+    syncHelpers(); kick(3);
+  }
   function stop() {
     if (mode !== 'play') return false;
     try { playing?.dispose?.(); } catch (err) { log('error', 'stop: ' + (err?.message || err)); }
@@ -317,10 +324,9 @@ async function boot() {
     delete root.dataset.play; vp.enabled = true; vp.resize(true);
     // what play moved goes back to what the document says
     if (camSnap) { camera.position.copy(camSnap.p); camera.quaternion.copy(camSnap.q); camera.fov = camSnap.fov; camera.near = camSnap.near; camera.far = camSnap.far; camera.updateProjectionMatrix(); camera.updateMatrixWorld(true); }
-    for (const [id, def] of Object.entries(doc.layer.objects)) placed.set(id, def);
-    applyNodes(scene, doc.layer.nodes);
     applyEnv(world, doc.layer.env).then(() => kick(4));
-    for (const t of Object.values(timelines)) t.stop().seek(0);
+    for (const t of Object.values(timelines)) t.stop();
+    restPose();
     mode = 'edit'; last = performance.now();
     applySelection(); panels.refresh('all'); kick(4);
     return true;
@@ -389,7 +395,7 @@ async function boot() {
     host, world, doc, vp, placed, cmd, log, item, elements, schema: planSchema, boot: E, stats,
     get selection() { return [...sel]; }, get mode() { return mode; }, get logs() { return logs; }, get diagnostics() { return diagnostics; },
     get timelines() { return timelines; }, get drawing() { return drawing; }, get animate() { return animate; }, get building() { return !!building || !!rebuildTimer; },
-    select, exec, execQuiet, kick, rebuild, rebuildTimelines, viewCentre, post,
+    select, exec, execQuiet, kick, restPose, rebuild, rebuildTimelines, viewCentre, post,
     handle: (id) => item(id)?.handle || null,
     hash: () => doc.hash(), jsonPlan,
     /** every queued rebuild, model load and environment change has landed, and the last still is on screen */

@@ -106,7 +106,7 @@ export function objectBox(o) {
 export function applyEdits(plan, layer) {
   if (isEmptyLayer(layer)) return plan;
   layer = normalizeLayer(layer);
-  const hasSet = Object.keys(layer.set).length, ids = Object.keys(layer.objects), tl = Object.keys(layer.timelines);
+  const hasSet = Object.keys(layer.set).length, ids = Object.keys(layer.objects).sort(), tl = Object.keys(layer.timelines);
   if (!hasSet && !ids.length && !tl.length) return plan;
   const out = clone(plan);
   // shallow paths first, so "viewpoints" (a whole array) lands before "viewpoints[1].eye"
