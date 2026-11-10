@@ -12,7 +12,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const PKGS = ['core', 'world', 'play', 'game', 'tools'];
+const PKGS = ['core', 'world', 'play', 'game', 'tools', 'net'];
 const read = (f) => JSON.parse(fs.readFileSync(path.join(ROOT, f), 'utf8'));
 const root = read('package.json');
 const three = read('node_modules/three/package.json').version;
