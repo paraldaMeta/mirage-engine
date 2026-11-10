@@ -486,6 +486,27 @@ export function createWorldRenderer(config = {}) {
     renderer.render(scene, opts.camera || camera);
   }
 
+  /** XR post (packages/play/src/xr-post.js): the state of one frame (fog, time, updates, the shadow fit) set once,
+   *  then opts.draw(P) with the frame's post settings; the caller draws each view through its own Pipeline.
+   *  opts: { camera (the head: shadow cascades fit to it), shadow, fog, dt, draw }. Nothing calls it otherwise. */
+  function renderViews(T = 0, opts = {}) {
+    calm(() => {
+      if (!light) setTime(time);
+      if (envState === 'instant') { const xe = renderer.xr.enabled; renderer.xr.enabled = false; try { captureEnv(true); } finally { renderer.xr.enabled = xe; } }
+      const P = { ...post, exposure: post.exposure * exposure, temperature: post.temperature + light.warmth };
+      if (P.autoExposure > 0) P.aeKey = post.aeKey * Math.pow(2, -(post.aeNight || 0) * Math.min(1, Math.max(0, light.lamp)));
+      writeFog();
+      if (opts.fog !== undefined) scene.fog.density *= opts.fog;
+      G.uTime.value = T; G.uFrame.value = 0;
+      skyU.uCloudOffset.value.set(T * 0.004, T * 0.0015);
+      for (const fn of updates) fn(T);
+      const sh = opts.shadow || shadow, cam = opts.camera || camera;
+      if (lighting) lighting.frame(cam, opts.dt || 0);
+      fitShadow(sh.center, sh.radius, null, 0, cam);
+      opts.draw(P);
+    });
+  }
+
   /** Interiors: [{ min: [x,y,z], max: [x,y,z], factor = 0.3, soft = 0.6 }] scale the image-based light inside
    *  each box (up to 8). Recaptures the environment, so call it before prepare() or after building. */
   function setAmbientVolumes(list = []) {
@@ -530,6 +551,6 @@ export function createWorldRenderer(config = {}) {
     /** reduced motion in use ({ sway, rain }), null when off; set it with setReducedMotion(true | { sway, rain } | false) */
     get reducedMotion() { return reduced; },
     setReducedMotion, renderTransparent,
-    setTime, tick, prepare, renderFrame, renderDirect, resize, dispose, captureEnv, setAmbientVolumes,
+    setTime, tick, prepare, renderFrame, renderDirect, renderViews, resize, dispose, captureEnv, setAmbientVolumes,
   };
 }

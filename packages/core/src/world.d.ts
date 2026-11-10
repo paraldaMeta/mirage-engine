@@ -101,6 +101,9 @@ export interface WorldRenderer {
   setReducedMotion(option?: boolean | Partial<ReducedMotionSettings> | null): ReducedMotionSettings | null;
   /** One plain draw of the scene into the current framebuffer (the XR path): no pipeline; the renderer's tone mapping grades. */
   renderDirect(seconds?: number, options?: { camera?: THREE.Camera; shadow?: ShadowRegion; fog?: number }): void;
+  /** XR post (@mirage/play xr-post): set the frame's state once (fog, time, updates, shadow fit), then call draw with the
+   *  frame's post settings; the caller draws each view through its own Pipeline. */
+  renderViews(seconds: number, options: { camera?: THREE.Camera; shadow?: ShadowRegion; fog?: number; dt?: number; draw(post: PostSettings): void }): void;
   resize(width: number, height: number): void;
   /** Call after setTime() or prepare(). */
   captureEnv(instant?: boolean): void;
