@@ -85,7 +85,7 @@ export function createNavGrid(grid, opts = {}) {
 
   // the walk grid with the dynamic obstacles in: a closed door is a solid to walkers made on nav.grid
   const view = Object.create(grid);
-  view.supportAt = (k, y, s) => { if (k < 0) return null; const v = layerAt(k, y + s); return v < 0 || blk[v] ? null : [fy[v], cy[v]]; };
+  view.supportAt = (k, y, s, out) => { if (k < 0) return null; const v = layerAt(k, y + s); if (v < 0 || blk[v]) return null; if (!out) return [fy[v], cy[v]]; out[0] = fy[v]; out[1] = cy[v]; return out; };
 
   // ---- profiles: fit bits and coarse pieces per agent radius ----
   const profiles = new Map();

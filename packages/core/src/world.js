@@ -371,8 +371,8 @@ export function createWorldRenderer(config = {}) {
       const o = cam.isOrthographicCamera ? 12 : 8;
       if (spp > 1 || taa) {
         // AA: a 2-px footprint across the sub-frames; a 1-px one across the frames of temporal AA
-        const [jx, jy] = taa ? aaOffset((taaK = (taaK + 1) % 16)).map((v) => v * 0.5) : aaOffset(k);
-        pm[o] += (2 * jx) / w; pm[o + 1] += (2 * jy) / h;
+        const j = taa ? aaOffset((taaK = (taaK + 1) % 16)) : aaOffset(k), js = taa ? 0.5 : 1;   // (no .map: no array per frame; x0.5 and x2 are exact)
+        pm[o] += (2 * (j[0] * js)) / w; pm[o + 1] += (2 * (j[1] * js)) / h;
       }
       if (spp > 1 && P.dof > 0 && cam.isPerspectiveCamera) {
         // thin lens: move the eye over the aperture (Vogel spiral) and shear the frustum so the focus plane stays

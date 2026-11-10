@@ -27,15 +27,16 @@ export function createWalker(grid, opts = {}) {
     if (d <= B.radius * 0.55) feet.push([i * grid.cell, j * grid.cell]);
   }
   const w = { pos, vy: 0, onGround: false, blocked: false, body: B };
+  const _s = [0, 0];
 
   /** ground under a body at (x, z) with feet at y, or null when it does not fit there */
   function fits(x, z, y, step) {
     let g = -Infinity;
-    for (const [dx, dz] of disc) {
-      const s = grid.support(x + dx, z + dz, y, step);
+    for (let i = 0; i < disc.length; i++) {
+      const s = grid.support(x + disc[i][0], z + disc[i][1], y, step, _s);   // _s: filled in place, no array per cell
       if (!s || s[1] < Math.max(y, s[0]) + B.head) return null;   // inside a solid / under a low ceiling
     }
-    for (const [dx, dz] of feet) { const s = grid.support(x + dx, z + dz, y, step); if (s[0] > g) g = s[0]; }
+    for (let i = 0; i < feet.length; i++) { const s = grid.support(x + feet[i][0], z + feet[i][1], y, step, _s); if (s[0] > g) g = s[0]; }
     return g;
   }
   w.fits = (x, z, y = pos[1]) => fits(x, z, y, B.step) !== null;

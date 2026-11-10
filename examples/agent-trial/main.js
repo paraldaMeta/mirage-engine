@@ -27,8 +27,8 @@ const { camera } = world;
 camera.aspect = W / H; camera.fov = 55; camera.near = 0.1; camera.far = 3000; camera.updateProjectionMatrix();
 const spp = +Q.get('spp') || 6, mode = Q.get('mode') || 'walk';
 let play, g = null;
+if (Q.get('perf')) window.__big = (await import('@mirage/core/bigworld')).applyBigWorld(world, world.scene, Q.get('perf'));   // ?perf=chunk,lod,occ (docs/big-worlds.md)
 if (only) {   // a module owner's self-test: the world alone, walk / fly / game / orbit
-  if (Q.get('perf')) window.__big = (await import('@mirage/core/bigworld')).applyBigWorld(world, world.scene, Q.get('perf'));   // ?perf=chunk,lod,occ (docs/big-worlds.md)
   await world.prepare();
   play = createPlay(world, { plan: built.plan, canvas, mode, spp, ui: Q.get('ui') !== '0', shadowRadius, fit: !Q.get('w'), quality, hud });
 } else {
