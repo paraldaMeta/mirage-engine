@@ -35,3 +35,12 @@ SOFTWARE.
 Builds that use `@mirage/game` bundle Rapier (https://rapier.rs, `@dimforge/rapier3d-compat`), by Dimforge
 (Sébastien Crozet and contributors), licensed under the Apache License 2.0 (http://www.apache.org/licenses/LICENSE-2.0). Mirage uses its npm runtime. The unchanged 0.19.3 TypeScript declarations and their license ship in
 packages/game/types/rapier for NodeNext consumers.
+
+---
+
+The Gaussian splat kit (packages/world/src/kits/splat.js) was written for Mirage. Its techniques (a counting sort on
+view depth with buckets spread by a depth histogram, skipping still cameras and splats behind the eye; culling tiny
+and off-screen splats before the 2D covariance's eigen decomposition; anti-alias opacity compensation; the SOG
+texture layout it reads; effect hooks on centre, rotation / scale and colour) were learnt from the PlayCanvas engine,
+https://github.com/playcanvas/engine, MIT License, Copyright (c) 2011-2026 PlayCanvas Ltd. No PlayCanvas code is
+included.

@@ -12,6 +12,7 @@ a release may change. `npm run test:pack` fails if a package exports a name that
 The entry points `@mirage/<pkg>` are the API. Every file under `src/` can also be imported as a subpath
 (`"./*"` in the export map) and has its own `.d.ts`; the world kits live there (`@mirage/world/kits/vegetation`,
 `/kits/terrain`, `/kits/water`, `/kits/rain`, `/kits/fur` (experimental), documented in the world README). Which subpaths stay supported is open:
+`/kits/terrain`, `/kits/water`, `/kits/rain`, `/kits/splat`, documented in the world README). Which subpaths stay supported is open:
 [API-CANDIDATE.md](API-CANDIDATE.md) lists them; until a whitelist is decided, treat subpaths other than the kits,
 `@mirage/core/rng`, `@mirage/world/plan` and `@mirage/core/export` (`exportWorld`, experimental: [export.md](export.md)) as internal. Types: each package's root entry declares `types`
 ([TYPES.md](TYPES.md)).
@@ -104,6 +105,16 @@ The entry points `@mirage/<pkg>` are the API. Every file under `src/` can also b
 
 The module interface (`name`, `build`, `finalize`, `anchors`, `ambientVolumes`, and the `ctx` fields) is stable;
 see [world-protocol.md](world-protocol.md).
+
+Gaussian splats, `@mirage/world/kits/splat` (opt-in subpath, world README "Gaussian splats"):
+
+| export | stability | what it is |
+|---|---|---|
+| `addSplats(ctx, data, options)` | experimental | one instanced draw of sorted splats in the world's light and fog; options `position`, `rotation`, `scale`, `minPixelSize`, `antialias`, `gain`, `light`, `effect`, `progress`, `worker`, `resort`, `depth`, `name`; returns `{ mesh, count, bounds, stats, progress, setEffect, changed, sortNow, sorted, dispose }` |
+| `loadSplats(url, { fetch })` | experimental | fetch and parse `.splat`, 3DGS `.ply` (SH0) or a SOG `meta.json` with its webp textures |
+| `parseSplat(buffer)`, `parsePly(buffer)`, `parseSog(meta, images)` | experimental | the parsers, to the kit's data shape `{ count, center, scale, rot, color }` |
+| `splatEffects.reveal(options)`, `splatEffects.dissolve(options)` | experimental | built-in effects (GLSL hooks on centre, rotation / scale and colour), driven by `progress` |
+| `splatSorter()`, `packSplats(data, row)`, `splatBounds(data)` | experimental | the depth sort (the worker's code), the texture packing and the data bounds, for tests and tools |
 
 ## @mirage/play
 

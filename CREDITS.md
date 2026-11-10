@@ -4,6 +4,7 @@
 |---|---|---|
 | Traveller model, vertex colours, skeleton and procedural poses | Original [character source](packages/play/src/character-model.js) and [motion controller](packages/play/src/character.js) by Mirage contributors | MIT |
 | River Ford heightfield, creek outline, shingle and water material | Original procedural code by Mirage contributors in the [world kits](packages/world/src/kits) and [example](examples/river-ford) | MIT |
+| Splat test asset (hill, rock, tree) | Original procedural code by Mirage contributors, [examples/demos/splats/hill.js](examples/demos/splats/hill.js); saved as files only by its script, nothing committed | MIT |
 | Woodland Path trees, grass blades and ground surfaces | [Mirage vegetation kit](packages/world/src/kits/vegetation.js) and [example modules](examples/woodland-path/modules), original procedural geometry and materials by Mirage contributors | MIT |
 | Physics (dependency, bundled into builds that use `@mirage/game`) | Rapier by Dimforge — https://rapier.rs, `@dimforge/rapier3d-compat` 0.19.3 | Apache-2.0 ([license accompanying the bundled declarations](packages/game/types/rapier/LICENSE)) |
 | Rendering core (origin) | Golden Temple by Leon Lin — https://github.com/Leonxlnx/golden-temple | MIT (see NOTICE) |
@@ -20,7 +21,7 @@ it is procedural.
 `examples/garden-quest` reuses walled-garden and those textures. Every sound (footsteps, door, chimes, wind and
 birds, water, the music pad) is generated in code by `packages/game/src/audio.js`; no audio files are in the repository.
 
-`examples/snow-hut` and both demos in `examples/demos` are code only (the assemble demo loads the courtyard's
+`examples/snow-hut` and the demos in `examples/demos` are code only (the assemble demo loads the courtyard's
 five texture sets). `docs/media/hero.jpg` and `docs/media/examples/*.jpg` are stills rendered from the examples.
 
 Every asset added to this repository (textures, models, animation, audio) gets a row here with its

@@ -65,6 +65,19 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
   stills plus a read-back.
 - @mirage/tools: `looks.check.mjs`, a browser check of the four (serves `check/looks.html` from the repository root,
   no build).
+- @mirage/world: Gaussian splats, `@mirage/world/kits/splat` (opt-in, experimental; world README "Gaussian splats").
+  Loaders for `.splat`, uncompressed 3DGS `.ply` (SH0) and SOG v1-3 (meta.json + webp); one instanced draw with one
+  ShaderMaterial in the world's light and aerial perspective; a counting sort on view depth (histogram-spread
+  buckets, still cameras skipped, nothing behind the eye) in a Blob worker with a transferable index buffer, so
+  single-file pages work without SharedArrayBuffer / COOP-COEP; culls tiny and off-screen splats before the eigen
+  decomposition; AA opacity compensation; effect hooks (centre, rotation / scale, colour) with `reveal` and
+  `dissolve`; an optional depth pass for SSAO / TAA. 8.8 KB min + gzip (three external) vs Spark 2.4's 979 KB and
+  GaussianSplats3D 0.4.7's 106 KB. Measured (Apple M4 Pro, headless Chrome, 1280x720, TAA, GPU shared with other
+  jobs): 1M splats 30 ms a moving frame (p10-p90 21-51; the world alone 2.5 ms; + depth pass 53 ms), worker sort
+  10.4 ms mean (max 20), first main-thread sort 16 ms; 1M sort in Node 9 ms. `examples/demos/splats`: a procedural
+  hill, rock and tree (`hill.js`, any count), `make-fixtures.mjs` (saves it as .splat, .ply and SOG with a small
+  own lossless-webp encoder), `splat-check.mjs` (loaders, `see`, worker sort vs a CPU reference, GPU order, effects,
+  1M timing, kit size). No example uses it; their builds are unchanged.
 - @mirage/tools: one diagnostic shape everywhere, `{ code, severity, target, message, fix, at? }`, with stable codes
   (MG1xx plan, MG2xx modules, MG3xx walking, MG4xx frame, MG5xx budgets, MG6xx console, MG7xx game state;
   `docs/diagnostics.md`). The playtest writes them to `report.json` `diagnostics` and the top of `report.md`;
