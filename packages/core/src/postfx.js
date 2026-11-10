@@ -1,0 +1,504 @@
+// Mirage original code.
+import * as THREE from 'three';
+
+// ---------------------------------------------------------------------------
+// Opt-in passes of the frame pipeline (post.js owns the frame; this file owns everything that is off by default).
+// Nothing here runs, compiles or allocates until a setting below is non-zero, so a frame with all of them at their
+// defaults is the frame post.js always made.
+//
+//   createWorld(canvas, { post: { taa2: 1, upscale: 0.67, motionBlur: 0.5, bokeh: 1, dof: 0.02, bloomPyramid: 1 } })
+//   world.post.lut = lutTexture(parseCube(text));          // a .cube file -> Data3DTexture
+//   Object.assign(world.post, postFromQuery(new URLSearchParams(location.search)));   // ?taa2=1&upscale=0.67...
+//
+// per moving frame (one sub-frame, renderFrame({ taa })):
+//   scene -> velocity (camera motion from depth, then moving / skinned objects drawn over it)
+//         -> taa2: reproject by velocity, clip in YCoCg, write a full-size frame (the temporal upscaler when the
+//            scene was rendered smaller: post.upscale, or dynamic resolution)
+//         -> bokeh (lens blur from depth) -> motionBlur (along velocity) -> bloomPyramid -> grade (+ lut, chroma)
+// Stills (spp > 1) never use the temporal passes: they integrate lens and shutter by accumulation and stay
+// bit-identical run to run; bloomPyramid, lut and chroma apply to both.
+// ---------------------------------------------------------------------------
+
+/** Defaults of the opt-in passes (spread into DEFAULT_POST). 0 / null = off. */
+export const FX_DEFAULTS = {
+  taa2: 0,           // 1: velocity-buffer temporal AA (YCoCg variance clip, disocclusion test) instead of the depth-only one
+  upscale: 0,        // 0.5..1: render the scene at this scale and reconstruct the output size in taa2 (0 = off)
+  motionBlur: 0,     // shutter fraction 0..1 (0.5 = a 180 degree shutter): blur along the velocity buffer, moving frames
+  motionBlurMax: 32, // longest blur, px at 1080p (scaled with the output height)
+  bokeh: 0,          // 1: lens blur on moving frames from `dof` (lens radius, m) and `focus` (m); stills accumulate instead
+  bokehMax: 16,      // largest circle of confusion (radius), px at 1080p
+  bloomPyramid: 0,   // 1: bloom as a 6-level down / up-sample pyramid mixed in by `bloom` (replaces three's bloom pass)
+  lut: null,         // a THREE.Data3DTexture (lutTexture()): display-referred colour lookup after the tone map
+  lutStrength: 1,
+  chroma: 0,         // chromatic aberration: the red / blue shift at the frame corner, in % of the frame's half diagonal
+};
+
+const VS = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }';
+const quadMat = (fs, uniforms, extra) => new THREE.ShaderMaterial({ vertexShader: VS, fragmentShader: fs, uniforms, depthTest: false, depthWrite: false, ...extra });
+// the render-size corner of a full-size target (post.js, SUB)
+const SUB = /* glsl */ `
+uniform vec4 uSub, uSubH;
+vec4 texS(sampler2D t, vec2 uv){ return texture2D(t, min(uv * uSub.xy, uSub.zw)); }
+vec4 texH(sampler2D t, vec2 uv){ return texture2D(t, min(uv * uSubH.xy, uSubH.zw)); }`;
+const SQUASH = /* glsl */ `
+vec3 squash(vec3 c){ return c / (1.0 + max(c.r, max(c.g, c.b))); }
+vec3 unsquash(vec3 c){ return c / max(1.0 - max(c.r, max(c.g, c.b)), 1e-4); }
+vec3 toY(vec3 c){ return vec3(dot(c, vec3(0.25, 0.5, 0.25)), dot(c, vec3(0.5, 0.0, -0.5)), dot(c, vec3(-0.25, 0.5, -0.25))); }
+vec3 fromY(vec3 c){ return vec3(c.x + c.y - c.z, c.x + c.z, c.x - c.y - c.z); }`;
+const IGN = 'float ign(vec2 p){ return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }';
+
+/** Halton sequence, base b, index i >= 1. */
+export function halton(i, b) { let f = 1, r = 0; while (i > 0) { f /= b; r += f * (i % b); i = Math.floor(i / b); } return r; }
+
+/** Lens radius (m) of a real lens: focal length in mm at f-stop N -> f / (2N). `post.dof` takes this. */
+export const apertureRadius = (focalMm, fStop) => focalMm / 1000 / (2 * fStop);
+
+/** Parse an Adobe / Resolve .cube 3D LUT. Returns { size, data: Float32Array(size^3 * 3) } (red fastest). */
+export function parseCube(text) {
+  let size = 0; const v = [];
+  for (const line of String(text).split(/\r?\n/)) {
+    const t = line.trim();
+    if (!t || t[0] === '#') continue;
+    const m = /^LUT_3D_SIZE\s+(\d+)/i.exec(t);
+    if (m) { size = +m[1]; continue; }
+    if (/^[A-Za-z_]/.test(t)) { if (/^LUT_1D_SIZE/i.test(t)) throw new Error('parseCube: 1D LUTs are not supported'); continue; }
+    const p = t.split(/\s+/).map(Number);
+    if (p.length >= 3 && p.every(Number.isFinite)) v.push(p[0], p[1], p[2]);
+  }
+  if (size < 2 || v.length !== size * size * size * 3) throw new Error(`parseCube: expected ${size}^3 rows, got ${v.length / 3}`);
+  return { size, data: new Float32Array(v) };
+}
+
+/** A colour lookup as plain data: fn([r, g, b] in 0..1 display space) -> [r, g, b]. Same layout as parseCube(). */
+export function makeLut(fn, size = 16) {
+  const data = new Float32Array(size ** 3 * 3); let i = 0;
+  for (let b = 0; b < size; b++) for (let g = 0; g < size; g++) for (let r = 0; r < size; r++) {
+    const o = fn([r / (size - 1), g / (size - 1), b / (size - 1)]);
+    data[i++] = o[0]; data[i++] = o[1]; data[i++] = o[2];
+  }
+  return { size, data };
+}
+
+/** { size, data } (parseCube / makeLut) -> a Data3DTexture for `post.lut` (half float, trilinear). */
+export function lutTexture({ size, data }) {
+  const px = new Uint16Array(size ** 3 * 4);
+  for (let i = 0, n = size ** 3; i < n; i++) {
+    for (let c = 0; c < 3; c++) px[4 * i + c] = THREE.DataUtils.toHalfFloat(Math.min(Math.max(data[3 * i + c], 0), 4));
+    px[4 * i + 3] = THREE.DataUtils.toHalfFloat(1);
+  }
+  const t = new THREE.Data3DTexture(px, size, size, size);
+  t.format = THREE.RGBAFormat; t.type = THREE.HalfFloatType; t.minFilter = t.magFilter = THREE.LinearFilter;
+  t.wrapS = t.wrapT = t.wrapR = THREE.ClampToEdgeWrapping; t.unpackAlignment = 1; t.needsUpdate = true;
+  return t;
+}
+
+/** URL flags -> post settings (only the keys present): ?taa2=1&upscale=0.67&mb=0.5&bokeh=1&lens=0.03&focus=6&bloom=0.15
+ *  &bloom2=1&chroma=0.6&lut=warm|cool|bleach. Q: a URLSearchParams. */
+export function postFromQuery(Q) {
+  const o = {}, num = (k, to = k) => { if (Q.has(k) && Number.isFinite(+Q.get(k))) o[to] = +Q.get(k); };
+  num('taa2'); num('upscale'); num('mb', 'motionBlur'); num('bokeh'); num('lens', 'dof'); num('focus'); num('bloom'); num('bloom2', 'bloomPyramid'); num('chroma');
+  const L = { warm: ([r, g, b]) => [r ** 0.92, g, b ** 1.12], cool: ([r, g, b]) => [r ** 1.1, g, b ** 0.9],
+    bleach: ([r, g, b]) => { const l = 0.2126 * r + 0.7152 * g + 0.0722 * b, s = (x) => { const m = l + (x - l) * 0.55; return m * m * (3 - 2 * m); }; return [s(r), s(g), s(b)]; } }[Q.get('lut')];
+  if (L) o.lut = lutTexture(makeLut(L));
+  return o;
+}
+
+// velocity of whatever moves on its own: the vertex is placed where the scene drew it (jittered projection) and
+// carries its clip position now and one frame ago (both unjittered). There is no depth buffer to test against, so
+// the fragment keeps itself only where the scene's depth is its own (cut-outs and occluders stay untouched).
+const VEL_VS = /* glsl */ `
+uniform mat4 uPrevModel, uCurVP, uPrevVP; varying vec4 vC, vP;
+#include <skinning_pars_vertex>
+#ifdef USE_SKINNING
+uniform highp sampler2D tPrevBones;
+mat4 prevBone(float i){
+  int size = textureSize(tPrevBones, 0).x, j = int(i) * 4, x = j % size, y = j / size;
+  return mat4(texelFetch(tPrevBones, ivec2(x, y), 0), texelFetch(tPrevBones, ivec2(x + 1, y), 0), texelFetch(tPrevBones, ivec2(x + 2, y), 0), texelFetch(tPrevBones, ivec2(x + 3, y), 0));
+}
+#endif
+void main(){
+  vec3 transformed = position; vec4 wp = vec4(position, 1.0);
+  #ifdef USE_SKINNING
+    #include <skinbase_vertex>
+    #include <skinning_vertex>
+    vec4 sv = bindMatrix * vec4(position, 1.0);
+    wp = bindMatrixInverse * (prevBone(skinIndex.x) * sv * skinWeight.x + prevBone(skinIndex.y) * sv * skinWeight.y + prevBone(skinIndex.z) * sv * skinWeight.z + prevBone(skinIndex.w) * sv * skinWeight.w);
+  #endif
+  vec4 wc = vec4(transformed, 1.0);
+  #ifdef USE_INSTANCING
+    wc = instanceMatrix * wc; wp = instanceMatrix * wp;
+  #endif
+  wc = modelMatrix * wc; wp = uPrevModel * wp;
+  vC = uCurVP * wc; vP = uPrevVP * wp;
+  gl_Position = projectionMatrix * viewMatrix * wc;
+}`;
+const VEL_FS = /* glsl */ `
+uniform sampler2D tDepth; uniform vec2 uMax; uniform vec3 uNF; varying vec4 vC, vP;
+float lin(float d){ return uNF.z > 0.5 ? uNF.x + d * (uNF.y - uNF.x) : uNF.x * uNF.y / (uNF.y - d * (uNF.y - uNF.x)); }
+void main(){
+  float a = lin(gl_FragCoord.z), b = lin(texture2D(tDepth, gl_FragCoord.xy / uMax).x);
+  if (abs(a - b) > 0.02 + 0.01 * a) discard;
+  gl_FragColor = vec4((vP.xy / vP.w - vC.xy / vC.w) * 0.5, vP.w, vC.w);
+}`;
+
+export class PostFX {
+  /** pp: the Pipeline (post.js creates this on first use: pipeline.fx). */
+  constructor(pp) {
+    this.pp = pp; this.r = pp.r; this.rts = {}; this.mats = {};
+    this.jit = [0, 0]; this.ji = 0; this.valid = false; this.frame = 0;
+    this.curVP = new THREE.Matrix4(); this.prevVP = new THREE.Matrix4(); this.lastVP = new THREE.Matrix4(); this.invVP = new THREE.Matrix4(); this.pm = new THREE.Matrix4();
+    this.objs = new WeakMap(); this.bones = new WeakMap(); this.pscene = new THREE.Scene(); this.pscene.matrixWorldAutoUpdate = false;
+  }
+
+  // a lazily made target, remade when its size changes (the output size: never per render scale)
+  rt(name, w, h, o = {}) {
+    let t = this.rts[name];
+    if (t && (t.width !== w || t.height !== h)) { t.dispose(); t = null; }
+    if (!t) t = this.rts[name] = new THREE.WebGLRenderTarget(w, h, { type: THREE.HalfFloatType, depthBuffer: false, ...o });
+    return t;
+  }
+  mat(name, make) { return this.mats[name] || (this.mats[name] = make()); }
+  // a full-size target used at the render size: the same corner as the scene target (post.js, _fit)
+  corner(t, half) {
+    const pp = this.pp, on = pp.rw !== pp.w || pp.rh !== pp.h, w = half ? pp.hw : pp.rw, h = half ? pp.hh : pp.rh;
+    t.viewport.set(0, 0, w, h); t.scissor.set(0, 0, w, h); t.scissorTest = on;
+    return t;
+  }
+  fit() { this.valid = this.valid && this.pp.w === this._w && this.pp.h === this._h; this._w = this.pp.w; this._h = this.pp.h; }
+  /** Forget the history (a cut, a teleport, a resize). */
+  reset() { this.valid = false; }
+
+  /** The next sub-pixel offset of the projection, in render pixels (-0.5..0.5): Halton(2, 3), a longer sequence
+   *  the smaller the scene is rendered (every output pixel needs its own samples). */
+  jitter() {
+    const s = this.pp.rw / this.pp.w, n = Math.min(64, Math.max(8, Math.round(8 / (s * s))));
+    this.ji = (this.ji % n) + 1;
+    return (this.jit = [halton(this.ji, 2) - 0.5, halton(this.ji, 3) - 0.5]);
+  }
+
+  /** The velocity buffer of the sub-frame just rendered: rg = where this pixel was one frame ago minus where it is
+   *  (uv), b = its clip w then, a = its clip w now. Camera motion from depth, moving objects drawn over it. */
+  velocity(scene, camera) {
+    const pp = this.pp, ortho = !!camera.isOrthographicCamera;
+    const v = this.corner(this.rt('vel', pp.w, pp.h, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter }));
+    const e = this.pm.copy(camera.projectionMatrix).elements, o = ortho ? 12 : 8;
+    e[o] -= (2 * this.jit[0]) / pp.rw; e[o + 1] -= (2 * this.jit[1]) / pp.rh;   // the projection without its jitter
+    if (this.valid) this.prevVP.copy(this.lastVP);
+    this.curVP.multiplyMatrices(this.pm, camera.matrixWorldInverse);
+    if (!this.valid) this.prevVP.copy(this.curVP);
+    this.lastVP.copy(this.curVP);
+    this.invVP.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse).invert();
+    const m = this.mat('velCam', () => quadMat(/* glsl */ `
+      varying vec2 vUv; uniform sampler2D tDepth; uniform mat4 uInvVP, uCurVP, uPrevVP;
+      ${SUB}
+      void main(){
+        vec4 w = uInvVP * vec4(vUv * 2.0 - 1.0, texS(tDepth, vUv).x * 2.0 - 1.0, 1.0); w /= w.w;
+        vec4 c = uCurVP * w, p = uPrevVP * w;
+        gl_FragColor = vec4((p.xy / p.w - c.xy / c.w) * 0.5, p.w, c.w);
+      }`, { tDepth: { value: null }, uInvVP: { value: this.invVP }, uCurVP: { value: this.curVP }, uPrevVP: { value: this.prevVP }, ...pp.sub }));
+    m.uniforms.tDepth.value = pp.sceneRT.depthTexture;
+    pp._draw(m, v);
+    this._objects(scene, camera, v, ortho);
+    this.valid = true; this.frame++;
+    return v;
+  }
+
+  _objects(scene, camera, v, ortho) {
+    const pp = this.pp, list = this.pscene.children; list.length = 0;
+    const vm = this.mat('velObj', () => new THREE.ShaderMaterial({ vertexShader: VEL_VS, fragmentShader: VEL_FS, side: THREE.DoubleSide, depthTest: false, depthWrite: false, blending: THREE.NoBlending,
+      uniforms: { uPrevModel: { value: new THREE.Matrix4() }, uCurVP: { value: this.curVP }, uPrevVP: { value: this.prevVP }, tPrevBones: { value: null }, tDepth: { value: null }, uMax: { value: new THREE.Vector2() }, uNF: { value: new THREE.Vector3() } } }));
+    const moved = [];
+    scene.traverseVisible((o) => {
+      if (!o.isMesh || !o.geometry || o.isBatchedMesh || !o.layers.test(camera.layers)) return;
+      const mt = Array.isArray(o.material) ? o.material[0] : o.material;
+      if (!mt || mt.transparent || mt.depthWrite === false || mt.visible === false || o.morphTargetInfluences?.length) return;
+      let en = this.objs.get(o);
+      if (!en) this.objs.set(o, (en = { prev: o.matrixWorld.clone(), proxy: null, bones: null }));
+      const sk = o.isSkinnedMesh && o.skeleton && o.skeleton.boneTexture ? o.skeleton : null;
+      if (!sk && en.prev.equals(o.matrixWorld)) return;
+      if (sk) {
+        let b = this.bones.get(sk);
+        if (!b || b.tex.image.data.length !== sk.boneMatrices.length) {
+          const n = sk.boneTexture.image.width, tex = new THREE.DataTexture(new Float32Array(sk.boneMatrices), n, n, THREE.RGBAFormat, THREE.FloatType);
+          tex.needsUpdate = true; b && b.tex.dispose(); this.bones.set(sk, (b = { tex, frame: -1 }));
+        }
+        en.bones = b;
+      }
+      if (!en.proxy || en.proxy.geometry !== o.geometry) en.proxy = this._proxy(o, en, vm);
+      if (o.isInstancedMesh) en.proxy.count = o.count;
+      list.push(en.proxy); moved.push(o, en);
+    });
+    this.moved = list.length;   // how many objects had their own motion this frame (for the docs and the checks)
+    if (!list.length) return;
+    const u = vm.uniforms;
+    u.tDepth.value = pp.sceneRT.depthTexture; u.uMax.value.set(pp.w, pp.h); u.uNF.value.set(camera.near, camera.far, ortho ? 1 : 0);
+    const r = this.r, ac = r.autoClear, sm = r.shadowMap.autoUpdate;
+    r.autoClear = false; r.shadowMap.autoUpdate = false;
+    r.setRenderTarget(v); r.render(this.pscene, camera);
+    r.autoClear = ac; r.shadowMap.autoUpdate = sm;
+    for (let i = 0; i < moved.length; i += 2) {
+      const o = moved[i], en = moved[i + 1], b = en.bones;
+      en.prev.copy(o.matrixWorld);
+      if (b && b.frame !== this.frame) { b.tex.image.data.set(o.skeleton.boneMatrices); b.tex.needsUpdate = true; b.frame = this.frame; }
+    }
+    list.length = 0;
+  }
+
+  // a stand-in drawn with the velocity material: shares the geometry, the world matrix and the skeleton / instances
+  _proxy(o, en, vm) {
+    const p = o.isSkinnedMesh ? new THREE.SkinnedMesh(o.geometry, vm) : o.isInstancedMesh ? new THREE.InstancedMesh(o.geometry, vm, 1) : new THREE.Mesh(o.geometry, vm);
+    if (o.isSkinnedMesh) { p.skeleton = o.skeleton; p.bindMatrix = o.bindMatrix; p.bindMatrixInverse = o.bindMatrixInverse; p.bindMode = o.bindMode; }
+    if (o.isInstancedMesh) { p.instanceMatrix.dispose?.(); p.instanceMatrix = o.instanceMatrix; }
+    p.matrixAutoUpdate = p.matrixWorldAutoUpdate = false; p.matrixWorld = o.matrixWorld;
+    p.frustumCulled = !(o.isSkinnedMesh || o.isInstancedMesh) && o.frustumCulled;
+    p.onBeforeRender = () => { vm.uniforms.uPrevModel.value.copy(en.prev); vm.uniforms.tPrevBones.value = en.bones ? en.bones.tex : null; vm.uniformsNeedUpdate = true; };
+    return p;
+  }
+
+  /** taa2: blend the sub-frame in pp.accRT (render size, jittered) into the history reprojected along the velocity
+   *  buffer; writes a full-size frame back to pp.accRT. alpha = the weight of the new frame (1 = no history). */
+  resolve(alpha) {
+    const pp = this.pp, v = this.rts.vel;
+    const m = this.mat('taa', () => quadMat(/* glsl */ `
+      varying vec2 vUv; uniform sampler2D tCur, tHist, tVel, tDepth; uniform vec2 uRes, uOut, uJit; uniform float uAlpha, uConf, uK;
+      ${SUB}
+      ${SQUASH}
+      // Catmull-Rom through 5 bilinear taps (the 4 corners of the 3 x 3 tap form carry almost nothing): sharper
+      // than bilinear, so the history does not soften a little more with every reprojection
+      vec3 hist(vec2 uv){
+        vec2 p = uv * uOut, c = floor(p - 0.5) + 0.5, f = p - c;
+        vec2 w0 = f * (-0.5 + f * (1.0 - 0.5 * f)), w1 = 1.0 + f * f * (-2.5 + 1.5 * f), w2 = f * (0.5 + f * (2.0 - 1.5 * f)), w3 = f * f * (-0.5 + 0.5 * f);
+        vec2 w12 = w1 + w2, t0 = (c - 1.0) / uOut, t3 = (c + 2.0) / uOut, t12 = (c + w2 / w12) / uOut;
+        vec4 s = vec4(texture2D(tHist, vec2(t12.x, t0.y)).rgb, 1.0) * (w12.x * w0.y) + vec4(texture2D(tHist, vec2(t0.x, t12.y)).rgb, 1.0) * (w0.x * w12.y)
+               + vec4(texture2D(tHist, t12).rgb, 1.0) * (w12.x * w12.y) + vec4(texture2D(tHist, vec2(t3.x, t12.y)).rgb, 1.0) * (w3.x * w12.y)
+               + vec4(texture2D(tHist, vec2(t12.x, t3.y)).rgb, 1.0) * (w12.x * w3.y);
+        return max(s.rgb / s.a, 0.0);
+      }
+      void main(){
+        // this output pixel in the jittered render buffer, and the nearest texel centre there
+        vec2 bp = vUv * uRes - uJit, bc = floor(bp) + 0.5;
+        vec3 m1 = vec3(0.0), m2 = vec3(0.0), cur = vec3(0.0); float ws = 0.0, zn = 2.0; vec2 zo = vec2(0.0);
+        for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++){
+          vec2 o = vec2(x, y), q = (bc + o) / uRes;
+          vec3 c = toY(squash(texS(tCur, q).rgb)); m1 += c; m2 += c * c;
+          vec2 d = bc + o - bp; float w = exp(-uK * dot(d, d)); cur += c * w; ws += w;   // the new sample, re-filtered at the output position
+          float z = texS(tDepth, q).x; if (z < zn) { zn = z; zo = o; }
+        }
+        cur /= ws; m1 /= 9.0; vec3 sd = sqrt(max(m2 / 9.0 - m1 * m1, 0.0));
+        vec4 v = texS(tVel, (bc + zo) / uRes);   // the velocity of the closest of the 3 x 3: edges move with what is in front
+        vec2 q = vUv + v.xy;
+        bool off = any(lessThan(q, vec2(0.0))) || any(greaterThan(q, vec2(1.0)));
+        // disocclusion: the history remembers how far away its surface was; a pixel that was something else then
+        // takes more of the new frame and a tighter clip
+        float dis = off ? 1.0 : smoothstep(0.04, 0.12, abs(texture2D(tHist, q).a - v.b) / max(v.b, 1e-3));
+        vec3 h = toY(squash(hist(q)));
+        vec3 dv = h - m1, ext = mix(1.25, 0.6, dis) * sd + 1e-5, rr = abs(dv) / ext;   // variance clip toward the mean
+        float mr = max(rr.x, max(rr.y, rr.z)); if (mr > 1.0) h = m1 + dv / mr;
+        vec2 dd = bc - bp;
+        float a = max(uAlpha * exp(-uConf * dot(dd, dd)), min(uAlpha, 0.03));   // upscaling: trust a sample by how close it fell
+        a = off ? 1.0 : mix(a, max(a, 0.5), dis);
+        gl_FragColor = vec4(unsquash(max(fromY(mix(h, cur, a)), 0.0)), v.a);
+      }`, { tCur: { value: null }, tHist: { value: null }, tVel: { value: null }, tDepth: { value: null }, uRes: { value: new THREE.Vector2() }, uOut: { value: new THREE.Vector2() }, uJit: { value: new THREE.Vector2() }, uAlpha: { value: 1 }, uConf: { value: 0 }, uK: { value: 2.29 }, ...pp.sub }));
+    const u = m.uniforms, s = pp.rw / pp.w;
+    u.tCur.value = pp.accRT.texture; u.tHist.value = pp.histA.texture; u.tVel.value = v.texture; u.tDepth.value = pp.sceneRT.depthTexture;
+    u.uRes.value.set(pp.rw, pp.rh); u.uOut.value.set(pp.w, pp.h); u.uJit.value.set(this.jit[0], this.jit[1]);
+    u.uAlpha.value = alpha; u.uConf.value = alpha >= 1 ? 0 : 2 * (1 / (s * s) - 1);   // no history: take the new frame everywhere
+    u.uK.value = 2.29 / (s * s);   // a Gaussian of 0.47 OUTPUT pixels whatever the render scale
+    this.cut = alpha >= 1;
+    pp._draw(m, pp.histB);
+    [pp.histA, pp.histB] = [pp.histB, pp.histA];
+    pp.copyMat.uniforms.tColor.value = pp.histA.texture;
+    pp._accView(false);
+    pp._draw(pp.copyMat, pp.accRT);
+  }
+
+  // run a full-size pass that reads pp.accRT and put its result back there (scratch: histB, which holds nothing
+  // the next resolve needs: it is the target that resolve overwrites)
+  _apply(m) {
+    const pp = this.pp;
+    m.uniforms.tColor.value = pp.accRT.texture;
+    pp._draw(m, pp.histB);
+    pp.copyMat.uniforms.tColor.value = pp.histB.texture;
+    pp._draw(pp.copyMat, pp.accRT);
+  }
+
+  /** bokeh: lens blur of the resolved frame. The circle of confusion is the thin lens's (lens radius P.dof, focus
+   *  distance P.focus: the same lens the accumulated stills use), gathered at half resolution. */
+  bokeh(P, camera) {
+    const pp = this.pp;
+    if (!(P.dof > 0) || !camera || !camera.isPerspectiveCamera) return;
+    const half = this.rt('dof', Math.ceil(pp.w / 2), Math.ceil(pp.h / 2));
+    const COC = /* glsl */ `
+      uniform sampler2D tDepth; uniform vec4 uLens;   // near, far, 1 / focus, px per (1 / m) of defocus
+      uniform float uMaxC;
+      ${SUB}
+      float depthOf(vec2 uv){ float d = texS(tDepth, uv).x; return uLens.x * uLens.y / (uLens.y - d * (uLens.y - uLens.x)); }
+      float cocOf(float z){ return min(abs(uLens.w * (uLens.z - 1.0 / z)), uMaxC); }`;
+    const U = () => ({ tColor: { value: null }, tDepth: { value: null }, uLens: { value: new THREE.Vector4() }, uMaxC: { value: 8 }, uOut: { value: new THREE.Vector2() }, uK: { value: 0 }, tHalf: { value: null }, ...pp.sub });
+    const g = this.mat('dofGather', () => quadMat(/* glsl */ `
+      varying vec2 vUv; uniform sampler2D tColor; uniform vec2 uOut; uniform float uK;
+      ${COC}
+      ${IGN}
+      void main(){
+        float zc = depthOf(vUv), cc = cocOf(zc), rot = 6.2831853 * ign(gl_FragCoord.xy + uK * 5.588);
+        vec4 s = vec4(texture2D(tColor, vUv).rgb, 1.0);
+        const int N = 40;
+        for (int i = 0; i < N; i++){
+          // a sample reaches this pixel when its own circle is at least as wide as its distance; what lies behind
+          // the pixel cannot spread over it further than the pixel itself is blurred (sharp things keep their edge)
+          float rr = sqrt((float(i) + 0.5) / float(N)) * uMaxC, th = rot + float(i) * 2.3999632;
+          vec2 q = vUv + vec2(cos(th), sin(th)) * rr / uOut;
+          float zs = depthOf(q), cs = cocOf(zs);
+          if (zs > zc) cs = min(cs, cc * 2.0);
+          float w = clamp(cs - rr + 0.5, 0.0, 1.0);
+          s += vec4(texture2D(tColor, q).rgb, 1.0) * w;
+        }
+        gl_FragColor = vec4(s.rgb / s.a, cc);
+      }`, U()));
+    const c = this.mat('dofMix', () => quadMat(/* glsl */ `
+      varying vec2 vUv; uniform sampler2D tColor, tHalf; uniform vec2 uOut;
+      ${COC}
+      void main(){
+        vec2 t = 1.0 / uOut;
+        vec4 h = 0.25 * (texture2D(tHalf, vUv + t * vec2(1.0, 1.0)) + texture2D(tHalf, vUv + t * vec2(-1.0, 1.0)) + texture2D(tHalf, vUv + t * vec2(1.0, -1.0)) + texture2D(tHalf, vUv + t * vec2(-1.0, -1.0)));
+        float k = smoothstep(0.5, 2.0, max(cocOf(depthOf(vUv)), h.a));   // a blurred neighbour in front spreads over a sharp pixel
+        gl_FragColor = vec4(mix(texture2D(tColor, vUv).rgb, h.rgb, k), 1.0);
+      }`, U()));
+    const maxC = (P.bokehMax ?? 16) * pp.h / 1080;
+    for (const m of [g, c]) {
+      const u = m.uniforms;
+      u.tDepth.value = pp.sceneRT.depthTexture; u.uOut.value.set(pp.w, pp.h); u.uMaxC.value = maxC; u.uK.value = this.frame % 64; u.tHalf.value = half.texture;
+      u.uLens.value.set(camera.near, camera.far, 1 / Math.max(P.focus, 1e-3), 0.5 * pp.h * camera.projectionMatrix.elements[5] * P.dof);
+    }
+    g.uniforms.tColor.value = pp.accRT.texture;
+    pp._draw(g, half);
+    this._apply(c);
+  }
+
+  /** motionBlur: blur the resolved frame along the velocity buffer (camera and objects) over P.motionBlur of the
+   *  frame interval. Tiles carry the longest velocity near a pixel, so a fast object also streaks over what is
+   *  still behind it; samples are weighted by depth and by whether their own motion reaches the pixel. */
+  motionBlur(P) {
+    const pp = this.pp, v = this.rts.vel;
+    if (!v || !this.valid || this.cut) return;   // after a cut the velocities compare two unrelated frames
+    const tw = Math.ceil(pp.w / 16), th = Math.ceil(pp.h / 16), near = { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter };
+    const A = this.rt('mbA', tw, th, near), B = this.rt('mbB', tw, th, near);
+    const t1 = this.mat('mbTile', () => quadMat(/* glsl */ `
+      varying vec2 vUv; uniform sampler2D tVel; uniform vec2 uTile;
+      ${SUB}
+      void main(){
+        vec2 m = vec2(0.0);
+        for (int y = 0; y < 4; y++) for (int x = 0; x < 4; x++){
+          vec2 q = texS(tVel, vUv + (vec2(x, y) - 1.5) * 0.25 * uTile).xy; if (dot(q, q) > dot(m, m)) m = q;
+        }
+        gl_FragColor = vec4(m, 0.0, 1.0);
+      }`, { tVel: { value: null }, uTile: { value: new THREE.Vector2() }, ...pp.sub }));
+    const t2 = this.mat('mbMax', () => quadMat(/* glsl */ `
+      varying vec2 vUv; uniform sampler2D tVel; uniform vec2 uTile;
+      void main(){
+        vec2 m = vec2(0.0);
+        for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++){ vec2 q = texture2D(tVel, vUv + vec2(x, y) * uTile).xy; if (dot(q, q) > dot(m, m)) m = q; }
+        gl_FragColor = vec4(m, 0.0, 1.0);
+      }`, { tVel: { value: null }, uTile: { value: new THREE.Vector2() } }));
+    const g = this.mat('mbGather', () => quadMat(/* glsl */ `
+      varying vec2 vUv; uniform sampler2D tColor, tVel, tTile; uniform vec2 uOut; uniform float uK, uMaxPx, uF;
+      ${SUB}
+      ${IGN}
+      void main(){
+        vec4 c0 = texture2D(tColor, vUv);
+        vec2 vt = texture2D(tTile, vUv).xy * uK; float lt = length(vt * uOut);
+        if (lt < 0.75) { gl_FragColor = c0; return; }
+        if (lt > uMaxPx) { vt *= uMaxPx / lt; lt = uMaxPx; }
+        vec4 vc = texS(tVel, vUv); float lc = min(length(vc.xy * uK * uOut), uMaxPx), zc = vc.a;
+        float j = ign(gl_FragCoord.xy + uF * 5.588) - 0.5;
+        vec3 sum = c0.rgb / max(lc, 0.5); float ws = 1.0 / max(lc, 0.5);
+        const int N = 12;
+        for (int i = 0; i < N; i++){
+          float t = (float(i) + 0.5 + j) / float(N) - 0.5, d = abs(t) * lt;
+          vec2 q = vUv + vt * t;
+          vec4 vs = texS(tVel, q); float ls = min(length(vs.xy * uK * uOut), uMaxPx), zs = vs.a, zt = 0.05 * zc + 0.05;
+          float front = clamp(1.0 - (zs - zc) / zt, 0.0, 1.0), back = clamp(1.0 - (zc - zs) / zt, 0.0, 1.0);
+          // in front and moving far enough to reach us; or behind us while we move across it; or both sweep the spot
+          float w = front * clamp(1.0 - d / max(ls, 1e-3), 0.0, 1.0) + back * clamp(1.0 - d / max(lc, 1e-3), 0.0, 1.0)
+                  + 2.0 * (1.0 - smoothstep(0.95 * ls, 1.05 * ls + 1e-3, d)) * (1.0 - smoothstep(0.95 * lc, 1.05 * lc + 1e-3, d));
+          sum += texture2D(tColor, q).rgb * w; ws += w;
+        }
+        gl_FragColor = vec4(sum / ws, 1.0);
+      }`, { tColor: { value: null }, tVel: { value: null }, tTile: { value: null }, uOut: { value: new THREE.Vector2() }, uK: { value: 0 }, uMaxPx: { value: 32 }, uF: { value: 0 }, ...pp.sub }));
+    t1.uniforms.tVel.value = v.texture; t1.uniforms.uTile.value.set(1 / tw, 1 / th); pp._draw(t1, A);
+    t2.uniforms.tVel.value = A.texture; t2.uniforms.uTile.value.set(1 / tw, 1 / th); pp._draw(t2, B);
+    const u = g.uniforms;
+    u.tVel.value = v.texture; u.tTile.value = B.texture; u.uOut.value.set(pp.w, pp.h); u.uK.value = Math.min(1, P.motionBlur);
+    u.uMaxPx.value = (P.motionBlurMax ?? 32) * pp.h / 1080; u.uF.value = this.frame % 64;
+    this._apply(g);
+  }
+
+  /** bloomPyramid: halve the frame six times (13 taps; the first step weights by 1 / (1 + luma), so one very hot
+   *  pixel does not flicker as a whole blob), walk back up through a 3 x 3 tent, each level mixed into the next
+   *  finer one, and mix the result into pp.accRT by P.bloom. No threshold: energy is moved, not added. Returns
+   *  the exposure factor for the grade. */
+  bloom(P) {
+    const pp = this.pp, N = 6, L = [];
+    for (let i = 0, w = pp.w, h = pp.h; i < N; i++) { w = Math.max(2, Math.ceil(w / 2)); h = Math.max(2, Math.ceil(h / 2)); L.push(this.rt('bl' + i, w, h)); }
+    const dn = this.mat('blDown', () => quadMat(/* glsl */ `
+      varying vec2 vUv; uniform sampler2D tColor; uniform vec2 uT; uniform float uKaris;
+      vec4 tap(vec2 o, float w){ vec3 c = min(texture2D(tColor, vUv + o * uT).rgb, vec3(32000.0)); w /= 1.0 + uKaris * dot(c, vec3(0.2126, 0.7152, 0.0722)); return vec4(c * w, w); }
+      void main(){
+        vec4 s = tap(vec2(0.0), 0.125)
+          + tap(vec2(-1.0, -1.0), 0.125) + tap(vec2(1.0, -1.0), 0.125) + tap(vec2(-1.0, 1.0), 0.125) + tap(vec2(1.0, 1.0), 0.125)
+          + tap(vec2(-2.0, 0.0), 0.0625) + tap(vec2(2.0, 0.0), 0.0625) + tap(vec2(0.0, -2.0), 0.0625) + tap(vec2(0.0, 2.0), 0.0625)
+          + tap(vec2(-2.0, -2.0), 0.03125) + tap(vec2(2.0, -2.0), 0.03125) + tap(vec2(-2.0, 2.0), 0.03125) + tap(vec2(2.0, 2.0), 0.03125);
+        gl_FragColor = vec4(s.rgb / s.a, 1.0);
+      }`, { tColor: { value: null }, uT: { value: new THREE.Vector2() }, uKaris: { value: 0 } }));
+    const up = this.mat('blUp', () => quadMat(/* glsl */ `
+      varying vec2 vUv; uniform sampler2D tColor; uniform vec2 uT;
+      void main(){
+        vec3 s = texture2D(tColor, vUv).rgb * 4.0;
+        s += (texture2D(tColor, vUv + vec2(uT.x, 0.0)).rgb + texture2D(tColor, vUv - vec2(uT.x, 0.0)).rgb + texture2D(tColor, vUv + vec2(0.0, uT.y)).rgb + texture2D(tColor, vUv - vec2(0.0, uT.y)).rgb) * 2.0;
+        s += texture2D(tColor, vUv + uT).rgb + texture2D(tColor, vUv - uT).rgb + texture2D(tColor, vUv + vec2(uT.x, -uT.y)).rgb + texture2D(tColor, vUv + vec2(-uT.x, uT.y)).rgb;
+        gl_FragColor = vec4(s / 16.0, 1.0);
+      }`, { tColor: { value: null }, uT: { value: new THREE.Vector2() } },
+    { transparent: true, blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.ConstantAlphaFactor, blendDst: THREE.OneMinusConstantAlphaFactor }));
+    let src = pp.accRT;
+    for (let i = 0; i < N; i++) {
+      dn.uniforms.tColor.value = src.texture; dn.uniforms.uT.value.set(1 / src.width, 1 / src.height); dn.uniforms.uKaris.value = i ? 0 : 1;
+      pp._draw(dn, L[i]); src = L[i];
+    }
+    // bloomRadius: how much of each coarser level reaches the finer one (a wider or a tighter glow)
+    const mixUp = Math.min(0.95, Math.max(0.05, 0.3 + 0.5 * (P.bloomRadius ?? 0.5)));
+    for (let i = N - 2; i >= -1; i--) {
+      const s = L[i + 1], dst = i < 0 ? pp.accRT : L[i];
+      up.uniforms.tColor.value = s.texture; up.uniforms.uT.value.set(1 / s.width, 1 / s.height);
+      up.blendAlpha = i < 0 ? Math.min(1, Math.max(1e-4, P.bloom)) : mixUp;   // never exactly 0 (three skips blendColor then)
+      pp._draw(up, dst);
+    }
+    // the exposure the old additive bloom of P.bloom gave a flat image (post.js _bloom: 3 x its radius-mixed mip
+    // weights), so switching the pyramid on keeps the mid-tones of a look tuned with the old bloom
+    return 1 + Math.max(0, P.bloom) * 3 * [1.0, 0.8, 0.6, 0.4, 0.2].reduce((t, f) => t + f + (1.2 - 2 * f) * (P.bloomRadius ?? 0.5), 0);
+  }
+
+  /** The grade with a 3D LUT and / or chromatic aberration: the pipeline's own grade text, patched (the default
+   *  grade program stays as it is). Returns null when neither is on. */
+  grade(P) {
+    if (!P.lut && !(P.chroma > 0)) return null;
+    const m = this.mat('grade', () => {
+      let fs = this.pp._gradeFS;
+      const swap = (a, b) => { if (!fs.includes(a)) throw new Error('postfx: grade text changed, cannot patch it'); fs = fs.replace(a, b); };
+      swap('uniform sampler2D tAE; uniform float uUseAE;', 'uniform sampler2D tAE; uniform float uUseAE; uniform highp sampler3D tLut; uniform float uLutK, uChroma; uniform vec2 uLutS;');
+      // lateral colour: red and blue magnified a little differently about the centre, nothing at the centre
+      swap('vec3 c = texture2D(tColor, vUv).rgb;', 'vec2 ca = (vUv - 0.5) * uChroma;\n        vec3 c = vec3(texture2D(tColor, vUv - ca).r, texture2D(tColor, vUv).g, texture2D(tColor, vUv + ca).b);');
+      swap('vec3 o = sRGBTransferOETF(vec4(c, 1.0)).rgb;', 'vec3 o = sRGBTransferOETF(vec4(c, 1.0)).rgb;\n        if (uLutK > 0.0) o = mix(o, texture(tLut, clamp(o, 0.0, 1.0) * uLutS.x + uLutS.y).rgb, uLutK);');
+      return quadMat(fs, { ...this.pp._gradeU(), tLut: { value: null }, uLutK: { value: 0 }, uChroma: { value: 0 }, uLutS: { value: new THREE.Vector2(1, 0) } });
+    });
+    const u = m.uniforms, n = P.lut ? P.lut.image.width : 2;
+    u.tLut.value = P.lut || null; u.uLutK.value = P.lut ? Math.min(1, Math.max(0, P.lutStrength ?? 1)) : 0;
+    u.uLutS.value.set((n - 1) / n, 0.5 / n); u.uChroma.value = Math.max(0, P.chroma || 0) / 100;
+    return m;
+  }
+
+  dispose() {
+    for (const t of Object.values(this.rts)) t.dispose();
+    for (const m of Object.values(this.mats)) m.dispose();
+    this.rts = {}; this.mats = {};
+  }
+}

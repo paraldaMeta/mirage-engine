@@ -10,7 +10,7 @@
 //      ?wet=0..1 wet ground and masonry, puddles (@mirage/core wet.js)  &rain=0..1 ripples on the puddles and falling
 //      streaks (@mirage/world/kits/rain); without ?wet / ?rain nothing of either is built
 //      Enter VR / Enter AR appear in a WebXR browser: docs/xr.md
-import { createWorldRenderer, createTextures, placeDate, pickQuality, setRelief, setWetness, setRain } from '@mirage/core';
+import { createWorldRenderer, createTextures, placeDate, pickQuality, setRelief, setWetness, setRain, postFromQuery } from '@mirage/core';
 import { buildWorld } from '@mirage/world';
 import { addRain } from '@mirage/world/kits/rain';
 import { createPlay, createXR, xrSupport } from '@mirage/play';
@@ -38,7 +38,8 @@ const world = createWorldRenderer({ quality, xr: xrs.vr || xrs.ar, light2, softS
   shadow: { center: [0, 2, 0], radius: 17 }, envProbe: [0, 2.2, 0],
   fog: { groundDensity: 0.0022, height: 30 },
   post: { grain: Q.get('grain') === '0' ? 0 : 0.012, dof: Q.get('dof') ? 0.025 : 0, focus: 9,
-    ...(Q.get('aolit') === '1' ? { aoLit: 1 } : {}), ...(Q.get('ae') === '1' ? { autoExposure: 0.5 } : {}) },
+    ...(Q.get('aolit') === '1' ? { aoLit: 1 } : {}), ...(Q.get('ae') === '1' ? { autoExposure: 0.5 } : {}),
+    ...postFromQuery(Q) },   // ?taa2=1&upscale=0.67&mb=0.5&bokeh=1&lens=0.03&bloom2=1&lut=warm&chroma=0.6 (docs/post.md)
 });
 const urls = import.meta.glob('./tex/*.webp', { eager: true, query: '?url', import: 'default' });
 const tex = createTextures(world, { manifest, url: (f) => urls['./tex/' + f] });

@@ -4,7 +4,7 @@
 // URL: ?mode=walk (default) | fly | game | orbit   ?view=<viewpoint name>   ?time=golden | HH:MM [&date=YYYY-MM-DD]
 //      ?spp=N  ?w=&h=  ?grain=0  ?broken=1  ?ui=0  ?npc=N (N travellers wander the terraces: npc.js)
 //      ?lawn=fur | fur-fins | tufts (turf on one lawn panel)
-import { createWorldRenderer, createTextures, placeDate, pickQuality } from '@mirage/core';
+import { createWorldRenderer, createTextures, placeDate, pickQuality, postFromQuery } from '@mirage/core';
 import { buildWorld } from '@mirage/world';
 import { createPlay, createXR, xrSupport } from '@mirage/play';
 import manifest from '../hello-courtyard/tex/manifest.json';
@@ -24,7 +24,7 @@ const world = createWorldRenderer({ quality, xr: xrs.vr || xrs.ar,
   canvas, width: W, height: H, place, time: t === 'golden' ? 'golden' : placeDate(Q.get('date') || '2026-10-25', t, place.tzHours), preserveDrawingBuffer: true,
   shadow: { center: [0, 2, 0], radius: 42 }, envProbe: [0, 4, 6],
   fog: { groundDensity: 0.0018, height: 40 },
-  post: { grain: Q.get('grain') === '0' ? 0 : 0.012 },
+  post: { grain: Q.get('grain') === '0' ? 0 : 0.012, ...postFromQuery(Q) },   // ?taa2=1&upscale=0.67&mb=0.5... (docs/post.md)
 });
 const urls = import.meta.glob('../hello-courtyard/tex/*.webp', { eager: true, query: '?url', import: 'default' });
 const tex = createTextures(world, { manifest, url: (f) => urls['../hello-courtyard/tex/' + f] });
