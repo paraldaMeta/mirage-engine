@@ -11,6 +11,26 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
 
 **New**
 
+- @mirage/game: a physics kit on the existing Rapier world (`createPhysicsKit`, `createJoints`, `createForces`,
+  `createVehicle`, `createRagdoll`, `createPhysicsDebug`, `PHYSICS_MATERIALS`, `RAGDOLL_HUMANOID`; experimental,
+  opt-in, `docs/physics.md`). `createPhysics` is unchanged for games that do not call it (stills of garden-quest and
+  snow-hut byte-identical before and after); it gained `phys.ext` hooks so `snapshot()` / `restore()` carry the
+  kit. Rigid bodies with box, ball, capsule, cylinder, cone, hull, triangle-mesh and compound colliders; materials
+  with combine rules (from 2 m rubber bounces to 1.33 m, stone to 0.24; at 6 m/s a box slides 11.0 m on ice, 2.6 on
+  wood); 16 named layers with a collision matrix and query filters; CCD (a 300 m/s ball passes a 4 cm wall without
+  it, stops with it); sensors with enter / exit; contact events with impulse (19.98 N s for 2 kg at 9.57 m/s); ray
+  and shape casts, overlaps, closest point; a fixed step with interpolation and a state hash (restore + the same
+  steps gives the same hash, Node and Chrome, one machine). Joints: fixed, ball, cone, hinge and slider with limits
+  and motors, spring, rope, six-axis, breakable by an estimated force (a chain reads 196.2 / 147.15 / 98.1 /
+  49.05 N). A ragdoll from a skinned rig (14 parts, 13 joints): animated to ragdoll and blended back, limp limbs,
+  active ragdoll. A ray-cast wheel vehicle (defaults: 15.7 m/s after 3 s, 28.7 top, stops in 2.07 s). Buoyancy
+  (a 600 kg/m3 cube floats at 1.921 of 1.9), explosions with occlusion, kinematic platforms that carry bodies and
+  the character. Debug draw and stats. Step time in Node (`node packages/game/physics-bench.mjs`, 3 rounds, ms per
+  1/60 s step while falling, median (low-high)): 500 boxes 0.75 (0.75-0.77), 2000 boxes 3.19 (3.18-3.28), 5000
+  boxes 6.79 (6.74-7.22) and 22.30 (22.17-22.53) as a settling heap, 20 ragdolls 0.93 (0.91-1.07). Checks: 80 in
+  `npm test` (`packages/game/physics.check.mjs`) and `node examples/demos/physics/physics-check.mjs`, 23 of 23 in
+  headless Chrome. Not there: cloth, soft bodies, fracture, fluids, GPU or multi-threaded physics, break torque,
+  cross-platform determinism.
 - @mirage/game: an audio engine on top of the mixer (`createAudioEngine`, `createMixer`, `createMusic`,
   `createAudioDebug`, occluders and DSP helpers; experimental, opt-in, `docs/audio.md`). `createAudio` is unchanged
   and, given to the engine, keeps playing through the new buses (`audio.play('pickup')` peak 0.284 alone, 0.284 again
