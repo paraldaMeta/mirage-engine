@@ -11,6 +11,11 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
 
 **New**
 
+- @mirage/tools: playtest `see` — a step can require named objects to be in the final view
+  (`"see": { "rail": ">= 0.005" }`). An ID pass measures each object's share of the frame and, on a failure, says
+  whether it is out of frame, hidden (and by which objects) or too small. Screenshots also report `luma`, `dark`
+  and `clipped`, and a black or clipped frame is listed as a warning. Prompted by A1 run A, whose rail test passed
+  while the rail was out of view.
 - Live examples on Cloudflare Pages (https://mirage-engine-4qj.pages.dev/): `npm run site` builds the seven examples
   as single files plus an index page (`scripts/build-site.mjs`); the owner deploys it with wrangler (see that file).
   Not rebuilt automatically: redeploy after changes to `main`.

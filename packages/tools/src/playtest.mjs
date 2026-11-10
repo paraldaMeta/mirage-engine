@@ -26,12 +26,19 @@
 //   "expect": { "<value>": "<op> <operand> [tolerance]" }   ops: < > <= >= ~ == != has
 //       values: x y z maxY dist onGround blocked mode fps | near prompt inventory paused flags.<name> (games)
 //               | flicker meanAbsDiff flickerMax | frameMs p95Ms calls triangles | errors warnings (console errors / warnings so far)
+//               | luma dark clipped (of the step's screenshot: mean luma 0..255, share of near-black / near-white pixels)
 //       dist = horizontal distance moved in the step; maxY = highest feet height seen in it; has = substring / member
+//   "see": { "<name>": "<op> <operand>" } | ["<name>", ...]   what the shot must show, checked on an ID pass of the
+//       final view: see.<name> = share of the frame (0..1) where that object (or anything under a node of that name;
+//       a module's root carries the module's name) is the nearest surface. A list means "> 0.001" each. A failed
+//       check says why: out of frame, hidden (and by what) or too small. Transparent surfaces do not hide.
+//   A screenshot that is black (98 % of pixels near black) or clipped (35 % near white) is listed as a warning.
 //   "shot": false  (default true)
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { launch, serve, open } from './chrome.mjs';
+import { seeInPage, frameStatsInPage, seeWhy, DARK_SHARE, CLIPPED_SHARE } from './see.mjs';
 
 const args = process.argv.slice(2);
 const flag = (k, d) => { const i = args.indexOf('--' + k); return i >= 0 ? args[i + 1] : d; };
@@ -202,13 +209,30 @@ try {
       shot = `${String(idx).padStart(2, '0')}-${fileName(s.name ?? idx)}.png`;
       await page.screenshot({ path: path.join(OUT, shot) });
     }
+    // what the final view shows: the ID pass right after the screenshot (no input in between, the view is the same)
+    const seeSpec = s.see ? (Array.isArray(s.see) ? Object.fromEntries(s.see.map((n) => [n, '> 0.001'])) : s.see) : null;
+    let seen = null;
+    if (seeSpec && !err) {
+      seen = await page.evaluate(seeInPage, Object.keys(seeSpec)).catch((e) => ({ error: 'see: ' + (e.message || e) }));
+      if (seen.error) { err = seen.error; seen = null; }
+      else Object.assign(metrics, Object.fromEntries(Object.entries(seen.names).map(([n, v]) => ['see.' + n, v.share])));
+    }
+    const frame = shot ? await page.evaluate(frameStatsInPage, 'data:image/png;base64,' + fs.readFileSync(path.join(OUT, shot)).toString('base64')) : {};
+    const warn = [];
+    if (frame.dark > DARK_SHARE) warn.push(`black frame: ${(100 * frame.dark).toFixed(0)} % of the pixels are near black`);
+    if (frame.clipped > CLIPPED_SHARE) warn.push(`overexposed: ${(100 * frame.clipped).toFixed(0)} % of the pixels are near white`);
     const vals = { ...st, x: st.pos[0], y: st.pos[1], z: st.pos[2], maxY, errors: errors.length, warnings: warnings.length, fps: +(frames / (heldMs / 1000)).toFixed(1),
-      dist: start ? Math.hypot(st.pos[0] - start.pos[0], st.pos[2] - start.pos[2]) : NaN, ...metrics };
+      dist: start ? Math.hypot(st.pos[0] - start.pos[0], st.pos[2] - start.pos[2]) : NaN, ...frame, ...metrics, see: seen ? Object.fromEntries(Object.entries(seen.names).map(([n, v]) => [n, v.share])) : undefined };
     const get = (k) => k.split('.').reduce((o, p) => (o == null ? undefined : o[p]), vals);
     const checks = Object.entries(s.expect || {}).map(([k, e]) => { const v = get(k); return { k, e, v: typeof v === 'number' ? +v.toFixed(3) : v, ok: check(e, v) }; });
+    if (seen) for (const [n, e] of Object.entries(seeSpec)) {
+      const r = seen.names[n], ok = check(e, r.share), need = +String(e).trim().split(/\s+/)[1];
+      checks.push({ k: 'see.' + n, e, v: r.share, ok, ...(ok ? {} : { why: seeWhy(r, need) }) });
+    }
     const pass = !err && checks.every((c) => c.ok);
     if (!pass) failed++;
-    const row = { step: s.name, pass, ...(err ? { err } : {}), from: start && start.pos, to: st.pos, maxY: +maxY.toFixed(3), fps: vals.fps, metrics, checks, shot };
+    const row = { step: s.name, pass, ...(err ? { err } : {}), from: start && start.pos, to: st.pos, maxY: +maxY.toFixed(3), fps: vals.fps, metrics, checks, shot,
+      ...(shot ? { frame } : {}), ...(seen ? { see: seen.names, seeMs: seen.ms } : {}), ...(warn.length ? { warn } : {}) };
     results.push(row);
     console.log(JSON.stringify(row));
   }
@@ -246,7 +270,7 @@ process.exit(failed ? 1 : 0);
 
 function markdown(r) {
   const fmt = (v) => (Array.isArray(v) ? v.map((x) => (typeof x === 'number' ? x.toFixed(2) : x)).join(', ') : v === undefined ? '' : String(v));
-  const rows = r.steps.map((s, i) => `| ${i + 1} | ${s.step} | ${s.pass ? 'pass' : '**FAIL**'} | ${s.checks.map((c) => `${c.ok ? '' : '✗ '}${c.k} ${c.e} (${fmt(c.v)})`).join('<br>')}${s.err ? '<br>✗ ' + s.err : ''} | ${fmt(s.to)} | ${s.fps || ''} | ${s.shot ? `[png](${s.shot})` : ''} |`);
+  const rows = r.steps.map((s, i) => `| ${i + 1} | ${s.step} | ${s.pass ? 'pass' : '**FAIL**'} | ${s.checks.map((c) => `${c.ok ? '' : '✗ '}${c.k} ${c.e} (${fmt(c.v)})${c.why ? ': ' + c.why : ''}`).join('<br>')}${s.err ? '<br>✗ ' + s.err : ''}${(s.warn || []).map((w) => '<br>⚠ ' + w).join('')} | ${fmt(s.to)} | ${s.fps || ''} | ${s.shot ? `[png](${s.shot})` : ''} |`);
   const metrics = r.steps.filter((s) => Object.keys(s.metrics).length).map((s) => `- **${s.step}**: ` + Object.entries(s.metrics).map(([k, v]) => `${k} ${v}`).join(', '));
   const contracts = (r.build?.modules || []).flatMap(m => (m.consumes || []).map(a =>
     `- ${m.name} · ${a.key} (${a.required ? 'required' : 'optional'}) · ${a.count} available`));

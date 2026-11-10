@@ -63,3 +63,12 @@ console.log('tools unit: safe output folders ok');
   fs.rmSync(ex, { recursive: true, force: true });
   console.log('tools unit: packager inlines CSS ok');
 }
+
+// playtest "see": the reason a failed check gives, from the ID-pass numbers (share = seen, alone = with nothing in front)
+import { seeWhy } from './src/see.mjs';
+assert.match(seeWhy({ share: 0, alone: 0, occluders: [] }, 0.001), /^out of frame/);
+assert.match(seeWhy({ share: 0, alone: 0.08, occluders: [['station/wall', 0.9], ['trail/post', 0.1]] }, 0.001), /^hidden: 8\.0 % .* covered by station\/wall 90\.0 %, trail\/post 10\.0 %/);
+assert.match(seeWhy({ share: 0.01, alone: 0.05, occluders: [['verge/grass-tufts', 0.8]] }, 0.02), /^mostly hidden \(80\.0 % of it\) by verge\/grass-tufts/);
+assert.match(seeWhy({ share: 0.004, alone: 0.004, occluders: [] }, 0.01), /^too small: 0\.40 % of the frame even with nothing in front/);
+assert.equal(seeWhy(undefined), '');
+console.log('see unit: ok');
