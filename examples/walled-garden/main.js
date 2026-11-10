@@ -22,12 +22,14 @@ canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
 const quality = Q.get('quality') || (await pickQuality()).quality, hud = Q.get('hud') !== '0';   // ?quality=low|medium|high
 const xrs = await xrSupport();   // a headset browser: an MSAA context for the headset, and the Enter VR / AR buttons
 // realtime lighting (opt-in, docs/lighting.md): ?csm=1 cascaded sun shadows, ?gi=1 irradiance probe volume,
+// ?probes=1 a box reflection probe,
 // ?lights=N clustered lamps (&cluster=0 plain loop, &lshadows=K shadowed, &stock=1 three's own lights instead)
 const LF = (k) => Q.get(k) === '1';
 const NL = +Q.get('lights') || 0, stock = LF('stock');
-const lighting = ['csm', 'gi'].some(LF) || (NL && !stock) ? {
+const lighting = ['csm', 'gi', 'probes'].some(LF) || (NL && !stock) ? {
   csm: LF('csm') && { cascades: +Q.get('cascades') || 4 },
   gi: LF('gi') && { min: [-4.08, 3.6, -29.08], max: [4.08, 7.4, -20.92], spacing: +Q.get('gispacing') || 1.4, fade: 0.4 },
+  probes: LF('probes') && [{ min: [-4.08, 3.6, -29.08], max: [4.08, 7.4, -20.92], fade: 0.5 }],
   lights: NL > 0 && !stock && { cluster: Q.get('cluster') !== '0' },
 } : undefined;
 const world = createWorldRenderer({ quality, xr: xrs.vr || xrs.ar, lighting, softShadows: Q.get('soft') === '1',

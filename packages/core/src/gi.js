@@ -242,7 +242,7 @@ void main() {
 			iblIrradiance += mgEnvE;
 			#endif`, 'gi');
       return t.swap(fs, 'radiance += iblRadiance;', /* glsl */ `#if defined( MG_GI ) && defined( RE_IndirectDiffuse )
-		if ( mgGiA.w > 0.5 ) iblRadiance *= mix( 1.0, clamp( dot( mgGiE, vec3( 0.2126, 0.7152, 0.0722 ) ) / max( dot( mgEnvE, vec3( 0.2126, 0.7152, 0.0722 ) ), 1e-5 ), 0.0, 1.0 ), mgGiW );
+		if ( mgGiA.w > 0.5 ) iblRadiance *= mix( 1.0, clamp( dot( mgGiE, vec3( 0.2126, 0.7152, 0.0722 ) ) / max( dot( mgEnvE, vec3( 0.2126, 0.7152, 0.0722 ) ), 1e-5 ), 0.0, 1.0 ), mgGiW * ( 1.0 - mgRpK ) );
 		#endif
 		radiance += iblRadiance;`, 'gi-spec');
     },

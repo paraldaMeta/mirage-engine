@@ -35,12 +35,14 @@ const light2 = Q.get('light2') === '1' && Object.fromEntries((Q.get('l2') || '')
 // soft sun shadows (opt-in): ?soft=1 [&sunAngle=deg]
 const softShadows = Q.get('soft') === '1' && (Q.get('sunAngle') ? { sunAngle: +Q.get('sunAngle') } : true);
 // realtime lighting (opt-in, docs/lighting.md): ?csm=1 cascaded sun shadows, ?gi=1 irradiance probe volume,
+// ?probes=1 a box reflection probe,
 // ?lights=N clustered lamps (&cluster=0 plain loop, &lshadows=K shadowed, &stock=1 three's own lights instead)
 const LF = (k) => Q.get(k) === '1';
 const NL = +Q.get('lights') || 0, stock = LF('stock');
-const lighting = ['csm', 'gi'].some(LF) || (NL && !stock) ? {
+const lighting = ['csm', 'gi', 'probes'].some(LF) || (NL && !stock) ? {
   csm: LF('csm') && { cascades: +Q.get('cascades') || 4 },
   gi: LF('gi') && { min: [-9, 0.15, -9], max: [9, 5.4, 9], spacing: +Q.get('gispacing') || 2 },
+  probes: LF('probes') && [{ min: [-7.2, 0, -7.2], max: [7.2, 6, 7.2], position: [0, 2.6, 0], fade: 1.5 }],
   lights: NL > 0 && !stock && { cluster: Q.get('cluster') !== '0' },
 } : undefined;
 const world = createWorldRenderer({ quality, xr: xrs.vr || xrs.ar, light2, softShadows, lighting, dynamicRes: Q.get('dynres') ? (Q.get('dynres') === '1' || { target: +Q.get('dynres') }) : false,

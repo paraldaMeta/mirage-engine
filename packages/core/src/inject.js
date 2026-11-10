@@ -22,6 +22,7 @@ import * as THREE from 'three';
 export const isLit = (m) => !!m && (m.isMeshStandardMaterial || m.isMeshLambertMaterial || m.isMeshPhongMaterial) && !(m.userData && m.userData.mgNoLighting);
 
 const COMMON = /* glsl */ `
+float mgRpK = 0.0;   // how much of this pixel's reflection came from reflection probes (probes.js sets it, gi.js reads it)
 vec3 mgLW( vec3 vp ) { return ( ( vec4( vp, 1.0 ) - viewMatrix[ 3 ] ) * viewMatrix ).xyz; }
 vec3 mgLWN( vec3 n ) { return normalize( ( vec4( n, 0.0 ) * viewMatrix ).xyz ); }
 float mgIgn( vec2 p ) { return fract( 52.9829189 * fract( dot( p, vec2( 0.06711056, 0.00583715 ) ) ) ); }
