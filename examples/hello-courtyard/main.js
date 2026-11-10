@@ -2,10 +2,10 @@
 // entirely in code by four modules on one site plan (plan.js, modules/), dressed with five CC0 texture sets.
 // URL: ?mode=orbit (default) | walk | fly | game   ?time=golden | HH:MM [&date=YYYY-MM-DD] [&lat=..&lon=..&tz=..]
 //      ?clock=N (N minutes per second)  ?spp=N  ?w=&h=  ?grain=0  ?dof=1  ?view=hero | corner | <viewpoint name>
-//      ?broken=1 (adds a module that throws)  ?ui=0
+//      ?broken=1 (adds a module that throws)  ?ui=0  ?nodetail (no close-range relief, soft edges or soot: A/B)
 //      ?light2=1 lamp shadows, reflections, volumetric light, mixed bloom (@mirage/core light2.js);
 //      &l2=nols,nossr,novol,nobloom switches single parts off
-import { createWorldRenderer, createTextures, placeDate, pickQuality } from '@mirage/core';
+import { createWorldRenderer, createTextures, placeDate, pickQuality, setRelief } from '@mirage/core';
 import { buildWorld } from '@mirage/world';
 import { createPlay } from '@mirage/play';
 import manifest from './tex/manifest.json';
@@ -21,6 +21,7 @@ let date = t === 'golden' ? null : placeDate(Q.get('date') || '2026-10-25', t, p
 const canvas = document.querySelector('canvas');
 canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
 const quality = Q.get('quality') || (await pickQuality()).quality, hud = Q.get('hud') !== '0';   // ?quality=low|medium|high
+setRelief({ low: 0, medium: 0.7, high: 1 }[quality] ?? 1);   // the relief's reach: off on low, 5.6 m on medium, 8 m on high
 // light2 (opt-in): ?light2=1, parts off with &l2=nols,nossr,novol,nobloom
 const light2 = Q.get('light2') === '1' && Object.fromEntries((Q.get('l2') || '').split(',').filter(Boolean).map((k) => [k.replace(/^no/, ''), false]));
 const world = createWorldRenderer({ quality, light2,
@@ -31,7 +32,7 @@ const world = createWorldRenderer({ quality, light2,
 });
 const urls = import.meta.glob('./tex/*.webp', { eager: true, query: '?url', import: 'default' });
 const tex = createTextures(world, { manifest, url: (f) => urls['./tex/' + f] });
-const built = await buildWorld(world, { plan, modules: modules({ broken: Q.has('broken') }), shared: { tex } });
+const built = await buildWorld(world, { plan, modules: modules({ broken: Q.has('broken') }), shared: { tex, detail: !Q.has('nodetail') } });
 
 const { camera } = world;
 camera.aspect = W / H; camera.fov = 48; camera.near = 0.1; camera.far = 3000; camera.updateProjectionMatrix();

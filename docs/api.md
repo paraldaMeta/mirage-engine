@@ -29,9 +29,17 @@ The entry points `@mirage/<pkg>` are the API. Every file under `src/` can also b
 | `createTextures(world, { manifest, url, anisotropy })` | stable | the optional world-space texture layer for CC0 PBR sets |
 | `TEX_GLSL` | stable | the GLSL of the texture layer (`mgTexTri`, `mgTexWall`, `mgTexGround`, …) |
 | `glslName(name)` | stable | how a texture set name is spelled in `MG_TEX_<name>` (`'stone-wall'` → `stone_2d_wall`; plain names unchanged) |
+| `TEX_RELIEF_GLSL` | experimental | the texture layer's relief taps (`mgTexTriRelief`, `mgTexWallRelief`, `mgTexGroundRelief`); compiled in by the relief opt-ins |
+| `RELIEF` | experimental | the close-range relief's shared uniforms (`uRelief` on / off, `uReliefFar` fade distance) |
+| `setRelief(level)` | experimental | relief level: 0 off, 1 full (8 m), in between a shorter reach |
+| `RELIEF_GLSL` | experimental | the relief GLSL (`mgRlFade`, `mgRlShift`, `mgRlSunProbe`, `mgRlSelfShadow`, `mgRlLip`, `mgRlArris`, `mgRlRenderH`, …) |
+| `RELIEF_LIGHT` | experimental | `lighting` hook snippet: the relief's self-shadow on the direct light |
+| `withRelief(hooks)` | experimental | put the relief GLSL and uniforms in front of a hooks object |
+| `renderHeight(name, und, swipe)` | experimental | GLSL declaring a hand-applied render's height (m), faded with distance |
+| `renderShade(name)` | experimental | `output` hook snippet: shade the render's hollows |
 | `NOISE_GLSL` | stable | the GLSL noise library (`mgHash`, `mgValue2/3`, `mgFbm2/3`, `mgCell2/3`, …) |
 | `rng(seed)` | stable | seeded random stream: `next`, `float`, `range`, `int`, `pick`, `chance`, `sign`, `gauss`, `inDisc`, `onSphere`, `fork(name)` (also `@mirage/core/rng`) |
-| `geom` | stable | geometry helpers: `wall`, `archPath`, `lathe`, `taperedTube`, `instances`, `MeshBatch`, `compose`, `lerp`, `clamp`, `smoothstep`, `remap`; three's `mergeGeometries` and `RoundedBoxGeometry` re-exported |
+| `geom` | stable | geometry helpers: `wall`, `archPath`, `lathe`, `taperedTube`, `instances`, `MeshBatch`, `compose`, `lerp`, `clamp`, `smoothstep`, `remap` (experimental: `softExtrude`, `softBox`, `sootPlumes`, `wall({ round })`); three's `mergeGeometries` and `RoundedBoxGeometry` re-exported |
 | `skyAt(date, place)` | stable | Sun and Moon position for a date and a place (pure JS) |
 | `placeDate(day, time, tzHours)` | stable | a `Date` for a local wall-clock time |
 | `placeClock(date, tzHours)` | stable | the local wall-clock parts of a `Date` |

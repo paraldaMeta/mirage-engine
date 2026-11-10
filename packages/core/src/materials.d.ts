@@ -17,7 +17,7 @@ export interface MaterialHooks {
 }
 export type UniformSet = EnvironmentUniforms | Record<string, THREE.IUniform>;
 export interface ProceduralSurfaces {
-  plaster(base?: string, options?: { wear?: number; foot?: number }): MaterialHooks;
+  plaster(base?: string, options?: { wear?: number; foot?: number; render?: number | readonly [number, number] }): MaterialHooks;
   stone(base?: string, options?: { course?: number; block?: number }): MaterialHooks;
   wood(base?: string, axis?: 'x' | 'y' | 'z'): MaterialHooks;
   terracotta(base?: string): MaterialHooks;

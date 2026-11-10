@@ -134,6 +134,47 @@ GLSL: `mgTexTri | mgTexWall | mgTexGround(MG_TEX_name, p, wn, tile, strength)` -
 own derivatives and a repetition breaker; every patched Standard / Physical material gets specular AA
 (`mgSpecAA`).
 
+## Close-range relief (optional): `relief.js`
+
+Walls and floors that hold up at 1–3 m. Nothing is compiled into a material unless it opts in, so worlds that do
+not ask for it build exactly the shaders they did before.
+
+```js
+import { setRelief, PROC, renderHeight, renderShade } from '@mirage/core';
+const paving = tex.material('paving', { mapping: 'ground', relief: 0.025 });         // depth (m) of the relief
+const render = tex.material('plaster', { mapping: 'wall', relief: 0.024, render: 0.009 });   // + hand-applied render
+const lime = world.mat.std({ roughness: 0.9 }, PROC.plaster(undefined, { render: 0.009 }));  // [und, swipe] also
+const mine = world.mat.std({}, tex.hooks(['plaster'], {
+  fragmentDecl: 'MgTex mgS;',
+  albedo: 'mgS = mgTexWallRelief(MG_TEX_plaster, mgWorldPos, normalize(mgWorldNormal), 0.0, 1.0, 0.024); diffuseColor.rgb *= mgS.albedo;',
+  normal: 'normal = mgTexNormal(normal, mgS, normalize(mgWorldNormal));',
+}, { relief: true }));                   // adds the relief GLSL, its uniforms and the self-shadow on direct light
+setRelief(0.7);                          // 0 off (one uniform test), 1 full: fade 0.6·8 … 8 m; 0.7 → 5.6 m
+```
+
+- **Texture relief** (`relief: depth`, `mgTex{Tri,Wall,Ground}Relief(MG_TEX_x, p, wn, tile, k, depth)`): one
+  parallax step on the set's own height (B channel), sampled again at the shifted point with the UNSHIFTED
+  gradients (`textureGrad`, derivatives taken once in uniform flow), so the mip level never jumps and TAA stays
+  stable; then one more height read toward the key light (`uKeyDir`, capped at 7 cm sideways) gives the relief's
+  own shadow, applied to the direct light only (`RELIEF_LIGHT` in `lighting`; lamps are dimmed with it too). The
+  repetition breaker's patch choice is made once per fragment. Faded out between 4.8 and 8 m, off in orthographic
+  cameras (the game view) and with `setRelief(0)`.
+- **Render relief** (`render: undulation`, `PROC.plaster(base, { render })`, or `renderHeight` + `renderShade` in your
+  own hooks): a hand-applied render's slow undulation (~0.5 / 0.22 m) and overlapping trowel swipes (0.7× the
+  undulation), a real-slope bump in metres plus a little shade in the hollows; full to 4 m, gone by 10 m.
+- **GLSL helpers** (`RELIEF_GLSL`, `withRelief(hooks)` to include them): `mgRlFade`, `mgRlShift`, `mgRlSunProbe`,
+  `mgRlSelfShadow`, `mgRlRenderH`, `mgRlRenderK`, and for recesses and corners `mgRlGradQ` + `mgRlLip` (a lip's
+  cast shadow and edge occlusion from a mask field's screen derivatives) and `mgRlArris` (0 on a face, 1 across a
+  rounded corner); the last three are not used by any example yet.
+- **Geometry** (`geom`): `wall({ …, round })` and `softExtrude(shape, depth, r)` round every arris inside the plain
+  extrusion's bounds (faces inset, sides exact: walk grids do not change); `softBox(w, h, d, r)` (parts under 12 cm
+  stay sharp); `sootPlumes([{ pos, rotY | normal, scale, up }])` multiply-blended soot above lamps (no depth writes,
+  no shadows, ignored by the walk grid and SSAO).
+- **Cost** (hello-courtyard, 1440×900, Apple M4 Pro, uncapped, A/B against `?nodetail` on a shared GPU): walk view
+  +5…9 %, game view +2…4 %, 1–3 m from a wall that fills the screen +0.4…0.6 ms (+10…17 %); details in
+  `examples/hello-courtyard/NOTES.md`. ponytail: the uniforms are shared by every world on a page.
+- **Not ported**: the source's automatic rewrite of library calls into relief calls; materials opt in explicitly.
+
 ## Rules learnt the hard way
 
 - Every sampling pattern (AA offset, shutter time, sun-disc point, SSAO rotation) depends on the sub-frame index

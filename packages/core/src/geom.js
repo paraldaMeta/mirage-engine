@@ -14,7 +14,12 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 //   lathe([[r, y], ...], segments)     surface of revolution about +Y (jars, columns, domes)
 //   taperedTube(points, radii, radial) a tube whose radius varies along a Catmull-Rom path (trunks, branches)
 //   archPath(path, x0, x1, y, kind, rise)   adds an arch (round | pointed | segmental | flat) to a THREE.Path
-//   wall({ length, height, thickness, openings })   an extruded wall with doors (from the ground) and windows
+//   wall({ length, height, thickness, openings, round })   an extruded wall with doors (from the ground) and windows;
+//                                      round > 0: every arris (openings, ends) rounded inside the same bounds
+//   softExtrude(shape, depth, r)       ExtrudeGeometry over z 0..depth with every outline / hole edge rounded by r,
+//                                      never bigger than the plain extrusion
+//   softBox(w, h, d, r)                a box with rounded edges inside the same bounds (thin parts < 12 cm stay sharp)
+//   sootPlumes(list)                   multiply-blended soot quads on the wall above lamps (one merged mesh)
 //   lerp, clamp, smoothstep, remap
 // ---------------------------------------------------------------------------
 
@@ -170,8 +175,8 @@ export function archPath(path, x0, x1, y, kind = 'round', rise = null, steps = 1
 
 /** An extruded wall along local +X (centred), from y = 0 to `height`, `thickness` along Z (centred).
  *  openings: [{ x (centre along the wall), width, height (springing height), arch: 'round' | 'pointed' |
- *  'segmental' | 'flat', rise, sill (0 = a door from the ground) }] */
-export function wall({ length, height, thickness = 0.4, openings = [], curveSteps = 18 }) {
+ *  'segmental' | 'flat', rise, sill (0 = a door from the ground) }]; round: arris radius (m, 0 = sharp) */
+export function wall({ length, height, thickness = 0.4, openings = [], curveSteps = 18, round = 0 }) {
   const L = length / 2;
   const doors = openings.filter((o) => !(o.sill > 0)).sort((a, b) => a.x - b.x);
   const windows = openings.filter((o) => o.sill > 0);
@@ -192,10 +197,82 @@ export function wall({ length, height, thickness = 0.4, openings = [], curveStep
     hole.lineTo(x0, w.sill);
     shape.holes.push(hole);
   }
-  const geo = new THREE.ExtrudeGeometry(shape, { depth: thickness, bevelEnabled: false, curveSegments: curveSteps });
+  const geo = round > 0 ? softExtrude(shape, thickness, round, curveSteps) : new THREE.ExtrudeGeometry(shape, { depth: thickness, bevelEnabled: false, curveSegments: curveSteps });
   geo.translate(0, 0, -thickness / 2);
   geo.computeVertexNormals();
   return geo;
+}
+
+/** An ExtrudeGeometry of `shape` over z in [0, depth] whose outline and hole edges are rounded (chamfered with
+ *  `segments` bevel steps) by r: the faces' contours are inset, the sides are exact, so the part never grows beyond
+ *  the plain extrusion. Falls back to the plain extrusion for r <= 4 mm (r is capped at 0.3 x depth). */
+export function softExtrude(shape, depth, r, curveSegments = 2, segments = 1) {
+  const rr = Math.min(r, depth * 0.3);
+  if (!(rr > 0.004)) return new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false, curveSegments, steps: 1 });
+  const g = new THREE.ExtrudeGeometry(shape, {
+    depth: depth - 2 * rr, bevelEnabled: true, bevelThickness: rr, bevelSize: rr, bevelOffset: -rr, bevelSegments: segments, curveSegments, steps: 1,
+  });
+  g.translate(0, 0, rr);
+  return g;
+}
+
+/** A w x h x d box with rounded edges inside the same bounds (RoundedBoxGeometry, r <= a quarter of the thinnest
+ *  side); parts thinner than 12 cm keep the sharp BoxGeometry. */
+export function softBox(w, h, d, r = 0.035) {
+  const m = Math.min(w, h, d);
+  if (m < 0.12 || !(r > 0)) return new THREE.BoxGeometry(w, h, d);
+  return new RoundedBoxGeometry(w, h, d, 2, Math.min(r, m * 0.25));
+}
+
+// a soot plume: dark and narrow at the lamp, spreading and fading upward (y = 0 at the lamp .. 1 at the top);
+// RGB multiplies what is behind (1 = no change)
+function sootTexture() {
+  const W = 64, H = 128, data = new Uint8Array(W * H * 4);
+  const hsh = (i, j) => { let n = (i * 374761393 + j * 668265263) | 0; n = Math.imul(n ^ (n >>> 13), 1274126177); return ((n ^ (n >>> 16)) >>> 0) / 4294967296; };
+  for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
+    const x = (i + 0.5) / W * 2 - 1, y = (j + 0.5) / H;
+    const w = 0.22 + 0.7 * Math.pow(y, 0.8) + 0.06 * Math.sin(y * 9.0 + 1.3);
+    const sx = x + 0.12 * Math.sin(y * 6.0) * y;
+    let k = Math.exp(-((sx / w) ** 2) * 2.6) * Math.min(1, y / 0.08) * Math.pow(1 - y, 1.1);
+    k *= 0.8 + 0.2 * hsh(i >> 2, j >> 2) + 0.2 * hsh(i, j);
+    const c = Math.round(255 * (1 - 0.62 * Math.min(1, k))), o = (j * W + i) * 4;
+    data[o] = c; data[o + 1] = Math.round(c * 0.985); data[o + 2] = Math.round(c * 0.97); data[o + 3] = 255;
+  }
+  const t = new THREE.DataTexture(data, W, H, THREE.RGBAFormat);
+  t.colorSpace = THREE.NoColorSpace; t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearMipmapLinearFilter;
+  t.generateMipmaps = true; t.needsUpdate = true;
+  return t;
+}
+
+/** Soot blackening the wall above lamps (anything that smokes), as one merged mesh of quads multiplying what is
+ *  behind them (no light of its own, no shadows, no depth writes: the walk grid and SSAO ignore it).
+ *  list: [{ pos: [x, y, z] on the wall face, normal: [nx, ny, nz] | rotY (out of the wall), scale = 1,
+ *  up = 1.25 (m) }]. Quads stand 3.5 cm off the face. Returns null for an empty list. */
+export function sootPlumes(list) {
+  if (!list || !list.length) return null;
+  const P = [], UV = [], IX = [];
+  for (const it of list) {
+    const n = it.normal ? new THREE.Vector3(...it.normal) : new THREE.Vector3(Math.sin(it.rotY || 0), 0, Math.cos(it.rotY || 0));
+    n.y = 0; if (n.lengthSq() < 1e-6) continue; n.normalize();
+    const t = new THREE.Vector3(n.z, 0, -n.x), s = it.scale ?? 1, up = (it.up ?? 1.25) * s, hw = 0.32 * s;
+    const b = new THREE.Vector3(...it.pos).addScaledVector(n, 0.035); b.y -= 0.12 * s;
+    const k = P.length / 3;
+    for (const [a, v] of [[-1, 0], [1, 0], [1, 1], [-1, 1]]) {
+      const p = b.clone().addScaledVector(t, a * hw); p.y += v * up;
+      P.push(p.x, p.y, p.z); UV.push((a + 1) / 2, v);
+    }
+    IX.push(k, k + 1, k + 2, k, k + 2, k + 3);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(UV, 2));
+  g.setIndex(IX); g.computeBoundingSphere();
+  const m = new THREE.MeshBasicMaterial({ map: sootTexture(), blending: THREE.MultiplyBlending, premultipliedAlpha: true, transparent: true,
+    depthWrite: false, side: THREE.DoubleSide, fog: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  m.name = 'soot';
+  const mesh = new THREE.Mesh(g, m);
+  mesh.name = 'soot'; mesh.castShadow = false; mesh.receiveShadow = false; mesh.renderOrder = 5;
+  return mesh;
 }
 
 export { mergeGeometries, RoundedBoxGeometry };

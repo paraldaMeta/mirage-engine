@@ -11,6 +11,11 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
 
 **New**
 
+- @mirage/core: optional close-range relief (`relief.js`): one parallax step and the relief's own shadow on the
+  photo sets (`tex.material(name, { relief, render })`, `tex.hooks(names, h, { relief: true })`,
+  `mgTex{Tri,Wall,Ground}Relief`), a hand-applied render's undulation and trowel swipes (`PROC.plaster(base,
+  { render })`), `setRelief(level)`; geometry `geom.wall({ round })`, `softExtrude`, `softBox`, `sootPlumes`. Opt-in:
+  worlds that do not ask for it compile the same shaders. hello-courtyard uses it (`?nodetail` for A/B).
 - Live examples on Cloudflare Pages (https://mirage-engine-4qj.pages.dev/): `npm run site` builds the seven examples
   as single files plus an index page (`scripts/build-site.mjs`); the owner deploys it with wrangler (see that file).
   Not rebuilt automatically: redeploy after changes to `main`.

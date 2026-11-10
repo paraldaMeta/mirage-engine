@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { NOISE_GLSL } from './noise.js';
 import { WIND_GLSL, AMBIENT_GLSL } from './env.js';
 import { hash32 } from './rng.js';
+import { RELIEF_GLSL, RELIEF, renderHeight, renderShade } from './relief.js';
 
 // ---------------------------------------------------------------------------
 // patch(material, hooks, G): procedural GLSL inside three's own Standard / Physical / Lambert / Basic / Depth
@@ -120,8 +121,9 @@ export function createMaterials(G) {
 // They declare `float mgH;` (height for the bump) — combine at most one PROC per material.
 // ---------------------------------------------------------------------------
 export const PROC = {
-  /** lime plaster / render: soft trowel waves, rain streaks, a damp foot, scattered chips */
-  plaster: (base = 'vec3(0.72, 0.66, 0.56)', { wear = 1, foot = 0.6 } = {}) => ({
+  /** lime plaster / render: soft trowel waves, rain streaks, a damp foot, scattered chips; render: the close-range
+   *  relief of a hand-applied render (undulation in metres, e.g. 0.009; mud / adobe ~0.008, or [und, swipe]), opt-in */
+  plaster: (base = 'vec3(0.72, 0.66, 0.56)', { wear = 1, foot = 0.6, render = 0 } = {}) => withRender({
     fragmentDecl: 'float mgH;',
     albedo: /* glsl */ `{
       vec3 p = mgWorldPos; vec3 n = normalize(mgWorldNormal);
@@ -137,7 +139,7 @@ export const PROC = {
       mgH = trowel * 0.5 + big * 0.3 - chip * 0.7 + mgGrad3(p * 24.0) * 0.05;
     }`,
     normal: 'normal = mgBump(normal, mgH, 0.004);',
-  }),
+  }, render, 0.004),
   /** stone blocks in courses (ashlar): per-block tone, recessed joints, worn arrises */
   stone: (base = 'vec3(0.46, 0.41, 0.34)', { course = 0.32, block = 0.62 } = {}) => ({
     fragmentDecl: 'float mgH;',
@@ -193,3 +195,18 @@ export const PROC = {
     normal: 'normal = mgBump(normal, mgH, 0.0015);',
   }),
 };
+
+// the render relief on a PROC set that bumps mgH with strength k: one bump of mgH * k + the render's height (m), a
+// little shade in its hollows; without `render` the hooks are returned untouched (the same program as before)
+function withRender(h, render, k) {
+  const [und, swipe] = Array.isArray(render) ? render : [render, render * 0.7];
+  if (!(und > 0)) return h;
+  return {
+    ...h,
+    fragmentDecl: RELIEF_GLSL + h.fragmentDecl + ' float mgRR;',
+    albedo: h.albedo + `\n{ ${renderHeight('rr', und, swipe)} mgRR = rr; }`,
+    normal: `normal = mgBump(normal, mgH * ${k} + mgRR, 1.0);`,
+    output: renderShade('mgRR'),
+    uniforms: { ...RELIEF },
+  };
+}

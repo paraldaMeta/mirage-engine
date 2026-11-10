@@ -1,5 +1,6 @@
 // props: jars (seeded lathe profiles) in the north-west corner and by the gate; a lantern with a warm point
-// light on every `lamps` anchor any module offers (consumed in finalize).
+// light on every `lamps` anchor any module offers (consumed in finalize); with ctx.shared.detail, soot on the wall
+// above the lamps that hang on a wall (anchors with `wall`: the ring's distance from the face).
 import * as THREE from 'three';
 import { materials } from './materials.js';
 
@@ -29,5 +30,10 @@ export default {
       ctx.onUpdate(() => { l.intensity = 2.2 * world.G.uLampGain.value; });
     }
     root.add(b.finish({ name: 'lanterns' }));
+    if (ctx.shared.detail !== false) {
+      const soot = geom.sootPlumes((ctx.anchors.lamps || []).filter((a) => a.wall > 0).map(({ pos, rotY, wall }) =>
+        ({ pos: [pos[0] - Math.sin(rotY) * wall, pos[1], pos[2] - Math.cos(rotY) * wall], rotY })));
+      if (soot) root.add(soot);
+    }
   },
 };

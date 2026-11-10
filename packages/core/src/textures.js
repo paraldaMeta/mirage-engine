@@ -1,5 +1,6 @@
 // Mirage code adapted from the author's own earlier texture layer (no Golden Temple code in it); GLSL rewritten.
 import * as THREE from 'three';
+import { RELIEF_GLSL, RELIEF, RELIEF_LIGHT, renderHeight, renderShade } from './relief.js';
 
 // ---------------------------------------------------------------------------
 // Optional real-material layer: photo-scanned PBR sets (CC0) sampled in WORLD space from patch() hooks, so
@@ -27,6 +28,15 @@ import * as THREE from 'three';
 //   mgSpecAA(roughness, normalView) is applied by patch() to every Standard / Physical material.
 // Every tap uses textureGrad with the projection's own derivatives (no mip seams at the repetition breaker or
 // inside branches) and the textures are anisotropic.
+//
+// Optional close-range relief (relief.js): tex.material(name, { relief: depthMetres, render: undulationMetres }),
+// or tex.hooks(names, h, { relief: true }) and in your GLSL (uniform control flow):
+//   MgTex mgTexTriRelief | mgTexWallRelief | mgTexGroundRelief(MG_TEX_x, p, wn, tile, k, depth)
+//      = the mapping above seen through a relief `depth` metres deep: one parallax step on the set's height
+//        (sampled again at the shifted point with the UNSHIFTED gradients, so TAA stays stable) and the relief's
+//        own shadow toward the key light (mgRlSh; the lighting hook RELIEF_LIGHT applies it), both faded out by
+//        mgRlFade (8 m; off in orthographic views and with setRelief(0)). Materials that do not opt in compile
+//        exactly as before.
 // ---------------------------------------------------------------------------
 
 export const TEX_GLSL = /* glsl */ `
@@ -91,6 +101,78 @@ float mgTexBlend(float m, float hA, float hB, float soft){
 #endif
 `;
 
+// The relief taps (compiled in only by the relief opt-ins): the same projections as mgTexTri / Wall / Ground, read at
+// a shifted point with the gradients of the UNSHIFTED surface (dpx, dpy = dFdx / dFdy of the true world position,
+// taken in uniform control flow), so the shifted samples keep their mip level and no derivative is taken inside a
+// branch. The repetition breaker's patch choice is made once, at the unshifted point, and shared by the three reads
+// (probe, sample, light probe) of one fragment.
+export const TEX_RELIEF_GLSL = /* glsl */ `
+#ifndef MG_TEX_RELIEF
+#define MG_TEX_RELIEF
+vec3 mgTexWallT(vec3 wn){ vec3 T = vec3(-wn.z, 0.0, wn.x); return T / max(length(T), 1e-4); }
+// map 0 tri, 1 wall, 2 ground: up to three planar uv sets; linear in p for a given normal, so the same call on dFdx(p)
+// gives the uv gradients
+void mgTexProj(int map, vec3 p, vec3 wn, float s, out vec2 u0, out vec2 u1, out vec2 u2){
+  vec3 q = p / s;
+  if (map == 2) { u0 = q.xz; u1 = u0; u2 = u0; }
+  else if (map == 1) { u0 = vec2(dot(q, mgTexWallT(wn)), q.y); u1 = q.xz; u2 = u1; }
+  else { u0 = q.zy; u1 = q.xz; u2 = q.xy; }
+}
+vec3 mgTexProjW(int map, vec3 wn){
+  if (map == 2) return vec3(1.0, 0.0, 0.0);
+  if (map == 1) { float wy = smoothstep(0.6, 0.8, abs(wn.y)); return vec3(1.0 - wy, wy, 0.0); }
+  vec3 w = pow(abs(wn), vec3(6.0)); w /= w.x + w.y + w.z;
+  w = max(w - 0.03, 0.0); return w / (w.x + w.y + w.z);
+}
+// one projection with its patch value v given (mgTexTap's breaker, taken elsewhere); full = false: the height only
+void mgTexAddV(bool full, sampler2D C, sampler2D N, float v, vec2 uv, vec2 gx, vec2 gy, vec3 T, vec3 B, vec3 wn, float w, float k,
+               inout vec3 c, inout vec3 nW, inout float h){
+  float i = floor(v), f = fract(v);
+  vec2 oa = mgHash3(vec3(i, 7.0, 3.0)).xy * 17.0, ob = mgHash3(vec3(i + 1.0, 7.0, 3.0)).xy * 17.0;
+  vec3 na = textureGrad(N, uv + oa, gx, gy).rgb, nb = textureGrad(N, uv + ob, gx, gy).rgb;
+  float m = smoothstep(0.3, 0.7, f + 0.4 * (nb.b - na.b));
+  vec3 nh = mix(na, nb, m);
+  h += nh.b * w;
+  if (full) {
+    vec2 t = (nh.rg * 2.0 - 1.0) * k;
+    c += mix(textureGrad(C, uv + oa, gx, gy).rgb, textureGrad(C, uv + ob, gx, gy).rgb, m) * w;
+    nW += (T * t.x + B * t.y + wn * sqrt(max(1.0 - dot(t, t), 0.0))) * w;
+  }
+}
+MgTex mgTexAt(int map, bool full, sampler2D C, sampler2D N, vec4 A, vec4 B, vec3 p, vec3 dpx, vec3 dpy, vec3 wn, float s, float k, vec3 w, vec3 bv){
+  vec2 u0, u1, u2, x0, x1, x2, y0, y1, y2;
+  mgTexProj(map, p, wn, s, u0, u1, u2); mgTexProj(map, dpx, wn, s, x0, x1, x2); mgTexProj(map, dpy, wn, s, y0, y1, y2);
+  vec3 T0 = map == 2 ? vec3(1, 0, 0) : map == 1 ? mgTexWallT(wn) : vec3(0, 0, 1), B0 = map == 2 ? vec3(0, 0, 1) : vec3(0, 1, 0);
+  vec3 c = vec3(0.0), nW = vec3(0.0); float h = 0.0;
+  if (w.x > 0.0) mgTexAddV(full, C, N, bv.x, u0, x0, y0, T0, B0, wn, w.x, k, c, nW, h);
+  if (w.y > 0.0) mgTexAddV(full, C, N, bv.y, u1, x1, y1, vec3(1, 0, 0), vec3(0, 0, 1), wn, w.y, k, c, nW, h);
+  if (w.z > 0.0) mgTexAddV(full, C, N, bv.z, u2, x2, y2, vec3(1, 0, 0), vec3(0, 1, 0), wn, w.z, k, c, nW, h);
+  if (!full) return MgTex(vec3(0.0), wn, h, 0.0, A.rgb);
+  return mgTexEnd(c, nW, h, A, B);
+}
+// one parallax step on the set's own height, then the relief's shadow toward the key light (into mgRlSh)
+MgTex mgTexRelief(int map, sampler2D C, sampler2D N, vec4 A, vec4 B, vec3 p, vec3 wn, float tile, float k, float depth){
+  float s = tile > 0.0 ? tile : B.x;
+  vec3 dpx = dFdx(p), dpy = dFdy(p), w = mgTexProjW(map, wn);
+  vec2 u0, u1, u2; mgTexProj(map, p, wn, s, u0, u1, u2);
+  vec3 bv = vec3(w.x > 0.0 ? mgValue2(u0 * 0.37 + 1.3) * 8.0 : 0.0, w.y > 0.0 ? mgValue2(u1 * 0.37 + 1.3) * 8.0 : 0.0,
+                 w.z > 0.0 ? mgValue2(u2 * 0.37 + 1.3) * 8.0 : 0.0);
+  float fade = mgRlFade(p), D = depth * fade;
+  vec3 q = p;
+  if (D > 0.0) q += mgRlShift(p, wn, mgTexAt(map, false, C, N, A, B, p, dpx, dpy, wn, s, k, w, bv).h, D);
+  MgTex t = mgTexAt(map, true, C, N, A, B, q, dpx, dpy, wn, s, k, w, bv);
+  if (D > 0.0 && dot(uKeyDir, wn) > 0.0) {
+    float hL = mgTexAt(map, false, C, N, A, B, mgRlSunProbe(q, wn, D, 0.4), dpx, dpy, wn, s, k, w, bv).h;
+    mgRlSh = min(mgRlSh, mix(1.0, mgRlSelfShadow(wn, t.h, hL, 0.4, 0.2), fade));
+  }
+  return t;
+}
+MgTex mgTexTriRelief(sampler2D C, sampler2D N, vec4 A, vec4 B, vec3 p, vec3 wn, float tile, float k, float depth){ return mgTexRelief(0, C, N, A, B, p, wn, tile, k, depth); }
+MgTex mgTexWallRelief(sampler2D C, sampler2D N, vec4 A, vec4 B, vec3 p, vec3 wn, float tile, float k, float depth){ return mgTexRelief(1, C, N, A, B, p, wn, tile, k, depth); }
+MgTex mgTexGroundRelief(sampler2D C, sampler2D N, vec4 A, vec4 B, vec3 p, vec3 wn, float tile, float k, float depth){ return mgTexRelief(2, C, N, A, B, p, wn, tile, k, depth); }
+#endif
+`;
+
 const f = (v) => (Number.isInteger(+v) ? (+v).toFixed(1) : String(+(+v).toFixed(5)));
 const vec4 = (a) => `vec4(${a.map(f).join(', ')})`;
 /** The GLSL spelling of a set name in MG_TEX_<name>: letters, digits and _ stay; anything else ('stone-wall') becomes
@@ -123,10 +205,11 @@ export function createTextures(world, { manifest, url, anisotropy = 8 }) {
     }
     return sets.get(name);
   }
-  /** merge the GLSL library and the sets `names` into a patch() hooks object (one call per material) */
-  function hooks(names, h = {}) {
-    const uniforms = { ...(h.uniforms || {}) };
-    let decl = TEX_GLSL;
+  /** merge the GLSL library and the sets `names` into a patch() hooks object (one call per material);
+   *  { relief: true } adds the relief taps (mgTex*Relief), the relief GLSL and its self-shadow on the direct light */
+  function hooks(names, h = {}, { relief = false } = {}) {
+    const uniforms = { ...(h.uniforms || {}), ...(relief ? RELIEF : {}) };
+    let decl = relief ? RELIEF_GLSL + TEX_GLSL + TEX_RELIEF_GLSL : TEX_GLSL;
     for (const n of names) {
       const m = info(n), s = get(n);
       const id = glslName(n);
@@ -134,20 +217,32 @@ export function createTextures(world, { manifest, url, anisotropy = 8 }) {
       decl += `uniform sampler2D mgT_${id}_c; uniform sampler2D mgT_${id}_n;\n`;
       decl += `#define MG_TEX_${id} mgT_${id}_c, mgT_${id}_n, ${vec4([...m.mean, m.hMean])}, ${vec4([m.tile, m.rough, m.roughSlope ?? 0, 0])}\n`;
     }
-    return { ...h, fragmentDecl: decl + (h.fragmentDecl || ''), uniforms };
+    const out = { ...h, fragmentDecl: decl + (h.fragmentDecl || ''), uniforms };
+    if (relief) out.lighting = (h.lighting ? h.lighting + '\n' : '') + RELIEF_LIGHT;
+    return out;
   }
-  /** a ready MeshStandardMaterial: one set, mapping 'tri' | 'wall' | 'ground', optional palette tint (linear) */
+  /** a ready MeshStandardMaterial: one set, mapping 'tri' | 'wall' | 'ground', optional palette tint (linear);
+   *  relief: depth (m) of the close-range relief, render: undulation (m) of a hand-applied render (both opt-in) */
   function material(name, o = {}) {
     const m = info(name);
     const fn = { tri: 'mgTexTri', wall: 'mgTexWall', ground: 'mgTexGround' }[o.mapping || 'tri'];
     const col = o.tint ? `mgTexTint(mgS, vec3(${o.tint.map(f).join(', ')}), ${f(o.detail ?? 1)})` : 'mgS.albedo';
-    const { mapping, tile, tint, detail, normal, ...params } = o;
-    const out = mat.std({ roughness: m.rough, ...params }, hooks([name], {
+    const { mapping, tile, tint, detail, normal, relief, render, ...params } = o;
+    const h = {
       fragmentDecl: 'MgTex mgS;',
       albedo: `mgS = ${fn}(MG_TEX_${glslName(name)}, mgWorldPos, normalize(mgWorldNormal), ${f(tile ?? 0)}, ${f(normal ?? 1)}); diffuseColor.rgb *= ${col};`,
       roughness: 'roughnessFactor = clamp(roughnessFactor + mgS.r, 0.04, 1.0);',
       normal: 'normal = mgTexNormal(normal, mgS, normalize(mgWorldNormal));',
-    }));
+    };
+    const rl = relief > 0 || render > 0;
+    if (relief > 0) h.albedo = h.albedo.replace(`${fn}(`, `${fn}Relief(`).replace(/\); diffuse/, `, ${f(relief)}); diffuse`);
+    if (render > 0) {
+      h.fragmentDecl += ' float mgRR;';
+      h.albedo += ` { ${renderHeight('rr', render)} mgRR = rr; }`;
+      h.normal += ' normal = mgBump(normal, mgRR, 1.0);';
+      h.output = renderShade('mgRR');
+    }
+    const out = mat.std({ roughness: m.rough, ...params }, hooks([name], h, { relief: rl }));
     out.name = 'tex-' + name;
     return out;
   }

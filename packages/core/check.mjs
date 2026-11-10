@@ -83,4 +83,30 @@ assert.equal(lfb.split('mgLsVisV').length, 2, 'one lamp-shadow lookup in the poi
 assert.ok(THREE.ShaderChunk.common.startsWith(common0) && THREE.ShaderChunk.common.includes('defined( FOG_EXP2 )'), 'lamp shadows only under FogExp2');
 assert.ok(THREE.ShaderChunk.opaque_fragment.includes('gl_FragColor.a = 2.0'), 'smooth surfaces flag reflections');
 assert.ok(THREE.ShaderLib.standard.uniforms.mgLsAtlas.value === L2.LS_SHARED.atlas && L2.LS_SHARED.atlas.clone() === L2.LS_SHARED.atlas, 'one shared atlas, never cloned');
+
+// relief (opt-in close-range detail): soft geometry stays inside the plain bounds; opting out changes nothing
+const { setRelief, RELIEF, RELIEF_GLSL, PROC, createMaterials, createTextures, createEnv } = await import('./src/index.js');
+const bb = (g) => (g.computeBoundingBox(), g.boundingBox);
+const within = (a, b, eps = 1e-6) => a.min.x >= b.min.x - eps && a.min.y >= b.min.y - eps && a.min.z >= b.min.z - eps && a.max.x <= b.max.x + eps && a.max.y <= b.max.y + eps && a.max.z <= b.max.z + eps;
+const wo = { length: 10, height: 4, thickness: 0.5, openings: [{ x: 0, width: 2, height: 2, arch: 'pointed' }, { x: 3, width: 1, height: 2, sill: 1, arch: 'round' }] };
+const plain = bb(geom.wall(wo)), soft = bb(geom.wall({ ...wo, round: 0.05 }));
+assert.ok(within(soft, plain) && within(plain, soft, 1e-4), 'a rounded wall keeps the plain wall\'s bounds');
+assert.ok(within(bb(geom.softBox(1, 0.5, 0.3)), bb(new THREE.BoxGeometry(1, 0.5, 0.3))), 'softBox inside the box');
+assert.equal(geom.softBox(1, 0.08, 1).type, 'BoxGeometry', 'thin parts stay sharp');
+const soot = geom.sootPlumes([{ pos: [0, 2, 0], rotY: 0 }, { pos: [1, 2, 0], normal: [0, 0, 1], scale: 0.5 }]);
+assert.ok(soot.geometry.attributes.position.count === 8 && soot.material.depthWrite === false && !soot.castShadow, 'two soot quads, no depth, no shadow');
+assert.equal(geom.sootPlumes([]), null);
+assert.equal(setRelief(0), 0); assert.equal(RELIEF.uRelief.value, 0);
+setRelief(0.5); assert.ok(RELIEF.uRelief.value === 1 && Math.abs(RELIEF.uReliefFar.value - 4) < 1e-9, 'half level halves the reach');
+setRelief(1); assert.equal(RELIEF.uReliefFar.value, 8);
+assert.ok(/float mgRlFade[\s\S]*isOrthographic/.test(RELIEF_GLSL), 'the relief is off in orthographic views');
+assert.equal(JSON.stringify(PROC.plaster()), JSON.stringify(PROC.plaster(undefined, { render: 0 })), 'no render: the same hooks');
+assert.ok(!JSON.stringify(PROC.plaster()).includes('mgRl') && PROC.plaster(undefined, { render: 0.009 }).albedo.includes('mgRlRenderH'), 'render only on request');
+// the texture layer: without relief / render a material's hooks are exactly the old ones
+THREE.TextureLoader.prototype.load = () => new THREE.Texture();
+const G = createEnv({}).G, kit = createMaterials(G);
+const tx = createTextures({ renderer: { capabilities: { getMaxAnisotropy: () => 8 } }, mat: kit }, { manifest: { sets: { s: { tile: 2, mean: [0.2, 0.2, 0.2], hMean: 0.5, rough: 0.7, files: { c: 'c', n: 'n' } } } }, url: '' });
+const h0 = tx.material('s', { mapping: 'wall' }).userData.hooks, h1 = tx.material('s', { mapping: 'wall', relief: 0.02, render: 0.009 }).userData.hooks;
+assert.ok(!JSON.stringify(h0).includes('Relief') && !('lighting' in h0) && !('uRelief' in h0.uniforms), 'no relief unless asked');
+assert.ok(h1.albedo.includes('mgTexWallRelief(') && h1.albedo.includes(', 0.02); diffuse') && h1.lighting.includes('mgRlSh') && 'uRelief' in h1.uniforms, 'relief taps, self-shadow and uniforms');
 console.log('core check: ok');
