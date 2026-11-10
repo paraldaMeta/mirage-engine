@@ -199,9 +199,36 @@ Gaussian splats, `@mirage/world/kits/splat` (opt-in subpath, world README "Gauss
 | `BODY` | stable | the character's sizes and speeds |
 | `makeGrid(data)` | experimental | a grid from raw arrays (tests, saved grids) |
 | `MAXL` | experimental | floors per grid column (4) |
-| `createNavGrid(grid, { coarse, step, head, drop, radius })` | experimental | NPC navigation on the walk grid: per-radius fit bits (the walker's own test), `findPath` (coarse A* + cell A* + string pulling), `flowField`, `block` / `unblock` dynamic obstacles, `visible`, `nearest`; `nav.grid` is the walk grid with the obstacles in |
-| `createNavAgent(nav, { radius, speed, pos, arrive })` | experimental | an NPC: a walker of its own radius steered along `findPath` waypoints or a flow field (`setGoal`, `update(dt)`); re-plans on edits and when stuck; never steps onto a cell it does not fit |
+| `createNavGrid(grid, { coarse, step, head, drop, radius })` | experimental | NPC navigation on the walk grid: per-radius fit bits (the walker's own test), `findPath` (coarse A* + cell A* + string pulling), `flowField`, `block` / `unblock` dynamic obstacles (box, cylinder, turned box `obb`), `visible`, `nearest`; `nav.grid` is the walk grid with the obstacles in. Areas with costs (`setArea`, `setAreaCost`, `findPath(..., { costs })`) and off-mesh links (`link({ from, to, type, cost, time, canEnter, traverse })`, `unlink`, `links`; a waypoint that crosses one carries `.link`): `docs/navigation.md` |
+| `createNavAgent(nav, { radius, speed, pos, arrive })` | experimental | an NPC: a walker of its own radius steered along `findPath` waypoints or a flow field (`setGoal`, `update(dt)`); re-plans on edits and when stuck; never steps onto a cell it does not fit; crosses off-mesh links (`onLink`), takes `costs` / `canUse` |
 | `createNavCrowd(nav, { separation, range })` | experimental | separation steering for many agents (`add`, `remove`, `update(dt)`) |
+| `createSolids(grid)` | experimental | a walk grid with moving shapes composed in at query time (doors, lifts, turntables, crates): `add({ box, cylinder, sphere, pos, yaw, kind })`, `solid.set({ pos, yaw })`, `groundSolid`, `solidAt`, `addVolume({ type: 'ladder' or 'water', box })`, `onChange`, `push`; anything that takes a walk grid takes it (`docs/character.md`) |
+| `gridRay(grid, from, to)` | experimental | 0..1: the fraction of a segment that is clear on a walk grid (cameras, sight) |
+| `airAt(grid, x, y, z)` | experimental | true when the point is in the air of its column |
+| `volumeAt(volumes, type, x, y, z)` | experimental | the ladder / water volume holding a point, or null |
+| `createMover(grid, { pos, body })` | experimental | the walker plus coyote time, jump buffering, variable jump height, sprint, crouch with a ceiling check, slope slide, ladders, swimming, mantling, riding and pushing solids; walker-shaped (`createPlay({ walker })`, @mirage/net's `applyInput`), `mode`, `save` / `restore` |
+| `driveAnimator(mover, animator)` | experimental | writes the mover's mode, speed, grounded and crouch into an animator's parameters and fires `jump` / `land` |
+| `MOVER` | experimental | the mover's default body numbers (`BODY` plus sprint, crouch, coyote, buffer, slope, climb, swim, mantle, push) |
+| `MOVER_MODES` | experimental | the mode names: idle, walk, run, sprint, crouch, jump, fall, slide, climb, swim, mantle |
+| `createFollowCamera(grid, { mode, distance, height, shoulder })` | experimental | a third-person spring arm that shortens against the walk grid and its solids, and a first-person eye: `turn`, `update(dt, mover)`, `apply(camera)`, `forward()` |
+| `linkSolids(space, physics)` | experimental | mirrors `createSolids` shapes into a Rapier world (`createPhysics` or `{ R, world }`): `pre()` copies kinematic poses and pushes in, `post()` copies dynamic poses back; `addMover` adds the character as a kinematic capsule |
+| `carveSolids(nav, space, { tolerance })` | experimental | every solid becomes a `nav.block` obstacle that follows it; `update()` re-blocks what moved (incremental re-bake) |
+| `createPathQueue(nav, { budgetMs, max })` | experimental | path queries by priority within a per-frame budget: `request(from, to, opts)` returns a promise with `cancel()`, `update()` runs them |
+| `smoothPath(nav, path, { radius, corner })` | experimental | rounds a path's corners with arcs the navigation accepts; link waypoints stay |
+| `pathLength(path)` | experimental | metres along a path |
+| `createCrowd(nav, { max, neighbours, range, horizon })` | experimental | ORCA local avoidance for hundreds of agents of different radii in typed arrays: `add`, `setGoal` (queued path), `setField`, `setVelocity`, fixed agents (the player), off-mesh link traversal (`onLink`), `actor(i)` for the behaviours |
+| `bt` | experimental | behaviour-tree nodes: `sequence`, `selector`, `parallel`, `invert`, `succeed`, `repeat`, `cooldown`, `timeout`, `wait`, `condition`, `action` |
+| `createBehaviorTree(root, { actor, nav, senses, perception })` | experimental | runs a tree with a blackboard: `tick(dt)`, `active()`, `describe()`; perception writes `target`, `lastKnown`, `heard` |
+| `createBlackboard(init)` | experimental | key / value store with write times (`age`) and change listeners |
+| `createSenses(grid)` | experimental | sight cones occluded by the walk grid (`sees`) and noise events (`noise`, `hears`) |
+| `agentActor(agent)` | experimental | wraps a `createNavAgent` so the behaviours can drive it |
+| `patrol(points)` | experimental | behaviour: walk the points in turn |
+| `chase({ reach })` | experimental | behaviour: run at the blackboard's `target` |
+| `flee({ distance })` | experimental | behaviour: get `distance` away from the target |
+| `investigate()` | experimental | behaviour: go to `lastKnown` or `heard`, wait, forget |
+| `follow({ distance })` | experimental | behaviour: keep `distance` from the target |
+| `guard({ points, onCatch })` | experimental | chase what is seen, investigate what was seen or heard, else patrol |
+| `createNavDebug(nav, { radius })` | experimental | debug draw: fitting cells by area, carved cells, links, paths, crowd velocities, a tree as text |
 | `createXR(play, opts)` | experimental | WebXR: Enter VR / Enter AR buttons, the walker in a headset, teleport, snap turn, in-world game prompts, AR table model; hand tracking (pinch, point-and-pinch teleport), `navigator.xr.offerSession` / `autoEnter` for hosts without a DOM, labels in a built-in glyph font where Canvas 2D draws no text (`opts.offer`, `autoEnter`, `hands`, `text`; `docs/xr.md`) |
 | `xrSupport()` | experimental | `{ vr, ar }`: which immersive sessions the browser offers; pass `vr \|\| ar` as the world's `xr` option |
 | `createXR` options `post`, `budget`, `profile`, `posture`, `bounds`, `interact`, `arFeatures` | experimental | opt-in XR parts ([xr.md](xr.md)): the post chain per eye, the frame-time governor, device defaults, height calibration, the play-area fence, interaction, AR features; `xr.post`, `xr.quality`, `xr.setLevel(i)`, `xr.calibrateHeight()`, `xr.anchor()`. Exercised only in an emulated session |
