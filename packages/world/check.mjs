@@ -217,4 +217,64 @@ ok(out.modules.walls.r === rng('t/walls').float(), 'per-module rng');
   st.dispose();
   ok(!scene.children.length && st.state().hall === 'out', 'dispose');
 }
+// streamer review fixes: a full cache, onUpdate registrations, dispose mid-load, shared textures of cached modules
+{
+  const { createStreamer } = await import('./src/index.js');
+  const tick = () => new Promise((r) => setTimeout(r, 3));
+  const mkWorld = () => {
+    const regs = [];
+    return { regs, scene: new THREE.Scene(), camera: new THREE.PerspectiveCamera(),
+      renderer: { initTexture() {}, compileAsync: async () => {}, getRenderTarget: () => null, setRenderTarget() {} },
+      ctx: { THREE, onUpdate: (f) => regs.push(f) } };
+  };
+  const errors = [], logger = { log() {}, error: (m) => errors.push(m) };
+  const shared = new THREE.DataTexture(new Uint8Array(4 * 64 * 64), 64, 64); shared.needsUpdate = true;
+  let sharedDisposed = 0; shared.addEventListener('dispose', () => sharedDisposed++);
+  const box = (x, ticks) => ({ name: 'm' + x, center: [x, 0], radius: 10, build: (ctx) => {
+    ctx.root.add(new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2, 8, 8, 8), new THREE.MeshBasicMaterial({ map: shared })).translateX(x));
+    ctx.onUpdate(() => ticks.n++);
+  } });
+  // 1: budget far below one module: two modules in the scene at once, neither evicted while shown
+  const w = mkWorld(), ticks = { n: 0 }, regions = [];
+  const st = createStreamer(w, { plan: { name: 'b', bounds: [-50, -50, 50, 50] }, budget: 1000, log: logger,
+    modules: [box(0, ticks), box(4, ticks)], onChange: (n, inScene, r) => regions.push([n, inScene, r]) });
+  const run = async (p, n = 20) => { for (let i = 0; i < n; i++) { st.update(p); await tick(); } };
+  await run([2, 0, 0]);
+  ok(st.state().m0 === 'in' && st.state().m4 === 'in' && w.scene.children.length === 2 && !errors.length, 'over budget, both shown: ' + JSON.stringify(st.state()) + errors.join());
+  ok(w.regs.length === 1, 'one world onUpdate for every streamed module, whatever is built');
+  w.regs[0](0);
+  ok(ticks.n === 2, 'module callbacks run while shown');
+  await run([60, 0, 0]);
+  ok(st.state().m0 === 'out' && st.state().m4 === 'out' && !w.scene.children.length && !errors.length, 'leaving over budget: evicted cleanly');
+  ok(regions.filter((r) => !r[1]).every((r) => Array.isArray(r[2])), 'the region is taken before the unpin can free it');
+  ok(sharedDisposed === 1, 'the shared texture went with the last module that sampled it');
+  w.regs[0](0); ok(ticks.n === 2, 'freed modules run no callbacks');
+  await run([2, 0, 0]); await run([60, 0, 0]);
+  ok(w.regs.length === 1 && st.stats.builds.length === 4, 'rebuilt after eviction, still one registration');
+  // 13: evicting one cached module keeps a texture another cached module still samples
+  {
+    const w2 = mkWorld(), t = { n: 0 }, tex2 = new THREE.DataTexture(new Uint8Array(4 * 16 * 16), 16, 16); tex2.needsUpdate = true;
+    let gone = 0; tex2.addEventListener('dispose', () => gone++);
+    const mod = (x) => ({ name: 'n' + x, center: [x, 0], radius: 10, build: (ctx) => { ctx.root.add(new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial({ map: tex2 }))); } });
+    const s2 = createStreamer(w2, { plan: { name: 'c', bounds: [-50, -50, 50, 50] }, log: logger, budget: 1e9, modules: [mod(0), mod(4)] });
+    for (let i = 0; i < 20; i++) { s2.update([2, 0, 0]); await tick(); }
+    for (let i = 0; i < 3; i++) { s2.update([60, 0, 0]); await tick(); }
+    ok(s2.state().n0 === 'cached' && s2.state().n4 === 'cached', 'both cached');
+    s2.cache.trim(s2.cache.bytes - 1);   // evict one
+    ok(s2.stats.evictions === 1 && gone === 0, 'the cached module left keeps the shared texture');
+    s2.cache.trim(0);
+    ok(s2.stats.evictions === 2 && gone === 1, 'then it goes with the last one');
+  }
+  // 12 + 2: dispose while a load waits for a texture that never arrives: the job stops, idle() resolves
+  {
+    const w3 = mkWorld(), never = new THREE.Texture();
+    const st4 = createStreamer(w3, { plan: { name: 'd', bounds: [-50, -50, 50, 50] }, log: logger,
+      modules: [{ name: 'k', center: [0, 0], radius: 10, build: (ctx) => { ctx.root.add(new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial({ map: never }))); } }] });
+    for (let i = 0; i < 10; i++) { st4.update([0, 0, 0]); await tick(); }
+    ok(st4.state().k === 'loading', 'waiting for its texture');
+    st4.dispose();
+    const r = await Promise.race([st4.idle().then(() => 'idle'), new Promise((res) => setTimeout(() => res('hung'), 500))]);
+    ok(r === 'idle' && st4.state().k === 'out' && !w3.scene.children.length && !errors.length, 'dispose mid-load: ' + r + ' ' + st4.state().k + errors.join());
+  }
+}
 console.log('world check: ok');

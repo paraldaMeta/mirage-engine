@@ -15,12 +15,13 @@ export interface LRUCache<V = unknown> {
   has(key: string): boolean;
   /** Marks the entry used. */
   get(key: string): V | undefined;
-  set(key: string, value: V, bytes?: number): V;
+  /** { pin: true }: inserted pinned. The entry being set is never evicted by its own set(). */
+  set(key: string, value: V, bytes?: number, options?: { pin?: boolean }): V;
   pin(key: string): boolean; unpin(key: string): void;
   /** Removes without evict(). */
   delete(key: string): boolean;
   /** Evicts unpinned entries, oldest first, until bytes <= to (default: the budget). */
-  trim(to?: number): string[];
+  trim(to?: number, except?: string): string[];
   keys(): string[];
 }
 export function createLRU<V = unknown>(options?: { budget?: number; evict?: (key: string, value: V) => void }): LRUCache<V>;
@@ -32,7 +33,8 @@ export interface UploadBudget {
   step(): { textures: number; bytes: number; ms: number };
   whenDone(textures?: THREE.Texture | THREE.Texture[]): Promise<void>;
 }
-export function createUploadBudget(renderer: THREE.WebGLRenderer, options?: { bytes?: number; count?: number }): UploadBudget;
+/** A texture without an image after maxWaitMs (10 s), or disposed, leaves the queue unuploaded (whenDone still resolves). */
+export function createUploadBudget(renderer: THREE.WebGLRenderer, options?: { bytes?: number; count?: number; maxWaitMs?: number }): UploadBudget;
 /** Estimated GPU bytes (0 before the image arrives). */
 export function textureBytes(texture: THREE.Texture): number;
 export function objectBytes(root: THREE.Object3D): number;

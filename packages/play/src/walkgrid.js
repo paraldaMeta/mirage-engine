@@ -85,11 +85,18 @@ function enterBake(world, F, rt) {
   // to children, so a solid mesh under a plain Object3D (glTF nodes), a LOD or a non-solid mesh still counts.
   const hidden = [];
   const shown = (o) => { for (let p = o; p; p = p.parent) if (!p.visible || p.userData.collide === false) return false; return true; };
+  // sig: what the bake sees (which solids, their geometry and placement), so an async bake notices a change between
+  // its frames
+  let h = 2166136261, w = 0, n = 0;
   scene.traverse((o) => {
     if (o === scene || !(o.isMesh || o.isLine || o.isPoints || o.isSprite)) return;
     const solid = o.isMesh && shown(o) &&
       (o.userData.collider || ((o.layers.mask & 1) && [].concat(o.material).some((m) => m && m.depthWrite !== false && !m.transparent)));
-    if (!solid) { hidden.push([o, o.layers.mask]); o.layers.disableAll(); }
+    if (!solid) { hidden.push([o, o.layers.mask]); o.layers.disableAll(); return; }
+    h = Math.imul(h ^ o.id, 16777619); h = Math.imul(h ^ (o.geometry?.id ?? 0), 16777619); n++;
+    const e = o.matrixWorld.elements;
+    for (let i = 0; i < 16; i++) w += e[i] * (i + 1) * ((n % 7) + 1);
+    if (o.isInstancedMesh) { h = Math.imul(h ^ o.count, 16777619); h = Math.imul(h ^ o.instanceMatrix.version, 16777619); }
   });
   const saved = { target: renderer.getRenderTarget(), autoClear: renderer.autoClear, shadow: renderer.shadowMap.autoUpdate, ovr: scene.overrideMaterial, bg: scene.background, fog: scene.fog };
   renderer.getClearColor(saved.clear = new THREE.Color()); saved.alpha = renderer.getClearAlpha();
@@ -97,7 +104,7 @@ function enterBake(world, F, rt) {
   scene.overrideMaterial = F.material; scene.background = null; scene.fog = null;
   const { cam } = F;
   return {
-    hidden: hidden.length,
+    hidden: hidden.length, sig: `${h >>> 0}:${n}:${w}`,
     draw(yTop, depth) {
       cam.far = depth; cam.updateProjectionMatrix();
       cam.position.set(F.cx, yTop, F.cz); cam.lookAt(F.cx, yTop - 1, F.cz); cam.updateMatrixWorld();
@@ -217,36 +224,60 @@ export function bakeWalkGrid(world, opts = {}) {
   return grid;
 }
 
-/** The same bake spread over frames. Each frame it takes the scene over for at most `budgetMs` (4), draws slabs and
- *  reads them through pixel-pack buffers polled with fences (no stall; at most `inflight` (8) reads in the air), and
- *  gives the scene back so the page draws in between. Tiles of `tile` (1024) cells a side are baked one after another,
- *  each written to the grid when complete (every tile draws the whole scene once per slab: smaller tiles cost more
- *  draws; they bound the memory and make a small region cheap). { region, into }: a region of an earlier bake, in place. The arrays equal
- *  bakeWalkGrid's (the same draws through the same camera, scissored). The scene is sampled as it is in each frame:
- *  change it during a bake and re-bake that region after. Without fences (WebGL1) the reads are synchronous.
- *  `frame`: how to wait for the next frame (default: requestAnimationFrame). grid.stats adds tiles, frames, maxSliceMs. */
-export async function bakeWalkGridAsync(world, opts = {}) {
+/** The same bake spread over frames. Each frame it takes the scene over for at most `budgetMs` (4; at least one read
+ *  is issued or taken per frame, whatever the budget), draws slabs and reads them through pixel-pack buffers polled
+ *  with fences (no stall; at most `inflight` (8) reads in the air), and gives the scene back so the page draws in
+ *  between. Tiles of `tile` (1024) cells a side are baked one after another, each written to the grid when complete
+ *  (every tile draws the whole scene once per slab: smaller tiles cost more draws; they bound the memory and make a
+ *  small region cheap). { region, into }: a region of an earlier bake, in place; async bakes into one grid run one
+ *  after another, in the order asked. The arrays equal bakeWalkGrid's (the same draws through the same camera,
+ *  scissored). If what the bake sees changes between its frames (a solid added, removed, moved), the tile starts again
+ *  (up to `restarts` (3) times a tile; after that it finishes and grid.stats.changed = true: re-bake that region
+ *  later). `signal`: an AbortSignal (tiles already finished stay written). Without fences (WebGL1) the reads are
+ *  synchronous. `frame`: how to wait for the next frame (default: requestAnimationFrame). grid.stats adds tiles,
+ *  frames, maxSliceMs, restarts. */
+export function bakeWalkGridAsync(world, opts = {}) {
+  const into = opts.into;
+  if (!into) return bakeAsync(world, opts);
+  const run = (queues.get(into) || Promise.resolve()).catch(() => {}).then(() => bakeAsync(world, opts));
+  queues.set(into, run);
+  return run;
+}
+const queues = new WeakMap();   // grid -> its last async bake: one at a time into a grid (two would interleave slabs)
+
+async function bakeAsync(world, opts) {
   const t0 = performance.now();
   const { renderer } = world;
-  const { tile = 1024, budgetMs = 4, inflight = 8, frame = nextFrame } = opts;
+  const { tile = 1024, budgetMs = 4, inflight = 8, frame = nextFrame, restarts = 3, signal } = opts;
   const F = bakeFrame(world, frameOf(opts));
   const R = regionRect(F, opts.region), grid = gridFor(F, opts.into);
   const gl = renderer.getContext(), fences = typeof gl.fenceSync === 'function';
   F.material = overrideMaterial();
-  const rt = bakeTarget(F), tiles = tilesOf(R, Math.max(16, tile | 0)), air = [];   // reads in flight, in slab order: { s, buf, sync } (or { s, px } without fences)
-  const st = { floors: 0, overflow: 0, frames: 0, maxSliceMs: 0, hidden: 0 };
+  const rt = bakeTarget(F), tiles = tilesOf(R, Math.max(16, tile | 0));
+  const air = [];   // reads in flight, in slab order: { s, buf, sync } (or { s, px } without fences)
+  const st = { floors: 0, overflow: 0, frames: 0, maxSliceMs: 0, hidden: 0, restarts: 0, changed: false };
   const total = F.K + 1;   // read 0: everything above the range; read s: the slab below top - (s - 1) dy
   const yOf = (s) => F.top - (s - 1) * F.dy;
+  const drop = () => { for (const a of air) if (a.sync) { gl.deleteSync(a.sync); gl.deleteBuffer(a.buf); } air.length = 0; };
   try {
     for (const T of tiles) {
       rt.scissor.set(T.x0, T.r0, T.w, T.h); rt.scissorTest = T.w !== F.NX || T.h !== F.NZ;
-      const bytes = T.w * T.h * 4, px = new Uint8Array(bytes), col = columns(F, T.x0, T.r0, T.w, T.h);
-      let issued = 0, done = 0;
+      const bytes = T.w * T.h * 4, px = new Uint8Array(bytes);
+      let col = columns(F, T.x0, T.r0, T.w, T.h), issued = 0, done = 0, sig = null, again = 0;
       while (done < total) {
-        const ts = performance.now(), over = () => performance.now() - ts > budgetMs;
+        if (signal?.aborted) throw signal.reason ?? Object.assign(new Error('walk grid bake aborted'), { name: 'AbortError' });
+        const ts = performance.now();
         const bake = enterBake(world, F, rt);
         st.hidden = bake.hidden;
         try {
+          if (sig !== null && bake.sig !== sig) {
+            // the scene changed under this tile: start it again (its slabs so far saw another scene)
+            if (again < restarts) { again++; st.restarts++; drop(); col = columns(F, T.x0, T.r0, T.w, T.h); issued = done = 0; }
+            else st.changed = true;
+          }
+          sig = bake.sig;
+          let did = 0;   // at least one read taken or issued per frame: a tiny budget or a slow traverse still moves
+          const over = () => did > 0 && performance.now() - ts > budgetMs;
           for (;;) {
             // finished reads, oldest first (the columns take the slabs in order)
             while (air.length && (!air[0].sync || gl.clientWaitSync(air[0].sync, 0, 0) !== gl.TIMEOUT_EXPIRED)) {
@@ -257,11 +288,12 @@ export async function bakeWalkGridAsync(world, opts = {}) {
                 gl.deleteBuffer(a.buf);   // one buffer per read: Chrome warns when a read-back buffer is written again
               } else px.set(a.px);
               if (a.s === 0) col.top(px); else col.slab(px, yOf(a.s));
-              done++;
+              done++; did++;
               if (over()) break;
             }
             if (issued >= total || air.length >= inflight || over()) break;
             const s = issued++;
+            did++;
             bake.draw(s === 0 ? F.top + 1000 : yOf(s), s === 0 ? 1000 : F.dy);
             if (fences) {
               const buf = gl.createBuffer();
@@ -284,11 +316,12 @@ export async function bakeWalkGridAsync(world, opts = {}) {
       st.floors += r.floors; st.overflow += r.overflow;
     }
   } finally {
-    for (const a of air) if (a.sync) { gl.deleteSync(a.sync); gl.deleteBuffer(a.buf); }   // a throw mid-bake
+    drop();   // a throw or an abort mid-bake
     rt.dispose();
   }
   grid.stats = { nx: F.NX, nz: F.NZ, slabs: total, floors: st.floors, overflow: st.overflow, hidden: st.hidden, tiles: tiles.length,
-    frames: st.frames, maxSliceMs: +st.maxSliceMs.toFixed(1), ms: +(performance.now() - t0).toFixed(1), ...(opts.region ? { region: R } : {}) };
+    frames: st.frames, maxSliceMs: +st.maxSliceMs.toFixed(1), restarts: st.restarts, ...(st.changed ? { changed: true } : {}),
+    ms: +(performance.now() - t0).toFixed(1), ...(opts.region ? { region: R } : {}) };
   return grid;
 }
 

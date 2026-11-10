@@ -82,11 +82,12 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
   byte-identical to before and the walk grids hash the same on three examples). Measured by
   `node examples/demos/streaming/streaming-check.mjs` (headless Chrome, Apple M4 Pro via ANGLE/Metal, a cold browser
   per page, A/B interleaved, medians of 3; other agents shared the GPU, spread in brackets where it mattered):
-  - `createTextures({ decode: 'bitmap' })`: images decoded off the main thread (`createImageBitmap`), same pixels
-    (still diff 0). hello-courtyard's five sets: `prepare()` 231 -> 162 ms, main-thread long tasks to ready
+  - `createTextures({ decode: 'bitmap' })`: images decoded off the main thread (`createImageBitmap`, no colour
+    conversion), same pixels (still diff 0); Safari < 17 and Firefox < 98 keep the `<img>` path. hello-courtyard's five sets: `prepare()` 231 -> 162 ms, main-thread long tasks to ready
     298 -> 239 ms in total, the longest 143 -> 90 ms.
   - `createUploadBudget(renderer, { bytes })`: texture uploads spread over frames (`renderer.initTexture`). Six new
-    1024 px textures: one 30 ms frame (29-32) -> six frames of at most 5.7 ms (5.7-5.9) at 8 MB a frame.
+    1024 px textures: one 30 ms frame (29-32) -> six frames of at most 5.7 ms (5.7-5.9) at 8 MB a frame. A texture
+    that never gets an image (`maxWaitMs`, 10 s) or is disposed leaves the queue, so `whenDone` always resolves.
   - `world.prepare({ warm: true })`: one discarded still frame + a 1-px readback after the compiles, the canvas
     cleared and the TAA / exposure / dynamic-resolution histories put back. First visible frame (CPU + GPU, to a
     1-px readback): courtyard 11.1 -> 4.7 ms (CPU 10.0 -> 2.1), garden 12.7 -> 6.4 ms (CPU 11.1 -> 2.2); it costs
@@ -97,7 +98,8 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
     longest frame interval 50 ms (50-67) -> 16.8 ms (no frame missed), the build 73 -> 70 ms.
   - @mirage/play `bakeWalkGridAsync(world, opts)`: the walk grid over frames, slabs read through pixel-pack buffers
     polled with fences (no stall), 4 ms of main thread a frame, tiles; `{ region, into }` (sync or async) re-bakes a
-    region of an earlier grid in place. Floors and count arrays bit-identical to the sync bake on hello-courtyard and
+    region of an earlier grid in place; async bakes into one grid run in turn, a tile restarts when the scene changes
+    under it (`restarts`, 3), `signal` aborts, at least one read a frame whatever `budgetMs`. Floors and count arrays bit-identical to the sync bake on hello-courtyard and
     walled-garden, whole, in tiles of 128 cells, and for a region re-bake into a scribbled copy. Courtyard: sync
     45 ms blocking -> async 183 ms over 11 frames, longest slice 2.6 ms; garden (481k cells) sync 289 ms blocking -> async 807 ms over 48 frames, longest slice
     5.9 ms. Small tiles cost draws (each tile draws the whole scene once per slab): garden in 30 tiles of 128 cells

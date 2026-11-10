@@ -99,7 +99,8 @@ give it a proxy box at least 0.2 m thick. `node packages/tools/bake-check.mjs` s
 
 Over frames, and in parts (opt-in): `await bakeWalkGridAsync(world, { bounds, ...plan.walk, budgetMs = 4, inflight = 8,
 tile = 1024 })` makes the same arrays bit for bit (the same draws through the same camera; tiles only scissor them),
-reading the slabs through pixel-pack buffers polled with fences, so the page keeps drawing; pass the grid to
+reading the slabs through pixel-pack buffers polled with fences, so the page keeps drawing (async bakes into one
+grid run in turn; a tile starts again when the scene changes under it; `signal` aborts); pass the grid to
 `createPlay(world, { grid })`. `{ region: [x0, z0, x1, z1], into: grid }` (sync or async) re-bakes only the cells
 under a region of an earlier bake, in place, e.g. after a streamed module came in. The scene is sampled as it is in
 each frame: change it during an async bake and re-bake that region afterwards.

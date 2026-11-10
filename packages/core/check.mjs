@@ -334,5 +334,51 @@ console.log('core check: ok');
   const geoBytes = Object.values(g.attributes).reduce((s, a) => s + a.array.byteLength, 0) + g.index.array.byteLength;
   assert.equal(S.objectBytes(root), geoBytes + S.textureBytes(big), 'shared geometry and textures are counted once');
   const lt = S.watchLongTasks(); assert.equal(lt.stop().count, 0, 'no long tasks in Node (no observer, no rAF)');
+  // review fixes: a set() into a full cache never evicts the entry it inserts; pinned inserts stay
+  {
+    const ev = [], c = S.createLRU({ budget: 100, evict: (k) => ev.push(k) });
+    c.set('a', 1, 80, { pin: true });
+    c.set('b', 2, 80, { pin: true });
+    assert.ok(c.has('b') && !ev.length, 'a pinned insert over budget stays (and so does the pinned one before it)');
+    c.set('c', 3, 80);
+    assert.ok(c.has('c') && !ev.length, 'an unpinned insert is not evicted by its own set()');
+    c.unpin('a');
+    assert.deepEqual(ev, ['a', 'c'], 'unpinned later: evicted then, oldest first, until it fits');
+  }
+  // review fixes: textures that cannot upload never stall whenDone
+  {
+    const ups = [], ub2 = S.createUploadBudget({ initTexture: (t) => ups.push(t) }, { maxWaitMs: 20 });
+    const never = new THREE.Texture();           // a 404: no image, version 0, for ever
+    const disposed = new THREE.Texture();        // a KTX2 placeholder replaced and disposed
+    const cube = new THREE.CubeTexture(Array.from({ length: 6 }, () => ({ width: 4, height: 4 }))); cube.needsUpdate = true;
+    ub2.add(never, disposed, cube);
+    const all = ub2.whenDone([never, disposed, cube]);
+    disposed.dispose();
+    ub2.step();
+    assert.ok(ub2.uploaded(cube), 'a cube texture with its six faces uploads');
+    await new Promise((r) => setTimeout(r, 30)); ub2.step();
+    await all;
+    assert.ok(!ub2.pending && !ub2.uploaded(never) && !ub2.uploaded(disposed), 'the 404 left after maxWaitMs, the disposed one at once; whenDone resolved');
+    cube.dispose();
+    assert.ok(!ub2.uploaded(cube), 'disposed after its upload: forgotten');
+    ub2.add(cube); ub2.step();
+    assert.ok(ub2.uploaded(cube) && ups.filter((t) => t === cube).length === 2, 'added again: uploaded again');
+  }
+  // the bitmap decode only where imageOrientation / colorSpaceConversion are honoured
+  {
+    const { bitmapDecodeOK } = await import('./src/textures.js');
+    globalThis.createImageBitmap ??= () => {}; globalThis.fetch ??= () => {};
+    const UA = {
+      chrome: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+      safari16: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Safari/605.1.15',
+      safari17: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15',
+      ios16chrome: 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/120.0 Mobile/15E148 Safari/604.1',
+      firefox97: 'Mozilla/5.0 (X11; Linux x86_64; rv:97.0) Gecko/20100101 Firefox/97.0',
+      firefox120: 'Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0',
+      android: 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36',
+    };
+    const got = Object.fromEntries(Object.entries(UA).map(([k, ua]) => [k, bitmapDecodeOK(ua)]));
+    assert.deepEqual(got, { chrome: true, safari16: false, safari17: true, ios16chrome: false, firefox97: false, firefox120: true, android: true }, JSON.stringify(got));
+  }
   console.log('stream check: ok');
 }
