@@ -33,8 +33,12 @@ setRelief({ low: 0, medium: 0.7, high: 1 }[quality] ?? 1);   // the relief's rea
 const light2 = Q.get('light2') === '1' && Object.fromEntries((Q.get('l2') || '').split(',').filter(Boolean).map((k) => [k.replace(/^no/, ''), false]));
 // soft sun shadows (opt-in): ?soft=1 [&sunAngle=deg]
 const softShadows = Q.get('soft') === '1' && (Q.get('sunAngle') ? { sunAngle: +Q.get('sunAngle') } : true);
-// realtime lighting (opt-in, docs/lighting.md): ?csm=1 cascaded sun shadows
-const lighting = Q.get('csm') === '1' ? { csm: Q.get('csm') === '1' && { cascades: +Q.get('cascades') || 4 } } : undefined;
+// realtime lighting (opt-in, docs/lighting.md): ?csm=1 cascaded sun shadows, ?gi=1 irradiance probe volume
+const LF = (k) => Q.get(k) === '1';
+const lighting = ['csm', 'gi'].some(LF) ? {
+  csm: LF('csm') && { cascades: +Q.get('cascades') || 4 },
+  gi: LF('gi') && { min: [-9, 0.15, -9], max: [9, 5.4, 9], spacing: +Q.get('gispacing') || 2 },
+} : undefined;
 const world = createWorldRenderer({ quality, xr: xrs.vr || xrs.ar, light2, softShadows, lighting, dynamicRes: Q.get('dynres') ? (Q.get('dynres') === '1' || { target: +Q.get('dynres') }) : false,
   canvas, width: W, height: H, place, time: date || 'golden', preserveDrawingBuffer: true,
   shadow: { center: [0, 2, 0], radius: 17 }, envProbe: [0, 2.2, 0],

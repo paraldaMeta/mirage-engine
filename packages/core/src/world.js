@@ -106,7 +106,7 @@ export function createWorldRenderer(config = {}) {
   sun.shadow.bias = -0.0002; sun.shadow.normalBias = 0.02; sun.shadow.radius = 1;
   scene.add(sun, sun.target);
   // realtime lighting features (opt-in, lighting.js): cascades, probe GI, reflection probes, clustered local lights
-  const lighting = config.lighting ? createLighting({ renderer, scene, sun, G, keyDir, quality, Q, soft: sscfg, envProbe }, config.lighting) : null;
+  const lighting = config.lighting ? createLighting({ renderer, scene, sun, G, keyDir, quality, Q, soft: sscfg, envProbe, capture: lightCapture, skyVisible: (v) => { sky.visible = v; } }, config.lighting) : null;
 
   const pipeline = new Pipeline(renderer, { width: width * pixelRatio, height: height * pixelRatio, msaa: device.msaa, aoSamples: Q.aoSamples });
   if (l2cfg) pipeline.useLight2(l2cfg, { sun, G });
@@ -218,7 +218,7 @@ export function createWorldRenderer(config = {}) {
       setLampGain(); busy = true;
     }
     if (envState === 'fade' && !envLight.fading) captureEnv(false);
-    return envLight.tick(dt) || busy || envState === 'fade';
+    return envLight.tick(dt) || busy || envState === 'fade' || !!(lighting && lighting.busy);
   }
 
   function writeFog() {
@@ -271,6 +271,20 @@ export function createWorldRenderer(config = {}) {
     lastCap.dir.copy(keyDir); lastCap.lamp = light.lamp; lastCap.sky = light.skyLight;
     if (lighting) lighting.envCaptured(instant);
     envState = null;
+  }
+
+  // a probe capture of lighting.js: the scene as captureEnv draws it, the sun's shadow drawn once for all of fn's renders
+  function lightCapture(fn) {
+    writeFog();
+    fitShadow(shadow.center, shadow.radius, null);
+    const hidden = [], sm = renderer.shadowMap, auto = sm.autoUpdate;
+    scene.traverse((o) => { if ((o.userData.mgNoCapture || (o.userData.mgDynamic && o.parent === scene)) && o.visible) { o.visible = false; hidden.push(o); } });
+    stars.visible = false; skyU.uCapture.value = 1; sm.autoUpdate = false; sm.needsUpdate = true;
+    try { return fn(); } finally {
+      stars.visible = true; skyU.uCapture.value = 0; sm.autoUpdate = auto;
+      for (const o of hidden) o.visible = true;
+      softShadowsIdle();
+    }
   }
 
   /** Compile every program the first frames need, capture the environment. { warm: true } (opt-in) also draws one

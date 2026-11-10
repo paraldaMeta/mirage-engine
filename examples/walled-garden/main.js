@@ -20,8 +20,12 @@ const canvas = document.querySelector('canvas');
 canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
 const quality = Q.get('quality') || (await pickQuality()).quality, hud = Q.get('hud') !== '0';   // ?quality=low|medium|high
 const xrs = await xrSupport();   // a headset browser: an MSAA context for the headset, and the Enter VR / AR buttons
-// realtime lighting (opt-in, docs/lighting.md): ?csm=1 cascaded sun shadows
-const lighting = Q.get('csm') === '1' ? { csm: Q.get('csm') === '1' && { cascades: +Q.get('cascades') || 4 } } : undefined;
+// realtime lighting (opt-in, docs/lighting.md): ?csm=1 cascaded sun shadows, ?gi=1 irradiance probe volume
+const LF = (k) => Q.get(k) === '1';
+const lighting = ['csm', 'gi'].some(LF) ? {
+  csm: LF('csm') && { cascades: +Q.get('cascades') || 4 },
+  gi: LF('gi') && { min: [-4.08, 3.6, -29.08], max: [4.08, 7.4, -20.92], spacing: +Q.get('gispacing') || 1.4, fade: 0.4 },
+} : undefined;
 const world = createWorldRenderer({ quality, xr: xrs.vr || xrs.ar, lighting, softShadows: Q.get('soft') === '1',
   canvas, width: W, height: H, place, time: t === 'golden' ? 'golden' : placeDate(Q.get('date') || '2026-10-25', t, place.tzHours), preserveDrawingBuffer: true,
   shadow: { center: [0, 2, 0], radius: 42 }, envProbe: [0, 4, 6],
@@ -31,6 +35,7 @@ const world = createWorldRenderer({ quality, xr: xrs.vr || xrs.ar, lighting, sof
 const urls = import.meta.glob('../hello-courtyard/tex/*.webp', { eager: true, query: '?url', import: 'default' });
 const tex = createTextures(world, { manifest, url: (f) => urls['../hello-courtyard/tex/' + f] });
 const built = await buildWorld(world, { plan, modules: modules({ broken: Q.has('broken'), lawn: Q.get('lawn') }), shared: { tex } });
+if (lighting?.gi) world.setAmbientVolumes([]);   // the probes light the pavilion: the module's dimming box would darken it twice
 const { camera } = world;
 camera.aspect = W / H; camera.fov = 55; camera.near = 0.1; camera.far = 3000; camera.updateProjectionMatrix();
 await tex.ready();

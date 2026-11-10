@@ -14,6 +14,7 @@
 import * as THREE from 'three';
 import { createInjector } from './inject.js';
 import { csmConfig, createCsm } from './csm.js';
+import { giConfig, createGi } from './gi.js';
 
 export function createLighting(w, config) {
   const { renderer, scene, sun } = w;
@@ -26,9 +27,14 @@ export function createLighting(w, config) {
   const csm = ccfg ? createCsm(sun, ccfg, { tile: Math.max(512, sun.shadow.mapSize.x >> 1), soft: w.soft }) : null;
   if (csm) { csm.enable(); inj.add(csm.part); features.csm = csm; }
 
-  const hooks = [];   // features added by the files below register { frame, envCaptured, dispose, capture }
+  const hooks = [];   // each feature: { frame, envCaptured, invalidate, dispose, busy }
+  const gcfg = giConfig(cfg.gi);
+  const gi = gcfg ? createGi({ renderer, scene, capture: (fn) => api.capture(fn), skyVisible: w.skyVisible }, gcfg) : null;
+  if (gi) { inj.add(gi.part); features.gi = gi; hooks.push(gi); }
   const api = {
-    injector: inj, csm, features, hooks,
+    injector: inj, csm, gi, features, hooks,
+    /** true while baked light is still being brought up to date (the world keeps drawing) */
+    get busy() { return hooks.some((h) => h.busy); },
     /** wrap lit materials added since the last call (the world does this in prepare and every half second of frames) */
     adopt() { const n = inj.adopt(scene); adopted += n; return n; },
     get materials() { return inj.materials.size; },
@@ -39,14 +45,14 @@ export function createLighting(w, config) {
       for (const h of hooks) if (h.frame) h.frame(camera, dt);
     },
     /** the sun / sky changed and the image-based light was recaptured */
-    envCaptured(instant) { for (const h of hooks) if (h.envCaptured) h.envCaptured(instant); },
+    envCaptured(instant) { ready = true; api.adopt(); for (const h of hooks) if (h.envCaptured) h.envCaptured(instant); },
     /** the built world changed (a wall, a door): cached shadows and baked light are redone */
-    invalidate() { for (const h of hooks) if (h.invalidate) h.invalidate(); },
+    invalidate() { if (ready) for (const h of hooks) if (h.invalidate) h.invalidate(); },
     /** true while a probe is being captured: cascades fit the world's shadow volume, not the view */
     get capturing() { return capturing; },
-    capture(fn) { const was = capturing; capturing = true; try { return fn(); } finally { capturing = was; } },
+    capture(fn) { const was = capturing; capturing = true; try { return w.capture(fn); } finally { capturing = was; } },
     dispose() { for (const h of hooks) if (h.dispose) h.dispose(); if (csm) csm.disable(); },
   };
-  let capturing = false;
+  let capturing = false, ready = false;
   return api;
 }
