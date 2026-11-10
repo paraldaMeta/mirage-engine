@@ -15,6 +15,7 @@ import * as THREE from 'three';
 import { createInjector } from './inject.js';
 import { csmConfig, createCsm } from './csm.js';
 import { giConfig, createGi } from './gi.js';
+import { lightsConfig, createLights } from './lights.js';
 
 export function createLighting(w, config) {
   const { renderer, scene, sun } = w;
@@ -31,8 +32,14 @@ export function createLighting(w, config) {
   const gcfg = giConfig(cfg.gi);
   const gi = gcfg ? createGi({ renderer, scene, capture: (fn) => api.capture(fn), skyVisible: w.skyVisible }, gcfg) : null;
   if (gi) { inj.add(gi.part); features.gi = gi; hooks.push(gi); }
+  const lcfg = lightsConfig(cfg.lights);
+  const lights = lcfg ? createLights({ renderer, scene }, lcfg) : null;
+  if (lights) { inj.add(lights.part); features.lights = lights; hooks.push(lights); }
   const api = {
-    injector: inj, csm, gi, features, hooks,
+    injector: inj, csm, gi, lights, features, hooks,
+    /** hand a THREE.PointLight / SpotLight (already in the scene) to the clustered path; { shadow: true } gives it a tile of the shadow atlas */
+    addLight(light, o) { if (!lights) { console.warn('[lighting] addLight needs lighting: { lights: true }'); return false; } return lights.add(light, o); },
+    removeLight(light) { return !!lights && lights.remove(light); },
     /** true while baked light is still being brought up to date (the world keeps drawing) */
     get busy() { return hooks.some((h) => h.busy); },
     /** wrap lit materials added since the last call (the world does this in prepare and every half second of frames) */

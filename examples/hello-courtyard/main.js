@@ -17,6 +17,7 @@ import { createPlay, createXR, xrSupport } from '@mirage/play';
 import manifest from './tex/manifest.json';
 import plan from './plan.js';
 import modules from './modules/index.js';
+import { addLamps } from '../walled-garden/lamps.js';
 
 const Q = new URLSearchParams(location.search);
 const W = +Q.get('w') || innerWidth, H = +Q.get('h') || innerHeight;
@@ -33,11 +34,14 @@ setRelief({ low: 0, medium: 0.7, high: 1 }[quality] ?? 1);   // the relief's rea
 const light2 = Q.get('light2') === '1' && Object.fromEntries((Q.get('l2') || '').split(',').filter(Boolean).map((k) => [k.replace(/^no/, ''), false]));
 // soft sun shadows (opt-in): ?soft=1 [&sunAngle=deg]
 const softShadows = Q.get('soft') === '1' && (Q.get('sunAngle') ? { sunAngle: +Q.get('sunAngle') } : true);
-// realtime lighting (opt-in, docs/lighting.md): ?csm=1 cascaded sun shadows, ?gi=1 irradiance probe volume
+// realtime lighting (opt-in, docs/lighting.md): ?csm=1 cascaded sun shadows, ?gi=1 irradiance probe volume,
+// ?lights=N clustered lamps (&cluster=0 plain loop, &lshadows=K shadowed, &stock=1 three's own lights instead)
 const LF = (k) => Q.get(k) === '1';
-const lighting = ['csm', 'gi'].some(LF) ? {
+const NL = +Q.get('lights') || 0, stock = LF('stock');
+const lighting = ['csm', 'gi'].some(LF) || (NL && !stock) ? {
   csm: LF('csm') && { cascades: +Q.get('cascades') || 4 },
   gi: LF('gi') && { min: [-9, 0.15, -9], max: [9, 5.4, 9], spacing: +Q.get('gispacing') || 2 },
+  lights: NL > 0 && !stock && { cluster: Q.get('cluster') !== '0' },
 } : undefined;
 const world = createWorldRenderer({ quality, xr: xrs.vr || xrs.ar, light2, softShadows, lighting, dynamicRes: Q.get('dynres') ? (Q.get('dynres') === '1' || { target: +Q.get('dynres') }) : false,
   canvas, width: W, height: H, place, time: date || 'golden', preserveDrawingBuffer: true,
@@ -54,6 +58,7 @@ if (wet) { setWetness(+(Q.get('wet') ?? 0)); setRain(+(Q.get('rain') ?? 0)); }
 const built = await buildWorld(world, { plan, modules: modules({ broken: Q.has('broken') }), shared: { tex, detail: !Q.has('nodetail'), ...(wet ? { wet: true } : {}) } });
 const rain = Q.has('rain') ? addRain({ ...world.ctx, root: world.scene }) : null;
 
+if (NL) addLamps(world, { n: NL, min: [-8, 0.6, -8], max: [8, 2.6, 8], first: [[0, 1.8, 0], [4, 1.4, 3], [-4, 1.4, -3]], shadows: +Q.get('lshadows') || 0, stock });
 const { camera } = world;
 camera.aspect = W / H; camera.fov = 48; camera.near = 0.1; camera.far = 3000; camera.updateProjectionMatrix();
 await tex.ready();
