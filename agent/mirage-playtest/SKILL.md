@@ -109,7 +109,7 @@ for what they cannot see:
 | black / white surfaces in shots | NaN normals, `emissive` too strong, wrong side | check the material hook, `side: DoubleSide` only for cards |
 
 `walkTo` also writes `NN-<step>-route.png`: the walk grid from above, the planned route (dashed), the path taken,
-the stuck point (red cross) and the game entities that moved meanwhile. Open it first when a walk fails.
+the stuck point (red cross); `"onion": true` adds the game entities that moved. Open it first when a walk fails.
 
 Loop: fix → rebuild → rerun the same scenario. Add a step for every bug you fix so it stays fixed. After five
 rounds without progress, stop and report what fails, with the report and the screenshot.

@@ -1,28 +1,10 @@
 // Mirage original code. A minimal PNG encoder and decoder for 8-bit RGBA (straight alpha), so transparent stills are
 // written exactly (a 2D canvas premultiplies, which loses the colour of faint pixels).
 import zlib from 'node:zlib';
+import { encodePNG as encodeImage } from './imgcmp.mjs';
 
-const TABLE = new Int32Array(256).map((_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c; });
-function crc32(buf) {
-  let c = -1;
-  for (let i = 0; i < buf.length; i++) c = TABLE[(c ^ buf[i]) & 255] ^ (c >>> 8);
-  return (c ^ -1) >>> 0;
-}
-function chunk(type, data) {
-  const out = Buffer.alloc(12 + data.length), t = Buffer.from(type, 'latin1');
-  out.writeUInt32BE(data.length, 0); t.copy(out, 4); data.copy(out, 8);
-  out.writeUInt32BE(crc32(Buffer.concat([t, data])), 8 + data.length);
-  return out;
-}
-
-/** RGBA8 rows (top first) -> PNG bytes */
-export function encodePNG(width, height, rgba) {
-  const row = width * 4, raw = Buffer.alloc((row + 1) * height);
-  for (let y = 0; y < height; y++) { raw[y * (row + 1)] = 0; Buffer.from(rgba.buffer, rgba.byteOffset + y * row, row).copy(raw, y * (row + 1) + 1); }
-  const ihdr = Buffer.alloc(13);
-  ihdr.writeUInt32BE(width, 0); ihdr.writeUInt32BE(height, 4); ihdr[8] = 8; ihdr[9] = 6;   // 8 bit, RGBA
-  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(raw, { level: 6 })), chunk('IEND', Buffer.alloc(0))]);
-}
+/** RGBA8 (straight alpha, top row first) -> PNG bytes: the one encoder (imgcmp.mjs), here with png.mjs's argument order */
+export function encodePNG(width, height, rgba) { return encodeImage({ w: width, h: height, data: rgba }); }
 
 /** PNG bytes (8-bit RGBA or RGB, not interlaced) -> { width, height, data: RGBA8 } (for checks) */
 export function decodePNG(buf) {

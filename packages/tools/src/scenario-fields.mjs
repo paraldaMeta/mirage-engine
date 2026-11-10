@@ -6,7 +6,7 @@
 export const SCENARIO_FIELDS = ['title', 'query', 'w', 'h', 'errors', 'steps', 'checks', 'baseline', 'ssim', 'phone'];
 /** step fields, in the order they run (name and expect apply to all) */
 export const STEP_FIELDS = ['name', 'place', 'mode', 'viewpoint', 'walkTo', 'run', 'tol', 'timeout', 'lookAt', 'tap', 'keys', 'ms',
-  'flicker', 'perf', 'expect', 'see', 'contrast', 'shot', 'baseline'];
+  'onion', 'flicker', 'perf', 'expect', 'see', 'contrast', 'shot', 'baseline'];
 /** keys inside a step's objects (place, flicker, perf, contrast) */
 export const NESTED_FIELDS = ['eye', 'look', 'mode', 'path', 'speed', 'frames', 'y', 'root'];
 /** what "expect" can name (a dotted name is checked by its first part: flags.lit, inventory.length, see.rail) */

@@ -353,7 +353,8 @@ export function createWorldRenderer(config = {}) {
     // mean change is <= converge (display levels 0..255, true = 0.25) stop and grade what is there. The sub-frames
     // drawn are the first ones of the full pattern, so the frame is the same frame with fewer samples (a smaller
     // penumbra and AA footprint until the pattern fills in). Off (the default): nothing below runs.
-    const cv = !taa && spp >= 8 && opts.converge ? { tol: opts.converge === true ? 0.25 : +opts.converge, every: Math.floor(spp / 4), wsum: 0, diffs: [], used: spp } : null;
+    const on = opts.converge !== undefined && opts.converge !== null && opts.converge !== false;   // 0 = stop only when nothing moves
+    const cv = !taa && spp >= 8 && on ? { tol: opts.converge === true ? 0.25 : +opts.converge, every: Math.floor(spp / 4), wsum: 0, diffs: [], used: spp } : null;
     pipeline.begin();
     for (let k = 0; k < spp; k++) {
       const tk = T + (spp > 1 ? ((shutterSlot(k, spp) + 0.5) / spp - 0.5) * shutter * dt : 0);

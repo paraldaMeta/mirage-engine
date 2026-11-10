@@ -20,6 +20,9 @@ export function contrastPrepareInPage(root) {
     }
     return true;
   };
+  // any CSS colour (rgb(), oklch(), color(display-p3 ...), a name) as sRGB 0..255 + alpha, through a 2D canvas
+  const cx = document.createElement('canvas').getContext('2d', { willReadFrequently: true }); cx.canvas.width = cx.canvas.height = 1;
+  const rgba = (css) => { cx.clearRect(0, 0, 1, 1); cx.fillStyle = '#000'; cx.fillStyle = css; cx.fillRect(0, 0, 1, 1); const d = cx.getImageData(0, 0, 1, 1).data; return d[3] ? [d[0] / (d[3] / 255), d[1] / (d[3] / 255), d[2] / (d[3] / 255), d[3] / 255] : [0, 0, 0, 0]; };
   const opacity = (el) => { let o = 1; for (let a = el; a && a !== document.documentElement; a = a.parentElement) o *= +getComputedStyle(a).opacity; return o; };
   for (const el of scope.querySelectorAll('*')) {
     if (['SCRIPT', 'STYLE', 'CANVAS', 'svg', 'NOSCRIPT'].includes(el.tagName)) continue;
@@ -27,20 +30,29 @@ export function contrastPrepareInPage(root) {
     if (!own || !visible(el)) continue;
     const r = el.getBoundingClientRect();
     if (r.width < 2 || r.height < 2 || r.right < 0 || r.bottom < 0 || r.left > innerWidth || r.top > innerHeight) continue;
-    const cs = getComputedStyle(el), m = cs.color.match(/[\d.]+/g).map(Number);
+    const cs = getComputedStyle(el), m = rgba(cs.color);
     const size = parseFloat(cs.fontSize), bold = +cs.fontWeight >= 700;
     // children that paint their own panel (a <kbd> chip inside a prompt) are not this text's backdrop
-    const holes = [...el.children].filter((k) => { const c = getComputedStyle(k), bg = (c.backgroundColor.match(/[\d.]+/g) || []).map(Number); return c.backgroundImage !== 'none' || (bg.length === 4 ? bg[3] > 0 : bg.length === 3); })
+    const holes = [...el.children].filter((k) => { const c = getComputedStyle(k); return c.backgroundImage !== 'none' || rgba(c.backgroundColor)[3] > 0; })
       .map((k) => { const q = k.getBoundingClientRect(); return [q.left, q.top, q.right, q.bottom]; });
     const cls = typeof el.className === 'string' && el.className ? '.' + el.className.trim().split(/\s+/).join('.') : '';
     out.push({ id: out.length, text: own.slice(0, 60), selector: el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') + cls, size, bold,
       large: size >= 24 || (bold && size >= 18.66), rgb: m.slice(0, 3), alpha: (m[3] ?? 1) * opacity(el), shadow: cs.textShadow !== 'none',
       holes, box: [Math.max(0, r.left), Math.max(0, r.top), Math.min(innerWidth, r.right), Math.min(innerHeight, r.bottom)].map(Math.round) });
     el.setAttribute('data-mg-contrast', '');
+    // color: transparent would also hide what is drawn in currentColor (borders, outlines, an icon's fill): pin those
+    // to their computed colours for the screenshot, inline, and put the inline values back afterwards
+    const keep = {};
+    for (const prop of ['border-top-color', 'border-right-color', 'border-bottom-color', 'border-left-color', 'outline-color', 'fill', 'stroke']) {
+      keep[prop] = [el.style.getPropertyValue(prop), el.style.getPropertyPriority(prop)];
+      el.style.setProperty(prop, cs.getPropertyValue(prop), 'important');
+    }
+    el.__mgContrastKeep = keep;
   }
   const st = document.createElement('style');
   st.id = 'mg-contrast-hide';
-  st.textContent = '[data-mg-contrast]{color:transparent!important;-webkit-text-fill-color:transparent!important;text-shadow:none!important;caret-color:transparent!important}';
+  // ::before / ::after text is glyphs too (an icon font, a bullet): hidden the same way, so it is not read as backdrop
+  st.textContent = '[data-mg-contrast],[data-mg-contrast]::before,[data-mg-contrast]::after{color:transparent!important;-webkit-text-fill-color:transparent!important;text-shadow:none!important;caret-color:transparent!important}';
   document.head.appendChild(st);
   return out;
 }
@@ -48,7 +60,11 @@ export function contrastPrepareInPage(root) {
 /** Runs in the page: puts the glyphs back. */
 export function contrastRestoreInPage() {
   document.getElementById('mg-contrast-hide')?.remove();
-  for (const el of document.querySelectorAll('[data-mg-contrast]')) el.removeAttribute('data-mg-contrast');
+  for (const el of document.querySelectorAll('[data-mg-contrast]')) {
+    el.removeAttribute('data-mg-contrast');
+    for (const [prop, [v, pri]] of Object.entries(el.__mgContrastKeep || {})) { if (v) el.style.setProperty(prop, v, pri); else el.style.removeProperty(prop); }
+    delete el.__mgContrastKeep;
+  }
 }
 
 /** Runs in the page: the measurement of each candidate over the screenshot (a PNG data URL of the viewport). */

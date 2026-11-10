@@ -147,8 +147,8 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
   - **Text contrast**: a playtest step's `"contrast": true` measures every visible prompt / HUD line against the
     pixels behind its glyphs (WCAG AA 4.5:1, large 3:1; **MG710**). garden-quest passes: prompt 15.5:1, the lowest
     line is the power-saver button at 5.3:1 (phone) / 5.5:1 (desktop).
-  - **Route maps**: every `walkTo` writes `NN-<step>-route.png`: the walk grid from above, planned route, path
-    taken, stuck point, and an onion skin of game entities that moved.
+  - **Route maps**: every `walkTo` writes `NN-<step>-route.png` after the walk (its timing unchanged): the walk grid
+    from above, planned route, path taken, stuck point; `"onion": true` adds the game entities that moved.
   - **Adaptive stills**: `renderFrame(T, { spp, converge })` (and `play.render`, `mirage-snap --adaptive`) compares
     the estimate every spp / 4 sub-frames and stops once the mean change is ≤ 0.25 display levels. spp 16, the sum
     of medians over 5 interleaved pairs per view: snow-hut 191 vs 324 ms (−41 %, stops at 8), walled-garden 304 vs
@@ -156,8 +156,8 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
     mean difference is ≤ 0.25 levels (< 1/255), the largest single pixel 25 levels (walled-garden) and 144 (snow-hut's
     flakes sit at other shutter times). Off by default: exact.
   - **Chrome**: capture flags beyond puppeteer's defaults (which already force sRGB and keep background pages
-    running; a unit check keeps them) and a lease pool, `lease()` / `MIRAGE_POOL=1`: one Chrome per tool run;
-    open + ready + one still, median 597 → 244 ms per page on woodland-path.
+    running; a unit check keeps them) and a lease pool, `lease()` / `MIRAGE_POOL=1`: one Chrome per tool run, a
+    browser context per lease; open + ready + one still, median 611 → 317 ms per page on woodland-path.
   - **Skill drift**: `agent/check.mjs` fails a skill that names an MG code, a tool flag or a scenario field the tools
     do not have (the vocabulary is `src/scenario-fields.mjs`; playtest lists unknown fields it was given).
 - Skills: mirage-playtest gains a review pass (a stranger's sentence per view, `where · problem → fix` notes ranked

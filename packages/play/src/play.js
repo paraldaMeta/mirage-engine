@@ -332,7 +332,7 @@ function mountPlay(world, opts, life) {
     rendering = true;
     try {
       // converge: an adaptive still (world.renderFrame); returns what it drew
-      return world.renderFrame(T, moving ? { ...o, taa: true, target } : { ...o, spp: n, target, ...(converge ? { converge } : {}) });
+      return world.renderFrame(T, moving ? { ...o, taa: true, target } : { ...o, spp: n, target, ...(converge !== undefined ? { converge } : {}) });
     } finally {
       rendering = false;
       if (life.disposed) releaseFadeTargets();
