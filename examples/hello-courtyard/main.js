@@ -39,11 +39,13 @@ const softShadows = Q.get('soft') === '1' && (Q.get('sunAngle') ? { sunAngle: +Q
 // ?lights=N clustered lamps (&cluster=0 plain loop, &lshadows=K shadowed, &stock=1 three's own lights instead)
 const LF = (k) => Q.get(k) === '1';
 const NL = +Q.get('lights') || 0, stock = LF('stock');
-const lighting = ['csm', 'gi', 'probes'].some(LF) || (NL && !stock) ? {
-  csm: LF('csm') && { cascades: +Q.get('cascades') || 4 },
+const SCR = ['ssr', 'ssgi', 'contact'].some((k) => +Q.get(k) > 0);   // ?ssr=1&ssgi=1&contact=1: screen-space lighting (docs/lighting.md)
+const lighting = ['csm', 'gi', 'probes'].some(LF) || (NL && !stock) || SCR ? {
+  screen: SCR,
+  csm: LF('csm') && { cascades: +Q.get('cascades') || 4, stagger: LF('stagger') },   // &stagger=1: far cascades redrawn less often
   gi: LF('gi') && { min: [-9, 0.15, -9], max: [9, 5.4, 9], spacing: +Q.get('gispacing') || 2 },
   probes: LF('probes') && [{ min: [-7.2, 0, -7.2], max: [7.2, 6, 7.2], position: [0, 2.6, 0], fade: 1.5 }],
-  lights: NL > 0 && !stock && { cluster: Q.get('cluster') !== '0' },
+  lights: NL > 0 && !stock && { cluster: Q.get('cluster') !== '0', perCell: +Q.get('percell') || 0 },   // exact lists (&percell=64: the capped ones)
 } : undefined;
 const world = createWorldRenderer({ quality, xr: xrs.vr || xrs.ar, light2, softShadows, lighting, dynamicRes: Q.get('dynres') ? (Q.get('dynres') === '1' || { target: +Q.get('dynres') }) : false,
   canvas, width: W, height: H, place, time: date || 'golden', preserveDrawingBuffer: true,

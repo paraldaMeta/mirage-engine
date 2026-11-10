@@ -21,8 +21,13 @@
 // reference depth following the receiver's plane. Rotation per pixel = interleaved gradient noise + a golden-ratio
 // step of the sub-frame index, so stills and TAA converge and a still depends on k only.
 // Tiers: the tile is half the quality tier's shadow map (the atlas takes the memory the single map took).
-// Cost: `cascades` depth passes of the scene per (sub-)frame instead of one; three clears the whole atlas each time,
-// so far cascades cannot be refreshed less often (not done).
+// Cost: `cascades` depth passes of the scene per (sub-)frame instead of one. `stagger: true` (opt-in) redraws only
+// some cascades on a moving frame: the first every frame, the second every 2nd, the third every 4th, the fourth every
+// 8th (2.1 of 4 on average). A cascade that is kept keeps its own matrix, so what it shows stays where it was drawn;
+// it is `pad` larger than its slice so the view may move before it must be redrawn (it is, as soon as its slice has
+// drifted that far or the sun has moved), and a caster that moves inside a far cascade moves its shadow at that
+// cascade's rate. The atlas is cleared and drawn through the shadow target's own scissor, a rectangle of tiles: the
+// cascade sets are {0}, {0,1}, {0,2} or all. Stills, captures and anything that is not a moving frame draw all.
 // Readers that are not adopted lit materials (post.js's volumetric march, a ShaderMaterial of the host) still get
 // sun.shadow.matrix: here the LAST cascade's atlas matrix, valid inside that cascade only.
 // ---------------------------------------------------------------------------
@@ -40,6 +45,8 @@ export const CSM_DEFAULTS = {
   bias: 0.02,         // m of depth bias
   normalOffset: 1.5,  // texels of the cascade the lookup is pushed along the surface normal
   taps: 8,            // PCF taps (compiled in)
+  stagger: false,     // moving frames redraw far cascades less often (see above)
+  pad: 0.12,          // stagger: how much larger than its slice a cascade after the first is
 };
 const MAXC = 4;
 const vogel = (name, n, turn) => `const vec2 ${name}[ ${n} ] = vec2[ ${n} ]( ${Array.from({ length: n }, (_, i) => {
@@ -185,17 +192,19 @@ export function createCsm(sun, cfg, opts = {}) {
   for (let i = 0; i < MAXC; i++) rects[i].set(views[i].x / 2 + guard, views[i].y / 2 + guard, views[i].x / 2 + 0.5 - guard, views[i].y / 2 + 0.5 - guard);
   const saved = { mapSize: sh.mapSize.clone(), views: sh._viewports, count: sh._viewportCount, extents: sh._frameExtents.clone() };
   let on = false;
-  const info = { cascades: [] };   // per cascade { center, radius, texel } of the last fit (tests, docs)
+  const ALL = Array.from({ length: N }, (_, i) => i), fitted = ALL.map(() => ({ c: [0, 0, 0], d: new THREE.Vector3(), r: 0 }));
+  let order = ALL, valid = false, tick = 0, sig = '';   // order: the cascades the next shadow pass draws
+  const info = { cascades: [], drawn: N, fits: 0, draws: 0 };   // per cascade { center, radius, texel } of the last fit (tests, docs)
 
   function enable() {
     if (on) return;
     on = true;
     sh.mapSize.set(tile, tile);
     sh._frameExtents.set(2, 2); sh._viewports = views.slice(0, N); sh._viewportCount = N;
-    sh.getCamera = (i) => cams[i] || cams[0];
-    sh.getFrustum = (i) => frusta[i] || frusta[0];
+    sh.getCamera = (i) => cams[order[i] ?? 0];
+    sh.getFrustum = (i) => frusta[order[i] ?? 0];
     sh.updateMatrices = function () {
-      for (let i = 0; i < N; i++) this._updateMatrix(cams[i], mats[i], frusta[i], views[i]);
+      for (const i of order) this._updateMatrix(cams[i], mats[i], frusta[i], views[i]);
       this.matrix.copy(mats[N - 1]); this._frustum.copy(frusta[N - 1]);
     };
     if (sh.map) { sh.map.dispose(); if (sh.map.depthTexture) sh.map.depthTexture.dispose(); sh.map = null; }
@@ -213,8 +222,10 @@ export function createCsm(sun, cfg, opts = {}) {
   const _d = new THREE.Vector3(), _r = new THREE.Vector3(), _u = new THREE.Vector3(), _f = new THREE.Vector3(), _p = new THREE.Vector3(), _m = new THREE.Matrix4();
   const X = new THREE.Vector3(1, 0, 0), Y = new THREE.Vector3(0, 1, 0);
   /** d: unit vector toward the sun (jittered or not); camera: a perspective camera, or null for spheres around center/radius; k: sub-frame index */
-  function fit(d, camera, center, radius, k = 0) {
+  function fit(d, camera, center, radius, k = 0, live = false) {
     if (!on) return;
+    const persp = !!(camera && camera.isPerspectiveCamera), pad = cfg.stagger && persp ? 1 + cfg.pad : 1;
+    let key = '';
     _d.copy(d).normalize();
     _r.crossVectors(Math.abs(_d.y) > 0.99 ? X : Y, _d).normalize();   // right, up, toward the sun: a right-handed basis
     _u.crossVectors(_d, _r);
@@ -227,16 +238,37 @@ export function createCsm(sun, cfg, opts = {}) {
       _f.set(0, 0, -1).transformDirection(camera.matrixWorld);
       for (let i = 0; i < N; i++) {
         const s = sliceSphere(i === 0 ? Math.min(camera.near, cfg.near) : sp[i], sp[i + 1], tx, ty);
-        spheres.push({ c: [_p.x + _f.x * s.z, _p.y + _f.y * s.z, _p.z + _f.z * s.z], r: Math.ceil(s.r * 16) / 16 });
+        spheres.push({ c: [_p.x + _f.x * s.z, _p.y + _f.y * s.z, _p.z + _f.z * s.z], r: Math.ceil(s.r * (i ? pad : 1) * 16) / 16, slack: i ? s.r * (pad - 1) : 0 });
       }
+      key = N + '|' + tx + '|' + ty + '|' + far;
     } else {
       for (let i = 0; i < N; i++) spheres.push({ c: center, r: radius * Math.pow(0.42, N - 1 - i) });
     }
     const rMax = spheres[N - 1].r, back = rMax + cfg.reach, R = back + rMax - 0.5;
     const ra = _r.toArray(), ua = _u.toArray(), da = _d.toArray();
     _m.makeBasis(_r, _u, _d);
-    info.cascades.length = 0;
-    for (let i = 0; i < N; i++) {
+    // which cascades this pass draws (stagger): the due ones and those whose slice left what was drawn for them
+    let set = ALL;
+    if (cfg.stagger && live && persp && valid && sh.map && key === sig) {
+      const t = tick++ % 8, due = [true, t % 2 === 0, t % 4 === 1, t === 3];
+      for (let i = 1; i < N; i++) {
+        const f = fitted[i], c = spheres[i].c;
+        if (!due[i] && (Math.hypot(c[0] - f.c[0], c[1] - f.c[1], c[2] - f.c[2]) > spheres[i].slack || f.d.dot(_d) < 1 - 4e-7)) due[i] = true;
+      }
+      const far = due[3] && N > 3, a = due[1], b = due[2] && N > 2;
+      set = far || (a && b) ? ALL : a ? [0, 1] : b ? [0, 2] : [0];
+    }
+    valid = persp; sig = key;
+    order = set; sh._viewports = set.map((i) => views[i]); sh._viewportCount = set.length;
+    if (sh.map) {
+      // three sets the target (which applies ITS scissor) and clears: the kept tiles are outside the rectangle
+      sh.map.scissorTest = set.length < N;
+      sh.map.scissor.set(0, 0, set.includes(1) || set.length === N ? 2 * tile : tile, set.includes(2) || set.length === N ? 2 * tile : tile);
+    }
+    info.drawn = set.length; info.fits++; info.draws += set.length;
+    if (set === ALL) info.cascades.length = 0;
+    for (const i of set) {
+      fitted[i].c = spheres[i].c.slice ? spheres[i].c.slice() : [...spheres[i].c]; fitted[i].d.copy(_d);
       const { c, r } = spheres[i], texel = (2 * r) / tile, cam = cams[i];
       const s = snapToTexel(c, ra, ua, da, texel);
       cam.position.set(s[0] + da[0] * back, s[1] + da[1] * back, s[2] + da[2] * back);
@@ -244,7 +276,7 @@ export function createCsm(sun, cfg, opts = {}) {
       cam.left = cam.bottom = -r; cam.right = cam.top = r; cam.near = 0.5; cam.far = back + rMax;
       cam.updateProjectionMatrix(); cam.updateMatrixWorld(true);
       pars[i].set(texel, 0.5 / (2 * r), 0, 0);
-      info.cascades.push({ center: s, radius: r, texel });
+      info.cascades[i] = { center: s, radius: r, texel };
     }
     const A = U.mgCsmA.value, B = U.mgCsmB.value, C = U.mgCsmC.value;
     A.set(1, cfg.blend, ((k >>> 0) * 0.6180339887498949) % 1, 1 / R);

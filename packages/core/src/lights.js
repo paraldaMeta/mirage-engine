@@ -35,7 +35,8 @@ import { OCT_DECODE } from './inject.js';
 export const LIGHTS_DEFAULTS = {
   max: 256,          // lights (texture rows are sized for it)
   cluster: true,     // false: every pixel loops over every light (the comparison path)
-  perCell: 64,       // most lights shaded in one cell (info.clipped counts what a frame dropped)
+  perCell: 64,       // most lights shaded in one cell (info.clipped counts what a frame dropped); 0 = no limit: every
+                     // list is as long as it needs to be and the index texture grows to hold them (exact, info.rows)
   atlas: 2048,       // px of the shadow atlas
   tileMax: 512, tileMin: 64,
   perFrame: 2,       // shadow tiles redrawn per frame
@@ -154,10 +155,17 @@ export function createLights(w, cfg) {
   const { renderer, scene } = w;
   const recRows = Math.ceil((cfg.max * REC) / TW), cellRows = Math.ceil(CELLS / TW);
   const rows = { cells: recRows, index: recRows + cellRows };
-  const TH = 128, IDX_CAP = (TH - rows.index) * TW * 4;
-  const data = new Float32Array(TW * TH * 4);
-  const tex = new THREE.DataTexture(data, TW, TH, THREE.RGBAFormat, THREE.FloatType);
-  tex.minFilter = tex.magFilter = THREE.NearestFilter; tex.generateMipmaps = false; tex.needsUpdate = true;
+  let TH = 128, IDX_CAP = (TH - rows.index) * TW * 4;
+  let data = new Float32Array(TW * TH * 4);
+  const makeTex = () => { const t = new THREE.DataTexture(data, TW, TH, THREE.RGBAFormat, THREE.FloatType); t.minFilter = t.magFilter = THREE.NearestFilter; t.generateMipmaps = false; t.needsUpdate = true; return t; };
+  let tex = makeTex();
+  const PER = cfg.perCell > 0 ? cfg.perCell : Infinity;
+  // perCell 0: the lists may need more index texels than the texture has: a taller one (the shader addresses rows, not a size)
+  const grow = (need) => {
+    while (IDX_CAP < need) { TH *= 2; IDX_CAP = (TH - rows.index) * TW * 4; }
+    const d = new Float32Array(TW * TH * 4); d.set(data); data = d;
+    tex.dispose(); tex = makeTex(); U.mgLT.value = tex; info.rows = TH;
+  };
   // shadow atlas: a depth texture read with hardware compare; the colour attachment exists only to make it a target
   const depth = new THREE.DepthTexture(cfg.atlas, cfg.atlas, THREE.UnsignedShortType);
   depth.compareFunction = THREE.LessEqualCompare; depth.minFilter = depth.magFilter = THREE.LinearFilter;
@@ -180,7 +188,7 @@ ${OCT_DECODE}
 void main() { gl_FragDepth = clamp( textureLod( tCube, mgOctDec( vUv ), 0.0 ).r / uFar, 0.0, 1.0 ); gl_FragColor = vec4( 0.0 ); }`,
   });
   const quad = new FullScreenQuad(foldMat);
-  const info = { lights: 0, shadowed: 0, redraws: 0, redrawsLastFrame: 0, binMs: 0, indices: 0, clipped: 0, mode: 0 };
+  const info = { lights: 0, shadowed: 0, redraws: 0, redrawsLastFrame: 0, binMs: 0, indices: 0, clipped: 0, mode: 0, rows: 128 };
   const _v = new THREE.Vector3(), _d = new THREE.Vector3(), _t = new THREE.Vector3(), _c = new THREE.Color(), _vp = new THREE.Vector4();
   let viewCam = null, camKey = '', dirtyTex = true, allDirty = false;
   const dyn = new Map();   // dynamic root -> { e: Float32Array(16), c: Vector3, r }
@@ -249,9 +257,10 @@ void main() { gl_FragDepth = clamp( textureLod( tCube, mgOctDec( vUv ), 0.0 ).r 
       for (let cz = s[4]; cz <= s[5]; cz++) for (let cy = s[2]; cy <= s[3]; cy++) for (let cx = s[0]; cx <= s[1]; cx++) counts[cx + CLUSTER.x * (cy + CLUSTER.y * cz)]++;
     }
     let off = 0, clipped = 0;
+    if (PER === Infinity) { let need = 0; for (let c = 0; c < CELLS; c++) need += counts[c]; if (need > IDX_CAP) grow(need); }
     const base = rows.cells * TW * 4, ib = rows.index * TW * 4;
     for (let c = 0; c < CELLS; c++) {
-      const n = Math.min(counts[c], cfg.perCell, IDX_CAP - off);
+      const n = Math.min(counts[c], PER, IDX_CAP - off);
       data[base + c * 4] = off; data[base + c * 4 + 1] = 0; data[base + c * 4 + 2] = n;   // z: capacity while filling
       off += n; clipped += counts[c] - n;
     }
@@ -363,7 +372,7 @@ void main() { gl_FragDepth = clamp( textureLod( tCube, mgOctDec( vUv ), 0.0 ).r 
   const part = { id: 'lights', key: cfg.max + '.' + cfg.perCell, order: 20, pars: glsl(cfg, rows), uniforms: U,
     apply: (fs, t) => t.swap(fs, '#if defined( RE_IndirectDiffuse )', LOOP(cfg, rows) + '\n#if defined( RE_IndirectDiffuse )', 'lights') };
   return {
-    cfg, part, uniforms: U, info, add, remove, atlas, texture: tex,
+    cfg, part, uniforms: U, info, add, remove, atlas, get texture() { return tex; },
     get count() { return lights.length; },
     frame(cam) {
       viewCam = cam; info.lights = lights.length;

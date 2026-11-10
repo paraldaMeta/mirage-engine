@@ -31,6 +31,7 @@ export const FX_DEFAULTS = {
   lut: null,         // a THREE.Data3DTexture (lutTexture()): display-referred colour lookup after the tone map
   lutStrength: 1,
   chroma: 0,         // chromatic aberration: the red / blue shift at the frame corner, in % of the frame's half diagonal
+  rcas: 0,           // 0..1: contrast-adaptive sharpening of moving frames after the temporal resolve / upscaler (0 = off)
 };
 
 const VS = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }';
@@ -97,6 +98,7 @@ export function lutTexture({ size, data }) {
 export function postFromQuery(Q) {
   const o = {}, num = (k, to = k) => { if (Q.has(k) && Number.isFinite(+Q.get(k))) o[to] = +Q.get(k); };
   num('taa2'); num('upscale'); num('mb', 'motionBlur'); num('bokeh'); num('lens', 'dof'); num('focus'); num('bloom'); num('bloom2', 'bloomPyramid'); num('chroma');
+  num('ssr', 'ssr2'); num('ssrrough', 'ssrRough'); num('ssgi'); num('girange', 'ssgiRange'); num('girays', 'ssgiRays'); num('contact'); num('rcas');   // screen.js (lighting.screen)
   const L = { warm: ([r, g, b]) => [r ** 0.92, g, b ** 1.12], cool: ([r, g, b]) => [r ** 1.1, g, b ** 0.9],
     bleach: ([r, g, b]) => { const l = 0.2126 * r + 0.7152 * g + 0.0722 * b, s = (x) => { const m = l + (x - l) * 0.55; return m * m * (3 - 2 * m); }; return [s(r), s(g), s(b)]; } }[Q.get('lut')];
   if (L) o.lut = lutTexture(makeLut(L));
@@ -431,6 +433,30 @@ export class PostFX {
     u.tVel.value = v.texture; u.tTile.value = B.texture; u.uOut.value.set(pp.w, pp.h); u.uK.value = Math.min(1, P.motionBlur);
     u.uMaxPx.value = (P.motionBlurMax ?? 32) * pp.h / 1080; u.uF.value = this.frame % 64;
     this._apply(g);
+  }
+
+  /** rcas: contrast-adaptive sharpening of the resolved (upscaled) frame, before bloom and the grade. A 5-tap cross
+   *  in a squashed (0..1) space: the negative lobe is as strong as the local range allows without leaving it (so a
+   *  flat area and an edge that already spans the range are both left alone, and nothing rings), scaled by P.rcas.
+   *  The history is not touched (it is pp.histA), so the sharpening does not feed back. */
+  rcas(P) {
+    const pp = this.pp;
+    const m = this.mat('rcas', () => quadMat(/* glsl */ `
+      varying vec2 vUv; uniform sampler2D tColor; uniform vec2 uTexel; uniform float uK;
+      ${SQUASH}
+      void main(){
+        vec4 c0 = texture2D(tColor, vUv);
+        vec3 c = squash(c0.rgb), n = squash(texture2D(tColor, vUv + vec2(0.0, uTexel.y)).rgb), s = squash(texture2D(tColor, vUv - vec2(0.0, uTexel.y)).rgb),
+             e = squash(texture2D(tColor, vUv + vec2(uTexel.x, 0.0)).rgb), w = squash(texture2D(tColor, vUv - vec2(uTexel.x, 0.0)).rgb);
+        vec3 lo = min(c, min(min(n, s), min(e, w))), hi = max(c, max(max(n, s), max(e, w)));
+        // how far the centre may be pushed before the result leaves [0, 1]: little on a strong edge, none in noise-free flats
+        vec3 room = sqrt(clamp(min(lo, 1.0 - hi) / max(hi, 1e-4), 0.0, 1.0));
+        float k = -max(room.r, max(room.g, room.b)) * mix(0.125, 0.2, uK) * step(1e-4, uK);
+        vec3 o = clamp((c + (n + s + e + w) * k) / (1.0 + 4.0 * k), lo, hi);
+        gl_FragColor = vec4(unsquash(o), c0.a);
+      }`, { tColor: { value: null }, uTexel: { value: new THREE.Vector2() }, uK: { value: 0 } }));
+    m.uniforms.uTexel.value.set(1 / pp.w, 1 / pp.h); m.uniforms.uK.value = Math.min(1, P.rcas);
+    this._apply(m);
   }
 
   /** bloomPyramid: halve the frame six times (13 taps; the first step weights by 1 / (1 + luma), so one very hot

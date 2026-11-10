@@ -17,10 +17,12 @@ import { csmConfig, createCsm } from './csm.js';
 import { giConfig, createGi } from './gi.js';
 import { lightsConfig, createLights } from './lights.js';
 import { probesConfig, createProbes } from './probes.js';
+import { screenConfig, createScreen } from './screen.js';
 export { CSM_DEFAULTS } from './csm.js';
 export { GI_DEFAULTS } from './gi.js';
 export { LIGHTS_DEFAULTS } from './lights.js';
 export { PROBE_DEFAULTS } from './probes.js';
+export { SCREEN_DEFAULTS, SCREEN_POST } from './screen.js';
 
 export function createLighting(w, config) {
   const { renderer, scene, sun } = w;
@@ -43,19 +45,24 @@ export function createLighting(w, config) {
   const lcfg = lightsConfig(cfg.lights);
   const lights = lcfg ? createLights({ renderer, scene }, lcfg) : null;
   if (lights) { inj.add(lights.part); features.lights = lights; hooks.push(lights); }
+  // screen-space reflections / indirect light / contact shadows (screen.js): driven by the pipeline, switched by post
+  const scfg = screenConfig(cfg.screen);
+  const screen = scfg ? createScreen({ renderer, scene, sun }, scfg) : null;
+  if (screen) { inj.add(screen.part); features.screen = screen; hooks.push(screen); }
   const api = {
-    injector: inj, csm, gi, probes, lights, features, hooks,
+    injector: inj, csm, gi, probes, lights, screen, features, hooks,
     /** hand a THREE.PointLight / SpotLight (already in the scene) to the clustered path; { shadow: true } gives it a tile of the shadow atlas */
     addLight(light, o) { if (!lights) { console.warn('[lighting] addLight needs lighting: { lights: true }'); return false; } return lights.add(light, o); },
     removeLight(light) { return !!lights && lights.remove(light); },
     /** true while baked light is still being brought up to date (the world keeps drawing) */
     get busy() { return hooks.some((h) => h.busy); },
     /** wrap lit materials added since the last call (the world does this in prepare and every half second of frames) */
-    adopt() { const n = inj.adopt(scene); adopted += n; return n; },
+    adopt() { const n = inj.adopt(scene); adopted += n; if (screen) screen.mark(scene, inj.materials); return n; },
     get materials() { return inj.materials.size; },
-    fitSun(d, camera, center, radius, k) { if (csm) csm.fit(d, capturing ? null : camera, center, radius, k); },
+    fitSun(d, camera, center, radius, k) { if (csm) csm.fit(d, capturing ? null : camera, center, radius, k, moving && !capturing); },
     /** before a frame's sub-frames: camera = the view camera */
     frame(camera, dt = 1 / 60) {
+      moving = dt > 0;   // a moving frame (csm.js may keep far cascades); stills and direct renders pass 0
       if (frames++ % 30 === 0) api.adopt();
       for (const h of hooks) if (h.frame) h.frame(camera, dt);
     },
@@ -68,6 +75,6 @@ export function createLighting(w, config) {
     capture(fn) { const was = capturing; capturing = true; try { return w.capture(fn); } finally { capturing = was; } },
     dispose() { for (const h of hooks) if (h.dispose) h.dispose(); if (csm) csm.disable(); },
   };
-  let capturing = false, ready = false;
+  let capturing = false, ready = false, moving = false;
   return api;
 }

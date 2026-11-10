@@ -23,6 +23,8 @@ hello-courtyard and walled-garden read the flags: `examples/hello-courtyard/dist
 | `bloomPyramid: 1` + `bloom` | `?bloom2=1&bloom=0.15` | down / up-sample bloom instead of three's bloom pass |
 | `lut`, `lutStrength` | `?lut=warm\|cool\|bleach` | 3D colour lookup after the tone map |
 | `chroma` | `?chroma=0.6` | chromatic aberration, % of the half diagonal at the corner |
+| `rcas: 0..1` | `?rcas=1` | contrast-adaptive sharpening of moving frames after the resolve / upscaler |
+| `ssr2`, `ssgi`, `contact` | `?ssr=1&ssgi=1&contact=1` | screen-space reflections, indirect light, contact shadows: need `lighting: { screen: true }`, see `docs/lighting.md` |
 
 Vignette and grain were already options (`vignette`, `grain`).
 
@@ -111,10 +113,20 @@ camera at rest, old TAA 40.2 dB, taa2 41.4, upscale 0.67 38.4, upscale 0.5 35.4;
 upscale 0.67 37.3, upscale 0.5 34.7. walled-garden panning: 41.3 → 43.2; with 40 walking NPCs in view 39.7 → 40.2.
 The LUT's cost was not measured on its own.
 
+## Sharpening after the upscaler (`rcas`)
+
+One 5-tap pass over the resolved frame, before bloom and the grade (the grade's own `sharpen` stays). In a squashed
+0..1 space the negative lobe is as strong as the local minimum and maximum allow, so flats and full-range edges are
+left alone and the result is clamped to the neighbourhood: no ringing. The TAA history is a different target, so it
+does not feed back. It is a look, not a reconstruction: hello-courtyard at 960 x 600 with `upscale=0.67`, against a
+64-sample still, 38.81 dB without, 38.76 dB at `rcas=0.5`, 38.18 dB at `rcas=1` (native-size taa2: 41.93 dB). Cost,
+interleaved: 2.30 -> 2.40 ms at 1440 x 900, 6.60 [6.60-6.60] -> 7.30 [7.30-7.40] ms at 2880 x 1800. No negative mip
+bias is applied under upscaling (WebGL2 has no sampler LOD bias): textures are a little softer than at native size.
+
 ## Not here
 
-- **Screen-space reflections** beyond light2's existing pass: a roughness-aware resolve needs roughness in the
-  G-buffer (light2.js, owned by the lighting work).
+- **Screen-space reflections** now live in the lit materials (`lighting: { screen: true }`, `docs/lighting.md`);
+  light2's older pass is unchanged.
 - **XR.** `world.renderDirect` (the XR path) calls `renderer.render` into the headset's framebuffer and never
   enters the pipeline. To run the chain there, `packages/play/src/xr.js` would have to: (1) render each
   `XRView` into a pipeline target with that view's viewport and projection instead of the layer framebuffer (or a

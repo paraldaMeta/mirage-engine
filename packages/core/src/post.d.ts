@@ -30,6 +30,15 @@ export interface PostSettings {
   lut: THREE.Data3DTexture | null; lutStrength: number;
   /** Chromatic aberration: the red / blue shift at the frame corner, % of the half diagonal. */
   chroma: number;
+  /** 0..1: contrast-adaptive sharpening of moving frames after the temporal resolve / upscaler. */
+  rcas: number;
+  /** Screen-space reflections in the lit materials (needs `lighting: { screen: true }`): strength 0..1, the roughness
+   *  where they end, the longest ray (m) and the depth thickness (m). */
+  ssr2: number; ssrRough: number; ssrDist: number; ssrThick: number;
+  /** Screen-space indirect light: strength, range (m), rays per pixel on moving frames. */
+  ssgi: number; ssgiRange: number; ssgiRays: number;
+  /** Screen-space contact shadows of the sun: strength 0..1 and ray length (m). */
+  contact: number; contactLen: number;
 }
 export const DEFAULT_POST: PostSettings;
 export class Pipeline {

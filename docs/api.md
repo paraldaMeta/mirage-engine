@@ -40,9 +40,11 @@ The entry points `@mirage/<pkg>` are the API. Every file under `src/` can also b
 | `softShadowConfig(option)` | experimental | the full soft-shadow settings for `true` / a partial object (numbers clamped); null when off |
 | `installSoftShadows(settings)` | experimental | patch three's sun-shadow lookup for contact-hardening soft shadows (page-global, idempotent; tap counts compiled in by the first call; the world renderer calls it) |
 | `createLighting(world, option)` | experimental | the realtime lighting features behind `createWorldRenderer({ lighting })` (the world renderer calls it; `world.lighting` is its result): `csm`, `gi`, `probes`, `lights`, `addLight(light, { shadow })`, `removeLight`, `invalidate()`, `busy`. Shader parts go into the world's own lit materials, not three's chunks (`docs/lighting.md`) |
-| `CSM_DEFAULTS` | experimental | cascaded sun shadows' settings (`cascades` 2-4, `distance`, `lambda`, `blend`, `tile`, `taps`, ...); `lighting: { csm: true }` |
+| `CSM_DEFAULTS` | experimental | cascaded sun shadows' settings (`cascades` 2-4, `distance`, `lambda`, `blend`, `tile`, `taps`, `stagger`, ...); `lighting: { csm: true }` |
 | `GI_DEFAULTS` | experimental | the irradiance probe volume's settings (`spacing`, `bounces`, `cube`, `perFrame`, `intensity`, `fade`, `bias`, `specular`); `lighting: { gi: { min, max } }` |
 | `LIGHTS_DEFAULTS` | experimental | clustered local lights and their shadow atlas (`max`, `cluster`, `perCell`, `atlas`, `tileMax`, `tileMin`, `perFrame`, `bias`); `lighting: { lights: true }` |
+| `SCREEN_DEFAULTS` | experimental | the screen-space passes' buffers (`scale`, `refScale`, `layer`); `lighting: { screen: true }` (`docs/lighting.md`) |
+| `SCREEN_POST` | experimental | their post settings, all off: `ssr2`, `ssrRough`, `ssrDist`, `ssrThick`, `ssgi`, `ssgiRange`, `ssgiRays`, `contact`, `contactLen` |
 | `PROBE_DEFAULTS` | experimental | a reflection probe's defaults (`fade`, `intensity`); `lighting: { probes: [{ min, max, position }] }`, at most 4 |
 | `TEX_RELIEF_GLSL` | experimental | the texture layer's relief taps (`mgTexTriRelief`, `mgTexWallRelief`, `mgTexGroundRelief`); compiled in by the relief opt-ins |
 | `RELIEF` | experimental | the close-range relief's shared uniforms (`uRelief` on / off, `uReliefFar` fade distance) |
@@ -89,7 +91,7 @@ The entry points `@mirage/<pkg>` are the API. Every file under `src/` can also b
 | `FOG` | experimental | the page-global fog uniforms |
 | `Pipeline` | experimental | the sub-frame accumulation / TAA / post pipeline |
 | `DEFAULT_POST` | experimental | default post settings (exposure, tone map, bloom, AO, DOF, …) |
-| `FX_DEFAULTS` | experimental | the post settings of `postfx.js`, all off: `taa2`, `upscale`, `motionBlur`, `bokeh`, `bloomPyramid`, `lut`, `chroma` (`docs/post.md`) |
+| `FX_DEFAULTS` | experimental | the post settings of `postfx.js`, all off: `taa2`, `upscale`, `motionBlur`, `bokeh`, `bloomPyramid`, `lut`, `chroma`, `rcas` (`docs/post.md`) |
 | `PostFX` | experimental | the passes behind them (velocity buffer, temporal resolve / upscale, lens blur, motion blur, bloom pyramid, LUT grade); `pipeline.fx` |
 | `postFromQuery(query)` | experimental | post settings from URL flags (`?taa2=1&upscale=0.67&mb=0.5&bokeh=1&lens=0.03&bloom2=1&lut=warm&chroma=0.6`) |
 | `parseCube(text)` | experimental | an Adobe / Resolve `.cube` 3D lookup table -> `{ size, data }` |

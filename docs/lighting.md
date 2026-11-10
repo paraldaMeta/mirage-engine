@@ -1,6 +1,6 @@
-# Realtime lighting: cascades, probe GI, reflection probes, many lights
+# Realtime lighting: cascades, probe GI, reflection probes, many lights, screen-space passes
 
-Four features, all **experimental** and all **off by default**. They are turned on per world:
+Five features, all **experimental** and all **off by default**. They are turned on per world:
 
 ```js
 const world = createWorldRenderer({
@@ -9,6 +9,7 @@ const world = createWorldRenderer({
     gi: { min: [-4, 3.6, -29], max: [4, 7.4, -21], spacing: 1.2 }, // irradiance probes over one box
     probes: [{ min: [-4, 3.6, -29], max: [4, 7.4, -21] }],          // box reflection probes (at most 4)
     lights: true,                                                 // clustered local lights + shadow atlas
+    screen: true,                                                 // SSR, SSGI, contact shadows (world.post.ssr2 / ssgi / contact)
   },
 });
 const lamp = new THREE.PointLight(0xffaa66, 40, 9);
@@ -24,10 +25,12 @@ Try them on two examples (each flag alone or together):
 
 | flag | what |
 |---|---|
-| `?csm=1` (`&cascades=2..4`) | cascaded sun shadows; walled-garden also `&soft=1` for the contact-hardening filter per cascade |
+| `?csm=1` (`&cascades=2..4`, `&stagger=1`) | cascaded sun shadows (`stagger`: far cascades redrawn less often); walled-garden also `&soft=1` for the contact-hardening filter per cascade |
 | `?gi=1` (`&gispacing=m`) | the probe volume: walled-garden's pavilion interior (lit through its doors), hello-courtyard's court |
 | `?probes=1` | one box reflection probe (the pavilion room; the court) |
 | `?lights=N` | N lamps on the clustered path (`&cluster=0`: the plain loop over all lights; `&stock=1`: three's own PointLights instead, for comparison) |
+| `&percell=64` | cap the lights per cluster cell (the examples ask for `perCell: 0`, no cap) |
+| `?ssr=1` `?ssgi=1` `?contact=1` | the screen-space passes (below) |
 | `&lshadows=K` | the first K lamps cast shadows from the atlas |
 
 `examples/walled-garden/?gi=1&probes=1&csm=1&lights=64&lshadows=4&time=20:30`, the same on `examples/hello-courtyard/`.
@@ -61,6 +64,19 @@ Limits: every cascade is redrawn each (sub-)frame (three clears the whole atlas,
 less often). Readers that are not adopted lit materials (the volumetric light march of `light2`, a host
 `ShaderMaterial`) still read `sun.shadow.matrix`, which is the last cascade only. Orthographic game cameras and
 probe captures get spheres around the world's shadow centre instead of view slices.
+
+**`stagger: true`** (opt-in). On a moving frame only some cascades are redrawn: the first every frame, the second
+every 2nd, the third every 4th, the fourth every 8th (2.13 of 4 on average, counted). three clears and draws the
+atlas through the shadow target's own scissor, so the tiles that are kept are simply outside it. A kept cascade
+keeps its matrix, so its shadows stay where they were drawn; cascades after the first are `pad` (12 %) larger than
+their slice and are redrawn at once when the slice has drifted out of that margin or the sun has moved. The price: a
+caster moving inside a far cascade moves its shadow at that cascade's rate, and the padded cascades have 12 % larger
+texels (a moving frame differs from the unstaggered one by 52.4-52.9 dB). Stills and captures always draw all four.
+Measured at 1440 x 900, panning, interleaved: walled-garden 3.60 [3.50-3.60] -> 3.30 [3.20-3.30] ms; at 2880 x 1800
+10.10 -> 10.00 ms; hello-courtyard 3.20 -> 3.20 (its shadow pass is too cheap to show).
+
+The contact-hardening filter (`softShadows`) already runs per cascade; `contact` (below) adds the screen-space
+contact shadow.
 
 ## Diffuse GI: an irradiance probe volume (`gi`)
 
@@ -107,8 +123,63 @@ called, or a `userData.mgDynamic` root moved within range; at most `perFrame` (2
 Limits: a spot light pays the same six cube faces as a point light. Static and moving casters share a tile (no
 separate static layer: a light with a mover in range redraws all its casters). Alpha-tested cut-outs cast as their
 whole card. A cell keeps at most `perCell` (64) lights; `world.lighting.lights.info.clipped` counts drops.
+`perCell: 0` removes the limit: the index texture grows to what the frame needs, and the result is the plain loop's
+(hello-courtyard `?lights=100&time=20:30`, two views, 4 spp: bit-identical to `&cluster=0`; with `&percell=64` the
+same views are 53.4 and 54.8 dB from it, largest difference 6 of 255).
+
+## Screen-space reflections, indirect light and contact shadows (`screen`)
+
+`lighting: { screen: true }` adds one part to the lit materials and three half-size passes before the scene is drawn
+(`packages/core/src/screen.js`). Nothing runs until a strength is above 0; the strengths are post settings:
+
+| option | URL flag | what |
+|---|---|---|
+| `ssr2: 0..1` (`ssrRough`, `ssrDist`, `ssrThick`) | `?ssr=1` (`&ssrrough=0.55`) | reflections of what is on screen, up to roughness `ssrRough` |
+| `ssgi: 0..1` (`ssgiRange` m, `ssgiRays`) | `?ssgi=1` (`&girange=3&girays=1`) | short-range indirect light with the colour of what it bounced off |
+| `contact: 0..1` (`contactLen` m) | `?contact=1` | short sun shadows traced in the depth buffer |
+
+`examples/hello-courtyard/?wet=0.8&ssr=1&ssgi=1&contact=1` (wet cobbles reflect the arcade, the posts and the
+fountain); the same flags on `examples/walled-garden/`.
+
+How: the opaque lit meshes are drawn once more with their own programs into a small G-buffer (normal, roughness;
+the part ends the shader early), on their own layer and without touching the shadow maps. One trace shader marches
+the depth buffer in view space with growing steps, a thickness test and a bisection at the hit: a GGX-distributed
+ray for reflections, cosine rays for indirect light, one ray toward the sun for contact shadows. Hits read the
+previous frame's lit colour, reprojected. Each result is blended with its reprojected history (depth rejection;
+reflections reproject at the virtual hit distance) and blurred edge-aware, wider on rougher surfaces. The materials
+then use it where three shades: a reflection replaces the environment (reflection probe, then sky) by its
+confidence, faded at the screen edge and toward `ssrRough`; indirect light is added to the irradiance and the
+probe volume / ambient there is scaled by the rays' visibility, so GI and SSGI are one sum; the contact term
+multiplies the sun.
+
+Stills use a reference mode: full-size buffers, more steps, a new random sequence per sub-frame, no history and no
+blur, so `spp` converges them like everything else and a still does not depend on the frames before it (the first
+sub-frame draws the scene once to have a colour to read). They are shaded into the HDR scene target, so
+`mirage-snap --png16 --exr` carries them (checked: both files change with the flags).
+
+Limits, plainly. Only what is on screen can be reflected or bounce light; off-screen and behind-the-camera hits
+fall back to the probe or the sky. The colour is last frame's (one frame of lag, one bounce per frame). History is
+reprojected by the camera matrices, not the velocity buffer (the passes run before that frame's velocities exist),
+so reflections of moving objects trail for a few frames. The half-size results are stretched without a depth-aware
+upsample. Transparent and unlit meshes are not in the G-buffer. With `?light2=1` the older deferred SSR also runs
+(`l2=nossr` turns it off). `ao` and `ssgi` both darken corners: lower one. Not in XR.
 
 ## Measured
+
+Screen-space passes, hello-courtyard `?wet=0.8`, moving frames with a pan, 5 interleaved rounds of 30 frames, median
+[min-max] ms per frame (this machine's GPU, headless Chrome):
+
+| | 1440 x 900 | 2880 x 1800 |
+|---|---|---|
+| off | 3.30 [3.20-3.50] | 11.9 [11.3-12.6] |
+| `ssr2` | 4.00 [3.90-4.30] | 13.80 [13.20-14.70] |
+| `ssgi` | 4.20 [4.10-4.30] | 15.00 [14.30-15.30] |
+| `contact` | 4.10 [4.10-4.20] | 14.80 [14.00-15.60] |
+| all three | 4.40 [4.30-4.50] | 15.80 [15.10-16.20] |
+
+Each pass alone pays for the G-buffer draw; together they share it. Quality at 960 x 600 against a 64-sample
+reference still with all three on (PSNR): hello-courtyard 4 spp 37.4 dB, 16 spp 45.0 dB; a moving frame with the
+passes 36.9 dB, without 29.9 dB. walled-garden: 38.5, 45.9; 40.3 against 38.0.
 
 Apple M4 Pro, headless Chrome (ANGLE Metal), a machine shared with other GPU jobs while measuring. Every variant
 is its own page in one Chrome; six rounds go round-robin over the pages (A/B interleaved), 40 walking (temporal-AA)
@@ -166,8 +237,27 @@ One-off costs, GPU-synced the same way:
 Not measured: other GPUs (nothing here ran on a phone or an integrated Intel/AMD GPU), the incremental re-bake's
 per-frame cost while the clock moves, CSM with `softShadows`, more than one reflection probe, spot lights.
 
+## What Unity HDRP and Unreal still have
+
+- **Hardware ray tracing** (reflections, shadows and GI of what is off screen). Everything here that is not a
+  probe is screen space: it cannot show what the camera does not see.
+- **Lumen's surface cache and far field**: multi-bounce GI of a whole changing level. Here: one probe box baked
+  ahead plus one screen-space bounce.
+- **Virtual shadow maps**: a shadow texel per pixel at any distance. Here: 4 cascades in one atlas (staggered at
+  best) and an atlas of light tiles; spot lights were not given a single-tile path in this round.
+- **Nanite**: no virtualised geometry; LOD, impostors and HLOD only (`docs/big-worlds.md`).
+- **A path tracer.** The stills accumulate the rasteriser's own effects (area sun, lens, the reference mode above):
+  they converge to this renderer's answer, not to ground truth.
+- Not done in this round either: time-sliced reflection-probe capture (a capture is still one hitch), more than 4
+  probes, velocities for instanced / morphed / batched meshes and transparents (skinned meshes have them), a
+  negative mip bias under upscaling (WebGL2 has no sampler LOD bias; it would have to go into every lookup).
+
 ## Checks
 
+- `node packages/tools/src/screen-check.mjs examples/hello-courtyard/dist examples/walled-garden/dist` in Chrome: the
+  lit programs carry the part; no pass runs with the strengths at 0; each pass alone and all three change the frame
+  without a GL error; a still is the same after another view was drawn; 16 sub-frames are closer to the 64-sample
+  reference than 4; a moving frame with the passes is closer to it than one without.
 - `node packages/core/lighting.check.mjs` (part of `npm test`): splits, slice spheres, texel snapping, the probe
   grid and atlas tiles, cluster slices and sphere spans against brute force, the tile allocator, box exits and
   probe weights, and the injector (no part = stock source and stock program key; `THREE.ShaderChunk` untouched).

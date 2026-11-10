@@ -26,11 +26,13 @@ const xrs = await xrSupport();   // a headset browser: an MSAA context for the h
 // ?lights=N clustered lamps (&cluster=0 plain loop, &lshadows=K shadowed, &stock=1 three's own lights instead)
 const LF = (k) => Q.get(k) === '1';
 const NL = +Q.get('lights') || 0, stock = LF('stock');
-const lighting = ['csm', 'gi', 'probes'].some(LF) || (NL && !stock) ? {
-  csm: LF('csm') && { cascades: +Q.get('cascades') || 4 },
+const SCR = ['ssr', 'ssgi', 'contact'].some((k) => +Q.get(k) > 0);   // ?ssr=1&ssgi=1&contact=1: screen-space lighting (docs/lighting.md)
+const lighting = ['csm', 'gi', 'probes'].some(LF) || (NL && !stock) || SCR ? {
+  screen: SCR,
+  csm: LF('csm') && { cascades: +Q.get('cascades') || 4, stagger: LF('stagger') },   // &stagger=1: far cascades redrawn less often
   gi: LF('gi') && { min: [-4.08, 3.6, -29.08], max: [4.08, 7.4, -20.92], spacing: +Q.get('gispacing') || 1.4, fade: 0.4 },
   probes: LF('probes') && [{ min: [-4.08, 3.6, -29.08], max: [4.08, 7.4, -20.92], fade: 0.5 }],
-  lights: NL > 0 && !stock && { cluster: Q.get('cluster') !== '0' },
+  lights: NL > 0 && !stock && { cluster: Q.get('cluster') !== '0', perCell: +Q.get('percell') || 0 },   // exact lists (&percell=64: the capped ones)
 } : undefined;
 const world = createWorldRenderer({ quality, xr: xrs.vr || xrs.ar, lighting, softShadows: Q.get('soft') === '1',
   canvas, width: W, height: H, place, time: t === 'golden' ? 'golden' : placeDate(Q.get('date') || '2026-10-25', t, place.tzHours), preserveDrawingBuffer: true,

@@ -5,6 +5,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { LampShadows, LS_SHARED, LS_N, VOL_LAMPS, lampShadowsIdle } from './light2.js';
 import { AMBIENT_GLSL } from './env.js';
 import { FX_DEFAULTS, PostFX } from './postfx.js';
+import { SCREEN_POST } from './screen.js';
 
 // ---------------------------------------------------------------------------
 // The frame pipeline. A frame is the weighted average of `spp` sub-frames; the caller moves the camera
@@ -39,6 +40,7 @@ export const DEFAULT_POST = {
   sky: 1,              // multiplier for sky pixels (nothing drawn), applied per sub-frame
   dof: 0, focus: 8,    // depth of field: lens radius (m, 0 = off) and focus distance (m); needs spp > 1
   ...FX_DEFAULTS,      // the opt-in passes (postfx.js), all off
+  ...SCREEN_POST,      // screen-space lighting (screen.js, needs lighting.screen), all off
 };
 
 // the grade's CLEAR variant: alpha from the black / white sums before the sharpening (weighted by alpha: no bright
@@ -593,6 +595,7 @@ export class Pipeline {
   /** Render sub-frame k of the frame with weight w (weights of one frame sum to 1). */
   add(scene, camera, w, k, P, jk = k, still = false) {
     const r = this.r, l2 = this.l2;
+    if (this.screen) this.screen.before(this, scene, camera, k, still, P);   // screen-space lighting (screen.js, opt-in): its buffers for this sub-frame
     if (l2) l2.lamps.update(scene, camera, { k, still });
     else lampShadowsIdle();   // another world may have published its lamps into the page-global uniforms
     r.setRenderTarget(this.sceneRT);
@@ -600,6 +603,7 @@ export class Pipeline {
     else r.setClearColor((this._cc || (this._cc = new THREE.Color())).setRGB(this.clearColor, this.clearColor, this.clearColor), 1);   // renderTransparent
     r.clear(true, true, false);
     r.render(scene, camera);
+    if (this.screen) this.screen.after(this, camera);
     if (l2) l2.lamps.done();
     // opt-in passes (postfx.js): a moving frame is one sub-frame of weight 1; it gets a velocity buffer when asked
     this._live = w === 1 && !still; this._cam = camera;
@@ -759,6 +763,7 @@ export class Pipeline {
     const live = opts.still === false && this._live;
     if (live && P.bokeh > 0) this._fx().bokeh(P, this._cam);
     if (live && P.motionBlur > 0) this._fx().motionBlur(P);
+    if (live && P.rcas > 0) this._fx().rcas(P);
     const expK = P.bloomPyramid > 0 && P.bloom > 0 ? this._fx().bloom(P) : this._bloom(P);
     const gm = (!setOnly && (P.lut || P.chroma > 0) && this._fx().grade(P)) || this.grade;
     const u = gm.uniforms;
