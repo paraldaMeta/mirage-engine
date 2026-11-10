@@ -59,9 +59,10 @@ export function createLighting(w, config) {
     /** wrap lit materials added since the last call (the world does this in prepare and every half second of frames) */
     adopt() { const n = inj.adopt(scene); adopted += n; if (screen) screen.mark(scene, inj.materials); return n; },
     get materials() { return inj.materials.size; },
-    fitSun(d, camera, center, radius, k) { if (csm) csm.fit(d, capturing ? null : camera, center, radius, k); },
+    fitSun(d, camera, center, radius, k) { if (csm) csm.fit(d, capturing ? null : camera, center, radius, k, moving && !capturing); },
     /** before a frame's sub-frames: camera = the view camera */
     frame(camera, dt = 1 / 60) {
+      moving = dt > 0;   // a moving frame (csm.js may keep far cascades); stills and direct renders pass 0
       if (frames++ % 30 === 0) api.adopt();
       for (const h of hooks) if (h.frame) h.frame(camera, dt);
     },
@@ -74,6 +75,6 @@ export function createLighting(w, config) {
     capture(fn) { const was = capturing; capturing = true; try { return w.capture(fn); } finally { capturing = was; } },
     dispose() { for (const h of hooks) if (h.dispose) h.dispose(); if (csm) csm.disable(); },
   };
-  let capturing = false, ready = false;
+  let capturing = false, ready = false, moving = false;
   return api;
 }

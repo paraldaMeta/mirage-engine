@@ -42,7 +42,7 @@ const NL = +Q.get('lights') || 0, stock = LF('stock');
 const SCR = ['ssr', 'ssgi', 'contact'].some((k) => +Q.get(k) > 0);   // ?ssr=1&ssgi=1&contact=1: screen-space lighting (docs/lighting.md)
 const lighting = ['csm', 'gi', 'probes'].some(LF) || (NL && !stock) || SCR ? {
   screen: SCR,
-  csm: LF('csm') && { cascades: +Q.get('cascades') || 4 },
+  csm: LF('csm') && { cascades: +Q.get('cascades') || 4, stagger: LF('stagger') },   // &stagger=1: far cascades redrawn less often
   gi: LF('gi') && { min: [-9, 0.15, -9], max: [9, 5.4, 9], spacing: +Q.get('gispacing') || 2 },
   probes: LF('probes') && [{ min: [-7.2, 0, -7.2], max: [7.2, 6, 7.2], position: [0, 2.6, 0], fade: 1.5 }],
   lights: NL > 0 && !stock && { cluster: Q.get('cluster') !== '0', perCell: +Q.get('percell') || 0 },   // exact lists (&percell=64: the capped ones)
