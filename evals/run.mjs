@@ -96,16 +96,17 @@ function runAgent(dir, text, logBase) {
 
 /** Tool calls and turns from an agent's JSON-lines output (claude stream-json / json, codex --json); nulls otherwise. */
 export function countTools(out) {
-  let tools = 0, json = false, agentTurns = null, cost = null;
+  let tools = 0, json = false, agentTurns = null, cost = null, agentError = null;
   for (const line of out.split('\n')) {
     if (!line.trim().startsWith('{')) continue;
     let e; try { e = JSON.parse(line); } catch { continue; }
     json = true;
     if (e.type === 'assistant' && e.message && Array.isArray(e.message.content)) tools += e.message.content.filter((c) => c.type === 'tool_use').length;
-    if (e.type === 'result') { agentTurns = e.num_turns ?? agentTurns; cost = e.total_cost_usd ?? cost; }
+    if (e.type === 'result') { agentTurns = e.num_turns ?? agentTurns; cost = e.total_cost_usd ?? cost; if (e.is_error) agentError = String(e.result || e.subtype || 'error'); }
+    if (e.type === 'turn.failed' || e.type === 'error') agentError = String((e.error && e.error.message) || e.message || 'error');
     if (e.type === 'item.completed' && e.item && /command_execution|file_change|mcp_tool_call|web_search/.test(e.item.type || e.item.item_type || '')) tools++;
   }
-  return { toolCalls: json ? tools : null, agentTurns, costUsd: cost };
+  return { toolCalls: json ? tools : null, agentTurns, costUsd: cost, agentError };
 }
 
 // ---- the loop
@@ -117,8 +118,12 @@ async function check(task, dir, out) {
 }
 
 const results = [];
+// errors no task can get past: stop instead of burning the rest of the runs
+const STOP_ON = /on hold|restricted|not logged in|log ?in|unauthori[sz]ed|invalid api key|credit|quota|billing/i;
+let stop = false;
 try {
   for (const task of tasks(flag('tasks') ? flag('tasks').split(',') : null)) {
+    if (stop) break;
     for (const arm of arms) {
       const runDir = path.join(OUT, `${task.id}-${arm}`);
       fs.mkdirSync(runDir, { recursive: true });
@@ -141,6 +146,8 @@ try {
           if (a.toolCalls !== null) row.toolCalls = (row.toolCalls || 0) + a.toolCalls;
           if (a.costUsd !== null) row.costUsd = (row.costUsd || 0) + a.costUsd;
           row.exit = a.signal ? a.signal : a.code;
+          // the agent never worked on the task (account, auth, quota, crash): not a repair failure
+          if (a.agentError) { row.agentError = a.agentError; row.why = 'agent error: ' + a.agentError; break; }
         }
         const tc = Date.now();
         r = await check(task, dir, path.join(runDir, `check-${turn}`));
@@ -149,7 +156,8 @@ try {
       }
       row.wallMs = Date.now() - t0;
       results.push(row);
-      console.log(`${row.pass ? 'pass' : 'fail'} ${task.id} [${arm}] turns ${row.turns}${row.toolCalls !== null ? `, tools ${row.toolCalls}` : ''}, ${(row.wallMs / 1000).toFixed(0)} s${row.pass ? '' : ' -- ' + row.why}`);
+      if (row.agentError && STOP_ON.test(row.agentError)) { fs.writeFileSync(path.join(OUT, 'results.json'), JSON.stringify(results, null, 1)); console.log(`agent error, stopping: ${row.agentError}`); stop = true; break; }
+      console.log(`${row.agentError ? 'AGENT ERROR' : row.pass ? 'pass' : 'fail'} ${task.id} [${arm}] turns ${row.turns}${row.toolCalls !== null ? `, tools ${row.toolCalls}` : ''}, ${(row.wallMs / 1000).toFixed(0)} s${row.pass ? '' : ' -- ' + row.why}`);
       fs.writeFileSync(path.join(OUT, 'results.json'), JSON.stringify(results, null, 1));
     }
   }
@@ -159,11 +167,11 @@ try {
 const by = (arm) => results.filter((r) => r.arm === arm);
 const mean = (a) => (a.length ? a.reduce((s, v) => s + v, 0) / a.length : NaN);
 const lines = [`# Repair-rate eval ${stamp}`, '', `agent: \`${dry ? '(dry run: no agent)' : oracle ? '(oracle: the reference fixes)' : cmd}\`; mode ${mode}${mode === 'multi' ? ` (up to ${turns} turns)` : ''}`, '',
-  '| arm | tasks | pass | rate | mean turns (passing) | mean tool calls | mean wall s |', '|---|---|---|---|---|---|---|',
-  ...arms.map((a) => { const r = by(a), p = r.filter((x) => x.pass), tc = r.filter((x) => x.toolCalls !== null).map((x) => x.toolCalls);
-    return `| ${a} | ${r.length} | ${p.length} | ${r.length ? Math.round((100 * p.length) / r.length) : 0} % | ${p.length ? mean(p.map((x) => x.turns)).toFixed(2) : '-'} | ${tc.length ? mean(tc).toFixed(1) : '-'} | ${mean(r.map((x) => x.wallMs / 1000)).toFixed(0)} |`; }),
+  '| arm | tasks | agent errors (not counted) | pass | rate | mean turns (passing) | mean tool calls | mean wall s |', '|---|---|---|---|---|---|---|---|',
+  ...arms.map((a) => { const all = by(a), r = all.filter((x) => !x.agentError), p = r.filter((x) => x.pass), tc = r.filter((x) => x.toolCalls !== null).map((x) => x.toolCalls);
+    return `| ${a} | ${all.length} | ${all.length - r.length} | ${p.length} | ${r.length ? Math.round((100 * p.length) / r.length) + ' %' : '-'} | ${p.length ? mean(p.map((x) => x.turns)).toFixed(2) : '-'} | ${tc.length ? mean(tc).toFixed(1) : '-'} | ${all.length ? mean(all.map((x) => x.wallMs / 1000)).toFixed(0) : '-'} |`; }),
   '', '| task | ' + arms.join(' | ') + ' |', '|---|' + arms.map(() => '---|').join(''),
-  ...[...new Set(results.map((r) => r.task))].map((t) => `| ${t} | ` + arms.map((a) => { const r = results.find((x) => x.task === t && x.arm === a); return r ? `${r.pass ? 'pass' : 'fail'} (${r.turns})` : ''; }).join(' | ') + ' |')];
+  ...[...new Set(results.map((r) => r.task))].map((t) => `| ${t} | ` + arms.map((a) => { const r = results.find((x) => x.task === t && x.arm === a); return r ? (r.agentError ? 'agent error' : `${r.pass ? 'pass' : 'fail'} (${r.turns})`) : ''; }).join(' | ') + ' |')];
 fs.writeFileSync(path.join(OUT, 'summary.md'), lines.join('\n') + '\n');
 console.log(lines.slice(0, 4 + arms.length + 2).join('\n'));
 console.log(`results: ${path.join(OUT, 'summary.md')}`);
