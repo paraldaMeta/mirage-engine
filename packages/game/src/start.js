@@ -113,6 +113,8 @@ async function mountGame(world, opts, life, dispose, ownAudio) {
     plan, canvas, mode: 'walk', walker: character, devKeys: false, spp: opts.spp || 6, ui: false, shadowRadius: opts.shadowRadius, grid: opts.grid, fit: opts.fit,
     quality: opts.quality, hud: opts.hud, idle: opts.idle, appearance: opts.appearance, onQuality: opts.onQuality, simulation,
     onVisibility(shown) { simulation.reset(); input.clear(); audio.suspend(!shown); },
+    // play.place() / viewpoint(): no tick left over from before the jump, and systems restart their scene clocks
+    onPlace() { simulation.reset(); game.emit('place'); },
     input(dt) {
       input.poll();
       if (ui) ui.update();

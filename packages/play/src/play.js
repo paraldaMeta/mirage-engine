@@ -99,6 +99,9 @@ function mountPlay(world, opts, life) {
     flyPos.set(...eye); flyVel.set(0, 0, 0);
     if (mode === 'orbit') { camera.position.set(...eye); controls.target.set(...lookAt); controls.update(); }
     setMode(mode);
+    // a jump (a viewpoint, a teleport): the host restarts its own scene clocks too, so a view drawn again after
+    // another one is the same picture (mirage-snap --determinism)
+    if (opts.onPlace) opts.onPlace(eye, lookAt, mode);
   }
   function syncWalkerView() {
     if (life.disposed) return;
@@ -312,14 +315,15 @@ function mountPlay(world, opts, life) {
     return { cam: camera, shadow: shadowAround(c, shadowR) };
   }
   /** render the current view: moving -> temporal AA; still -> the still path (spp sub-frames) */
-  function render({ moving = true, spp: n = spp, frameIndex, target } = {}) {
+  function render({ moving = true, spp: n = spp, frameIndex, target, converge } = {}) {
     if (life.disposed) return;
     const { cam, shadow } = view();
     const T = animate ? (performance.now() - t0) / 1000 : clock;
     const o = { camera: cam, ...(shadow ? { shadow } : {}), ...(frameIndex !== undefined ? { frameIndex } : {}) };
     rendering = true;
     try {
-      world.renderFrame(T, moving ? { ...o, taa: true, target } : { ...o, spp: n, target });
+      // converge: an adaptive still (world.renderFrame); returns what it drew
+      return world.renderFrame(T, moving ? { ...o, taa: true, target } : { ...o, spp: n, target, ...(converge ? { converge } : {}) });
     } finally {
       rendering = false;
       if (life.disposed) releaseFadeTargets();

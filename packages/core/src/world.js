@@ -289,6 +289,11 @@ export function createWorldRenderer(config = {}) {
     writeFog();
     const W = aaWeights(spp);
     const w = pipeline.rw, h = pipeline.rh;   // the render size: sub-pixel jitter is in its pixels
+    // converge (still frames, spp >= 8): every spp / 4 sub-frames compare the estimate with the one before; once the
+    // mean change is <= converge (display levels 0..255, true = 0.25) stop and grade what is there. The sub-frames
+    // drawn are the first ones of the full pattern, so the frame is the same frame with fewer samples (a smaller
+    // penumbra and AA footprint until the pattern fills in). Off (the default): nothing below runs.
+    const cv = !taa && spp >= 8 && opts.converge ? { tol: opts.converge === true ? 0.25 : +opts.converge, every: Math.floor(spp / 4), wsum: 0, diffs: [], used: spp } : null;
     pipeline.begin();
     for (let k = 0; k < spp; k++) {
       const tk = T + (spp > 1 ? ((shutterSlot(k, spp) + 0.5) / spp - 0.5) * shutter * dt : 0);
@@ -326,9 +331,18 @@ export function createWorldRenderer(config = {}) {
       cam.projectionMatrix.elements.splice(0, 16, ...saved);
       cam.projectionMatrixInverse.copy(cam.projectionMatrix).invert();
       if (!cam.position.equals(savedPos)) { cam.position.copy(savedPos); cam.updateMatrixWorld(); }
+      if (cv) {
+        cv.wsum += W[k];
+        if ((k + 1) % cv.every === 0 && k + 1 < spp) {
+          const d = pipeline.converge(cv.wsum, P.exposure, k + 1 === cv.every);
+          if (d !== null) cv.diffs.push(+d.toFixed(3));
+          if (d !== null && d <= cv.tol) { pipeline.scaleAccumulation(1 / cv.wsum); cv.used = k + 1; break; }
+        }
+      }
     }
     pipeline.end(P, opts.frameIndex ?? frameCounter++, opts.target ?? null, { dt: opts.taa ? (opts.dt ?? frameDt) : 0, still: !taa });
     softShadowsIdle();   // host scenes drawn after this world see the stock path
+    if (cv) return { spp: cv.used, of: spp, diffs: cv.diffs };
   }
 
   // [xr] one plain draw of the scene into the current framebuffer (the headset's, inside an XR frame; see

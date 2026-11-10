@@ -61,6 +61,8 @@ export const CODES = {
   MG450: { severity: 'warning', title: 'coplanar surfaces (z-fighting)', fix: 'Raise the upper surface 1-2 cm (y += 0.01) or remove one of the two; coplanar faces flicker.' },
   MG451: { severity: 'error', title: 'flicker over the limit', fix: 'Open the step\'s -worst-diff.png (bright = what flickered): offset coplanar faces 1-2 cm, coarsen sub-pixel high-contrast detail, exclude animations.' },
   MG452: { severity: 'info', title: 'flicker spike', fix: 'One frame flickers far more than the rest: look at the step\'s -worst.png at the position given (a thin post crossing a low sun is accepted).' },
+  MG460: { severity: 'error', title: 'still differs from its baseline', fix: 'Open the diff image (baseline | now, the worst cell boxed): if the change is meant, refresh the baseline (delete the file, rerun); otherwise undo what moved in that cell.' },
+  MG461: { severity: 'error', title: 'still not reproducible', fix: 'The same view drew different pixels after another view or a reload: look for Math.random / Date.now / performance.now in a module or ctx.onUpdate, state kept between frames (a counter, an eased value), or a texture that loads late; seed it (ctx.rng) or reset it in play.place().' },
   // ---- MG5xx performance budgets (plan.budget)
   MG501: { severity: 'error', title: 'frame time over budget', fix: 'Cut the heaviest module (named in the message): fewer triangles, instancing, fewer shadow casters; or raise plan.budget.frameMs if the target allows.' },
   MG502: { severity: 'error', title: 'p95 frame time over budget', fix: 'Spikes: something rebuilds or compiles while walking; prepare materials at load, avoid per-frame allocations.' },
@@ -77,6 +79,7 @@ export const CODES = {
   MG703: { severity: 'error', title: 'game flag not set', fix: 'Check the interaction ran (tap "KeyE" while near) and that its handler sets the flag; a toggle can flip back after a second press.' },
   MG704: { severity: 'error', title: 'inventory item missing', fix: 'Check the pick-up interaction ran and gives the item id the step expects.' },
   MG705: { severity: 'error', title: 'no such game entity', fix: 'Use an entity id that the game defines (lookAt: "<id>").' },
+  MG710: { severity: 'error', title: 'text contrast below WCAG AA', fix: 'Give the text a backdrop: a panel behind it (background with alpha >= 0.8, like .mg-prompt) or a darker / lighter text colour; WCAG AA needs 4.5:1 (3:1 for text >= 24 px, or >= 18.7 px bold).' },
 };
 
 export const SEVERITIES = ['error', 'warning', 'info'];

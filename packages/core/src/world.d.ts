@@ -39,7 +39,12 @@ export interface RenderFrameOptions {
   camera?: RenderCamera; getCamera?: (seconds: number) => RenderCamera; spp?: number; dt?: number;
   shutter?: number; frameIndex?: number; target?: THREE.WebGLRenderTarget | null;
   shadow?: ShadowRegion; taa?: boolean | number;
+  /** Adaptive still (spp >= 8, not with taa): stop once the mean change between estimates every spp / 4 sub-frames
+   *  is <= this many display levels (0..255; true = 0.25). renderFrame then returns what it drew. */
+  converge?: boolean | number;
 }
+/** What an adaptive still (renderFrame with `converge`) drew: sub-frames used of `of`, and the mean changes measured. */
+export interface ConvergeResult { spp: number; of: number; diffs: number[] }
 export interface WorldContext {
   THREE: typeof THREE; renderer: THREE.WebGLRenderer; scene: THREE.Scene; camera: THREE.PerspectiveCamera;
   G: EnvironmentUniforms; keyDir: THREE.Vector3; mat: MaterialKit; geom: typeof geom; rng: typeof rng;
@@ -69,7 +74,7 @@ export interface WorldRenderer {
   tick(dt: number): boolean;
   /** Compile materials and capture lighting after building the scene. Requires WebGL. */
   prepare(): Promise<void>;
-  renderFrame(seconds?: number, options?: RenderFrameOptions): void;
+  renderFrame(seconds?: number, options?: RenderFrameOptions): ConvergeResult | void;
   /** One plain draw of the scene into the current framebuffer (the XR path): no pipeline; the renderer's tone mapping grades. */
   renderDirect(seconds?: number, options?: { camera?: THREE.Camera; shadow?: ShadowRegion; fog?: number }): void;
   resize(width: number, height: number): void;

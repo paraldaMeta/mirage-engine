@@ -7,6 +7,7 @@
 //   phys.hinge(obj, { half, offset, swing })               a kinematic door leaf turning about obj's origin (y axis)
 //   phys.character({ pos })     a kinematic character controller with the @mirage/play walker's shape
 //   phys.step(dt)               one Rapier step; true while anything moved (props awake, a door turning)
+//   phys.settle(maxSteps?)      step until every dynamic prop sleeps (a hand-placed pile at rest before the first frame)
 //   phys.ray(from, dir, max)    -> { point, distance, surface, object } | null
 // Surfaces (footsteps): `userData.surface` on the mesh or its material, else 'default'.
 // startGame drives the character and step() together at 60 Hz. Low-level callers may still step explicitly.
@@ -153,6 +154,15 @@ export async function createPhysics(scene, { gravity = 9.81 } = {}) {
     return moved;
   }
 
+  /** step until every dynamic prop sleeps (at most maxSteps of 1/60 s); returns the steps taken. A pile of props
+   *  set down by hand otherwise settles during the first seconds of play, so what a view shows depends on when it
+   *  is drawn (mirage-snap --determinism found it); call it at setup, after the props are made. */
+  function settle(maxSteps = 600) {
+    let n = 0;
+    while (n < maxSteps && moving.some(({ body: b }) => !b.isSleeping())) { step(1 / 60); n++; }
+    return n;
+  }
+
   function ray(from, dir, max = 100, exclude) {
     const r = new R.Ray({ x: from[0], y: from[1], z: from[2] }, { x: dir[0], y: dir[1], z: dir[2] });
     const hit = world.castRay(r, max, true, R.QueryFilterFlags.EXCLUDE_SENSORS, undefined, exclude);
@@ -267,5 +277,5 @@ export async function createPhysics(scene, { gravity = 9.81 } = {}) {
     info.clear(); characters.clear(); moving.length = hinges.length = 0;
     world.free();
   }
-  return { dispose, R, world, stats, info, addStatic, body, hinge, character, step, ray, hinges };
+  return { dispose, R, world, stats, info, addStatic, body, hinge, character, step, settle, ray, hinges };
 }

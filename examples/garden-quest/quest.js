@@ -40,6 +40,8 @@ export function setupQuest({ game, physics, audio, root, plan, anchors, world, o
   for (const x of [0.17, 0.2]) { const t = new THREE.Mesh(new THREE.BoxGeometry(0.014, 0.04, 0.016), gold); t.position.set(x, -0.025, 0); key.add(t); }
   key.position.set(seat.pos[0], seat.pos[1] + 0.56, seat.pos[2]);
   add(key);
+  let kt = 0;   // the key's own clock: restarts when the view jumps (play.place), like the scene clock
+  game.on('place', () => { kt = 0; key.rotation.y = 0; key.position.y = seat.pos[1] + 0.56; });
   game.add({
     id: 'key', object: key,
     interact: { label: 'Pick up the key', use: (g, e) => {
@@ -47,7 +49,7 @@ export function setupQuest({ game, physics, audio, root, plan, anchors, world, o
       audio.play('pickup', { at: at(key) }); g.remove(e); game.ui.toast('You found the pavilion key');
     } },
     update: (dt) => {   // spins and bobs; only near the viewer does it count as motion (still frames refine elsewhere)
-      key.rotation.y += dt * 1.2; key.position.y = seat.pos[1] + 0.56 + Math.sin(game.time * 2) * 0.02;
+      kt += dt; key.rotation.y = kt * 1.2; key.position.y = seat.pos[1] + 0.56 + Math.sin(kt * 2) * 0.02;
       if (world.camera.position.distanceTo(key.position) < 25) game.dirty = true;
     },
   });
@@ -149,6 +151,7 @@ export function setupQuest({ game, physics, audio, root, plan, anchors, world, o
   ball.position.set(...plan.quest.ball); add(ball);
   const bb = physics.body(ball, { shape: 'ball', mass: 3, restitution: 0.5, damping: 0.4 });
   game.add({ id: 'ball', object: ball, save: () => bb.state, load: (s) => { bb.state = s; } });
+  physics.settle();   // the pile comes to rest before the first frame, not while the first views are drawn
 
   // ---- ambience: wind and birds everywhere, water at the basin and the pools, a pad on the music bus
   audio.loop('wind', { bus: 'ambience', gain: 0.8 });

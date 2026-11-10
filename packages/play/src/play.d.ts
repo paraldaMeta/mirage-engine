@@ -1,6 +1,6 @@
 import type * as THREE from 'three';
 import type { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import type { WorldRenderer, Quality } from '@mirage/core';
+import type { WorldRenderer, Quality, ConvergeResult } from '@mirage/core';
 import type { PlanInput, ViewMode, Viewpoint, XYZ } from '@mirage/world';
 import type { GridWalker, WalkerLike, MotionInput } from './walker.js';
 import type { WalkGrid } from './walkgrid.js';
@@ -17,6 +17,8 @@ export interface PlayOptions<W extends WalkerLike = GridWalker> {
   input?: (dt: number) => MotionInput; simulation?: SimulationDriver; onStep?: (dt: number) => boolean | void;
   fit?: boolean; idle?: number; maxFps?: number; hud?: boolean; quality?: Quality;
   onPowerSaver?: (on: boolean) => void; onVisibility?: (shown: boolean) => void;
+  /** called at the end of place() / viewpoint(): restart scene clocks of your own (startGame emits game "place") */
+  onPlace?: (eye: XYZ, look: XYZ, mode: ViewMode) => void;
   /** The HUD's quality menu. The choice is saved either way; default: reload the page to apply it. */
   onQuality?: (quality: Quality) => void;
 }
@@ -24,7 +26,7 @@ export interface Play<W extends WalkerLike = GridWalker> {
   world: WorldRenderer; grid: WalkGrid; walker: W; keys: Set<string>; figure: THREE.Group; avatar: Character;
   gameCam: THREE.OrthographicCamera; controls: OrbitControls;
   stats: { frames: number; moving: number; refined: number; lastMs: number; draws: number };
-  render(options?: { moving?: boolean; spp?: number; frameIndex?: number; target?: THREE.WebGLRenderTarget | null }): void;
+  render(options?: { moving?: boolean; spp?: number; frameIndex?: number; target?: THREE.WebGLRenderTarget | null; converge?: boolean | number }): ConvergeResult | void;
   place(eye: XYZ, look: XYZ, mode?: ViewMode): void;
   viewpoint(index: number): void; setMode(mode: ViewMode): void;
   turn(dx: number, dy: number, scale: number): void; syncWalkerView(): void; lookAt(position: XYZ): void;

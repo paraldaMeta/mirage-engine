@@ -21,7 +21,7 @@ export { createEnvLight } from './envlight.js';
 export { deviceProfile, pickQuality, QUALITY_LEVELS, QUALITY_KEY } from './device.js';
 export * as geom from './geom.js';
 
-export type { WorldRenderer, WorldRendererOptions, WorldContext, RenderFrameOptions, RenderCamera, ShadowRegion, AmbientVolume, XYZ } from './world.js';
+export type { WorldRenderer, WorldRendererOptions, WorldContext, RenderFrameOptions, ConvergeResult, RenderCamera, ShadowRegion, AmbientVolume, XYZ } from './world.js';
 export type { EnvironmentUniforms } from './env.js';
 export type { SkyUniforms } from './sky.js';
 export type { SkyTime, SkyState, LightState, FixedSun, CalendarTime } from './daynight.js';
