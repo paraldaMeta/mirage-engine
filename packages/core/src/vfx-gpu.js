@@ -142,22 +142,23 @@ export function createDepthCopy() {
     const rt = renderer.getRenderTarget();
     D.valid = false;
     if (D.failed || !rt || !rt.depthTexture || rt.isWebGLCubeRenderTarget) return;
-    const w = rt.width, h = rt.height;
-    if (!D.rt || D.rt.width !== w || D.rt.height !== h) {
+    const w = rt.width, h = rt.height, gl = renderer.getContext(), pp = renderer.properties.get(rt), src = pp.__webglMultisampledFramebuffer || pp.__webglFramebuffer;
+    if (!src || Array.isArray(src)) return;
+    if (!D.rt || D.rt.width !== w || D.rt.height !== h || D.texture.type !== rt.depthTexture.type) {
       if (D.rt) D.rt.dispose();
       const dt = new THREE.DepthTexture(w, h, rt.depthTexture.type); dt.format = rt.depthTexture.format;
-      D.rt = new THREE.WebGLRenderTarget(w, h, { depthTexture: dt, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter });
+      D.rt = new THREE.WebGLRenderTarget(w, h, { depthTexture: dt, stencilBuffer: rt.stencilBuffer, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter });
       renderer.initRenderTarget(D.rt);
+      renderer.state.bindFramebuffer(gl.FRAMEBUFFER, src);        // creating a target leaves nothing bound, mid-frame
       D.texture = dt;
     }
-    const gl = renderer.getContext(), draw = gl.getParameter(gl.DRAW_FRAMEBUFFER_BINDING), read = gl.getParameter(gl.READ_FRAMEBUFFER_BINDING);
     const scissor = gl.isEnabled(gl.SCISSOR_TEST);
     if (scissor) gl.disable(gl.SCISSOR_TEST);                   // a blit is clipped by the scissor box
-    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, draw);
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, src);
     gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, renderer.properties.get(D.rt).__webglFramebuffer);
     gl.blitFramebuffer(0, 0, w, h, 0, 0, w, h, gl.DEPTH_BUFFER_BIT, gl.NEAREST);
     // exactly the bindings three believes are current, so its state cache stays true
-    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, read); gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, draw);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, src);
     if (scissor) gl.enable(gl.SCISSOR_TEST);
     if (D.copies === 0 && gl.getError() !== gl.NO_ERROR) { D.failed = true; return; }   // formats that will not blit: features off, not a broken frame
     D.copies++; D.valid = true; D.ready = true;

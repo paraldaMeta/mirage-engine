@@ -20,7 +20,7 @@ import { gpuPass, SIM_VERTEX } from './particles.js';
 import { VFX_FOG_T } from './particle-draw.js';
 import { seeded } from './vfx-gpu.js';
 
-const fogU = (U) => Object.assign(U, { uVFogP: { value: FOG.params }, uVFogD: { value: 0 } });
+const fogU = (U, gain) => Object.assign(U, { uVFogP: { value: FOG.params }, uVFogD: { value: 0 }, uVGain: gain || { value: 1 } });
 const fogD = (scene) => (scene.fog && scene.fog.isFogExp2 ? scene.fog.density : 0);
 // a strip of `rows` cross-sections: position.x = side (-1 | 1), position.y = row
 function strip(rows) {
@@ -61,7 +61,7 @@ export function createTrailMesh(pool, o) {
     tVP: { value: null }, tVV: { value: null }, tVX: { value: null }, tVLut: { value: o.lut }, tTH: { value: hist.texture },
     uVWin: { value: new THREE.Vector4(0, 0, pool.W, pool.cap) }, uTA: { value: new THREE.Vector4(0, 0, 0, pool.dt) },   // lead s, newest band, steps since it was written, dt
     uTB: { value: new THREE.Vector4(S, tr.every, tr.width, tr.taper) }, uTH: { value: pool.H },
-  });
+  }, o.gain);
   const material = ribbonMaterial(add);
   patch(material, { uniforms: U, specAA: false,
     vertexDecl: /* glsl */ `
@@ -95,7 +95,7 @@ vec3 trPoint(int r){
   }`,
     fragmentDecl: /* glsl */ `varying vec4 vPc; varying vec2 vPq; uniform vec4 uVFogP; uniform float uVFogD;${VFX_FOG_T}`,
     albedo: 'diffuseColor = vec4(vPc.rgb, vPc.a * (1.0 - vPq.x * vPq.x)); if (diffuseColor.a < 0.003) discard;',
-    output: add ? 'outgoingLight = diffuseColor.rgb * diffuseColor.a * vfxFogT(mgWorldPos); diffuseColor.a = 1.0;' : 'outgoingLight = diffuseColor.rgb;',
+    output: add ? 'outgoingLight = diffuseColor.rgb * uVGain * diffuseColor.a * vfxFogT(mgWorldPos); diffuseColor.a = 1.0;' : 'outgoingLight = diffuseColor.rgb * uVGain;',
   }, o.G);
   const mesh = ribbonMesh(strip(S + 1), material, `vfx:${e.name}:trail`, 10 + e.render.order + (add ? 1 : 0));
   mesh.onBeforeRender = (renderer, scene) => {
@@ -119,7 +119,7 @@ const BEAMS = 48, BEAM_PTS = 48;
 export function createBeams(ctx) {
   const pts = new Float32Array(BEAMS * BEAM_PTS * 4), cols = new Float32Array(BEAMS * 4), list = [];
   const tP = new THREE.DataTexture(pts, BEAM_PTS, BEAMS, THREE.RGBAFormat, THREE.FloatType), tC = new THREE.DataTexture(cols, BEAMS, 1, THREE.RGBAFormat, THREE.FloatType);
-  const U = fogU({ tBP: { value: tP }, tBC: { value: tC } });
+  const U = fogU({ tBP: { value: tP }, tBC: { value: tC } }, ctx.gain);
   const material = ribbonMaterial(true);
   patch(material, { uniforms: U, specAA: false,
     vertexDecl: 'uniform highp sampler2D tBP, tBC; varying vec4 vPc; varying float vPx;',
@@ -135,7 +135,7 @@ export function createBeams(ctx) {
     fragmentDecl: /* glsl */ `varying vec4 vPc; varying float vPx; uniform vec4 uVFogP; uniform float uVFogD;${VFX_FOG_T}`,
     // a white-hot core inside a wider glow of the beam's colour
     albedo: 'float bx = abs(vPx); diffuseColor = vec4(vPc.rgb * (exp(-bx * bx * 5.0) - 0.0067) + vec3(dot(vPc.rgb, vec3(0.3333))) * exp(-bx * bx * 60.0), vPc.a);',
-    output: 'outgoingLight = max(diffuseColor.rgb, 0.0) * diffuseColor.a * vfxFogT(mgWorldPos); diffuseColor.a = 1.0;',
+    output: 'outgoingLight = max(diffuseColor.rgb, 0.0) * uVGain * diffuseColor.a * vfxFogT(mgWorldPos); diffuseColor.a = 1.0;',
   }, ctx.G);
   const mesh = ribbonMesh(strip(BEAM_PTS), material, 'vfx:beams', 12);
   mesh.frustumCulled = false; mesh.visible = false;
@@ -228,7 +228,7 @@ void main(){
   a *= vColor.a * vParam.z;
   if (a < 0.003) discard;
   // multiply: the surface's own light scaled toward the decal's colour, right under any light. add: light of its own.
-  o = uAdd > 0.5 ? vec4(vColor.rgb * a * vfxFogT(w.xyz), 1.0) : vec4(mix(vec3(1.0), vColor.rgb, a), 1.0);
+  o = uAdd > 0.5 ? vec4(vColor.rgb * uVGain * a * vfxFogT(w.xyz), 1.0) : vec4(mix(vec3(1.0), vColor.rgb, a), 1.0);
 }`;
 /** add(o): position, normal ([0, 1, 0]), size (metres across, or [w, d]), depth (0.5: how far it reaches along the
  *  normal), rotation (radians about the normal; from the seed when absent), pattern ('scorch' | 'splat' | 'crack' |
@@ -241,7 +241,7 @@ export function createDecals(ctx) {
     const inv = [0, 1, 2, 3].map((i) => { const at = new THREE.InstancedBufferAttribute(new Float32Array(DECALS * 4), 4); g.setAttribute('aInv' + i, at); return at; });
     const color = new THREE.InstancedBufferAttribute(new Float32Array(DECALS * 4), 4), param = new THREE.InstancedBufferAttribute(new Float32Array(DECALS * 4), 4);
     g.setAttribute('aColor', color); g.setAttribute('aParam', param);
-    const U = fogU({ tVDepth: { value: null }, uInvVP: { value: new THREE.Matrix4() }, uRes: { value: new THREE.Vector2(1, 1) }, uAdd: { value: add ? 1 : 0 } });
+    const U = fogU({ tVDepth: { value: null }, uInvVP: { value: new THREE.Matrix4() }, uRes: { value: new THREE.Vector2(1, 1) }, uAdd: { value: add ? 1 : 0 } }, ctx.gain);
     const material = new THREE.ShaderMaterial({ glslVersion: THREE.GLSL3, vertexShader: DECAL_VERT, fragmentShader: DECAL_FRAG, uniforms: U, transparent: true, depthTest: false, depthWrite: false, side: THREE.BackSide,
       blending: add ? THREE.AdditiveBlending : THREE.MultiplyBlending, premultipliedAlpha: !add });
     const mesh = new THREE.InstancedMesh(g, material, DECALS);

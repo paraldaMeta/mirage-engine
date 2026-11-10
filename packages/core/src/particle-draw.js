@@ -37,8 +37,9 @@ const SPRITES = {
   drop: 'float r = length(q); a = smoothstep(1.0, 0.8, r); sh = 0.7 + 0.6 * smoothstep(0.5, 0.0, length(q - vec2(-0.3, 0.35)));',
 };
 
-/** GLSL: needs `uniform vec4 uVFogP; uniform float uVFogD;` (FOG.params and the scene fog's density) */
+/** GLSL: needs `uniform vec4 uVFogP; uniform float uVFogD;` (FOG.params and the scene fog's density); declares uVGain */
 export const VFX_FOG_T = /* glsl */ `
+uniform float uVGain;   // what turns a display-referred colour (1 = white on screen) into scene light at this exposure
 // the fog's transmittance alone (fog.js mgAerial without the in-scatter): for additive light
 float vfxFogT(vec3 wp){
   vec3 V = wp - cameraPosition; float dist = length(V), H = uVFogP.y, k = V.y / H;
@@ -153,7 +154,7 @@ export function createParticleMesh(pool, o) {
     uVWin: { value: new THREE.Vector4(0, 0, pool.W, pool.cap) }, uVA: { value: new THREE.Vector4(0, e.spin[0] * D2R, e.spin[1] * D2R, r.sort === 'youngest' ? 1 : 0) },
     uVB: { value: new THREE.Vector4(r.stretch, r.nearFade, e.lod.minPixels, 1000) }, uVC: { value: new THREE.Vector4(r.lit, r.soft, Math.min(r.additive, 0.98), 1) },
     uVProj: { value: new THREE.Vector4(0.1, 1000, 0, 0) }, uVSheet: { value: new THREE.Vector4(1, 1, 0, 0) }, tVDepth: { value: null }, tVSheet: { value: sheet ? sheet.texture : null },
-    uVFogP: { value: FOG.params }, uVFogD: { value: 0 },
+    uVFogP: { value: FOG.params }, uVFogD: { value: 0 }, uVGain: o.gain || { value: 1 },
   };
   if (r.flipbook) U.uVSheet.value.set(sheet.cols || r.flipbook.cols, sheet.rows || r.flipbook.rows, r.flipbook.fps, r.flipbook.blend ? 1 : 0);
   const add = r.blend === 'add', pre = r.blend === 'premultiplied';
@@ -164,7 +165,7 @@ export function createParticleMesh(pool, o) {
     vertexDecl: VERT_DECL, vertexWorld: vertexWorld(e, isMesh && lit), fragmentDecl: fragmentDecl(e, o), albedo: albedo(e), uniforms: U, specAA: false,
     // unlit colour is the particle's own radiance; lit colour is what the scene's light makes of it; emissive adds on top
     output: /* glsl */ `
-    { vec3 own = diffuseColor.rgb * uVC.w;
+    { vec3 own = diffuseColor.rgb * uVGain;
       outgoingLight = ${lit ? 'mix(own, outgoingLight, uVC.x)' : 'own'} + own * vPq.w;
       ${add ? 'outgoingLight *= diffuseColor.a * vfxFogT(mgWorldPos); diffuseColor.a = 1.0;' : ''}
       ${pre ? 'outgoingLight /= (1.0 - uVC.z); diffuseColor.a *= (1.0 - uVC.z);' : ''} }`,

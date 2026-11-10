@@ -40,6 +40,9 @@ export function createVfx(target, opts = {}) {
   const sorter = createSorter(renderer);
   const effects = new Map(), kits = new Map(), byDesc = new WeakMap(), meshes = new Map(), fields = new Map(), sheets = new Map();
   const env = { wind: new THREE.Vector3(), ground: null, depth };
+  // unlit and emissive colours are display-referred: 1 is about white on screen whatever the hour. In a world the gain
+  // follows its exposure (the same -0.9 power the world's lamps use); opts.gain fixes it.
+  const gain = { value: opts.gain ?? 1 };
   const stats = { pools: 0, particles: 0, capacity: 0, spawned: 0, dropped: 0, steps: 0, instances: 0, budget: 1, simMs: 0, sortPasses: 0 };
   let lastN = -1, budget = 1, disposed = false;
 
@@ -90,7 +93,7 @@ export function createVfx(target, opts = {}) {
   }
   function unit(e, parent, sub, instances) {
     const pool = new ParticlePool(renderer, e, { hz, instances, parent: parent ? parent.pool : null, sub, meshes, fields });
-    const lut = lutFor(e), o = { G, lut, depth, sheets: lazySheets, meshes };
+    const lut = lutFor(e), o = { G, lut, depth, sheets: lazySheets, meshes, gain };
     const u = { e, pool, lut, mesh: createParticleMesh(pool, o), trail: e.trail ? createTrailMesh(pool, o) : null, subs: [], parent, sphere: new THREE.Sphere(), sorted: e.render.sort === 'distance' };
     root.add(u.mesh); if (u.trail) root.add(u.trail);
     if (!parent) for (const s of e.sub) u.subs.push(unit(s.emitter, u, s, 1));
@@ -180,6 +183,7 @@ export function createVfx(target, opts = {}) {
     if (disposed) return;
     const t0 = performance.now(), n = Math.floor(T * hz + 1e-6);
     if (!isWorld) G.uTime.value = T;
+    if (opts.gain === undefined && isWorld) gain.value = 1.5 * Math.pow(Math.max(target.exposure, 1e-4), -0.9);
     const w = G.uWind.value; env.wind.set(w.x, 0, w.y).multiplyScalar(w.z * windSpeed);
     camera.updateMatrixWorld(); _m.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse.copy(camera.matrixWorld).invert()); _f.setFromProjectionMatrix(_m); frustumOk = true;
     const eye = _v.setFromMatrixPosition(camera.matrixWorld), dtFrame = lastN >= 0 ? (n - lastN) / hz : 0;
@@ -225,7 +229,7 @@ export function createVfx(target, opts = {}) {
     for (const u of k.units) { for (const x of [u, ...u.subs]) { root.remove(x.mesh); x.mesh.geometry.dispose(); x.mesh.material.dispose(); x.lut.dispose(); sorter.forget(x.pool); if (x.trail) { root.remove(x.trail); x.trail.userData.dispose(); } } u.pool.dispose(); }
     kits.delete(fx);
   }
-  const ctx = { renderer, scene, camera, G, root, depth, hz };
+  const ctx = { renderer, scene, camera, G, root, depth, hz, gain };
   const beams = createBeams(ctx), decals = createDecals(ctx);
   function dispose() {
     for (const fx of [...kits.keys()]) release(fx);
