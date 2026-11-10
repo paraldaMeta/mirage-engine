@@ -23,6 +23,8 @@ await world.prepare();
 |---|---|
 | `@mirage/world/plan.schema.json` | JSON Schema for site plans. The loader and `mirage-validate-plan` also enforce coordinate ordering and report each invalid field. |
 | `buildWorld(world, { plan, modules, shared, log })` | build, anchors, finalize; returns `{ plan, modules, anchors, report }` |
+| `buildWorld(..., { slice: true \| { budgetMs, yield } })` | opt-in time slicing for a world built while another runs: yields to the frame between modules once `budgetMs` (8) of building ran; `report.slices` = `{ yields, longestMs, longModules, longTasks }` |
+| `createStreamer(world, { plan, modules, ... })`, `regionOf(root)` | opt-in: modules streamed in and out by distance (below) |
 | `definePlan(plan)` | validate + defaults (`units 'm'`, `walk: { yMin: -1, yMax: 12 }`, `seed = name`); throws listing every problem |
 | `contains(shape, x, z)`, `bbox(shape)`, `pathLength(path)`, `along(path, s)` | plan geometry helpers |
 | `LAYER` | `{ VIEW: 0, COLLIDE: 2 }` (collision-only proxies live on layer 2) |
@@ -34,6 +36,29 @@ Both lists can be omitted. See [the world protocol](../../docs/world-protocol.md
 
 `NOTES.template.md`: the per-world notes file modules use to talk to each other. `npm test -w @mirage/world` runs
 `check.mjs` (plan checks, order, anchors, failure isolation, per-module rng; no GPU).
+
+## Streaming modules in and out (`createStreamer`, experimental, opt-in)
+
+```js
+import { createStreamer } from '@mirage/world';
+import { bakeWalkGridAsync } from '@mirage/play';
+const streamer = createStreamer(world, { plan, shared: { tex }, modules: [{ name: 'hall', center: [40, 12], radius: 30, build }],
+  onChange: (name, inScene, region) => bakeWalkGridAsync(world, { into: play.grid, region }) });
+// once a frame, before the draw:
+streamer.update(world.camera.position);
+```
+
+A streamed module is `{ name, center: [x, z], radius, build(ctx) }`; `ctx` is a buildWorld module's (own root, seeded
+`R`, `collider`, `onUpdate`, `log`; no anchors: those are resolved once, at load). Within `radius` it is queued
+(nearest first, `concurrency` 1), built in a task of its own, compiled with `renderer.compileAsync` against the
+world's scene and the pipeline's target (programs link off the main thread), its textures uploaded through an
+upload budget (`uploadBytes` 8 MB a frame), then added in one step; `onChange` gets its XZ region (re-bake the walk
+grid there). Beyond `radius x hysteresis` (1.25) it leaves the scene and stays in an LRU of `budget` bytes (256 MB),
+so walking back shows it at once; over budget the least recently near is freed (geometry, materials, and textures
+nothing in the scene still samples). `{ sync: true }` loads in the frame it comes in range: the baseline.
+Limits: a module's own `build` is one task (keep streamed modules small); no anchors or finalize; a new light in a
+streamed module recompiles every program in the scene (three keys programs on the light count): use emissive
+lamps or lights that exist from the start. Demo and measurements: `examples/demos/streaming`.
 
 ## Vegetation
 

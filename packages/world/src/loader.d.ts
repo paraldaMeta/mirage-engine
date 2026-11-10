@@ -46,12 +46,16 @@ export interface BuildReport {
   anchors: Record<string, number>;
   ambientVolumes: (AmbientVolume & { from: string })[];
   ms: number;
+  /** Only with the `slice` option. */
+  slices?: { yields: number; longestMs: number; longModules: string[]; longTasks: { count: number; totalMs: number; maxMs: number; source: 'longtask' | 'frame-gap' | 'none' } };
 }
+/** Opt-in time slicing: yield (default: to the next frame) between modules once `budgetMs` (8) of building ran. */
+export type SliceOption = boolean | { budgetMs?: number; yield?: () => Promise<unknown> };
 export interface BuildResult<P extends PlanInput = PlanInput> {
   plan: DefinedPlan<P>; modules: Record<string, unknown>; anchors: AnchorTable; report: BuildReport;
 }
 export function buildWorld<P extends PlanInput, Shared = Record<string, unknown>, C extends object = CoreModuleContext>(
   world: WorldHost<C>, options: { plan: P; modules: readonly WorldModule<P, Shared, C>[]; shared?: Shared;
-    log?: { log(...values: unknown[]): void; error(...values: unknown[]): void } },
+    log?: { log(...values: unknown[]): void; error(...values: unknown[]): void }; slice?: SliceOption },
 ): Promise<BuildResult<P>>;
 export const LAYER: { VIEW: 0; COLLIDE: 2 };

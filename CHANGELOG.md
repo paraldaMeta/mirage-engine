@@ -11,6 +11,52 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
 
 **New**
 
+- Seamless loading (all opt-in; with every option off the stills of hello-courtyard and walled-garden are
+  byte-identical to before and the walk grids hash the same on three examples). Measured by
+  `node examples/demos/streaming/streaming-check.mjs` (headless Chrome, Apple M4 Pro via ANGLE/Metal, a cold browser
+  per page, A/B interleaved, medians of 3; other agents shared the GPU, spread in brackets where it mattered):
+  - `createTextures({ decode: 'bitmap' })`: images decoded off the main thread (`createImageBitmap`), same pixels
+    (still diff 0). hello-courtyard's five sets: `prepare()` 231 -> 162 ms, main-thread long tasks to ready
+    298 -> 239 ms in total, the longest 143 -> 90 ms.
+  - `createUploadBudget(renderer, { bytes })`: texture uploads spread over frames (`renderer.initTexture`). Six new
+    1024 px textures: one 30 ms frame (29-32) -> six frames of at most 5.7 ms (5.7-5.9) at 8 MB a frame.
+  - `world.prepare({ warm: true })`: one discarded still frame + a 1-px readback after the compiles, the canvas
+    cleared and the TAA / exposure / dynamic-resolution histories put back. First visible frame (CPU + GPU, to a
+    1-px readback): courtyard 11.1 -> 4.7 ms (CPU 10.0 -> 2.1), garden 12.7 -> 6.4 ms (CPU 11.1 -> 2.2); it costs
+    13-14 ms inside `prepare()`. Stills identical.
+  - @mirage/world `buildWorld(..., { slice: true | { budgetMs, yield } })`: yields to the frame between modules
+    after a time budget (8 ms), `report.slices` with the longest unyielded stretch, modules over 50 ms and the long
+    tasks (PerformanceObserver). walled-garden's six modules built into a side scene while the page draws: the
+    longest frame interval 50 ms (50-67) -> 16.8 ms (no frame missed), the build 73 -> 70 ms.
+  - @mirage/play `bakeWalkGridAsync(world, opts)`: the walk grid over frames, slabs read through pixel-pack buffers
+    polled with fences (no stall), 4 ms of main thread a frame, tiles; `{ region, into }` (sync or async) re-bakes a
+    region of an earlier grid in place. Floors and count arrays bit-identical to the sync bake on hello-courtyard and
+    walled-garden, whole, in tiles of 128 cells, and for a region re-bake into a scribbled copy. Courtyard: sync
+    45 ms blocking -> async 183 ms over 11 frames, longest slice 2.6 ms; garden (481k cells) sync 289 ms blocking -> async 807 ms over 48 frames, longest slice
+    5.9 ms. Small tiles cost draws (each tile draws the whole scene once per slab): garden in 30 tiles of 128 cells
+    7.0 s, so the default tile is 1024. The bake's override material is now kept for the page (its program stays
+    linked; a re-bake while walking compiled it again, ~35 ms).
+  - @mirage/world `createStreamer(world, { plan, modules, ... })`: modules streamed in and out by distance: a
+    priority queue (nearest first), build in a task of its own, `compileAsync` against the world's scene and the
+    pipeline's target, uploads through the budget, then one add; out of range they stay in an LRU byte budget (walking
+    back is instant), evictions free what nothing else samples; `onChange` hands the region to a walk-grid re-bake.
+    Core pieces exported on their own: `createJobQueue`, `createLRU`, `textureBytes`, `objectBytes`, `texturesOf`,
+    `disposeObject`, `watchLongTasks`, `nextFrame`. Walking out of hello-courtyard's gate to a kiosk (8 new programs,
+    two 1024 px textures; `examples/demos/streaming/kiosk.js`, shaders salted new to the driver each run) and back,
+    twice, 9 runs a mode: loaded in the frame it comes in range, every run missed 4-5 frames, the longest frame
+    58-750 ms (a cold compile of the 8 programs up to 750 ms); streamed (build 21-33 ms in its own task, compile
+    28-29 ms off-frame, uploads over frames, shown ~5 frames later), 6 of 9 runs missed no frame (longest interval
+    16.8 ms, longest callback 13-20 ms); the other 3 ran slow from start to end (mean 8.9-12.9 ms against 3.8-5.3,
+    while other agents loaded the GPU) with intervals up to 50-83 ms. The p95 (MG502) does not see a one-frame hitch
+    in 800 frames: 6.8-10.5 ms loaded at once, 7.6-10 ms streamed (clean runs).
+  - KTX2 / Basis: manifest files ending in `.ktx2` load through `createKTX2Loader` from the subpath
+    `@mirage/core/ktx2` (three's KTX2Loader, imported dynamically; transcoder from `three/examples/jsm/libs/basis`).
+    hello-courtyard's sets as ETC1S (`basisu -ktx2 -mipmap -y_flip`, the check makes them when basisu is installed;
+    transcoded to ETC2 here): GPU memory 55.9 -> 7.0 MB, `prepare()` 233 -> 131 ms (no decode), textures ready
+    2 -> 67 ms (transcoding in workers), files 1.02 MB WebP -> 1.45 MB, still vs WebP mean difference 0.94 / 255. No example bundle contains KTX2Loader or the transcoder (a first try that exported it from the
+    index made Vite emit a 60 KB chunk in every example: fixed by keeping it a subpath).
+  - Bundle cost of the opt-in code that rides along when unused: +1.3 to +1.8 KB gzip per example (+0.5 %), e.g.
+    hello-courtyard 280,130 -> 281,920 B, river-ford 266,908 -> 268,286 B.
 - @mirage/tools: one diagnostic shape everywhere, `{ code, severity, target, message, fix, at? }`, with stable codes
   (MG1xx plan, MG2xx modules, MG3xx walking, MG4xx frame, MG5xx budgets, MG6xx console, MG7xx game state;
   `docs/diagnostics.md`). The playtest writes them to `report.json` `diagnostics` and the top of `report.md`;

@@ -185,29 +185,65 @@ const vec4 = (a) => `vec4(${a.map(f).join(', ')})`;
  *  _<hex code>_ (stone_2d_wall), so any manifest name compiles. */
 export const glslName = (name) => String(name).replace(/[^A-Za-z0-9_]/g, (c) => '_' + c.codePointAt(0).toString(16) + '_');
 
-export function createTextures(world, { manifest, url, anisotropy = 8 }) {
+export function createTextures(world, { manifest, url, anisotropy = 8, decode = 'image', ktx2 = null }) {
   const { renderer, mat } = world;
   const aniso = Math.min(anisotropy, renderer.capabilities.getMaxAnisotropy());
   const toUrl = typeof url === 'function' ? url : (file) => String(url).replace(/\/?$/, '/') + file;
   const loader = new THREE.TextureLoader();
+  // decode: 'bitmap' (opt-in) decodes off the main thread (fetch + createImageBitmap) where the browser has it; the
+  // image loader's <img> is decoded on the main thread when three first uploads it (inside prepare() or a frame).
+  // Same pixels: the bitmap is flipped while decoding (imageOrientation 'flipY') instead of by UNPACK_FLIP_Y, alpha
+  // stays straight and no colour conversion is applied (three uploads these <img> textures with
+  // UNPACK_COLORSPACE_CONVERSION NONE too). A file the bitmap path fails on is loaded again by the image loader.
+  const bitmaps = decode === 'bitmap' && typeof createImageBitmap === 'function' && typeof fetch === 'function'
+    ? new THREE.ImageBitmapLoader().setOptions({ imageOrientation: 'flipY', premultiplyAlpha: 'none' }) : null;
   const sets = new Map(), loads = [];
   const info = (name) => {
     const m = manifest.sets[name];
     if (!m) throw new Error(`[mirage/textures] unknown set "${name}" (have: ${Object.keys(manifest.sets).join(', ')})`);
     return m;
   };
-  function load(file, srgb) {
-    let t;
-    loads.push(new Promise((res) => { t = loader.load(toUrl(file), res, undefined, (e) => { console.error('[mirage/textures] failed to load', file, e); res(); }); }));
+  const style = (t, srgb) => {
     t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.anisotropy = aniso;
     return t;
+  };
+  const failed = (file, e) => console.error('[mirage/textures] failed to load', file, e);
+  // -> the uniform { value } the texture sits in. A KTX2 file arrives as a new (compressed) texture object; it replaces
+  // the empty placeholder in the same uniform, which the materials hold by reference.
+  function load(file, srgb) {
+    const slot = { value: null };
+    if (/\.ktx2$/i.test(file)) {
+      // opt-in compressed path: a KTX2Loader passed as `ktx2` (createKTX2Loader, ktx2.js). Encode bottom row first
+      // (basisu -y_flip; toktx --lower_left_maps_to_s0t0) so v runs as in the WebP path, with mipmaps in the file.
+      if (!ktx2) throw new Error(`[mirage/textures] ${file} is KTX2: pass createTextures(world, { ktx2: await createKTX2Loader(renderer) }), createKTX2Loader from @mirage/core/ktx2`);
+      slot.value = style(new THREE.Texture(), srgb);
+      loads.push(new Promise((res) => ktx2.load(toUrl(file), (t) => {
+        if ((t.colorSpace === THREE.SRGBColorSpace) !== srgb) console.warn('[mirage/textures]', file, 'is', t.colorSpace || 'linear', 'but the set expects', srgb ? 'sRGB' : 'linear');
+        t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = aniso;
+        slot.value.dispose(); slot.value = t; res(t);
+      }, undefined, (e) => { failed(file, e); res(); })));
+      return slot;
+    }
+    let t;
+    if (bitmaps) {
+      t = style(new THREE.Texture(), srgb);
+      t.flipY = false;   // flipped while decoding; three never applies flipY to an ImageBitmap
+      loads.push(new Promise((res) => bitmaps.load(toUrl(file), (bmp) => { t.image = bmp; t.needsUpdate = true; res(t); }, undefined, () => {
+        loader.load(toUrl(file), (img) => { t.flipY = true; t.image = img.image; t.needsUpdate = true; res(t); }, undefined, (e) => { failed(file, e); res(); });
+      })));
+    } else {
+      loads.push(new Promise((res) => { t = loader.load(toUrl(file), res, undefined, (e) => { failed(file, e); res(); }); }));
+      style(t, srgb);
+    }
+    slot.value = t;
+    return slot;
   }
   function get(name) {
     if (!sets.has(name)) {
       const m = info(name);
-      sets.set(name, { c: { value: load(m.files.c, true) }, n: { value: load(m.files.n, false) } });
+      sets.set(name, { c: load(m.files.c, true), n: load(m.files.n, false) });
     }
     return sets.get(name);
   }
@@ -253,6 +289,10 @@ export function createTextures(world, { manifest, url, anisotropy = 8 }) {
     return out;
   }
   const ready = () => Promise.all(loads);
-  const dispose = () => { for (const s of sets.values()) { s.c.value.dispose(); s.n.value.dispose(); } };
-  return { names: Object.keys(manifest.sets), info, hooks, material, ready, dispose, glslName };
+  const dispose = () => {
+    for (const t of textures()) { t.dispose(); if (typeof ImageBitmap !== 'undefined' && t.image instanceof ImageBitmap) t.image.close(); }
+  };
+  /** the textures of the sets used so far (createUploadBudget can upload them over frames instead of in one draw) */
+  const textures = () => [...sets.values()].flatMap((s) => [s.c.value, s.n.value]);
+  return { names: Object.keys(manifest.sets), info, hooks, material, ready, dispose, glslName, textures };
 }

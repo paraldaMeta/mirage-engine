@@ -143,4 +143,44 @@ ok(out.modules.walls.r === rng('t/walls').float(), 'per-module rng');
   for (const o of [{ count: 0 }, { box: [1, 2] }, { speed: NaN }]) try { addRain(rctx(), o); } catch (e) { threw += e instanceof RangeError; }
   ok(threw === 3, 'bad rain options throw RangeError');
 }
+
+// opt-in time slicing: the same modules, the same report, plus yields between modules once the budget ran out
+{
+  const busy = (ms) => { const t = performance.now(); while (performance.now() - t < ms); };
+  const mods = ['a', 'b', 'c', 'd'].map((name) => ({ name, build: (ctx) => { busy(3); ctx.root.add(new THREE.Mesh(new THREE.BoxGeometry())); } }));
+  const plain = await buildWorld({ scene: new THREE.Scene(), ctx: { THREE, onUpdate() {} } }, { plan: { name: 's', bounds: [0, 0, 1, 1] }, modules: mods, log: { log() {}, error() {} } });
+  let yields = 0;
+  const sliced = await buildWorld({ scene: new THREE.Scene(), ctx: { THREE, onUpdate() {} } }, { plan: { name: 's', bounds: [0, 0, 1, 1] }, modules: mods, log: { log() {}, error() {} },
+    slice: { budgetMs: 5, yield: async () => { yields++; } } });
+  ok(!plain.report.slices && sliced.report.slices, 'slices reported only when slicing');
+  ok(JSON.stringify(plain.report.modules.map((r) => [r.name, r.ok, r.tris])) === JSON.stringify(sliced.report.modules.map((r) => [r.name, r.ok, r.tris])), 'the same build sliced');
+  ok(yields === sliced.report.slices.yields && yields >= 1 && yields <= 4, 'yields once 5 ms of building ran: ' + yields);
+  ok(sliced.report.slices.longestMs < 12 && sliced.report.slices.longModules.length === 0, 'no stretch much over the budget');
+}
+// streamer: in range -> built, compiled, uploaded, added; out of range -> removed and cached; back -> instant
+{
+  const { createStreamer, regionOf } = await import('./src/index.js');
+  const scene = new THREE.Scene(), calls = [];
+  const renderer = { initTexture() {}, compileAsync: async () => {}, getRenderTarget: () => null, setRenderTarget() {} };
+  const w = { scene, renderer, camera: new THREE.PerspectiveCamera(), ctx: { THREE, onUpdate() {} } };
+  const st = createStreamer(w, { plan: { name: 'st', bounds: [-50, -50, 50, 50] }, log: { log() {}, error() {} },
+    modules: [{ name: 'hall', center: [20, 0], radius: 10, build: (ctx) => { ctx.root.add(new THREE.Mesh(new THREE.BoxGeometry(4, 3, 4)).translateX(20)); } }],
+    onChange: (n, inScene, region) => calls.push([n, inScene, region && region.map(Math.round)]) });
+  const settle = async () => { for (let i = 0; i < 20; i++) { st.update(pos); await new Promise((r) => setTimeout(r, 5)); } };
+  let pos = [0, 0, 0];
+  await settle();
+  ok(st.state().hall === 'out' && scene.children.length === 0, 'far: out');
+  pos = [15, 0, 0]; await settle();
+  ok(st.state().hall === 'in' && scene.getObjectByName('hall'), 'near: in the scene');
+  ok(JSON.stringify(calls[0]) === JSON.stringify(['hall', true, [18, -2, 22, 2]]), 'onChange with its region: ' + JSON.stringify(calls[0]));
+  pos = [21 - 10 * 1.2, 0, 0]; await settle();
+  ok(st.state().hall === 'in', 'hysteresis: still in just past the radius');
+  pos = [0, 0, 0]; await settle();
+  ok(st.state().hall === 'cached' && !scene.getObjectByName('hall') && st.cache.has('hall'), 'far again: out of the scene, cached');
+  pos = [15, 0, 0]; st.update(pos);
+  ok(st.state().hall === 'in' && st.stats.builds.length === 1, 'back: shown at once from the cache, not rebuilt');
+  ok(regionOf(new THREE.Group()) === null, 'an empty object has no region');
+  st.dispose();
+  ok(!scene.children.length && st.state().hall === 'out', 'dispose');
+}
 console.log('world check: ok');

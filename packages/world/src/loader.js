@@ -1,6 +1,7 @@
 // Mirage original code. The module/anchor conventions follow the author's own earlier project (docs/NOTES.md there).
 import * as THREE from 'three';
 import { rng } from '@mirage/core';
+import { nextFrame, watchLongTasks } from '@mirage/core/stream';
 import { definePlan } from './plan.js';
 
 // ---------------------------------------------------------------------------
@@ -23,6 +24,11 @@ import { definePlan } from './plan.js';
 // Two modules with one name: the second is skipped. The others build on.
 // Randomness: ctx.R is this module's own seeded stream (plan.seed/name), ctx.rng(sub) forks more; one module's
 // draws never shift another's.
+// Time slicing (opt-in, for worlds built while one is already running): { slice: true | { budgetMs = 8, yield } }
+// gives the frame back between modules (and between finalizes) once `budgetMs` of building has passed since the
+// last yield, so the page keeps drawing; a single module's build is never split (keep modules small). The report then
+// has `slices`: { yields, longestMs (the longest stretch without a yield), longModules (builds over 50 ms), longTasks
+// (PerformanceObserver: count / totalMs / maxMs over the build) }. Without it the build runs straight through.
 // Layers: geometry on layer 0 is solid for the walk grid unless `userData.collide === false`; ctx.collider(mesh)
 // adds an invisible collision-only proxy (layer LAYER.COLLIDE) for open meshes (vertical tubes, water) and for
 // solids thinner than a walk-grid cell (railings: a proxy at least 0.2 m thick).
@@ -45,7 +51,7 @@ const release = (root) => root.traverse((o) => {
   for (const m of [].concat(o.material || [])) if (m !== proxyMat) m.dispose?.();
 });
 const proxyMat = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
-const colliderFor = (root) => (mesh) => {
+export const colliderFor = (root) => (mesh) => {
   mesh.material = proxyMat; mesh.layers.set(LAYER.COLLIDE); mesh.castShadow = mesh.receiveShadow = false;
   mesh.userData.collider = true; root.add(mesh); return mesh;
 };
@@ -71,11 +77,20 @@ function readConsumption(declaration) {
   return requests;
 }
 
-export async function buildWorld(world, { plan, modules, shared = {}, log = console } = {}) {
+export async function buildWorld(world, { plan, modules, shared = {}, log = console, slice = false } = {}) {
   plan = definePlan(plan);
   const report = { plan: plan.name, modules: [], failed: [], anchors: {}, ambientVolumes: [], ms: 0 };
   const built = {}, anchors = {}, live = [];
   const t0 = now();
+  // time slicing (opt-in): yield to the frame once budgetMs of work has run since the last yield
+  const sl = slice ? { budget: Math.max(0, slice.budgetMs ?? 8), wait: slice.yield || nextFrame, last: t0, yields: 0, longest: 0, lt: watchLongTasks() } : null;
+  const breathe = async () => {
+    if (!sl) return;
+    const t = now(), ran = t - sl.last;
+    if (ran < sl.budget) return;
+    sl.longest = Math.max(sl.longest, ran);
+    await sl.wait(); sl.yields++; sl.last = now();
+  };
 
   const makeCtx = (m, root, updates) => {
     const R = rng(`${plan.seed}/${m.name}`);
@@ -134,6 +149,7 @@ export async function buildWorld(world, { plan, modules, shared = {}, log = cons
       row.ok = true;
     } catch (e) { fail(m, 'build', e); release(root); }
     row.ms = +(now() - ts).toFixed(1);
+    await breathe();
   }
   // ---- finalize: every anchor is known now
   // a module whose finalize throws leaves the scene and its callbacks stop; anchors it offered were already visible
@@ -165,11 +181,17 @@ export async function buildWorld(world, { plan, modules, shared = {}, log = cons
       entry.roots.push(root);
     } catch (e) { fail(m, 'finalize', e); row.ok = false; drop(entry); release(root); }
     row.ms = +(row.ms + now() - ts).toFixed(1);
+    await breathe();
   }
   for (const { row, roots } of live) if (roots.every((r) => r.parent === world.scene)) row.tris = roots.reduce((s, o) => s + tris(o), 0);
   if (report.ambientVolumes.length && world.setAmbientVolumes) world.setAmbientVolumes(report.ambientVolumes);
   report.anchors = Object.fromEntries(Object.entries(anchors).map(([k, l]) => [k, l.length]));
   report.ms = +(now() - t0).toFixed(1);
+  if (sl) {
+    const lt = sl.lt.stop();
+    report.slices = { yields: sl.yields, longestMs: +Math.max(sl.longest, now() - sl.last).toFixed(1),
+      longModules: report.modules.filter((r) => r.ms > 50).map((r) => r.name), longTasks: { count: lt.count, totalMs: lt.totalMs, maxMs: lt.maxMs, source: lt.source } };
+  }
   log.log(`[world] ${plan.name}: ${report.modules.filter((r) => r.ok).length}/${modules.length} modules in ${report.ms} ms` +
     (report.failed.length ? `; failed: ${report.failed.map((f) => `${f.name} (${f.phase})`).join(', ')}` : ''));
   return { plan, modules: built, anchors, report };
