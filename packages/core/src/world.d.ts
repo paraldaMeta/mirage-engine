@@ -29,7 +29,8 @@ export interface WorldRendererOptions {
   /** Contact-hardening soft sun shadows, per pixel (off by default): still and walking frames alike. */
   softShadows?: SoftShadowOption;
 }
-export interface DynamicResSettings { target: number; min: number; step: number }
+/** cap: the app's own frame cap (fps; @mirage/play sets it from maxFps / the power saver) — the budget is never tighter. */
+export interface DynamicResSettings { target: number; min: number; step: number; cap?: number }
 /** The full dynamic-resolution settings for `true` / a partial object; null when off. */
 export function dynamicResConfig(option?: boolean | Partial<DynamicResSettings> | null): DynamicResSettings | null;
 export interface RenderFrameOptions {

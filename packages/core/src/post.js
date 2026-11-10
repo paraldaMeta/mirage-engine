@@ -168,8 +168,11 @@ export class Pipeline {
         }
         float ev = clamp(uStrength * (log2(uKey) - s / max(w, 1e-6)), -uRange, uRange);
         float prev = texture2D(tPrev, vec2(0.5)).r;
-        float t = uReset > 0.5 ? 1.0 : 1.0 - exp(-uDt * (ev > prev ? uUp : uDown));
-        gl_FragColor = vec4(mix(prev, ev, t), 0.0, 0.0, 1.0);
+        // a reset takes ev exactly (mix(prev, ev, 1) is not exact on every GPU, and prev may be garbage); a non-finite
+        // result never reaches the history, or one bad frame would black the image out for good
+        float v = uReset > 0.5 || isnan(prev) || isinf(prev) ? ev : mix(prev, ev, 1.0 - exp(-uDt * (ev > prev ? uUp : uDown)));
+        if (isnan(v) || isinf(v)) v = 0.0;
+        gl_FragColor = vec4(v, 0.0, 0.0, 1.0);
       }`, { tMeter: { value: null }, tPrev: { value: null }, uKey: { value: 0.2 }, uStrength: { value: 0 }, uRange: { value: 1.5 }, uUp: { value: 1 }, uDown: { value: 2.5 }, uDt: { value: 1 / 60 }, uReset: { value: 1 } });
     const small = (w, h) => new THREE.WebGLRenderTarget(w, h, { type: THREE.HalfFloatType, depthBuffer: false, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter });
     this.meterRT = small(32, 18); this.aeA = small(1, 1); this.aeB = small(1, 1); this.aeValid = false;
@@ -209,7 +212,7 @@ export class Pipeline {
 
   _l2Targets() {
     for (const t of [this.ssrRT, this.volRT]) t && t.dispose();
-    const hw = Math.ceil(this.w / 2), hh = Math.ceil(this.h / 2);
+    const hw = Math.ceil(this.rw / 2), hh = Math.ceil(this.rh / 2);
     this.ssrRT = new THREE.WebGLRenderTarget(hw, hh, { type: THREE.HalfFloatType, depthBuffer: false });
     this.volRT = new THREE.WebGLRenderTarget(hw, hh, { type: THREE.HalfFloatType, depthBuffer: false });
   }
@@ -455,8 +458,25 @@ export class Pipeline {
     return false;
   }
 
+  /** The output size (w, h: what the caller sees, stable) and the render size (rw, rh = w, h x the render scale). */
   setSize(w, h) {
-    this.w = w; this.h = h;
+    this.w = w; this.h = h; this.renderScale = 1;
+    this._alloc(w, h);
+  }
+
+  /** Dynamic resolution: render at s x the output size (stretched by the grade pass). Reallocates when it changes;
+   *  w and h stay as they are. s = 1 renders at exactly the output size. */
+  setRenderScale(s) {
+    s = Number.isFinite(s) ? Math.min(1, Math.max(0.1, s)) : 1;
+    const rw = s === 1 ? this.w : Math.max(16, Math.round(this.w * s)), rh = s === 1 ? this.h : Math.max(16, Math.round(this.h * s));
+    this.renderScale = s;
+    if (rw === this.rw && rh === this.rh) return false;
+    this._alloc(rw, rh);
+    return true;
+  }
+
+  _alloc(w, h) {
+    this.rw = w; this.rh = h;
     for (const t of [this.sceneRT, this.aoRT, this.accRT, this.histA, this.histB, this.ssrRT, this.volRT]) t && t.dispose();
     this.ssrRT = this.volRT = null;
     const depthTexture = new THREE.DepthTexture(w, h, THREE.FloatType);
@@ -516,7 +536,7 @@ export class Pipeline {
   taa(invVP, prevVP, alpha) {
     const u = this.taaMat.uniforms;
     u.tCur.value = this.accRT.texture; u.tHist.value = this.histA.texture; u.tDepth.value = this.sceneRT.depthTexture;
-    u.uInvVP.value.copy(invVP); u.uPrevVP.value.copy(prevVP); u.uTexel.value.set(1 / this.w, 1 / this.h); u.uAlpha.value = alpha;
+    u.uInvVP.value.copy(invVP); u.uPrevVP.value.copy(prevVP); u.uTexel.value.set(1 / this.rw, 1 / this.rh); u.uAlpha.value = alpha;
     this._draw(this.taaMat, this.histB);
     [this.histA, this.histB] = [this.histB, this.histA];
     // ponytail: one extra copy, because bloom adds into accRT in place and must never reach the history
@@ -527,22 +547,27 @@ export class Pipeline {
   /** Forget the adapted exposure: the next frame is metered on its own (a cut, a teleport). */
   resetExposure() { this.aeValid = false; }
 
-  _meter(P, expo, { dt = 1 / 60, still = false }) {
+  _meter(P, expo, { dt, still }) {
+    const D = DEFAULT_POST, num = (v, d) => (Number.isFinite(v) ? v : d);
+    // no dt: a caller that does not say it is moving gets a still frame (metered on its own, history-free)
+    if (still === undefined) still = !Number.isFinite(dt);
+    dt = num(dt, 1 / 60); expo = num(expo, 1);
     const m = this.meterMat.uniforms;
     m.tColor.value = this.accRT.texture; m.uCell.value.set(1 / 32, 1 / 18); m.uExp.value = expo;
     this._draw(this.meterMat, this.meterRT);
     const u = this.adaptMat.uniforms;
     u.tMeter.value = this.meterRT.texture; u.tPrev.value = this.aeA.texture;
-    u.uKey.value = Math.max(1e-4, P.aeKey); u.uStrength.value = Math.min(1, P.autoExposure); u.uRange.value = Math.max(0, P.aeRange);
-    u.uUp.value = Math.max(0, P.aeUp); u.uDown.value = Math.max(0, P.aeDown);
+    u.uKey.value = Math.max(1e-4, num(P.aeKey, D.aeKey)); u.uStrength.value = Math.min(1, num(P.autoExposure, 0)); u.uRange.value = Math.max(0, num(P.aeRange, D.aeRange));
+    u.uUp.value = Math.max(0, num(P.aeUp, D.aeUp)); u.uDown.value = Math.max(0, num(P.aeDown, D.aeDown));
     u.uDt.value = Math.min(Math.max(dt, 0), 0.25); u.uReset.value = still || !this.aeValid ? 1 : 0;
     this._draw(this.adaptMat, this.aeB);
     [this.aeA, this.aeB] = [this.aeB, this.aeA];
     this.aeValid = true;   // a still frame's EV is its own (reset above); the next moving frame eases on from it
   }
 
-  /** Bloom and grade the accumulated frame into `target` (null = the canvas). opts: { dt, still } for auto exposure
-   *  (the seconds since the last frame; still = a still frame, metered on its own so it stays bit-identical). */
+  /** Bloom and grade the accumulated frame into `target` (null = the canvas). opts: { dt, still } for auto exposure:
+   *  dt = the seconds since the last moving frame (the exposure eases), still = meter this frame on its own (stays
+   *  bit-identical). Without dt the frame counts as still. */
   end(P, frameIndex = 0, target = null, opts = {}) {
     const useAE = P.autoExposure > 0;
     if (useAE) this._meter(P, P.exposure, opts);
@@ -573,7 +598,7 @@ export class Pipeline {
       b.render(this.r, null, this.accRT, 0, false);
     }
     const u = this.grade.uniforms;
-    u.tColor.value = this.accRT.texture; u.uTexel.value.set(1 / this.w, 1 / this.h);
+    u.tColor.value = this.accRT.texture; u.uTexel.value.set(1 / this.rw, 1 / this.rh);
     u.uExposure.value = P.exposure * expK; u.uSat.value = P.saturation; u.uCon.value = P.contrast; u.uLift.value = P.lift;
     u.uVig.value = P.vignette; u.uSharp.value = P.sharpen; u.uGrain.value = P.grain; u.uFrame.value = frameIndex % 4096;
     u.uTM.value = { agx: 0, aces: 1, neutral: 2 }[P.tonemap] ?? 0;

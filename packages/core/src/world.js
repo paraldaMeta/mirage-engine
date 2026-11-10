@@ -7,7 +7,7 @@ import { createStars } from './stars.js';
 import { skyState, lightAt } from './daynight.js';
 import { Pipeline, DEFAULT_POST } from './post.js';
 import { installLight2, light2Config } from './light2.js';
-import { installSoftShadows, softShadowConfig, softShadowUniforms } from './softshadow.js';
+import { installSoftShadows, softShadowConfig, softShadowUniforms, softShadowsIdle } from './softshadow.js';
 import { createMaterials } from './materials.js';
 import { createEnvLight } from './envlight.js';
 import { deviceProfile } from './device.js';
@@ -97,12 +97,10 @@ export function createWorldRenderer(config = {}) {
   // dynamic resolution (opt-in, moving frames only): the pipeline renders at resScale x the canvas and the grade pass
   // stretches it; still frames always render at full size, so they stay bit-identical
   const dynRes = dynamicResConfig(config.dynamicRes);
-  let baseW = width * pixelRatio, baseH = height * pixelRatio, resScale = 1;
+  let resScale = 1;
   const dr = { last: 0, ema: 0, hold: 0, good: 0, wait: 2000, raisedAt: -1e9, lowered: null, clock: 0 };
-  function fitPipeline(s) {
-    const pw = Math.max(16, Math.round(baseW * s)), ph = Math.max(16, Math.round(baseH * s));
-    if (pw !== pipeline.w || ph !== pipeline.h) { pipeline.setSize(pw, ph); taaValid = false; }
-  }
+  // the output size (pipeline.w / h) never changes with the scale: play keys its redraws, fades and aspect on it
+  function fitPipeline(s) { if (pipeline.setRenderScale(s)) taaValid = false; }
   // the interval between moving frames drives it: over budget -> one step down; at budget for `wait` -> try one step
   // up (a step up that is undone within 2 s doubles the wait, up to 32 s); a step down that did not help (the frame
   // is limited by the CPU, not by pixels) is undone and the scaler rests for 30 s
@@ -112,7 +110,9 @@ export function createWorldRenderer(config = {}) {
     dr.ema = dr.ema ? dr.ema + (ms - dr.ema) * 0.1 : ms;
     dr.clock += ms; dr.hold -= ms;
     if (dr.hold > 0) return;
-    const budget = 1000 / dynRes.target;
+    // cap: the app's own frame cap (play sets it from maxFps / the power saver); a capped app's interval says nothing
+    // about the GPU, so the budget is never tighter than the cap
+    const budget = 1000 / Math.min(dynRes.target, dynRes.cap || Infinity);
     if (dr.lowered) {
       const { from, ema } = dr.lowered; dr.lowered = null;
       if (dr.ema > ema * 0.97) { resScale = from; dr.hold = 30000; dr.ema = 0; return; }
@@ -221,6 +221,7 @@ export function createWorldRenderer(config = {}) {
       scene.environment = envLight.texture;
     }
     stars.visible = true; skyU.uCapture.value = 0;
+    softShadowsIdle();
     lastCap.dir.copy(keyDir); lastCap.lamp = light.lamp; lastCap.sky = light.skyLight;
     envState = null;
   }
@@ -256,7 +257,7 @@ export function createWorldRenderer(config = {}) {
     }
     writeFog();
     const W = aaWeights(spp);
-    const w = pipeline.w, h = pipeline.h;
+    const w = pipeline.rw, h = pipeline.rh;   // the render size: sub-pixel jitter is in its pixels
     pipeline.begin();
     for (let k = 0; k < spp; k++) {
       const tk = T + (spp > 1 ? ((shutterSlot(k, spp) + 0.5) / spp - 0.5) * shutter * dt : 0);
@@ -296,6 +297,7 @@ export function createWorldRenderer(config = {}) {
       if (!cam.position.equals(savedPos)) { cam.position.copy(savedPos); cam.updateMatrixWorld(); }
     }
     pipeline.end(P, opts.frameIndex ?? frameCounter++, opts.target ?? null, { dt: opts.taa ? (opts.dt ?? frameDt) : 0, still: !taa });
+    softShadowsIdle();   // host scenes drawn after this world see the stock path
   }
 
   /** Interiors: [{ min: [x,y,z], max: [x,y,z], factor = 0.3, soft = 0.6 }] scale the image-based light inside
@@ -315,8 +317,7 @@ export function createWorldRenderer(config = {}) {
 
   function resize(wd, ht) {
     renderer.setSize(wd, ht, false);
-    baseW = wd * pixelRatio; baseH = ht * pixelRatio;
-    pipeline.setSize(Math.max(16, Math.round(baseW * (dynRes ? resScale : 1))), Math.max(16, Math.round(baseH * (dynRes ? resScale : 1))));
+    pipeline.setSize(wd * pixelRatio, ht * pixelRatio);   // full size; the next moving frame applies the scale
     camera.aspect = wd / ht; camera.updateProjectionMatrix();
     taaValid = false;   // the history targets were reallocated (empty)
   }

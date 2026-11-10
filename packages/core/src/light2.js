@@ -1,5 +1,6 @@
 // Mirage code adapted from the author's own Nizwa engine (oman-golden, "P11 LIGHT"); no Golden Temple code in it.
 import * as THREE from 'three';
+import { CHUNK_EPOCH } from './env.js';
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 import { patch } from './materials.js';
 
@@ -190,6 +191,7 @@ export function installLight2() {
     return false;
   }
   installed = true;
+  CHUNK_EPOCH.n++;
   for (const k of MATS) {
     const u = THREE.ShaderLib[k] && THREE.ShaderLib[k].uniforms;
     if (!u || u.mgLsPos) continue;

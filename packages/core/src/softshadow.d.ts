@@ -34,4 +34,6 @@ export function softShadowsInstalled(): Pick<SoftShadowSettings, 'blockerSamples
 /** The page-global uniforms (typed arrays shared by every program). */
 export const SS_SHARED: { a: Float32Array; b: Float32Array; c: Float32Array };
 /** Publish the uniforms for the sun's orthographic shadow camera before a (sub-)frame; settings null or `on: false` = off. */
+/** Switch the page-global soft path off (after a world has drawn), so other scenes see the stock path. */
+export function softShadowsIdle(): void;
 export function softShadowUniforms(settings: SoftShadowSettings | null, shadowCamera: THREE.OrthographicCamera | null, mapSize?: THREE.Vector2 | null, subFrameIndex?: number): void;

@@ -1,5 +1,6 @@
 // Mirage original code.
 import * as THREE from 'three';
+import { CHUNK_EPOCH } from './env.js';
 
 // ---------------------------------------------------------------------------
 // Soft sun shadows: contact-hardening penumbrae from the sun's own shadow map (PCSS). Opt-in:
@@ -178,6 +179,7 @@ export function installSoftShadows(cfg = null) {
     return false;
   }
   installed = { blockerSamples: want.blockerSamples, blockerSteps: want.blockerSteps, filterSamples: want.filterSamples };
+  CHUNK_EPOCH.n++;
   for (const k of MATS) {
     const u = THREE.ShaderLib[k] && THREE.ShaderLib[k].uniforms;
     if (!u || u.mgSsA) continue;
@@ -194,6 +196,10 @@ export function installSoftShadows(cfg = null) {
 
 /** the tap counts compiled in on this page; null before the first install */
 export const softShadowsInstalled = () => (installed ? { ...installed } : null);
+
+/** Switch the page-global soft path off after a world has drawn: other scenes on the page (a host's own Standard
+ *  materials under FogExp2 compile the patch too) must not inherit this world's shadow-camera numbers. */
+export function softShadowsIdle() { if (installed) SS_SHARED.a[0] = 0; }
 
 /** Publish the soft-shadow uniforms for the sun's fitted orthographic shadow camera, before a (sub-)frame draws.
  *  cfg: the world's config (null or cfg.on false: off); index: the sub-frame index (k in a still frame, the TAA index

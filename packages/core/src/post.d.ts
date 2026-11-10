@@ -19,19 +19,23 @@ export interface PostSettings {
 export const DEFAULT_POST: PostSettings;
 export class Pipeline {
   constructor(renderer: THREE.WebGLRenderer, options: { width: number; height: number; msaa?: number; aoSamples?: number });
-  r: THREE.WebGLRenderer; msaa: number; w: number; h: number; quad: FullScreenQuad; bloomPass: UnrealBloomPass;
+  /** w, h: the output size (stable); rw, rh: the render size (w, h x renderScale, below 1 only with dynamic resolution). */
+  r: THREE.WebGLRenderer; msaa: number; w: number; h: number; rw: number; rh: number; renderScale: number; quad: FullScreenQuad; bloomPass: UnrealBloomPass;
   ao: THREE.ShaderMaterial; acc: THREE.ShaderMaterial; grade: THREE.ShaderMaterial;
   taaMat: THREE.ShaderMaterial; copyMat: THREE.ShaderMaterial; blendMat: THREE.ShaderMaterial;
   sceneRT: THREE.WebGLRenderTarget; aoRT: THREE.WebGLRenderTarget; accRT: THREE.WebGLRenderTarget;
   histA: THREE.WebGLRenderTarget; histB: THREE.WebGLRenderTarget;
   setSize(width: number, height: number): void;
+  /** Render at scale x the output size (reallocates when the render size changes; returns whether it did). */
+  setRenderScale(scale: number): boolean;
   begin(): void;
   /** jitter: the light2 passes' pattern index (the sub-frame for stills, the TAA index while moving; default subframe). */
   add(scene: THREE.Scene, camera: THREE.Camera, weight: number, subframe: number, post: PostSettings, jitter?: number): void;
   /** Turn on light2's passes (createWorldRenderer does this for `light2`). */
   useLight2(settings: Light2Settings, context: { sun: THREE.DirectionalLight; G: Record<string, THREE.IUniform> }): void;
   taa(inverseViewProjection: THREE.Matrix4, previousViewProjection: THREE.Matrix4, alpha: number): void;
-  /** options (auto exposure): dt = seconds since the last moving frame; still = meter this frame on its own. */
+  /** options (auto exposure): dt = seconds since the last moving frame (the exposure eases); still = meter this frame
+   *  on its own (history-free). Without dt the frame counts as still. */
   end(post: PostSettings, frameIndex?: number, target?: THREE.WebGLRenderTarget | null, options?: { dt?: number; still?: boolean }): void;
   /** Auto exposure: the next frame is metered on its own. */
   resetExposure(): void;

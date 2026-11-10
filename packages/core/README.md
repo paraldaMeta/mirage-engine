@@ -136,7 +136,9 @@ All three are off by default; off, frames are bit-identical to before.
   the smaller frame to the canvas and sharpens a little more. Each step reallocates the pipeline's targets and
   restarts TAA (a brief shimmer). Still frames always render at full size. The interval includes the page's own
   work and the display's refresh: on a 60 Hz display a 60 fps target can only be met, never beaten, so steps up are
-  probes.
+  probes. An app with its own frame cap sets `world.dynamicRes.cap` (fps) so the cap is not read as a slow GPU;
+  @mirage/play does this from `maxFps` and the power saver. `pipeline.w / h` stay the output size; the render size
+  is `pipeline.rw / rh`.
 ## Soft sun shadows (opt-in): `softShadows`
 
 `createWorldRenderer({ ..., softShadows: true })` (or an object: `{ sunAngle: 1.5 }`). Off, nothing is patched and
@@ -165,8 +167,13 @@ a world renders bit-identical to before.
   even with `on: false` in a page that installed it (the code is compiled in). 6 / 4 / 8 taps save about 0.12 ms.
 - Only the first shadow-casting directional light (the world's sun) of Standard / Physical / Lambert / Phong
   materials under `FogExp2` takes this path; spot and point lights (light2's lamps too), other directional lights,
-  other materials and `ShadowMaterial` keep three's. `#define MG_NO_SS` on a material opts it out. Page-global once
-  installed: another world without `softShadows` on the same page writes "off" before it draws.
+  other materials and `ShadowMaterial` keep three's PCF. Note: with `softShadows` on, the world no longer jitters the
+  sun over its disc, so in still frames those other materials (`#define MG_NO_SS`, `fog: false`, custom lit shaders)
+  get hard PCF shadows instead of the old sub-frame penumbra. Page-global once installed: another world without
+  `softShadows` on the same page writes "off" before it draws, and every world switches the path off again after
+  its frame (a host's own materials drawn later see the stock path). Mirage materials put a chunk-patch epoch in
+  their program key, so a world on a renderer that already compiled the same hooks without the patch gets new
+  programs (the same holds for light2).
 - **Limits.** A caster much thinner than the search taps' spacing (palm leaflets) is found only by some taps:
   its penumbra is noisier per frame (the average converges). The blocker distance is a per-tap median, so
   overlapping casters at very different heights average to one penumbra (PCSS's usual approximation). Install

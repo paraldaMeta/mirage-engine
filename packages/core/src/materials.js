@@ -1,7 +1,7 @@
 // Mirage original code. Techniques informed by Golden Temple by Leon Lin (MIT) — see NOTICE.
 import * as THREE from 'three';
 import { NOISE_GLSL } from './noise.js';
-import { WIND_GLSL, AMBIENT_GLSL } from './env.js';
+import { WIND_GLSL, AMBIENT_GLSL, CHUNK_EPOCH } from './env.js';
 import { hash32 } from './rng.js';
 import { RELIEF_GLSL, RELIEF, renderHeight, renderShade } from './relief.js';
 
@@ -101,7 +101,7 @@ export function patch(material, hooks, G) {
     if (hooks.output) fs = fs.replace('#include <opaque_fragment>', `${hooks.output}\n#include <opaque_fragment>`);
     shader.fragmentShader = fs;
   };
-  material.customProgramCacheKey = () => key + (amb() ? 'a' : '');
+  material.customProgramCacheKey = () => key + (amb() ? 'a' : '') + (CHUNK_EPOCH.n ? 'e' + CHUNK_EPOCH.n : '');
   material.needsUpdate = true;
   if (typeof hooks.attach === 'function') hooks.attach(material);
   return material;

@@ -414,9 +414,13 @@ function mountPlay(world, opts, life) {
   const wake = () => { lastInput = performance.now(); };
   for (const ev of ['keydown', 'pointerdown', 'pointermove', 'wheel', 'touchstart']) life.listen(window, ev, wake, { passive: true });
   const power = { saver: false, maxFps: opts.maxFps ?? 60 }, gate = frameGate(() => power.maxFps);
+  // dynamic resolution must not read this cap as a slow GPU
+  const capDynamicRes = () => { if (world.dynamicRes) world.dynamicRes.cap = power.maxFps; };
+  capDynamicRes();
   const setSaver = (on) => {
     if (life.disposed) return;
     power.saver = !!on; power.maxFps = on ? 30 : opts.maxFps ?? 60;
+    capDynamicRes();
     try { localStorage.setItem(POWER_KEY, on ? '1' : '0'); } catch { /* no storage */ }
     if (opts.onPowerSaver) opts.onPowerSaver(power.saver);
     hud.update(); wake();
