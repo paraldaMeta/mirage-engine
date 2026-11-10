@@ -6,7 +6,7 @@
 //   --cmd "..."        the agent, run with /bin/sh -c in the task's world folder; the prompt goes to its stdin
 //                      (claude -p and codex exec read stdin), or as the last argument with --prompt-arg. Examples:
 //                        --cmd "claude -p --permission-mode acceptEdits --output-format stream-json --verbose"
-//                        --cmd "codex exec --full-auto --json"
+//                        --cmd "codex exec -s workspace-write --json --skip-git-repo-check"
 //   --mode one|multi   one: the report once, one agent call, then the check (one-turn self-repair).
 //                      multi: after each call the check runs again and the agent gets the new report, up to --turns.
 //   --turns N          multi mode: at most N agent calls (default 3)
@@ -88,7 +88,10 @@ function runAgent(dir, text, logBase) {
     child.on('close', (code, signal) => {
       clearTimeout(kill);
       fs.writeFileSync(logBase + '.stdout', out); fs.writeFileSync(logBase + '.stderr', err);
-      resolve({ code, signal, ms: Date.now() - t0, ...countTools(out) });
+      const r = { code, signal, ms: Date.now() - t0, ...countTools(out) };
+      // the command itself failed before the agent did anything (bad flag, missing binary): an agent error
+      if (!r.agentError && code !== 0 && !out.trim()) r.agentError = `exit ${signal || code}: ${(err.trim().split('\n')[0] || 'no output').slice(0, 200)}`;
+      resolve(r);
     });
     if (!has('prompt-arg')) child.stdin.end(text); else child.stdin.end();
   });
@@ -119,7 +122,7 @@ async function check(task, dir, out) {
 
 const results = [];
 // errors no task can get past: stop instead of burning the rest of the runs
-const STOP_ON = /on hold|restricted|not logged in|log ?in|unauthori[sz]ed|invalid api key|credit|quota|billing/i;
+const STOP_ON = /on hold|restricted|not logged in|log ?in|unauthori[sz]ed|invalid api key|credit|quota|billing|unexpected argument|command not found|^exit 127/i;
 let stop = false;
 try {
   for (const task of tasks(flag('tasks') ? flag('tasks').split(',') : null)) {
