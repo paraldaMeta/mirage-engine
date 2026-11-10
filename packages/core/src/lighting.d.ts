@@ -15,6 +15,10 @@ export interface CsmSettings {
   blend: number;
   /** Metres toward the sun that casters outside a cascade still count. */
   reach: number;
+  /** Moving frames redraw far cascades less often (1st every frame, 2nd every 2nd, 3rd every 4th, 4th every 8th). */
+  stagger: boolean;
+  /** stagger: how much larger than its slice a cascade after the first is drawn (0.12 = 12 %). */
+  pad: number;
   /** Metres: PCF disc radius (at least one texel of the cascade). */
   radius: number;
   bias: number;
@@ -49,7 +53,7 @@ export interface LightsSettings {
   max: number;
   /** false = every pixel loops over every light (the comparison path). */
   cluster: boolean;
-  /** Most lights one cluster cell keeps; `info.clipped` counts the ones dropped. */
+  /** Most lights one cluster cell keeps; `info.clipped` counts the ones dropped. 0 = no limit (the index texture grows). */
   perCell: number;
   /** Shadow atlas size (px). */
   atlas: number;
@@ -74,10 +78,21 @@ export interface LightingOption {
   /** At most 4. */
   probes?: ReflectionProbe[] | null;
   lights?: boolean | Partial<LightsSettings>;
+  /** Screen-space reflections, indirect light and contact shadows (screen.js); the strengths are post settings (ssr2, ssgi, contact). */
+  screen?: boolean | Partial<ScreenSettings>;
+}
+export interface ScreenSettings {
+  /** Size of the traced buffers on moving frames, as a share of the render size. */
+  scale: number;
+  /** The same for stills (the reference mode). */
+  refScale: number;
+  /** The three.js layer the G-buffer pass draws. */
+  layer: number;
 }
 /** One feature's handle: its settings and counters (`info`), for inspection. */
 export interface LightingFeature { cfg?: unknown; info: Record<string, unknown>; invalidate?(): void }
 export interface Lighting {
+  screen: LightingFeature | null;
   csm: LightingFeature | null; gi: (LightingFeature & { bake(): void }) | null; probes: LightingFeature | null; lights: LightingFeature | null;
   /** Hand a PointLight / SpotLight already in the scene to the clustered path; `shadow` gives it a tile of the shadow atlas. */
   addLight(light: THREE.PointLight | THREE.SpotLight, options?: { shadow?: boolean }): boolean;
@@ -94,5 +109,8 @@ export const CSM_DEFAULTS: CsmSettings;
 export const GI_DEFAULTS: Omit<GiSettings, 'min' | 'max' | 'counts'>;
 export const LIGHTS_DEFAULTS: LightsSettings;
 export const PROBE_DEFAULTS: { fade: number; intensity: number };
+export const SCREEN_DEFAULTS: ScreenSettings;
+/** The post settings of the screen-space passes, all off. */
+export const SCREEN_POST: { ssr2: number; ssrRough: number; ssrDist: number; ssrThick: number; ssgi: number; ssgiRange: number; ssgiRays: number; contact: number; contactLen: number };
 /** What createWorldRenderer({ lighting }) builds; `world` is the renderer's internals (renderer, scene, sun, ...). */
 export function createLighting(world: object, option: LightingOption | true): Lighting;

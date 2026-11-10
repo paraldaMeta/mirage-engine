@@ -763,6 +763,7 @@ export class Pipeline {
     const live = opts.still === false && this._live;
     if (live && P.bokeh > 0) this._fx().bokeh(P, this._cam);
     if (live && P.motionBlur > 0) this._fx().motionBlur(P);
+    if (live && P.rcas > 0) this._fx().rcas(P);
     const expK = P.bloomPyramid > 0 && P.bloom > 0 ? this._fx().bloom(P) : this._bloom(P);
     const gm = (!setOnly && (P.lut || P.chroma > 0) && this._fx().grade(P)) || this.grade;
     const u = gm.uniforms;

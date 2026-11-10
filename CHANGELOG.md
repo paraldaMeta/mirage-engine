@@ -10,6 +10,15 @@ and first verified here), plus the 1.0 review (`docs/review-1.0.md`). Package na
 nothing is published. Evidence: `docs/STATUS-1.0.md`.
 
 **New**
+- @mirage/core: screen-space lighting in the lit materials (`lighting: { screen: true }` + `post.ssr2`, `post.ssgi`,
+  `post.contact`; experimental, opt-in, `docs/lighting.md`): reflections with roughness, short-range indirect light
+  with colour, contact shadows of the sun; temporal history and edge-aware blur on moving frames, a reference mode
+  for stills (flows into `--png16` / `--exr`). hello-courtyard `?wet=0.8&ssr=1&ssgi=1&contact=1`: 3.30 -> 4.40 ms at
+  1440 x 900, 11.9 -> 15.8 ms at 2880 x 1800; a moving frame is 36.9 dB from the 64-sample reference instead of 29.9.
+  `lights: { perCell: 0 }`: clustered lists without the per-cell cap (100 lamps bit-identical to the plain loop).
+  `csm: { stagger: true }`: far cascades redrawn less often on moving frames (2.13 of 4 per frame; walled-garden
+  3.60 -> 3.30 ms). `post.rcas`: contrast-adaptive sharpening after the upscaler (+0.1 ms at 1440 x 900). Not done:
+  time-sliced probe capture, single-tile spot shadows, wider velocity coverage, mip bias.
 
 - @mirage/game: an audio engine on top of the mixer (`createAudioEngine`, `createMixer`, `createMusic`,
   `createAudioDebug`, occluders and DSP helpers; experimental, opt-in, `docs/audio.md`). `createAudio` is unchanged
