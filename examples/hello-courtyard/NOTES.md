@@ -111,3 +111,21 @@ iron and the basin's water stay as they are; the pergola and the arcade do not s
   rain on top +0.0…0.25 ms. Draw calls 52 → 53 with rain (one).
 - **Shimmer** (TAA orbit over the paving, `verify.mjs`'s second difference, grain off): flicker / motion 1.40 dry
   against 1.40 wet (golden), 1.46 / 1.46 (golden + light2), 1.43 / 1.43 (night + light2): no new sparkle.
+
+## aoLit, auto exposure, dynamic resolution (optional)
+
+`?aolit=1` (post.aoLit 1), `?ae=1` (post.autoExposure 0.5), `?dynres=1 | <fps>`. Off: 0 px against 5bbdd82 on
+hero@golden, basin@12:00, pergola@21:00, gate@17:22 (1280 x 720, 8 sub-frames).
+
+- **aoLit**: the exposed luminance here is about 0.05-0.2 in shade and 0.25-0.5 on sunlit plaster (hero, basin at
+  noon), hence the fade between 0.1 and 0.32. At noon it removes about half of the AO's darkening (1.5 -> 0.77 /255
+  mean), all of it on the sunlit fountain base; at golden hour, where most of the view is in shade, little changes.
+- **auto exposure**: the views' log-mean exposed luminance is 2^-3.3 .. 2^-4.2 by day (gate, basin@12:00, corner,
+  hero) and 2^-4.4 .. 2^-5.6 at dusk, night and dawn: aeKey 0.07 (2^-3.84), aeNight 1. At 0.5: hero@golden +0.12
+  EV, basin@12:00 -0.06, pergola@21:00 +0.08, gate@17:22 +0.15, basin@06:30 about +0.8 (the dawn court is lifted
+  most). Moving from sky to shade and back the EV eases (darkening 2.5/s, brightening 1/s); the same still frame
+  meters the same EV before and after 360 moving frames.
+- **dynamicRes**: at 2560 x 1440 with a 240 fps target the scale steps 0.9, 0.8, 0.7 and holds; still frames render
+  at 2560 x 1440. Under @mirage/play the output size stays put, so a still view settles (the review caught a loop).
+- **All on** (light2 + aoLit + ae + soft shadows), 1280 x 720 walking: about +0.7 ms by day, +1.1 ms at night over
+  off (2.6-3.3 ms); wet 0.7 + rain on top: +0.1-0.2 ms.
