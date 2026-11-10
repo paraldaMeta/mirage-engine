@@ -11,6 +11,28 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
 
 **New**
 
+- @mirage/play: character control and AI navigation (experimental, opt-in; `docs/character.md`,
+  `docs/navigation.md`; demo `examples/demos/charnav`). `createWalker`, `createPlay` and existing paths are
+  unchanged: stills of `hello-courtyard` and `walled-garden` (2 views each, 960 x 540, 8 spp, grain 0) are
+  bit-identical before and after. Character: `createSolids` (moving boxes, cylinders and spheres composed into the
+  walk grid at query time: lifts, turntables, doors, crates; ladder and water volumes), `createMover` (coyote time,
+  jump buffering, variable jump height, sprint, crouch with a ceiling check, slope slide, ladders, swimming,
+  mantling, carried by platforms, blocked by and pushing solids; `mode` for the animator through `driveAnimator`;
+  `save` / `restore`), `createFollowCamera` (spring arm 4.5 m in the open, 0.50 m with a wall behind; first person),
+  `linkSolids` (one rule for the grid and Rapier: kinematic solids are the game's and copied to Rapier before its
+  step, dynamic ones are Rapier's and copied back after it; grid and Rapier agree on 3999 of 4000 probes, pose gap
+  0). Step cost in Node, median of 5 (min-max): walker 1.04 us (1.02-1.07), mover 1.33 us (1.33-1.36), mover over 20
+  solids 3.08 us (3.05-3.10); 2000 inputs through `@mirage/net`'s `applyInput` give identical movers. Navigation:
+  areas with costs (`setArea`, `setAreaCost`, per-query `costs`), off-mesh links with `canEnter` / `traverse`
+  (`nav.link`), turned-box obstacles, `carveSolids` (a moved door leaf re-bakes in 0.077 ms (0.074-0.095), a crate in
+  0.174 ms (0.163-0.179)), `createPathQueue` (budgeted queries), `smoothPath`, `createCrowd` (ORCA avoidance,
+  different radii), `createBehaviorTree` with a blackboard, `createSenses` (sight cones the grid occludes, hearing),
+  `patrol` / `chase` / `flee` / `investigate` / `follow` / `guard`, `createNavDebug`. `findPath` mean over 300
+  pairs: 0.141 ms on 160 x 160 cells (p95 0.389), 0.740 ms on 512 x 512 (0.713-0.747; p95 1.678, worst 2.282).
+  `crowd.update` in Node: 200 agents 0.085 ms, 1000: 0.909 ms, 2000: 2.682 ms a step. The demo page in headless
+  Chrome at 1280 x 720 holds the display's 60 fps with 240, 500, 1000 and 2000 agents (capsules, not skinned
+  figures; `crowd.update` 0.28 to 4.8 ms a step); deepest overlap between agents 3 to 16 mm over 10 s with 240 (two runs). Still a
+  grid, not navmesh polygons; nothing streams; one thread.
 - @mirage/game: an audio engine on top of the mixer (`createAudioEngine`, `createMixer`, `createMusic`,
   `createAudioDebug`, occluders and DSP helpers; experimental, opt-in, `docs/audio.md`). `createAudio` is unchanged
   and, given to the engine, keeps playing through the new buses (`audio.play('pickup')` peak 0.284 alone, 0.284 again

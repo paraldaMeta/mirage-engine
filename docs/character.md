@@ -115,8 +115,8 @@ Node, one core of this machine, median of 5 runs (min-max), per `update`:
 | `createMover` on a plain grid | 1.33 (1.33-1.36) |
 | `createMover` on `createSolids` with 20 solids | 3.08 (3.05-3.10) |
 
-In the demo page (headless Chrome, a 320 x 320 grid, a lift, a turntable, a door, three crates): mover 4.8 us a
-step by the page's own timer, Rapier 0.012 ms, both far below a frame.
+In the demo page (headless Chrome, a 320 x 320 grid, a lift, a turntable, a door, three crates): mover 4.8 to 6.0 us a
+step by the page's own timer (two runs), Rapier 0.012 to 0.015 ms, both far below a frame.
 
 ## Demo
 

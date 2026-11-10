@@ -138,9 +138,9 @@ capsules, no skinned figures), two rounds of 5 s each:
 | 2000 | 60 | 4.48-4.79 ms |
 
 The page is capped at the display's 60, so 2000 is the largest count tried, not a ceiling that was found. In the
-240-agent check run the deepest overlap between two agents over 10 s was 3 mm and 232 of 240 moved more than a
-metre; the door's open-and-close cycle re-blocks 46 times at 0.019 ms a step on average. Guard: sees the player,
-crosses the jump link into the yard and is within 1.16 m in 5.3 s. With the door shut the path to the far side is
+240-agent check the deepest overlap between two agents over 10 s was 3 mm in one run and 16 mm in another (path
+timing is wall-clock) and 232 of 240 moved more than a metre; the door's open-and-close cycle re-blocks 46 times at 0.019 ms a step on average. Guard: sees the player,
+crosses the jump link into the yard and is within 1.16 m in 3.3 to 5.3 s. With the door shut the path to the far side is
 12.69 m, open 5.5 m.
 
 A dense test (300 agents crossing through each other) costs 0.46-0.53 ms a step with a deepest overlap of 8-10 mm;
