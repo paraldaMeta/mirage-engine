@@ -19,7 +19,7 @@ import { h, CSS } from './dom.js';
 import { createViewport } from './viewport.js';
 import { createPanels } from './panels.js';
 import { createDocument } from '../document.js';
-import { clone, getPath, setPath, joinPath, planHash, stableStringify } from '../layer.js';
+import { clone, getPath, joinPath, stableStringify } from '../layer.js';
 import { OBJECT_TYPES, newObject, planElements, elementMoved, elementScaled } from '../schema.js';
 import { createPlaced, applyNodeOverride, applyNodes, applyEnv, createTimelines, createTriggers, getPose, setPose, resolveNode } from '../runtime.js';
 

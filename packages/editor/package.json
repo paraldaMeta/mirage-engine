@@ -24,7 +24,6 @@
       "default": "./src/runtime.js"
     },
     "./server": "./src/server.mjs",
-    "./*": "./src/*.js",
     "./package.json": "./package.json"
   },
   "bin": {
