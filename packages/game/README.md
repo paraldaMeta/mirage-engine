@@ -70,7 +70,9 @@ does `reset()`. Without `localStorage` (node, a sandboxed iframe) saves are kept
 | interact, bag, menu | E or Enter, I, Esc or P | X, Y, Start (menus: d-pad, A, B) | Use, Bag, ☰ |
 
 Licence and size: Rapier is Apache-2.0; `@dimforge/rapier3d-compat` 0.19.3 inlines its 1.57 MB WASM as base64
-(2.24 MB JS, 0.84 MB gzip), loaded by a dynamic `import()` only when `createPhysics` runs. `npm test -w @mirage/game`
+(2.24 MB JS, 0.84 MB gzip), loaded by a dynamic `import()` only when `createPhysics` runs. Add
+`rapierWasm()` from `@mirage/tools/src/vite-rapier.mjs` to the page's Vite plugins to ship the wasm as its own file
+(0.59 MB gzip in all, compiled while it downloads); the game examples do. `npm test -w @mirage/game`
 runs `check.mjs` (the character on a hand-made scene, doors, a crate, game state, saves) in node.
 
 ## Type declarations (candidate)

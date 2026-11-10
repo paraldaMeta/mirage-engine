@@ -11,6 +11,10 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
 
 **New**
 
+- @mirage/tools: `rapierWasm()` Vite plugin (`src/vite-rapier.mjs`): Rapier's wasm ships as its own file instead
+  of base64 inside the bundle, and Rapier's init compiles it while it downloads. garden-quest: 814 -> 594 KB gzip;
+  over a 10 Mbps link (uncompressed test server) ready 4.3-4.7 -> 3.9-4.0 s. It also removes Rapier's init
+  deprecation warning. The three game examples use it; single-file pages keep the wasm inline.
 - @mirage/core: the sky's air (Sun and Moon scattering, airglow, the ground below the horizon) is baked per
   `setTime` into two 512x256 direction tables (`createSkyLut`) instead of being marched 16 steps per pixel. Sky cost
   at 2880x1800: 1.5-2 ms -> 0.25-0.4 ms (whole frame 11.5 -> 10.0 ms walled-garden, 12.5 -> 10.6 ms garden-quest).
