@@ -4,7 +4,7 @@ The world protocol: a site plan as the single source of positions, a module inte
 modules in order with failure isolation, merged anchors, ambient volumes and seeded randomness per module.
 Full convention (for agents and humans): [docs/world-protocol.md](../../docs/world-protocol.md).
 
-This development branch ships candidate declarations for plans, modules, anchors and the three kits.
+This development branch ships candidate declarations for plans, modules, anchors and the kits.
 `definePlan()` retains inferred custom fields; `WorldModule<Plan, Shared>` types module contexts.
 TypeScript consumers need Three's declarations. Coverage, nullable results and the deferred packed-consumer
 checks are described in [the type handoff](../../docs/TYPES.md). These declarations have not been compiled on the development Air.
@@ -81,3 +81,27 @@ The optional `material` supplies the ground surface material.
 a surface height in metres and a flow velocity in metres per second. Its normal ripples use the world's existing
 clock. `color`, `ripple` and `opacity` adjust its appearance. Terrain above the waterline occludes the surface.
 The water contributes no ground or Rapier collision. The bed sets wading depth. See [River Ford](../../examples/river-ford).
+
+## Rain
+
+```js
+import { setWetness, setRain, withWet } from '@mirage/core';
+import { addRain } from '@mirage/world/kits/rain';
+
+// Inside build(ctx), or with { ...world.ctx, root: world.scene } after building.
+const rain = addRain(ctx, { count: 6000, intensity: 1 });   // intensity: calls setRain(1)
+```
+
+`addRain` adds falling streaks in a box around the camera (`box` [22, 14, 22] m): one instanced draw call, no
+shadow, no collision, no depth writes, hidden from the environment capture. Each streak keeps its place in the world
+and falls with the world's clock (`G.uTime`, tilted by the wind), wrapped into the box, so walking does not drag the
+rain along and a still frame is the same on every run. A streak spans `streak` seconds of travel (0.035 s at
+`speed` 8.5 m/s), is at least one pixel wide (a thinner one gets less alpha), faint, and lit by the sky and, looking
+toward it, the key light (lamps add a little at night). Its density follows core's `setRain(level)`, which also
+drives the rain rings on puddles; wet ground itself is core's `withWet` / `setWetness` (core README, "Wet surfaces
+and rain"). In an orthographic view the box is centred where the view axis meets y = `ground` (0), and a streak
+thinner than a pixel keeps at least `minAlpha` (0.25). The fall runs on the scene clock wrapped to 64 s on the CPU
+(each streak falls a whole number of box heights per period), so it stays smooth after hours; the wind drifts a
+streak only since it left the top of its column, so a change of wind does not throw the rain across the sky.
+Limits: no splashes, and no shelter: streaks fall inside arcades and rooms wherever the box reaches (hide the mesh
+indoors). Remove it with `mesh.removeFromParent()` and dispose its geometry and material.

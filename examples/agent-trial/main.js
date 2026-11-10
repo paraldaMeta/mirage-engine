@@ -5,7 +5,7 @@
 // Contract with the tools: window.__mirage = { world, built, play, g? } and window.__READY = true once playable.
 import { createWorldRenderer, pickQuality } from '@mirage/core';
 import { buildWorld } from '@mirage/world';
-import { createPlay } from '@mirage/play';
+import { createPlay, createXR, xrSupport } from '@mirage/play';
 import { startGame } from '@mirage/game';
 import plan from './plan.js';
 import modules from './modules/index.js';
@@ -17,7 +17,8 @@ const canvas = document.querySelector('canvas');
 canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
 const { shadowRadius, ...render } = plan.render;
 const quality = Q.get('quality') || (await pickQuality()).quality, hud = Q.get('hud') !== '0';   // ?quality=low|medium|high
-const world = createWorldRenderer({ quality, canvas, width: W, height: H, preserveDrawingBuffer: true, ...render,
+const xrs = await xrSupport();   // a headset browser: an MSAA context for the headset, and the Enter VR / AR buttons
+const world = createWorldRenderer({ quality, xr: xrs.vr || xrs.ar, canvas, width: W, height: H, preserveDrawingBuffer: true, ...render,
   post: { grain: Q.get('grain') === '0' ? 0 : 0.012, ...render.post } });
 const only = Q.get('modules') && Q.get('modules').split(',');
 const shared = {};
@@ -41,5 +42,6 @@ if (only) {   // a module owner's self-test: the world alone, walk / fly / game 
 }
 const v = plan.viewpoints.find((p) => p.name === Q.get('view'));
 if (v) play.place(v.eye, v.look, only ? mode : 'walk');
-window.__mirage = { world, built, play, g };
+const xr = createXR(play, { game: g || undefined, support: xrs });
+window.__mirage = { world, built, play, g, xr };
 window.__READY = true;

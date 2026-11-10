@@ -14,6 +14,10 @@ import * as THREE from 'three';
 
 const D2R = Math.PI / 180;
 export const AMB_MAX = 8;
+/** Bumped whenever a module patches three's shader chunks (light2, soft shadows): Mirage materials put it in their
+ *  program cache key, because three's key does not see chunk text and a program compiled before the patch (another
+ *  world on the same renderer) would otherwise be reused without it. 0 on pages that never patch (keys unchanged). */
+export const CHUNK_EPOCH = { n: 0 };
 
 /** The reference "golden hour": a low sun in the west-south-west. Exposure and the legacy look are tuned here. */
 export const GOLDEN = Object.freeze({ elevation: 6.8, azimuth: 250 });
@@ -35,7 +39,7 @@ export function createEnv({ wind = {} } = {}) {
   const G = {
     uTime: { value: 0 },                                   // seconds (animation, wind)
     uFrame: { value: 0 },                                  // sub-frame counter (rarely needed in materials)
-    uWind: { value: new THREE.Vector3(w[0] / Math.hypot(w[0], w[1]), w[1] / Math.hypot(w[0], w[1]), wind.strength ?? 1) },   // (dir.x, dir.z, strength)
+    uWind: { value: new THREE.Vector3(w[0] / (Math.hypot(w[0], w[1]) || 1), w[1] / (Math.hypot(w[0], w[1]) || 1), wind.strength ?? 1) },   // (dir.x, dir.z, strength); dir [0, 0] = still air, not NaN
     uKeyDir: { value: keyDir.clone() },                    // toward the key light
     uKeyColor: { value: new THREE.Vector3(7.0, 4.9, 3.0) },// key radiance (linear RGB x intensity)
     uLamp: { value: 1 },        // lamps / lit windows: 0 off (day) .. 1 lit (night)

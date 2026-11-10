@@ -54,10 +54,12 @@ Sounds (all generated in code at `unlock`, ~0.3 s): `step_stone|gravel|grass|woo
 ## Saves
 
 Versioned JSON in `localStorage` (`mirage:<id>:<slot>`), also exported to / imported from a file:
-`{ v, id, at, time, flags, inventory, removed, entities: { id: e.save() }, settings: { bindings, volumes }, player: { pos, yaw, pitch }, summary }`.
-An older `v` runs through `migrate[v]` step by step; a newer one is refused. Settings (key bindings, volumes) are
-also kept on their own (`mirage:<id>:settings`). Loading an earlier save brings back entities removed since
-(a picked-up key returns to its bench).
+`{ v, id, at, time, flags, inventory, removed, entities: { id: e.save() }, zones, player: { pos, yaw, pitch }, summary }`.
+An older `v` runs through `migrate[v]` step by step; a newer one, another game's save or a malformed one is refused
+without changing anything. Settings (key bindings, volumes) belong to the player, not to a save: they are kept on
+their own (`mirage:<id>:settings`) and loading a save leaves them alone (saves before 1.0 carried a copy, now
+ignored). Loading an earlier save brings back entities removed since (a picked-up key returns to its bench); so
+does `reset()`. Without `localStorage` (node, a sandboxed iframe) saves are kept in memory.
 
 ## Controls (defaults)
 
@@ -68,7 +70,9 @@ also kept on their own (`mirage:<id>:settings`). Loading an earlier save brings 
 | interact, bag, menu | E or Enter, I, Esc or P | X, Y, Start (menus: d-pad, A, B) | Use, Bag, ☰ |
 
 Licence and size: Rapier is Apache-2.0; `@dimforge/rapier3d-compat` 0.19.3 inlines its 1.57 MB WASM as base64
-(2.24 MB JS, 0.84 MB gzip), loaded by a dynamic `import()` only when `createPhysics` runs. `npm test -w @mirage/game`
+(2.24 MB JS, 0.84 MB gzip), loaded by a dynamic `import()` only when `createPhysics` runs. Add
+`rapierWasm()` from `@mirage/tools/src/vite-rapier.mjs` to the page's Vite plugins to ship the wasm as its own file
+(0.59 MB gzip in all, compiled while it downloads); the game examples do. `npm test -w @mirage/game`
 runs `check.mjs` (the character on a hand-made scene, doors, a crate, game state, saves) in node.
 
 ## Type declarations (candidate)

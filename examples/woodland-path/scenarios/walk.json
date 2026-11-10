@@ -11,9 +11,9 @@
       "expect": { "z": "< -2.0", "x": "~ 2.5 0.32", "onGround": "== true" } },
     { "name": "medium-frame-cost", "place": { "eye": [-0.5, 1.62, 10], "look": [0.5, 2.1, -4], "mode": "walk" },
       "perf": { "frames": 90 }, "expect": { "frameMs": "> 0", "p95Ms": "> 0", "calls": "> 0", "triangles": "> 0" } },
-    { "name": "trailhead", "viewpoint": 0 },
+    { "name": "trailhead", "viewpoint": 0, "see": { "ground": "> 0.1", "verge": "> 0.3", "backdrop": "> 0.05" } },
     { "name": "near-grass", "viewpoint": 1 },
-    { "name": "side-lit-crown", "viewpoint": 2 },
+    { "name": "side-lit-crown", "viewpoint": 2, "see": { "verge": "> 0.3" } },
     { "name": "trunk-and-turn", "viewpoint": 3, "expect": { "errors": "== 0" } }
   ]
 }

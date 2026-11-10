@@ -75,10 +75,21 @@ export async function createPhysics(scene, { gravity = 9.81 } = {}) {
   /** a dynamic prop from obj's bounding box (or a ball); obj must sit in a world-aligned parent */
   function body(obj, { shape = 'box', mass = 10, friction = 0.6, restitution = 0.15, damping = 0.2 } = {}) {
     obj.updateMatrixWorld(true);
-    const box = new THREE.Box3().setFromObject(obj), size = box.getSize(new THREE.Vector3()), c = box.getCenter(new THREE.Vector3());
+    // measure the box in the body's own frame (obj's position and rotation, scale kept): a world-aligned box of a
+    // turned prop was larger than the prop, and was then turned once more with the body
+    const frame = new THREE.Matrix4().compose(obj.position, obj.quaternion, _one);
+    if (obj.parent) frame.premultiply(obj.parent.matrixWorld);
+    const inv = frame.invert(), box = new THREE.Box3(), part = new THREE.Box3(), m = new THREE.Matrix4();
+    obj.traverse((o) => {
+      const g = o.geometry;
+      if (!g || !g.attributes?.position) return;
+      if (!g.boundingBox) g.computeBoundingBox();
+      box.union(part.copy(g.boundingBox).applyMatrix4(m.multiplyMatrices(inv, o.matrixWorld)));
+    });
+    if (box.isEmpty()) box.set(new THREE.Vector3(-0.25, -0.25, -0.25), new THREE.Vector3(0.25, 0.25, 0.25));
+    const size = box.getSize(new THREE.Vector3()), off = box.getCenter(new THREE.Vector3());
     const b = world.createRigidBody(R.RigidBodyDesc.dynamic().setTranslation(obj.position.x, obj.position.y, obj.position.z)
       .setRotation(obj.quaternion).setLinearDamping(damping).setAngularDamping(damping * 2).setCcdEnabled(true));
-    const off = c.sub(obj.position);
     const desc = shape === 'ball' ? R.ColliderDesc.ball(Math.max(size.x, size.y, size.z) / 2) : R.ColliderDesc.cuboid(size.x / 2, size.y / 2, size.z / 2);
     const col = world.createCollider(desc.setTranslation(off.x, off.y, off.z).setMass(mass).setFriction(friction).setRestitution(restitution), b);
     info.set(col.handle, { surface: surfaceOf(obj), object: obj });
@@ -107,7 +118,7 @@ export async function createPhysics(scene, { gravity = 9.81 } = {}) {
     hinges.push(h);
     return h;
   }
-  const _up = new THREE.Vector3(0, 1, 0);
+  const _up = new THREE.Vector3(0, 1, 0), _one = new THREE.Vector3(1, 1, 1);
   function apply(h, now) {
     _q.setFromAxisAngle(_up, h.angle).premultiply(h.base);
     if (now) { h.body.setRotation(_q, false); h.obj.quaternion.copy(_q); }
@@ -235,6 +246,7 @@ export async function createPhysics(scene, { gravity = 9.81 } = {}) {
     };
     /** put the feet on the ground under p (searching from p.y + 0.5 down); exact: at p as given (a saved spot) */
     w.place = (p, { exact = false } = {}) => {
+      carry = null;   // a step-up deferred at the old spot is not a move at the new one
       w.pos = [p[0], exact ? p[1] ?? 0 : groundUnder(p), p[2]];
       const centre = { x: w.pos[0], y: w.pos[1] + lift, z: w.pos[2] };
       rb.setTranslation(centre, true);

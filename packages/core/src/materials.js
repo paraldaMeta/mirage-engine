@@ -1,8 +1,9 @@
 // Mirage original code. Techniques informed by Golden Temple by Leon Lin (MIT) — see NOTICE.
 import * as THREE from 'three';
 import { NOISE_GLSL } from './noise.js';
-import { WIND_GLSL, AMBIENT_GLSL } from './env.js';
+import { WIND_GLSL, AMBIENT_GLSL, CHUNK_EPOCH } from './env.js';
 import { hash32 } from './rng.js';
+import { RELIEF_GLSL, RELIEF, renderHeight, renderShade } from './relief.js';
 
 // ---------------------------------------------------------------------------
 // patch(material, hooks, G): procedural GLSL inside three's own Standard / Physical / Lambert / Basic / Depth
@@ -24,6 +25,9 @@ import { hash32 } from './rng.js';
 //   lighting      after <lights_fragment_end>        reflectedLight (e.g. translucency)
 //   output        before <opaque_fragment>           outgoingLight
 //   uniforms, defines                                extra uniforms (kept by reference) and defines
+//   specAA                                           mgSpecAA on the roughness: by default where a hook mentions
+//                                                    roughnessFactor; false never; a string: an #if expression
+//   attach(material)                                 called once patched (wet.js keeps its define in step)
 // Materials with identical hooks share one program (the cache key is a hash of the hooks).
 // ---------------------------------------------------------------------------
 
@@ -90,12 +94,16 @@ export function patch(material, hooks, G) {
     // ambient volumes scale the image-based light (sky + world capture) inside interiors
     if (A) fs = fs.replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\n{ float mgAmb = mgAmbient(mgWorldPos); reflectedLight.indirectDiffuse *= mgAmb; reflectedLight.indirectSpecular *= mgAmb; }');
     for (const [name, inc] of Object.entries(FRAG_HOOKS)) if (hooks[name]) fs = fs.replace(inc, `${inc}\n${hooks[name]}`);
-    if (bump && fs.includes('roughnessFactor')) fs = fs.replace('#include <emissivemap_fragment>', 'roughnessFactor = mgSpecAA(roughnessFactor, normal);\n#include <emissivemap_fragment>');
+    // specular AA where the hooks touch the roughness; hooks.specAA overrides: false never, a string is a preprocessor
+    // #if expression (wet.js: a dry material that had none gets it only while wet, 'defined(MG_WET)')
+    const aa = hooks.specAA ?? fs.includes('roughnessFactor'), sa = 'roughnessFactor = mgSpecAA(roughnessFactor, normal);';
+    if (bump && aa) fs = fs.replace('#include <emissivemap_fragment>', (typeof aa === 'string' ? `#if ${aa}\n${sa}\n#endif` : sa) + '\n#include <emissivemap_fragment>');
     if (hooks.output) fs = fs.replace('#include <opaque_fragment>', `${hooks.output}\n#include <opaque_fragment>`);
     shader.fragmentShader = fs;
   };
-  material.customProgramCacheKey = () => key + (amb() ? 'a' : '');
+  material.customProgramCacheKey = () => key + (amb() ? 'a' : '') + (CHUNK_EPOCH.n ? 'e' + CHUNK_EPOCH.n : '');
   material.needsUpdate = true;
+  if (typeof hooks.attach === 'function') hooks.attach(material);
   return material;
 }
 
@@ -120,8 +128,9 @@ export function createMaterials(G) {
 // They declare `float mgH;` (height for the bump) — combine at most one PROC per material.
 // ---------------------------------------------------------------------------
 export const PROC = {
-  /** lime plaster / render: soft trowel waves, rain streaks, a damp foot, scattered chips */
-  plaster: (base = 'vec3(0.72, 0.66, 0.56)', { wear = 1, foot = 0.6 } = {}) => ({
+  /** lime plaster / render: soft trowel waves, rain streaks, a damp foot, scattered chips; render: the close-range
+   *  relief of a hand-applied render (undulation in metres, e.g. 0.009; mud / adobe ~0.008, or [und, swipe]), opt-in */
+  plaster: (base = 'vec3(0.72, 0.66, 0.56)', { wear = 1, foot = 0.6, render = 0 } = {}) => withRender({
     fragmentDecl: 'float mgH;',
     albedo: /* glsl */ `{
       vec3 p = mgWorldPos; vec3 n = normalize(mgWorldNormal);
@@ -137,7 +146,7 @@ export const PROC = {
       mgH = trowel * 0.5 + big * 0.3 - chip * 0.7 + mgGrad3(p * 24.0) * 0.05;
     }`,
     normal: 'normal = mgBump(normal, mgH, 0.004);',
-  }),
+  }, render, 0.004),
   /** stone blocks in courses (ashlar): per-block tone, recessed joints, worn arrises */
   stone: (base = 'vec3(0.46, 0.41, 0.34)', { course = 0.32, block = 0.62 } = {}) => ({
     fragmentDecl: 'float mgH;',
@@ -193,3 +202,18 @@ export const PROC = {
     normal: 'normal = mgBump(normal, mgH, 0.0015);',
   }),
 };
+
+// the render relief on a PROC set that bumps mgH with strength k: one bump of mgH * k + the render's height (m), a
+// little shade in its hollows; without `render` the hooks are returned untouched (the same program as before)
+function withRender(h, render, k) {
+  const [und, swipe] = Array.isArray(render) ? render : [render, render * 0.7];
+  if (!(und > 0)) return h;
+  return {
+    ...h,
+    fragmentDecl: RELIEF_GLSL + h.fragmentDecl + ' float mgRR;',
+    albedo: h.albedo + `\n{ ${renderHeight('rr', und, swipe)} mgRR = rr; }`,
+    normal: `normal = mgBump(normal, mgH * ${k} + mgRR, 1.0);`,
+    output: renderShade('mgRR'),
+    uniforms: { ...RELIEF },
+  };
+}

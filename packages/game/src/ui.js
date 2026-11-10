@@ -92,6 +92,12 @@ function mountUI({ game, input, audio, title = 'Mirage', subtitle = '', slots = 
   let ownsPause = false;
   const files = new Map();
   const capture = new AbortController();
+  // one pending "press a key" at a time; it ends when the menu closes or shows anything else, so a key pressed in
+  // play is never swallowed and bound (the gamepad, Resume, Back or a second bind button used to leave it waiting)
+  let rebinding = null;
+  const stopRebind = () => { rebinding?.abort(); rebinding = null; };
+  life.listen(capture.signal, 'abort', stopRebind);
+  life.listen(menu, 'close', stopRebind);
   life.defer(() => {
     capture.abort();
     for (const [url, timer] of files) { clearTimeout(timer); URL.revokeObjectURL(url); }
@@ -122,7 +128,11 @@ function mountUI({ game, input, audio, title = 'Mirage', subtitle = '', slots = 
     game.emit('start');
   }
   life.listen(start, 'click', begin);
-  life.listen(window, 'keydown', (e) => { if (!started) { e.preventDefault(); begin(e); } }, true);
+  // any key starts, except one typed into the host page's own fields (an embedded game must not swallow those)
+  life.listen(window, 'keydown', (e) => {
+    if (started || (e.target && (e.target.isContentEditable || /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName || '')))) return;
+    e.preventDefault(); begin(e);
+  }, true);
   life.listen(window, 'pointerdown', () => audio.unlock(), { capture: true });
 
   // ---- pointer lock lost while playing (Escape in Chrome): pause, and ignore the same Escape's menu edge
@@ -157,17 +167,18 @@ function mountUI({ game, input, audio, title = 'Mirage', subtitle = '', slots = 
   const look = $('.mg-look');
   life.listen(look, 'pointerdown', (e) => { if (!started) begin(e); lookId = e.pointerId; last = [e.clientX, e.clientY]; look.setPointerCapture(e.pointerId); });
   life.listen(look, 'pointermove', (e) => { if (e.pointerId !== lookId) return; input.addLook((e.clientX - last[0]) * 0.006, (e.clientY - last[1]) * 0.006); last = [e.clientX, e.clientY]; });
-  life.listen(look, 'pointerup', () => { lookId = null; });
+  for (const ev of ['pointerup', 'pointercancel']) life.listen(look, ev, () => { lookId = null; });
   for (const b of touch.querySelectorAll('button[data-a]')) {
     const a = b.dataset.a;
     life.listen(b, 'pointerdown', (e) => { e.preventDefault(); if (!started) { begin(e); return; } if (a === 'jump') input.hold(a, true); else input.tap(a); });
-    life.listen(b, 'pointerup', () => input.hold(a, false));
+    for (const ev of ['pointerup', 'pointercancel']) life.listen(b, ev, () => input.hold(a, false));   // a system gesture cancels
     life.listen(b, 'click', (e) => { if (e.detail === 0) input.tap(a); });   // keyboard / screen reader activation
   }
 
   // ---- the pause menu (panels rendered on demand)
   function openMenu(p = 'main') { if (life.disposed) return; panel = p; renderMenu(); show(menu); const f = menu.querySelector('button:not(:disabled)'); if (f) f.focus(); }
   function renderMenu() {
+    stopRebind();
     const body = $('.mg-body');
     $('#mg-menu-h').textContent = { main: 'Paused', save: 'Save', load: 'Load', controls: 'Controls', sound: 'Sound' }[panel];
     const back = '<button class="alt" data-p="main">Back</button>';
@@ -204,10 +215,14 @@ function mountUI({ game, input, audio, title = 'Mirage', subtitle = '', slots = 
       a.click();
     }
     if (t.dataset.bind) {
+      stopRebind();
+      const mine = rebinding = new AbortController();
       t.textContent = 'press a key…';
-      const code = await input.capture(capture.signal);
+      const code = await input.capture(mine.signal);
+      if (rebinding === mine) rebinding = null;
       if (life.disposed) return;
       if (code) { input.rebind(t.dataset.bind, code); game.settings.bindings = input.bindings; game.saveSettings(); }
+      if (mine.signal.aborted || !menu.open) return;   // cancelled: whatever cancelled it owns the menu now
       renderMenu(); const b = menu.querySelector(`[data-bind="${t.dataset.bind}"]`); if (b) b.focus();
     }
     if (t.dataset.do === 'defaults') { input.reset(); game.settings.bindings = input.bindings; game.saveSettings(); renderMenu(); }

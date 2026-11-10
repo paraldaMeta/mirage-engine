@@ -21,7 +21,8 @@ const root = path.resolve(opts.positionals[0] || '.');
 const name = path.basename(root);
 const here = path.dirname(fileURLToPath(import.meta.url));
 let out;
-try { out = checkOut(opts.values.out ?? path.join('deploy', name), { keep: [root], marker: '.nojekyll' }); }
+// the marker is this tool's own file: .nojekyll is in many Pages folders (a docs/ site, a gh-pages checkout with .git)
+try { out = checkOut(opts.values.out ?? path.join('deploy', name), { keep: [root], marker: '.mirage-deploy' }); }
 catch (e) { console.error('[deploy] ' + e.message); process.exit(2); }
 fs.rmSync(out, { recursive: true, force: true });
 fs.mkdirSync(out, { recursive: true });
@@ -32,6 +33,7 @@ if (opts.values.multi) {
   execFileSync(process.execPath, [path.join(here, 'package.mjs'), root, '--out', path.join(out, 'index.html')], { stdio: 'inherit' });
 }
 fs.writeFileSync(path.join(out, '.nojekyll'), '');
+fs.writeFileSync(path.join(out, '.mirage-deploy'), 'made by mirage-deploy; it empties this folder on its next run\n');
 fs.writeFileSync(path.join(out, '_headers'), '/assets/*\n  Cache-Control: public, max-age=31536000, immutable\n/index.html\n  Cache-Control: no-cache\n');
 // check: an index.html, and nothing it references that is missing
 const html = fs.readFileSync(path.join(out, 'index.html'), 'utf8');

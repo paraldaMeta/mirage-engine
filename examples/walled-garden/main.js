@@ -5,7 +5,7 @@
 //      ?spp=N  ?w=&h=  ?grain=0  ?broken=1  ?ui=0
 import { createWorldRenderer, createTextures, placeDate, pickQuality } from '@mirage/core';
 import { buildWorld } from '@mirage/world';
-import { createPlay } from '@mirage/play';
+import { createPlay, createXR, xrSupport } from '@mirage/play';
 import manifest from '../hello-courtyard/tex/manifest.json';
 import plan from './plan.js';
 import modules from './modules/index.js';
@@ -17,7 +17,8 @@ const t = Q.get('time') || 'golden';
 const canvas = document.querySelector('canvas');
 canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
 const quality = Q.get('quality') || (await pickQuality()).quality, hud = Q.get('hud') !== '0';   // ?quality=low|medium|high
-const world = createWorldRenderer({ quality,
+const xrs = await xrSupport();   // a headset browser: an MSAA context for the headset, and the Enter VR / AR buttons
+const world = createWorldRenderer({ quality, xr: xrs.vr || xrs.ar,
   canvas, width: W, height: H, place, time: t === 'golden' ? 'golden' : placeDate(Q.get('date') || '2026-10-25', t, place.tzHours), preserveDrawingBuffer: true,
   shadow: { center: [0, 2, 0], radius: 42 }, envProbe: [0, 4, 6],
   fog: { groundDensity: 0.0018, height: 40 },
@@ -34,5 +35,6 @@ const spp = +Q.get('spp') || 6, mode = Q.get('mode') || 'walk';
 const play = createPlay(world, { plan: built.plan, canvas, mode, spp, ui: Q.get('ui') !== '0', shadowRadius: 26, fit: !Q.get('w'), quality, hud });
 const v = plan.viewpoints.find((p) => p.name === Q.get('view'));
 if (v) play.place(v.eye, v.look, mode);
-window.__mirage = { world, tex, built, play, render: (o = {}) => world.renderFrame(o.T ?? 0, { spp, frameIndex: 1, ...o }) };
+const xr = createXR(play, { support: xrs });
+window.__mirage = { world, tex, built, play, xr, render: (o = {}) => world.renderFrame(o.T ?? 0, { spp, frameIndex: 1, ...o }) };
 window.__READY = true;

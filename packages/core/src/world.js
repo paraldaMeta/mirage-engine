@@ -2,11 +2,14 @@
 import * as THREE from 'three';
 import { createEnv } from './env.js';
 import { installFog, FOG } from './fog.js';
-import { createSky, createSkyUniforms } from './sky.js';
+import { createSky, createSkyUniforms, createSkyLut } from './sky.js';
 import { createStars } from './stars.js';
 import { skyState, lightAt } from './daynight.js';
 import { Pipeline, DEFAULT_POST } from './post.js';
+import { installLight2, light2Config } from './light2.js';
+import { installSoftShadows, softShadowConfig, softShadowUniforms, softShadowsIdle } from './softshadow.js';
 import { createMaterials } from './materials.js';
+import { wetVersion } from './wet.js';
 import { createEnvLight } from './envlight.js';
 import { deviceProfile } from './device.js';
 import * as geom from './geom.js';
@@ -37,18 +40,36 @@ const gcd = (a, b) => (b ? gcd(b, a % b) : a);
 // shutter slot of sub-frame k: a stride coprime with spp decorrelates time from the AA offset
 const shutterSlot = (k, spp) => { let p = 3; while (gcd(p, spp) !== 1) p += 2; return (k * p + 1) % spp; };
 
+/** dynamicRes option -> settings or null: true or { target fps = 60, min scale = 0.6, step = 0.1 } */
+export function dynamicResConfig(c) {
+  if (!c) return null;
+  const o = c === true ? {} : c;
+  const n = (v, d, lo, hi) => (Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d);
+  return { target: n(o.target, 60, 10, 240), min: n(o.min, 0.6, 0.25, 1), step: n(o.step, 0.1, 0.02, 0.5) };
+}
+
 export function createWorldRenderer(config = {}) {
   const {
     canvas, width = canvas?.clientWidth || 1280, height = canvas?.clientHeight || 720, pixelRatio = 1,
-    quality = 'high', place = { lat: 0, lon: 0, height: 0, tzHours: 0 }, time = 'golden',
+    quality = 'high', place: placeIn, time = 'golden',
     shadow = { center: [0, 0, 0], radius: 30 }, envProbe = [0, 3, 0], envIntensity = 0.5, wind, clouds = 0.35,
   } = config;
+  // a partial place ({ lat: 35 }) keeps the other defaults instead of lighting the world with NaN
+  const place = { lat: 0, lon: 0, height: 0, tzHours: 0, ...placeIn };
   const Q = QUALITY[quality] || QUALITY.high;
   const fogCfg = { density: 1, groundDensity: 0.0016, height: 18, air: 0.00012, level: 0, color: 1, glow: 1, ...config.fog };
   const post = { ...DEFAULT_POST, ...config.post };
 
   installFog();
-  const renderer = config.renderer || new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false, stencil: false, powerPreference: 'high-performance', preserveDrawingBuffer: !!config.preserveDrawingBuffer });
+  // light2 (lamp shadows, reflections, volumetric light, mixed bloom): opt-in, patched before any material compiles
+  let l2cfg = light2Config(config.light2);
+  if (l2cfg && !installLight2()) l2cfg = null;
+  // soft sun shadows (contact-hardening, per pixel; softshadow.js): opt-in, patched before any material compiles
+  let sscfg = softShadowConfig(config.softShadows);
+  if (sscfg && !installSoftShadows(sscfg)) sscfg = null;
+  // [xr] config.xr: the context is made multisampled and XR-compatible, because three gives the headset's framebuffer
+  // MSAA only when the canvas context has it (packages/play/src/xr.js); the pipeline never draws geometry to the canvas
+  const renderer = config.renderer || new THREE.WebGLRenderer({ canvas, antialias: !!config.xr, alpha: false, stencil: false, powerPreference: 'high-performance', preserveDrawingBuffer: !!config.preserveDrawingBuffer, ...(config.xr ? { xrCompatible: true } : {}) });
   renderer.setPixelRatio(pixelRatio);
   renderer.setSize(width, height, false);
   renderer.toneMapping = THREE.NoToneMapping;
@@ -63,6 +84,7 @@ export function createWorldRenderer(config = {}) {
   scene.fog = new THREE.FogExp2(0x8899aa, fogCfg.density);   // FogExp2 switches on Mirage's aerial perspective
   const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 2000);
   const skyU = createSkyUniforms();
+  const skyLut = createSkyLut(renderer, skyU);   // the sky's air, baked per setTime instead of marched per pixel
   skyU.uCloudCover.value = clouds;
   const sky = createSky(skyU);
   const stars = createStars(skyU);
@@ -75,6 +97,39 @@ export function createWorldRenderer(config = {}) {
   scene.add(sun, sun.target);
 
   const pipeline = new Pipeline(renderer, { width: width * pixelRatio, height: height * pixelRatio, msaa: device.msaa, aoSamples: Q.aoSamples });
+  if (l2cfg) pipeline.useLight2(l2cfg, { sun, G });
+  // dynamic resolution (opt-in, moving frames only): the pipeline renders at resScale x the canvas and the grade pass
+  // stretches it; still frames always render at full size, so they stay bit-identical
+  const dynRes = dynamicResConfig(config.dynamicRes);
+  let resScale = 1;
+  const dr = { last: 0, ema: 0, hold: 0, good: 0, wait: 2000, raisedAt: -1e9, lowered: null, clock: 0 };
+  // the output size (pipeline.w / h) never changes with the scale: play keys its redraws, fades and aspect on it
+  function fitPipeline(s) { if (pipeline.setRenderScale(s)) taaValid = false; }
+  // the interval between moving frames drives it: over budget -> one step down; at budget for `wait` -> try one step
+  // up (a step up that is undone within 2 s doubles the wait, up to 32 s); a step down that did not help (the frame
+  // is limited by the CPU, not by pixels) is undone and the scaler rests for 30 s
+  function dynamicStep(now) {
+    const ms = dr.last ? now - dr.last : 0; dr.last = now;
+    if (!ms || ms > 250) { dr.ema = 0; return; }   // the first frame, or after a pause (a hidden tab, a still view)
+    dr.ema = dr.ema ? dr.ema + (ms - dr.ema) * 0.1 : ms;
+    dr.clock += ms; dr.hold -= ms;
+    if (dr.hold > 0) return;
+    // cap: the app's own frame cap (play sets it from maxFps / the power saver); a capped app's interval says nothing
+    // about the GPU, so the budget is never tighter than the cap
+    const budget = 1000 / Math.min(dynRes.target, dynRes.cap || Infinity);
+    if (dr.lowered) {
+      const { from, ema } = dr.lowered; dr.lowered = null;
+      if (dr.ema > ema * 0.97) { resScale = from; dr.hold = 30000; dr.ema = 0; return; }
+    }
+    if (dr.ema > budget * 1.12 && resScale > dynRes.min + 1e-6) {
+      if (dr.clock - dr.raisedAt < 2000) dr.wait = Math.min(dr.wait * 2, 32000);
+      dr.lowered = { from: resScale, ema: dr.ema };
+      resScale = Math.max(dynRes.min, +(resScale - dynRes.step).toFixed(3)); dr.hold = 700; dr.good = 0; dr.ema = 0;
+    } else if (dr.ema < budget * 1.03 && resScale < 1) {
+      dr.good += ms;
+      if (dr.good > dr.wait) { resScale = Math.min(1, +(resScale + dynRes.step).toFixed(3)); dr.raisedAt = dr.clock; dr.hold = 700; dr.good = 0; dr.ema = 0; }
+    } else dr.good = 0;
+  }
   const mat = createMaterials(G);
   const updates = [];
   const envLight = createEnvLight(renderer, { size: Q.envSize, fade: config.envFade ?? 1.5 });
@@ -84,7 +139,7 @@ export function createWorldRenderer(config = {}) {
   // temporal AA state (moving camera): history validity, previous view-projection, jitter index.
   // ponytail: TAA rather than supersampling while moving: 4 sub-frames cost 4x (~3.4 ms each at 1440x900) and
   // still crawl on thin edges; TAA is one extra full-screen pass. Still views keep the exact sub-frame average.
-  let taaValid = false, taaK = 0;
+  let taaValid = false, taaK = 0, lastMoving = 0, seenWet = wetVersion();
   const prevVP = new THREE.Matrix4(), curVP = new THREE.Matrix4(), invVP = new THREE.Matrix4();
 
   const setLampGain = () => { G.uLampGain.value = light.lamp * Math.pow(exposure, -0.9); };
@@ -107,6 +162,7 @@ export function createWorldRenderer(config = {}) {
     skyU.uNightGlow.value.fromArray(L.nightGlow).multiplyScalar(state.eqToWorld ? 1 : 0);
     skyU.uStarVis.value = L.starVis;
     if (L.eqToWorld) skyU.uEq.value.set(...L.eqToWorld);
+    skyLut.bake();
     G.uLamp.value = L.lamp; G.uSkyLight.value = L.skyLight; G.uNight.value = L.night;
     expTarget = L.exposure;
     if (!ease) { exposure = expTarget; envState = 'instant'; }
@@ -121,6 +177,14 @@ export function createWorldRenderer(config = {}) {
   /** Advance eased exposure and the environment cross-fade by dt seconds. Returns true while anything changes. */
   function tick(dt) {
     let busy = false;
+    // setWetness / setRain (page-global): a wetness change recaptures the environment from scratch (the capture
+    // carries its previous self as the bounce, so a fresh one makes setWetness(0) give the dry image exactly); any
+    // change asks the caller to draw again
+    const wv = wetVersion();
+    if (wv.wet !== seenWet.wet || wv.rain !== seenWet.rain) {
+      if (wv.wet !== seenWet.wet && light) { scene.environment = null; envState = 'instant'; }
+      seenWet = wv; busy = true;
+    }
     if (light && Math.abs(Math.log(expTarget / exposure)) > 1e-4) {
       exposure = Math.exp(Math.log(exposure) + Math.log(expTarget / exposure) * Math.min(1, dt * 3));
       setLampGain(); busy = true;
@@ -139,7 +203,7 @@ export function createWorldRenderer(config = {}) {
     scene.fog.density = fogCfg.density;
   }
 
-  function fitShadow(center, radius, jitter) {
+  function fitShadow(center, radius, jitter, k = 0) {
     const d = keyDir.clone();
     if (jitter) {
       const right = new THREE.Vector3().crossVectors(d, Math.abs(d.y) > 0.99 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0)).normalize();
@@ -155,6 +219,7 @@ export function createWorldRenderer(config = {}) {
     cam.near = Math.max(0.5, D - 2 * radius); cam.far = D + 2 * radius;
     cam.updateProjectionMatrix();
     sun.shadow.needsUpdate = true;
+    softShadowUniforms(sscfg, cam, sun.shadow.mapSize, k);
   }
 
   function captureEnv(instant = true) {
@@ -164,11 +229,16 @@ export function createWorldRenderer(config = {}) {
     writeFog();
     fitShadow(shadow.center, shadow.radius, null);
     stars.visible = false; skyU.uCapture.value = 1;
+    // objects marked userData.mgNoCapture (the rain kit's streaks) stay out of the image-based light
+    const hidden = [];
+    scene.traverse((o) => { if (o.userData.mgNoCapture && o.visible) { o.visible = false; hidden.push(o); } });
     for (let pass = 0; pass < (instant ? 2 : 1); pass++) {
       envLight.capture(scene, envProbe, { instant });
       scene.environment = envLight.texture;
     }
     stars.visible = true; skyU.uCapture.value = 0;
+    for (const o of hidden) o.visible = true;
+    softShadowsIdle();
     lastCap.dir.copy(keyDir); lastCap.lamp = light.lamp; lastCap.sky = light.skyLight;
     envState = null;
   }
@@ -177,7 +247,21 @@ export function createWorldRenderer(config = {}) {
     if (!light) setTime(time);
     scene.environment = null;
     camera.updateMatrixWorld();
-    await renderer.compileAsync(scene, camera);
+    // Programs are compiled here in parallel (KHR_parallel_shader_compile); any program the first frames need that
+    // is not ready is compiled one after another on the main thread instead, ~50 ms each on a cold start. Two things
+    // decide which programs those are: the target (three keys a program on its output colour space: the screen is
+    // sRGB, the pipeline's half-float targets and the capture cube are linear) and the environment (a lit material
+    // with scene.environment set is another program). So compile against a pipeline target, once without the
+    // environment (the first capture pass) and once with it; a throwaway capture makes the texture exist, and the
+    // real capture below starts again from no environment, so the image is the same as before.
+    const compile = () => { const saved = renderer.getRenderTarget(); renderer.setRenderTarget(pipeline.sceneRT); const p = renderer.compileAsync(scene, camera); renderer.setRenderTarget(saved); return p; };
+    await Promise.all([compile(), pipeline.compileAsync()]);
+    if (!envLight.texture) {
+      envLight.capture(scene, envProbe, { instant: true });
+      scene.environment = envLight.texture;
+      await compile();
+      scene.environment = null;
+    }
     captureEnv(true);
   }
 
@@ -192,9 +276,19 @@ export function createWorldRenderer(config = {}) {
     const dt = opts.dt ?? 1 / 60, shutter = opts.shutter ?? 0.5;
     const sh = opts.shadow || shadow;
     const P = { ...post, exposure: post.exposure * exposure, temperature: post.temperature + light.warmth };
+    if (P.autoExposure > 0) P.aeKey = post.aeKey * Math.pow(2, -(post.aeNight || 0) * Math.min(1, Math.max(0, light.lamp)));
+    const now = performance.now();
+    // the seconds since the last moving frame, for auto exposure (still frames are metered on their own)
+    const frameDt = taa ? (lastMoving ? Math.min((now - lastMoving) / 1000, 0.25) : 1 / 60) : 0;
+    lastMoving = taa ? now : 0;
+    if (dynRes) {
+      if (taa) dynamicStep(now); else dr.last = 0;
+      fitPipeline(taa ? resScale : 1);
+      if (taa && resScale < 1) P.sharpen = post.sharpen + (1 - resScale) * 0.6;   // the stretch softens: sharpen a little more
+    }
     writeFog();
     const W = aaWeights(spp);
-    const w = pipeline.w, h = pipeline.h;
+    const w = pipeline.rw, h = pipeline.rh;   // the render size: sub-pixel jitter is in its pixels
     pipeline.begin();
     for (let k = 0; k < spp; k++) {
       const tk = T + (spp > 1 ? ((shutterSlot(k, spp) + 0.5) / spp - 0.5) * shutter * dt : 0);
@@ -220,10 +314,11 @@ export function createWorldRenderer(config = {}) {
         pm[8] -= (pm[0] * dx) / P.focus; pm[9] -= (pm[5] * dy) / P.focus;
       }
       cam.projectionMatrixInverse.copy(cam.projectionMatrix).invert();
-      // soft shadows: the light moves over the solar disc (Vogel spiral, 0.27° radius)
-      const r = spp > 1 ? Math.sqrt((k + 0.5) / spp) * 0.0047 : 0, th = k * 2.39996323 + 0.5;
-      fitShadow(sh.center, sh.radius, r ? [r * Math.cos(th), r * Math.sin(th)] : null);
-      pipeline.add(scene, cam, W[k], k, P);
+      // soft shadows: the light moves over the solar disc (Vogel spiral, 0.27° radius); with softShadows on, the
+      // sun stays put and each pixel takes its own penumbra (pattern rotated by the sub-frame / TAA index)
+      const r = spp > 1 && !sscfg?.on ? Math.sqrt((k + 0.5) / spp) * 0.0047 : 0, th = k * 2.39996323 + 0.5;
+      fitShadow(sh.center, sh.radius, r ? [r * Math.cos(th), r * Math.sin(th)] : null, taa ? taaK : k);
+      pipeline.add(scene, cam, W[k], k, P, taa ? taaK : k, !taa && spp > 1);
       if (taa) {
         pipeline.taa(invVP.copy(curVP).invert(), prevVP, taaValid ? (typeof opts.taa === 'number' ? opts.taa : 0.12) : 1);
         prevVP.copy(curVP); taaValid = true;
@@ -232,7 +327,25 @@ export function createWorldRenderer(config = {}) {
       cam.projectionMatrixInverse.copy(cam.projectionMatrix).invert();
       if (!cam.position.equals(savedPos)) { cam.position.copy(savedPos); cam.updateMatrixWorld(); }
     }
-    pipeline.end(P, opts.frameIndex ?? frameCounter++, opts.target ?? null);
+    pipeline.end(P, opts.frameIndex ?? frameCounter++, opts.target ?? null, { dt: opts.taa ? (opts.dt ?? frameDt) : 0, still: !taa });
+    softShadowsIdle();   // host scenes drawn after this world see the stock path
+  }
+
+  // [xr] one plain draw of the scene into the current framebuffer (the headset's, inside an XR frame; see
+  // packages/play/src/xr.js): renderFrame's frame state (scene clock, ctx.onUpdate, fog, shadow fit), none of the
+  // pipeline. The renderer's tone mapping does the grade. A pending environment capture runs with XR off (its
+  // full-screen passes would otherwise be drawn through the headset's cameras).
+  function renderDirect(T = 0, opts = {}) {
+    if (!light) setTime(time);
+    if (envState === 'instant') { const xe = renderer.xr.enabled; renderer.xr.enabled = false; try { captureEnv(true); } finally { renderer.xr.enabled = xe; } }
+    writeFog();
+    if (opts.fog !== undefined) scene.fog.density *= opts.fog;   // AR: a table model is seen through metres of air, not km
+    G.uTime.value = T; G.uFrame.value = 0;
+    skyU.uCloudOffset.value.set(T * 0.004, T * 0.0015);
+    for (const fn of updates) fn(T);
+    const sh = opts.shadow || shadow;
+    fitShadow(sh.center, sh.radius, null);
+    renderer.render(scene, opts.camera || camera);
   }
 
   /** Interiors: [{ min: [x,y,z], max: [x,y,z], factor = 0.3, soft = 0.6 }] scale the image-based light inside
@@ -252,7 +365,7 @@ export function createWorldRenderer(config = {}) {
 
   function resize(wd, ht) {
     renderer.setSize(wd, ht, false);
-    pipeline.setSize(wd * pixelRatio, ht * pixelRatio);
+    pipeline.setSize(wd * pixelRatio, ht * pixelRatio);   // full size; the next moving frame applies the scale
     camera.aspect = wd / ht; camera.updateProjectionMatrix();
     taaValid = false;   // the history targets were reallocated (empty)
   }
@@ -260,7 +373,7 @@ export function createWorldRenderer(config = {}) {
   /** free what this world made on the GPU: geometries, materials (and their programs), the shadow map, the post and
    *  environment targets; and the renderer if the world created it. Take objects you still need out of the scene first. */
   function dispose() {
-    pipeline.dispose(); envLight.dispose();
+    pipeline.dispose(); envLight.dispose(); skyLut.dispose();
     const mats = new Set();
     scene.traverse((o) => { o.geometry && o.geometry.dispose(); for (const m of [].concat(o.material || [])) mats.add(m); });
     for (const m of mats) m.dispose();
@@ -270,8 +383,12 @@ export function createWorldRenderer(config = {}) {
 
   const ctx = { THREE, renderer, scene, camera, G, keyDir, mat, geom, rng, quality, place, onUpdate: (fn) => updates.push(fn) };
   return {
-    renderer, scene, camera, sun, sky, stars, pipeline, ctx, G, keyDir, mat, geom, rng, post, device,
+    renderer, scene, camera, sun, sky, stars, pipeline, ctx, G, keyDir, mat, geom, rng, post, device, light2: l2cfg, dynamicRes: dynRes, softShadows: sscfg,
+    /** the moving frames' render scale (1 = the canvas; below 1 only with `dynamicRes`) */
+    get resolutionScale() { return resScale; },
+    /** forget the adapted exposure (auto exposure): the next frame is metered on its own, e.g. after a teleport */
+    resetExposure: () => pipeline.resetExposure(),
     get light() { return light; }, get state() { return state; }, get exposure() { return exposure; },
-    setTime, tick, prepare, renderFrame, resize, dispose, captureEnv, setAmbientVolumes,
+    setTime, tick, prepare, renderFrame, renderDirect, resize, dispose, captureEnv, setAmbientVolumes,
   };
 }

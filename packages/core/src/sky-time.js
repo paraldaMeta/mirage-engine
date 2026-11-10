@@ -141,9 +141,10 @@ export function moonEquatorial(date) {
 
 // atmospheric refraction (degrees) to add to a geometric altitude (Saemundsson, with Bennett's form below)
 export function refraction(alt) {
-  if (alt < -2) return 0;
-  const a = Math.max(alt, -1.9);
-  return 1.02 / Math.tan((a + 10.3 / (a + 5.11)) * RAD) / 60;
+  const r = (a) => 1.02 / Math.tan((a + 10.3 / (a + 5.11)) * RAD) / 60;
+  // below -1.9° fade to 0 by -3° instead of dropping 0.76° at -2° (the sun jumped on a running clock)
+  if (alt < -1.9) return alt <= -3 ? 0 : r(-1.9) * (alt + 3) / 1.1;
+  return r(alt);
 }
 
 function horizontal(ra, dec, lst, lat) {

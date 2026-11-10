@@ -1,0 +1,1290 @@
+{
+ "emulator": "iwer 2.8.0 (Meta Quest 3)",
+ "worlds": [
+  {
+   "dir": "examples/hello-courtyard/dist",
+   "checks": [
+    {
+     "name": "xrSupport (emulated Quest 3)",
+     "ok": true,
+     "vr": true,
+     "ar": true
+    },
+    {
+     "name": "world context made multisampled for XR",
+     "ok": true
+    },
+    {
+     "name": "enter VR from the button",
+     "ok": true,
+     "size": [
+      1600,
+      800
+     ],
+     "head": [
+      0,
+      1.6,
+      0
+     ]
+    },
+    {
+     "name": "walk wall-blocks: x ~ 6.9 (the east wall; desktop scenario wall-blocks)",
+     "ok": true,
+     "from": [
+      3,
+      0,
+      3
+     ],
+     "end": [
+      6.874,
+      0,
+      3
+     ],
+     "moved": 3.87,
+     "blockedFrames": 55,
+     "frames": 227
+    },
+    {
+     "name": "walk gate-passes: z > 8.6, y ~ 0 (through the gate)",
+     "ok": true,
+     "from": [
+      0,
+      0,
+      3
+     ],
+     "end": [
+      0,
+      -0.021,
+      9.75
+     ],
+     "moved": 6.75,
+     "blockedFrames": 0,
+     "frames": 288
+    },
+    {
+     "name": "walk basin-blocks: z ~ 2.15 (the basin rim)",
+     "ok": true,
+     "from": [
+      0,
+      0,
+      4.5
+     ],
+     "end": [
+      0,
+      0,
+      2.125
+     ],
+     "moved": 2.38,
+     "blockedFrames": 85,
+     "frames": 198
+    },
+    {
+     "name": "comfort vignette while the stick moves",
+     "ok": true,
+     "vignette": 0.686
+    },
+    {
+     "name": "snap turn right: +30 degrees, once per push",
+     "ok": true,
+     "degrees": 30
+    },
+    {
+     "name": "teleport: the arc lands on walkable ground and the walker goes there",
+     "ok": true,
+     "before": [
+      3,
+      0,
+      3
+     ],
+     "target": [
+      3.25,
+      0,
+      -1.88
+     ],
+     "after": [
+      3.25,
+      0,
+      -1.88
+     ],
+     "hop": 4.89
+    },
+    {
+     "name": "both eyes rendered (not blank)",
+     "ok": true,
+     "mean": 84.8,
+     "sd": 43,
+     "width": 1600,
+     "height": 800,
+     "meter": [
+      0.1758,
+      0.1967,
+      0.2377
+     ],
+     "fog": [
+      0.6504,
+      0.6457,
+      0.4295
+     ],
+     "exposure": 0.4
+    },
+    {
+     "name": "XR grade vs the desktop pipeline, same eye (mean |diff| < 25 of 255; no stand-in: 26-35)",
+     "ok": true,
+     "meanAbsDiff": 9.16,
+     "xrMeanRGB": [
+      78.6,
+      85.3,
+      91.2
+     ],
+     "desktopMeanRGB": [
+      79.4,
+      85.6,
+      91.1
+     ]
+    },
+    {
+     "name": "walk wall-blocks: the desktop path ends where XR did",
+     "ok": true,
+     "xr": [
+      6.873599999964245,
+      -0.000025490195184829645,
+      3
+     ],
+     "desktop": [
+      6.874,
+      0,
+      3
+     ],
+     "diff": 0
+    },
+    {
+     "name": "walk gate-passes: the desktop path ends where XR did",
+     "ok": true,
+     "xr": [
+      4.133274795626767e-16,
+      -0.020809803158044815,
+      9.750149999991065
+     ],
+     "desktop": [
+      0,
+      -0.021,
+      9.75
+     ],
+     "diff": 0
+    },
+    {
+     "name": "walk basin-blocks: the desktop path ends where XR did",
+     "ok": true,
+     "xr": [
+      6.630411219445715e-16,
+      -0.000025490195184829645,
+      2.1250499999821173
+     ],
+     "desktop": [
+      0,
+      0,
+      2.125
+     ],
+     "diff": 0
+    },
+    {
+     "name": "AR: the world placed as a table model",
+     "ok": true,
+     "presenting": true,
+     "mode": "ar",
+     "placed": true,
+     "scale": 32.222,
+     "hitTest": false,
+     "image": {
+      "mean": 3.4,
+      "sd": 17.1,
+      "width": 1600,
+      "height": 800
+     }
+    },
+    {
+     "name": "after exit: the desktop loop runs again at the page size, no tone mapping on the renderer",
+     "ok": true,
+     "frames": 42,
+     "size": [
+      1600,
+      800
+     ],
+     "tm": 0,
+     "framesLater": 72
+    },
+    {
+     "name": "desktop still at the spawn: bit-identical before and after the XR sessions",
+     "ok": true,
+     "differing": 0,
+     "maxDiff": 0,
+     "size": [
+      1600,
+      800
+     ]
+    },
+    {
+     "name": "no console errors",
+     "ok": true
+    }
+   ],
+   "shots": [
+    {
+     "file": "hello-courtyard-vr-teleport-aim.png",
+     "mean": 90,
+     "sd": 43.6,
+     "width": 1600,
+     "height": 800
+    },
+    {
+     "file": "hello-courtyard-vr-eyes.png",
+     "mean": 84.8,
+     "sd": 43,
+     "width": 1600,
+     "height": 800
+    },
+    {
+     "file": "hello-courtyard-desktop-left-eye.png",
+     "mean": 85.9,
+     "sd": 45,
+     "width": 800,
+     "height": 800
+    },
+    {
+     "file": "hello-courtyard-ar.png",
+     "mean": 3.4,
+     "sd": 17.1,
+     "width": 1600,
+     "height": 800
+    }
+   ],
+   "name": "hello-courtyard",
+   "wall-blocks": {
+    "from": [
+     3,
+     0,
+     3
+    ],
+    "end": [
+     6.874,
+     0,
+     3
+    ],
+    "blocked": true,
+    "frames": 227
+   },
+   "gate-passes": {
+    "from": [
+     0,
+     0,
+     3
+    ],
+    "end": [
+     0,
+     -0.021,
+     9.75
+    ],
+    "blocked": false,
+    "frames": 288
+   },
+   "basin-blocks": {
+    "from": [
+     0,
+     0,
+     4.5
+    ],
+    "end": [
+     0,
+     0,
+     2.125
+    ],
+    "blocked": true,
+    "frames": 198
+   },
+   "look": {
+    "meanAbsDiff": 9.16,
+    "xrMeanRGB": [
+     78.6,
+     85.3,
+     91.2
+    ],
+    "desktopMeanRGB": [
+     79.4,
+     85.6,
+     91.1
+    ]
+   }
+  },
+  {
+   "dir": "examples/garden-quest/dist",
+   "checks": [
+    {
+     "name": "xrSupport (emulated Quest 3)",
+     "ok": true,
+     "vr": true,
+     "ar": true
+    },
+    {
+     "name": "world context made multisampled for XR",
+     "ok": true
+    },
+    {
+     "name": "enter VR from the button",
+     "ok": true,
+     "size": [
+      1600,
+      800
+     ],
+     "head": [
+      0,
+      1.6,
+      0
+     ]
+    },
+    {
+     "name": "walk stairs-up-to-the-door: y > 3.4, z < -15 (up the terrace stairs, stopped by the locked pavilion door)",
+     "ok": true,
+     "from": [
+      0,
+      1.67,
+      -6
+     ],
+     "end": [
+      0.159,
+      3.67,
+      -20.6
+     ],
+     "moved": 14.6,
+     "blockedFrames": 66,
+     "frames": 284
+    },
+    {
+     "name": "comfort vignette while the stick moves",
+     "ok": true,
+     "vignette": 0.687
+    },
+    {
+     "name": "snap turn right: +30 degrees, once per push",
+     "ok": true,
+     "degrees": 30
+    },
+    {
+     "name": "teleport: the arc lands on walkable ground and the walker goes there",
+     "ok": true,
+     "before": [
+      -4.6,
+      0.072,
+      26
+     ],
+     "target": [
+      -4.35,
+      0,
+      21.12
+     ],
+     "after": [
+      -4.35,
+      0.072,
+      21.12
+     ],
+     "hop": 4.89
+    },
+    {
+     "name": "in-world prompt over \"key\"",
+     "ok": true,
+     "near": "key",
+     "prompt": "Trigger: Pick up the key"
+    },
+    {
+     "name": "trigger interacts: inventory has the key",
+     "ok": true,
+     "inventory": [
+      "key"
+     ],
+     "panel": "You found the pavilion key"
+    },
+    {
+     "name": "both eyes rendered (not blank)",
+     "ok": true,
+     "mean": 99.5,
+     "sd": 37.7,
+     "width": 1600,
+     "height": 800,
+     "meter": [
+      0.1918,
+      0.1539,
+      0.1492
+     ],
+     "fog": [
+      0.5026,
+      0.4007,
+      0.2149
+     ],
+     "exposure": 0.567
+    },
+    {
+     "name": "XR grade vs the desktop pipeline, same eye (mean |diff| < 25 of 255; no stand-in: 26-35)",
+     "ok": true,
+     "meanAbsDiff": 8.11,
+     "xrMeanRGB": [
+      107,
+      99.2,
+      93.2
+     ],
+     "desktopMeanRGB": [
+      108.5,
+      98.9,
+      91.4
+     ]
+    },
+    {
+     "name": "walk stairs-up-to-the-door: the desktop path ends where XR did",
+     "ok": true,
+     "xr": [
+      0.1593939797467167,
+      3.66984574779628,
+      -20.600036077282578
+     ],
+     "desktop": [
+      0.159,
+      3.67,
+      -20.6
+     ],
+     "diff": 0
+    },
+    {
+     "name": "AR: the world placed as a table model",
+     "ok": true,
+     "presenting": true,
+     "mode": "ar",
+     "placed": true,
+     "scale": 104.444,
+     "hitTest": false,
+     "image": {
+      "mean": 6.8,
+      "sd": 30.8,
+      "width": 1600,
+      "height": 800
+     }
+    },
+    {
+     "name": "after exit: the desktop loop runs again at the page size, no tone mapping on the renderer",
+     "ok": true,
+     "frames": 42,
+     "size": [
+      1600,
+      800
+     ],
+     "tm": 0,
+     "framesLater": 72
+    },
+    {
+     "name": "desktop still at the spawn: bit-identical before and after the XR sessions",
+     "ok": true,
+     "differing": 0,
+     "maxDiff": 0,
+     "size": [
+      1600,
+      800
+     ]
+    },
+    {
+     "name": "no console errors",
+     "ok": true
+    }
+   ],
+   "shots": [
+    {
+     "file": "garden-quest-vr-teleport-aim.png",
+     "mean": 86,
+     "sd": 45,
+     "width": 1600,
+     "height": 800
+    },
+    {
+     "file": "garden-quest-vr-prompt.png",
+     "mean": 43.9,
+     "sd": 34.2,
+     "width": 1600,
+     "height": 800
+    },
+    {
+     "file": "garden-quest-vr-after-trigger.png",
+     "mean": 44,
+     "sd": 34.6,
+     "width": 1600,
+     "height": 800
+    },
+    {
+     "file": "garden-quest-vr-eyes.png",
+     "mean": 99.5,
+     "sd": 37.7,
+     "width": 1600,
+     "height": 800
+    },
+    {
+     "file": "garden-quest-desktop-left-eye.png",
+     "mean": 99.7,
+     "sd": 39.3,
+     "width": 800,
+     "height": 800
+    },
+    {
+     "file": "garden-quest-ar.png",
+     "mean": 6.8,
+     "sd": 30.8,
+     "width": 1600,
+     "height": 800
+    }
+   ],
+   "name": "garden-quest",
+   "stairs-up-to-the-door": {
+    "from": [
+     0,
+     1.67,
+     -6
+    ],
+    "end": [
+     0.159,
+     3.67,
+     -20.6
+    ],
+    "blocked": true,
+    "frames": 284
+   },
+   "look": {
+    "meanAbsDiff": 8.11,
+    "xrMeanRGB": [
+     107,
+     99.2,
+     93.2
+    ],
+    "desktopMeanRGB": [
+     108.5,
+     98.9,
+     91.4
+    ]
+   }
+  },
+  {
+   "dir": "examples/walled-garden/dist",
+   "checks": [
+    {
+     "name": "xrSupport (emulated Quest 3)",
+     "ok": true,
+     "vr": true,
+     "ar": true
+    },
+    {
+     "name": "world context made multisampled for XR",
+     "ok": true
+    },
+    {
+     "name": "enter VR from the button",
+     "ok": true,
+     "size": [
+      1600,
+      800
+     ],
+     "head": [
+      0,
+      1.6,
+      0
+     ]
+    },
+    {
+     "name": "snap turn right: +30 degrees, once per push",
+     "ok": true,
+     "degrees": 30
+    },
+    {
+     "name": "both eyes rendered (not blank)",
+     "ok": true,
+     "mean": 113.6,
+     "sd": 35.3,
+     "width": 1600,
+     "height": 800,
+     "meter": [
+      0.2868,
+      0.268,
+      0.2753
+     ],
+     "fog": [
+      0.6504,
+      0.6457,
+      0.4295
+     ],
+     "exposure": 0.4
+    },
+    {
+     "name": "XR grade vs the desktop pipeline, same eye (mean |diff| < 25 of 255; no stand-in: 26-35)",
+     "ok": true,
+     "meanAbsDiff": 7.77,
+     "xrMeanRGB": [
+      114.4,
+      113.9,
+      111.9
+     ],
+     "desktopMeanRGB": [
+      114.8,
+      113.2,
+      109.9
+     ]
+    },
+    {
+     "name": "AR: the world placed as a table model",
+     "ok": true,
+     "presenting": true,
+     "mode": "ar",
+     "placed": true,
+     "scale": 104.444,
+     "hitTest": false,
+     "image": {
+      "mean": 2.9,
+      "sd": 16.1,
+      "width": 1600,
+      "height": 800
+     }
+    },
+    {
+     "name": "after exit: the desktop loop runs again at the page size, no tone mapping on the renderer",
+     "ok": true,
+     "frames": 43,
+     "size": [
+      1600,
+      800
+     ],
+     "tm": 0,
+     "framesLater": 73
+    },
+    {
+     "name": "desktop still at the spawn: bit-identical before and after the XR sessions",
+     "ok": true,
+     "differing": 0,
+     "maxDiff": 0,
+     "size": [
+      1600,
+      800
+     ]
+    },
+    {
+     "name": "no console errors",
+     "ok": true
+    }
+   ],
+   "shots": [
+    {
+     "file": "walled-garden-vr-eyes.png",
+     "mean": 113.6,
+     "sd": 35.3,
+     "width": 1600,
+     "height": 800
+    },
+    {
+     "file": "walled-garden-desktop-left-eye.png",
+     "mean": 113.1,
+     "sd": 35.5,
+     "width": 800,
+     "height": 800
+    },
+    {
+     "file": "walled-garden-ar.png",
+     "mean": 2.9,
+     "sd": 16.1,
+     "width": 1600,
+     "height": 800
+    }
+   ],
+   "name": "walled-garden",
+   "look": {
+    "meanAbsDiff": 7.77,
+    "xrMeanRGB": [
+     114.4,
+     113.9,
+     111.9
+    ],
+    "desktopMeanRGB": [
+     114.8,
+     113.2,
+     109.9
+    ]
+   }
+  },
+  {
+   "dir": "examples/agent-trial/dist",
+   "checks": [
+    {
+     "name": "xrSupport (emulated Quest 3)",
+     "ok": true,
+     "vr": true,
+     "ar": true
+    },
+    {
+     "name": "world context made multisampled for XR",
+     "ok": true
+    },
+    {
+     "name": "enter VR from the button",
+     "ok": true,
+     "size": [
+      1600,
+      800
+     ],
+     "head": [
+      0,
+      1.6,
+      0
+     ]
+    },
+    {
+     "name": "snap turn right: +30 degrees, once per push",
+     "ok": true,
+     "degrees": 30
+    },
+    {
+     "name": "both eyes rendered (not blank)",
+     "ok": true,
+     "mean": 111.8,
+     "sd": 55.4,
+     "width": 1600,
+     "height": 800,
+     "meter": [
+      0.24,
+      0.1997,
+      0.1963
+     ],
+     "fog": [
+      0.4418,
+      0.3252,
+      0.1722
+     ],
+     "exposure": 0.6561
+    },
+    {
+     "name": "XR grade vs the desktop pipeline, same eye (mean |diff| < 25 of 255; no stand-in: 26-35)",
+     "ok": true,
+     "meanAbsDiff": 13.35,
+     "xrMeanRGB": [
+      112.4,
+      111.1,
+      114.3
+     ],
+     "desktopMeanRGB": [
+      119.6,
+      112,
+      111.2
+     ]
+    },
+    {
+     "name": "AR: the world placed as a table model",
+     "ok": true,
+     "presenting": true,
+     "mode": "ar",
+     "placed": true,
+     "scale": 97.778,
+     "hitTest": false,
+     "image": {
+      "mean": 0.6,
+      "sd": 7.5,
+      "width": 1600,
+      "height": 800
+     }
+    },
+    {
+     "name": "after exit: the desktop loop runs again at the page size, no tone mapping on the renderer",
+     "ok": true,
+     "frames": 43,
+     "size": [
+      1600,
+      800
+     ],
+     "tm": 0,
+     "framesLater": 73
+    },
+    {
+     "name": "desktop still at the spawn: bit-identical before and after the XR sessions",
+     "ok": true,
+     "differing": 0,
+     "maxDiff": 0,
+     "size": [
+      1600,
+      800
+     ]
+    },
+    {
+     "name": "no console errors",
+     "ok": true
+    }
+   ],
+   "shots": [
+    {
+     "file": "agent-trial-vr-eyes.png",
+     "mean": 111.8,
+     "sd": 55.4,
+     "width": 1600,
+     "height": 800
+    },
+    {
+     "file": "agent-trial-desktop-left-eye.png",
+     "mean": 114.4,
+     "sd": 60.3,
+     "width": 800,
+     "height": 800
+    },
+    {
+     "file": "agent-trial-ar.png",
+     "mean": 0.6,
+     "sd": 7.5,
+     "width": 1600,
+     "height": 800
+    }
+   ],
+   "name": "agent-trial",
+   "look": {
+    "meanAbsDiff": 13.35,
+    "xrMeanRGB": [
+     112.4,
+     111.1,
+     114.3
+    ],
+    "desktopMeanRGB": [
+     119.6,
+     112,
+     111.2
+    ]
+   }
+  },
+  {
+   "dir": "examples/snow-hut/dist",
+   "checks": [
+    {
+     "name": "xrSupport (emulated Quest 3)",
+     "ok": true,
+     "vr": true,
+     "ar": true
+    },
+    {
+     "name": "world context made multisampled for XR",
+     "ok": true
+    },
+    {
+     "name": "enter VR from the button",
+     "ok": true,
+     "size": [
+      1600,
+      800
+     ],
+     "head": [
+      0,
+      1.6,
+      0
+     ]
+    },
+    {
+     "name": "snap turn right: +30 degrees, once per push",
+     "ok": true,
+     "degrees": 30
+    },
+    {
+     "name": "both eyes rendered (not blank)",
+     "ok": true,
+     "mean": 56.8,
+     "sd": 15.6,
+     "width": 1600,
+     "height": 800,
+     "meter": [
+      0.0149,
+      0.0169,
+      0.0186
+     ],
+     "fog": [
+      0.0478,
+      0.0516,
+      0.0434
+     ],
+     "exposure": 3.6574
+    },
+    {
+     "name": "XR grade vs the desktop pipeline, same eye (mean |diff| < 25 of 255; no stand-in: 26-35)",
+     "ok": true,
+     "meanAbsDiff": 21.08,
+     "xrMeanRGB": [
+      48.5,
+      55.8,
+      66
+     ],
+     "desktopMeanRGB": [
+      68.6,
+      76,
+      83.3
+     ]
+    },
+    {
+     "name": "AR: the world placed as a table model",
+     "ok": true,
+     "presenting": true,
+     "mode": "ar",
+     "placed": true,
+     "scale": 36.667,
+     "hitTest": false,
+     "image": {
+      "mean": 7.5,
+      "sd": 35.1,
+      "width": 1600,
+      "height": 800
+     }
+    },
+    {
+     "name": "after exit: the desktop loop runs again at the page size, no tone mapping on the renderer",
+     "ok": true,
+     "frames": 40,
+     "size": [
+      1600,
+      800
+     ],
+     "tm": 0,
+     "framesLater": 71
+    },
+    {
+     "name": "desktop still before / after XR: not comparable, the scene moves with the game clock (two stills before XR differ)",
+     "ok": true,
+     "skipped": true,
+     "differing": 1202356,
+     "maxDiff": 222,
+     "size": [
+      1600,
+      800
+     ]
+    },
+    {
+     "name": "no console errors",
+     "ok": true
+    }
+   ],
+   "shots": [
+    {
+     "file": "snow-hut-vr-eyes.png",
+     "mean": 56.8,
+     "sd": 15.6,
+     "width": 1600,
+     "height": 800
+    },
+    {
+     "file": "snow-hut-desktop-left-eye.png",
+     "mean": 76.1,
+     "sd": 22.4,
+     "width": 800,
+     "height": 800
+    },
+    {
+     "file": "snow-hut-ar.png",
+     "mean": 7.5,
+     "sd": 35.1,
+     "width": 1600,
+     "height": 800
+    }
+   ],
+   "name": "snow-hut",
+   "look": {
+    "meanAbsDiff": 21.08,
+    "xrMeanRGB": [
+     48.5,
+     55.8,
+     66
+    ],
+    "desktopMeanRGB": [
+     68.6,
+     76,
+     83.3
+    ]
+   }
+  },
+  {
+   "dir": "examples/river-ford/dist",
+   "checks": [
+    {
+     "name": "xrSupport (emulated Quest 3)",
+     "ok": true,
+     "vr": true,
+     "ar": true
+    },
+    {
+     "name": "world context made multisampled for XR",
+     "ok": true
+    },
+    {
+     "name": "enter VR from the button",
+     "ok": true,
+     "size": [
+      1600,
+      800
+     ],
+     "head": [
+      0,
+      1.6,
+      0
+     ]
+    },
+    {
+     "name": "snap turn right: +30 degrees, once per push",
+     "ok": true,
+     "degrees": 30
+    },
+    {
+     "name": "both eyes rendered (not blank)",
+     "ok": true,
+     "mean": 100.2,
+     "sd": 34,
+     "width": 1600,
+     "height": 800,
+     "meter": [
+      0.2429,
+      0.3579,
+      0.4184
+     ],
+     "fog": [
+      0.6919,
+      0.8297,
+      0.711
+     ],
+     "exposure": 0.2781
+    },
+    {
+     "name": "XR grade vs the desktop pipeline, same eye (mean |diff| < 25 of 255; no stand-in: 26-35)",
+     "ok": true,
+     "meanAbsDiff": 8.89,
+     "xrMeanRGB": [
+      86.9,
+      107,
+      106.5
+     ],
+     "desktopMeanRGB": [
+      84.7,
+      106.2,
+      104.3
+     ]
+    },
+    {
+     "name": "AR: the world placed as a table model",
+     "ok": true,
+     "presenting": true,
+     "mode": "ar",
+     "placed": true,
+     "scale": 37.778,
+     "hitTest": false,
+     "image": {
+      "mean": 2.7,
+      "sd": 14.3,
+      "width": 1600,
+      "height": 800
+     }
+    },
+    {
+     "name": "after exit: the desktop loop runs again at the page size, no tone mapping on the renderer",
+     "ok": true,
+     "frames": 42,
+     "size": [
+      1600,
+      800
+     ],
+     "tm": 0,
+     "framesLater": 72
+    },
+    {
+     "name": "desktop still at the spawn: bit-identical before and after the XR sessions",
+     "ok": true,
+     "differing": 0,
+     "maxDiff": 0,
+     "size": [
+      1600,
+      800
+     ]
+    },
+    {
+     "name": "no console errors",
+     "ok": true
+    }
+   ],
+   "shots": [
+    {
+     "file": "river-ford-vr-eyes.png",
+     "mean": 100.2,
+     "sd": 34,
+     "width": 1600,
+     "height": 800
+    },
+    {
+     "file": "river-ford-desktop-left-eye.png",
+     "mean": 98.6,
+     "sd": 37.1,
+     "width": 800,
+     "height": 800
+    },
+    {
+     "file": "river-ford-ar.png",
+     "mean": 2.7,
+     "sd": 14.3,
+     "width": 1600,
+     "height": 800
+    }
+   ],
+   "name": "river-ford",
+   "look": {
+    "meanAbsDiff": 8.89,
+    "xrMeanRGB": [
+     86.9,
+     107,
+     106.5
+    ],
+    "desktopMeanRGB": [
+     84.7,
+     106.2,
+     104.3
+    ]
+   }
+  },
+  {
+   "dir": "examples/woodland-path/dist",
+   "checks": [
+    {
+     "name": "xrSupport (emulated Quest 3)",
+     "ok": true,
+     "vr": true,
+     "ar": true
+    },
+    {
+     "name": "world context made multisampled for XR",
+     "ok": true
+    },
+    {
+     "name": "enter VR from the button",
+     "ok": true,
+     "size": [
+      1600,
+      800
+     ],
+     "head": [
+      0,
+      1.6,
+      0
+     ]
+    },
+    {
+     "name": "snap turn right: +30 degrees, once per push",
+     "ok": true,
+     "degrees": 30
+    },
+    {
+     "name": "both eyes rendered (not blank)",
+     "ok": true,
+     "mean": 78.2,
+     "sd": 37,
+     "width": 1600,
+     "height": 800,
+     "meter": [
+      0.2242,
+      0.273,
+      0.2442
+     ],
+     "fog": [
+      0.6953,
+      0.8107,
+      0.6686
+     ],
+     "exposure": 0.2963
+    },
+    {
+     "name": "XR grade vs the desktop pipeline, same eye (mean |diff| < 25 of 255; no stand-in: 26-35)",
+     "ok": true,
+     "meanAbsDiff": 11.73,
+     "xrMeanRGB": [
+      78,
+      84.9,
+      73.6
+     ],
+     "desktopMeanRGB": [
+      76.4,
+      84.7,
+      73.9
+     ]
+    },
+    {
+     "name": "AR: the world placed as a table model",
+     "ok": true,
+     "presenting": true,
+     "mode": "ar",
+     "placed": true,
+     "scale": 37.778,
+     "hitTest": false,
+     "image": {
+      "mean": 2.8,
+      "sd": 14.9,
+      "width": 1600,
+      "height": 800
+     }
+    },
+    {
+     "name": "after exit: the desktop loop runs again at the page size, no tone mapping on the renderer",
+     "ok": true,
+     "frames": 42,
+     "size": [
+      1600,
+      800
+     ],
+     "tm": 0,
+     "framesLater": 72
+    },
+    {
+     "name": "desktop still at the spawn: bit-identical before and after the XR sessions",
+     "ok": true,
+     "differing": 0,
+     "maxDiff": 0,
+     "size": [
+      1600,
+      800
+     ]
+    },
+    {
+     "name": "no console errors",
+     "ok": true
+    }
+   ],
+   "shots": [
+    {
+     "file": "woodland-path-vr-eyes.png",
+     "mean": 78.2,
+     "sd": 37,
+     "width": 1600,
+     "height": 800
+    },
+    {
+     "file": "woodland-path-desktop-left-eye.png",
+     "mean": 79,
+     "sd": 36.8,
+     "width": 800,
+     "height": 800
+    },
+    {
+     "file": "woodland-path-ar.png",
+     "mean": 2.8,
+     "sd": 14.9,
+     "width": 1600,
+     "height": 800
+    }
+   ],
+   "name": "woodland-path",
+   "look": {
+    "meanAbsDiff": 11.73,
+    "xrMeanRGB": [
+     78,
+     84.9,
+     73.6
+    ],
+    "desktopMeanRGB": [
+     76.4,
+     84.7,
+     73.9
+    ]
+   }
+  }
+ ]
+}

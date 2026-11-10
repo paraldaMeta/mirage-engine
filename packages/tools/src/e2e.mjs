@@ -4,16 +4,22 @@
 // scripts (garden-quest's playthrough). Steps run in sequence (they share the GPU); a failing step does not stop
 // the rest. Writes out/e2e/summary.json and prints a table; exit 1 if any step failed.
 //
-// usage: mirage-e2e [--only hello-courtyard,snow-hut] [--no-file]
+// usage: mirage-e2e [--root .] [--only hello-courtyard,snow-hut] [--no-file]
+//   --root: the project whose examples/<name>/ folders to run (default: the current folder). Each example needs a
+//   package.json with a "playtest" script naming its scenario JSON, as the ones in this repository have.
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const args = process.argv.slice(2);
-const only = args.includes('--only') ? args[args.indexOf('--only') + 1].split(',') : null;
-const TOOLS = path.join(ROOT, 'packages/tools/src');
+const opt = (k) => (args.includes(k) ? args[args.indexOf(k) + 1] : null);
+// the project, not this package's place on disk (installed, that is node_modules/@mirage/tools)
+const ROOT = path.resolve(opt('--root') || '.');
+const only = opt('--only') ? opt('--only').split(',') : null;
+const TOOLS = path.dirname(fileURLToPath(import.meta.url));
+const VITE = path.join(path.dirname(fileURLToPath(import.meta.resolve('vite/package.json'))), 'bin/vite.js');
+if (!fs.existsSync(path.join(ROOT, 'examples'))) { console.error(`e2e: no examples/ folder in ${ROOT} (run it from the project, or pass --root)`); process.exit(2); }
 const EXTRA = { 'garden-quest': [['playthrough', ['scripts/playthrough.mjs', 'dist']]] };
 
 const examples = fs.readdirSync(path.join(ROOT, 'examples')).filter((n) => {
@@ -33,7 +39,7 @@ function run(example, step, cmd, argv, cwd) {
 for (const name of examples) {
   const dir = path.join(ROOT, 'examples', name);
   const scenario = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8')).scripts.playtest.split(/\s+/).find((a) => a.endsWith('.json'));
-  if (!run(name, 'build', process.execPath, [path.join(ROOT, 'node_modules/vite/bin/vite.js'), 'build', '--logLevel', 'warn'], dir)) continue;
+  if (!run(name, 'build', process.execPath, [VITE, 'build', '--logLevel', 'warn'], dir)) continue;
   run(name, 'playtest dist', process.execPath, [path.join(TOOLS, 'playtest.mjs'), scenario, 'dist', '--out', 'out/playtest'], dir);
   for (const [step, argv] of EXTRA[name] || []) run(name, step, process.execPath, argv, dir);
   if (args.includes('--no-file')) continue;

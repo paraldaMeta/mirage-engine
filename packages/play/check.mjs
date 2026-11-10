@@ -62,4 +62,10 @@ for (const [hz, cap] of [[50, 60], [60, 60], [75, 60], [90, 60], [120, 60], [144
   const fps = n / 10, want = Math.min(hz, cap);
   ok(fps <= want + 0.5 && fps >= want - 1, `frame cap ${cap} at ${hz} Hz: ${fps} fps`);
 }
+// placed over a column with no floor (out past the plan): not 'on the ground' at that height, so it does not hang
+// there unable to move (review 2026-11-09: it stayed at y 5 with onGround true)
+{
+  const wNo = createWalker(grid, { pos: [1000, 5, 1000] });
+  ok(!wNo.onGround, 'placed over nothing is not on the ground');
+}
 console.log('play check: ok');

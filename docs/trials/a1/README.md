@@ -6,7 +6,7 @@
 
 需要 Node 22.12+ 的 22.x、npm、Git、tar、能使用 GPU 的桌面 Chrome，以及可隔离客户端工作区的环境。MacBook Air 跳过本手册全部运行步骤。
 
-主持人使用交付的 Git 仓库或 bundle，切到 `codex/mirage-blind-trials`。把控制器的 `git rev-parse HEAD` 记入场次记录并固定。两个参与者使用同一引擎与技能快照 `db0759af34b3908a427dc976f20192e0c11ab3a3`，它包含人物分支和脚手架版本修复。控制器和评分表仅供主持人使用。
+主持人使用交付的 Git 仓库或 bundle，切到 `codex/mirage-blind-trials`。把控制器的 `git rev-parse HEAD` 记入场次记录并固定。两个参与者使用同一引擎与技能快照 `c8adb66436ef931b6a5cb73c6631aa9a8d850caf`（1.0 候选：全量代码审查之后；之前是 `db0759a`）。控制器和评分表仅供主持人使用。
 
 ```sh
 # 在控制仓库根目录；每条 GPU 命令结束后再运行下一条

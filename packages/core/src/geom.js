@@ -14,7 +14,12 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 //   lathe([[r, y], ...], segments)     surface of revolution about +Y (jars, columns, domes)
 //   taperedTube(points, radii, radial) a tube whose radius varies along a Catmull-Rom path (trunks, branches)
 //   archPath(path, x0, x1, y, kind, rise)   adds an arch (round | pointed | segmental | flat) to a THREE.Path
-//   wall({ length, height, thickness, openings })   an extruded wall with doors (from the ground) and windows
+//   wall({ length, height, thickness, openings, round })   an extruded wall with doors (from the ground) and windows;
+//                                      round > 0: every arris (openings, ends) rounded inside the same bounds
+//   softExtrude(shape, depth, r)       ExtrudeGeometry over z 0..depth with every outline / hole edge rounded by r,
+//                                      never bigger than the plain extrusion
+//   softBox(w, h, d, r)                a box with rounded edges inside the same bounds (thin parts < 12 cm stay sharp)
+//   sootPlumes(list)                   multiply-blended soot quads on the wall above lamps (one merged mesh)
 //   lerp, clamp, smoothstep, remap
 // ---------------------------------------------------------------------------
 
@@ -126,7 +131,7 @@ export function taperedTube(points, radii, { radial = 10, segments = null, capEn
   const row = radial + 1;
   for (let i = 0; i < n; i++) for (let j = 0; j < radial; j++) {
     const a = i * row + j, b = a + row;
-    idx.push(a, b, a + 1, b, b + 1, a + 1);
+    idx.push(a, a + 1, b, b, a + 1, b + 1);   // outward, with the normals (it was wound inward)
   }
   if (capEnd) {
     curve.getPointAt(1, P);
@@ -153,7 +158,9 @@ export function archPath(path, x0, x1, y, kind = 'round', rise = null, steps = 1
     return path;
   }
   if (kind === 'segmental') {
-    const h = rise ?? w * 0.2, R = (w * w / 4 + h * h) / (2 * h), cy = y + h - R, half = Math.asin(Math.min(1, w / 2 / R));
+    const h = rise ?? w * 0.2, R = (w * w / 4 + h * h) / (2 * h), cy = y + h - R;
+    // a rise above half the span is more than a semicircle: the major arc (asin alone gave the minor one)
+    const half = h > w / 2 ? Math.PI - Math.asin(Math.min(1, w / 2 / R)) : Math.asin(Math.min(1, w / 2 / R));
     for (let i = 1; i <= steps; i++) { const a = -half + (i / steps) * 2 * half; path.lineTo(cx + s * Math.sin(a) * R, cy + Math.cos(a) * R); }
     return path;
   }
@@ -166,22 +173,54 @@ export function archPath(path, x0, x1, y, kind = 'round', rise = null, steps = 1
   return path;
 }
 
+// the top of an opening's arch (its apex)
+function archTop(o) {
+  const w = o.width, kind = o.arch || 'round';
+  if (kind === 'flat') return o.height;
+  if (kind === 'round') return o.height + w / 2;
+  if (kind === 'segmental') return o.height + (o.rise ?? w * 0.2);
+  const R = Math.max(o.rise ?? 0.8, 0.5) * w;
+  return o.height + R * Math.sin(Math.acos((R - w / 2) / R));
+}
+
 /** An extruded wall along local +X (centred), from y = 0 to `height`, `thickness` along Z (centred).
  *  openings: [{ x (centre along the wall), width, height (springing height), arch: 'round' | 'pointed' |
- *  'segmental' | 'flat', rise, sill (0 = a door from the ground) }] */
-export function wall({ length, height, thickness = 0.4, openings = [], curveSteps = 18 }) {
+ *  'segmental' | 'flat', rise, sill (0 = a door from the ground) }]; round: arris chamfer (m, 0 = sharp; 45°, cut
+ *  into the faces, never beyond the plain bounds). The chamfer is capped at 0.35 x the narrowest strip of wall
+ *  (an opening to the top, an end, the sill line or another opening) and dropped below 4 mm; the foot is not
+ *  chamfered (the outline starts that far below y = 0). */
+export function wall({ length, height, thickness = 0.4, openings = [], curveSteps = 18, round = 0 }) {
   const L = length / 2;
   const doors = openings.filter((o) => !(o.sill > 0)).sort((a, b) => a.x - b.x);
   const windows = openings.filter((o) => o.sill > 0);
+  let rr = 0;
+  if (round > 0) {
+    // the narrowest strip of wall round any opening: the inset contours of a softExtrude must not cross
+    let clear = Infinity;
+    const box = (o) => [o.x - o.width / 2, o.x + o.width / 2, o.sill > 0 ? o.sill : -Infinity, archTop(o)];
+    const B = openings.map(box);
+    for (const [x0, x1, y0, y1] of B) {
+      clear = Math.min(clear, x0 + L, L - x1, height - y1);
+      if (y0 > -Infinity) clear = Math.min(clear, y0);
+    }
+    for (let i = 0; i < B.length; i++) for (let j = i + 1; j < B.length; j++) {
+      const a = B[i], b = B[j];
+      const gx = Math.max(b[0] - a[1], a[0] - b[1]), gy = Math.max(b[2] - a[3], a[2] - b[3]);
+      clear = Math.min(clear, Math.max(gx, gy));
+    }
+    rr = Math.min(round, thickness * 0.3, 0.35 * clear);
+    if (!(rr > 0.004)) rr = 0;
+  }
+  const yb = rr > 0 ? -rr * 1.5 : 0;   // the foot: its chamfer below ground
   const shape = new THREE.Shape();
-  shape.moveTo(-L, 0);
+  shape.moveTo(-L, yb);
   for (const d of doors) {
     const x0 = d.x - d.width / 2, x1 = d.x + d.width / 2;
-    shape.lineTo(x0, 0); shape.lineTo(x0, d.height);
+    shape.lineTo(x0, yb); shape.lineTo(x0, d.height);
     archPath(shape, x0, x1, d.height, d.arch || 'round', d.rise, curveSteps);
-    shape.lineTo(x1, 0);
+    shape.lineTo(x1, yb);
   }
-  shape.lineTo(L, 0); shape.lineTo(L, height); shape.lineTo(-L, height); shape.lineTo(-L, 0);
+  shape.lineTo(L, yb); shape.lineTo(L, height); shape.lineTo(-L, height); shape.lineTo(-L, yb);
   for (const w of windows) {
     const x0 = w.x - w.width / 2, x1 = w.x + w.width / 2;
     const hole = new THREE.Path();
@@ -190,10 +229,86 @@ export function wall({ length, height, thickness = 0.4, openings = [], curveStep
     hole.lineTo(x0, w.sill);
     shape.holes.push(hole);
   }
-  const geo = new THREE.ExtrudeGeometry(shape, { depth: thickness, bevelEnabled: false, curveSegments: curveSteps });
+  const geo = rr > 0 ? softExtrude(shape, thickness, rr, curveSteps) : new THREE.ExtrudeGeometry(shape, { depth: thickness, bevelEnabled: false, curveSegments: curveSteps });
   geo.translate(0, 0, -thickness / 2);
   geo.computeVertexNormals();
   return geo;
+}
+
+/** An ExtrudeGeometry of `shape` over z in [0, depth] whose outline and hole edges are chamfered (rounded with
+ *  more `segments`) by r: the faces' contours are inset, the sides are exact, so the part never grows beyond the
+ *  plain extrusion AS LONG AS r < ~0.35 x the narrowest strip of the shape (a hole to the outline, two holes):
+ *  wider, the inset contours cross and fold (wall() caps r for you). Falls back to the plain extrusion for
+ *  r <= 4 mm (r is capped at 0.3 x depth). */
+export function softExtrude(shape, depth, r, curveSegments = 2, segments = 1) {
+  const rr = Math.min(r, depth * 0.3);
+  if (!(rr > 0.004)) return new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false, curveSegments, steps: 1 });
+  const g = new THREE.ExtrudeGeometry(shape, {
+    depth: depth - 2 * rr, bevelEnabled: true, bevelThickness: rr, bevelSize: rr, bevelOffset: -rr, bevelSegments: segments, curveSegments, steps: 1,
+  });
+  g.translate(0, 0, rr);
+  return g;
+}
+
+/** A w x h x d box with rounded edges inside the same bounds (RoundedBoxGeometry, r <= a quarter of the thinnest
+ *  side); parts thinner than 12 cm keep the sharp BoxGeometry. */
+export function softBox(w, h, d, r = 0.035) {
+  const m = Math.min(w, h, d);
+  if (m < 0.12 || !(r > 0)) return new THREE.BoxGeometry(w, h, d);
+  return new RoundedBoxGeometry(w, h, d, 2, Math.min(r, m * 0.25));
+}
+
+// a soot plume: dark and narrow at the lamp, spreading and fading upward (y = 0 at the lamp .. 1 at the top);
+// RGB multiplies what is behind (1 = no change)
+function sootTexture() {
+  const W = 64, H = 128, data = new Uint8Array(W * H * 4);
+  const hsh = (i, j) => { let n = (i * 374761393 + j * 668265263) | 0; n = Math.imul(n ^ (n >>> 13), 1274126177); return ((n ^ (n >>> 16)) >>> 0) / 4294967296; };
+  for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
+    const x = (i + 0.5) / W * 2 - 1, y = (j + 0.5) / H;
+    const w = 0.22 + 0.7 * Math.pow(y, 0.8) + 0.06 * Math.sin(y * 9.0 + 1.3);
+    const sx = x + 0.12 * Math.sin(y * 6.0) * y;
+    let k = Math.exp(-((sx / w) ** 2) * 2.6) * Math.min(1, y / 0.08) * Math.pow(1 - y, 1.1);
+    k *= 0.8 + 0.2 * hsh(i >> 2, j >> 2) + 0.2 * hsh(i, j);
+    const c = Math.round(255 * (1 - 0.62 * Math.min(1, k))), o = (j * W + i) * 4;
+    data[o] = c; data[o + 1] = Math.round(c * 0.985); data[o + 2] = Math.round(c * 0.97); data[o + 3] = 255;
+  }
+  const t = new THREE.DataTexture(data, W, H, THREE.RGBAFormat);
+  t.colorSpace = THREE.NoColorSpace; t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearMipmapLinearFilter;
+  t.generateMipmaps = true; t.needsUpdate = true;
+  return t;
+}
+
+/** Soot blackening the wall above lamps (anything that smokes), as one merged mesh of quads multiplying what is
+ *  behind them (no light of its own, no shadows, no depth writes: the walk grid and SSAO ignore it).
+ *  list: [{ pos: [x, y, z] on the wall face, normal: [nx, ny, nz] | rotY (out of the wall), scale = 1,
+ *  up = 1.25 (m) }]. Quads stand 3.5 cm off the face. Returns null when no entry is usable. */
+export function sootPlumes(list) {
+  if (!list || !list.length) return null;
+  const P = [], UV = [], IX = [];
+  for (const it of list) {
+    if (!it || !Array.isArray(it.pos) || it.pos.length < 3) { console.warn('[mirage/geom] sootPlumes: an entry without pos [x, y, z] skipped'); continue; }
+    const n = it.normal ? new THREE.Vector3(...it.normal) : new THREE.Vector3(Math.sin(it.rotY || 0), 0, Math.cos(it.rotY || 0));
+    n.y = 0; if (n.lengthSq() < 1e-6) continue; n.normalize();
+    const t = new THREE.Vector3(n.z, 0, -n.x), s = it.scale ?? 1, up = (it.up ?? 1.25) * s, hw = 0.32 * s;
+    const b = new THREE.Vector3(...it.pos).addScaledVector(n, 0.035); b.y -= 0.12 * s;
+    const k = P.length / 3;
+    for (const [a, v] of [[-1, 0], [1, 0], [1, 1], [-1, 1]]) {
+      const p = b.clone().addScaledVector(t, a * hw); p.y += v * up;
+      P.push(p.x, p.y, p.z); UV.push((a + 1) / 2, v);
+    }
+    IX.push(k, k + 1, k + 2, k, k + 2, k + 3);
+  }
+  if (!P.length) return null;
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(UV, 2));
+  g.setIndex(IX); g.computeBoundingSphere();
+  const m = new THREE.MeshBasicMaterial({ map: sootTexture(), blending: THREE.MultiplyBlending, premultipliedAlpha: true, transparent: true,
+    depthWrite: false, side: THREE.DoubleSide, fog: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  m.name = 'soot';
+  const mesh = new THREE.Mesh(g, m);
+  mesh.name = 'soot'; mesh.castShadow = false; mesh.receiveShadow = false; mesh.renderOrder = 5;
+  return mesh;
 }
 
 export { mergeGeometries, RoundedBoxGeometry };

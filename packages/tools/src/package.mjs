@@ -55,8 +55,14 @@ workers.forEach((f, i) => {
 const leftovers = files.filter((f) => f !== mainName && !workers.includes(f) && js.includes(f));
 if (leftovers.length) throw new Error('unresolved asset references (not inlined): ' + leftovers.join(', '));
 
+// what index.html itself links: a stylesheet goes inline as <style>; any other built file it points at would be
+// missing from the single file, so that is an error too (it used to pass with a dangling <link>)
+let page = html0.replace(/<link\b[^>]*rel="stylesheet"[^>]*href="[^"]*?assets\/([^"]+\.css)"[^>]*>/g, (_, f) =>
+  `<style>\n${fs.readFileSync(path.join(assets, f), 'utf8').replace(/<\/style/gi, '<\\/style')}\n</style>`);
+const dangling = [...page.matchAll(/(?:src|href)="(?:\.?\/)?(assets\/[^"]+)"/g)].map((m) => m[1]).filter((f) => !f.endsWith(mainName));
+if (dangling.length) throw new Error('index.html references files that cannot be inlined: ' + dangling.join(', '));
 const script = `<script type="module">\n${pre}${js.replace(/<\/script/gi, '<\\/script')}\n</script>`;
-const html = html0.replace(/<script type="module"[^>]*src="[^"]*"[^>]*><\/script>/, () => script).replace(/<link rel="modulepreload"[^>]*>/g, '');
+const html = page.replace(/<script type="module"[^>]*src="[^"]*"[^>]*><\/script>/, () => script).replace(/<link rel="modulepreload"[^>]*>/g, '');
 fs.mkdirSync(path.dirname(outFile), { recursive: true });
 fs.writeFileSync(outFile, html);
 fs.rmSync(DIST, { recursive: true, force: true });

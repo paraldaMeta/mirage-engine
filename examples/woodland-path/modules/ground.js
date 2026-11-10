@@ -7,7 +7,7 @@ export default {
     const earth = mat.std({ color: 0x696349, roughness: 0.98 }, {
       albedo: 'diffuseColor.rgb *= 0.66 + 0.52 * mgFbm3(mgWorldPos * 1.2, 3) + 0.18 * mgFbm3(mgWorldPos * 20.0, 2);',
     });
-    const soil = new THREE.Mesh(new THREE.BoxGeometry(130, 1, 130).translate(0, -0.5, 0), earth);
+    const soil = new THREE.Mesh(new THREE.BoxGeometry(1400, 1, 1400).translate(0, -0.5, 0), earth);
     soil.name = 'forest-floor'; soil.receiveShadow = true;
     root.add(soil);
 

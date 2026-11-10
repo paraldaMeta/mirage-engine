@@ -1,6 +1,7 @@
 import type { Direction, Place, MoonPosition, AstronomicalSky } from './sky-time.js';
 export type FixedSun = 'golden' | { elevation: number; azimuth: number } | null | undefined;
-export type CalendarTime = Date | number | { day: string; time?: string };
+/** An ISO date string ('2026-06-21T18:00:00Z') is read as an instant. Bad input throws a TypeError naming the field. */
+export type CalendarTime = Date | number | `${number}-${number}-${number}${string}` | { day: string; time?: string };
 export type SkyTime = FixedSun | CalendarTime;
 export type SkyState = Pick<AstronomicalSky, 'date' | 'sun' | 'moon' | 'eqToWorld'> | {
   date?: never; sun: { elevation: number; azimuth: number; dir: Direction }; moon: null; eqToWorld: null;

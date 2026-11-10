@@ -2,9 +2,11 @@
 // on the upper terrace, take the taper inside and light the four lanterns. Physics (Rapier), keyboard / mouse,
 // gamepad and touch, procedural sound, save / load (Esc or P: the menu).
 // URL: ?w=&h=  ?spp=N  ?grain=0  ?load=<slot> (load a save slot on start)  ?start=1 (skip the start screen)
+// WebXR: Enter VR / Enter AR buttons in a headset browser (docs/xr.md)
 import { createWorldRenderer, createTextures, pickQuality } from '@mirage/core';
 import { buildWorld } from '@mirage/world';
 import { startGame } from '@mirage/game';
+import { createXR, xrSupport } from '@mirage/play';
 import manifest from '../hello-courtyard/tex/manifest.json';
 import plan from './plan.js';
 import modules from './modules/index.js';
@@ -16,7 +18,8 @@ const place = { lat: 37.18, lon: -3.59, height: 700, tzHours: 1 };   // a generi
 const canvas = document.querySelector('canvas');
 canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
 const quality = Q.get('quality') || (await pickQuality()).quality, hud = Q.get('hud') !== '0';   // ?quality=low|medium|high
-const world = createWorldRenderer({ quality,
+const xrs = await xrSupport();   // a headset browser: an MSAA context for the headset, and the Enter VR / AR buttons
+const world = createWorldRenderer({ quality, xr: xrs.vr || xrs.ar,
   canvas, width: W, height: H, place, time: { elevation: 2.2, azimuth: 252 }, preserveDrawingBuffer: true,   // late, low sun: lamps begin to glow
   shadow: { center: [0, 2, 0], radius: 42 }, envProbe: [0, 4, 6],
   fog: { groundDensity: 0.0018, height: 40 },
@@ -44,6 +47,7 @@ async function mountQuest() {
 }
 const mounted = await mountQuest();
 const { g } = mounted;
+mounted.xr = createXR(g.play, { game: g, support: xrs });   // in the headset the trigger is E, prompts float in the garden
 if (Q.get('load')) g.load(+Q.get('load'));
 if (Q.has('start')) g.ui.begin();
 window.__mirage = { world, built, ...mounted, mountQuest, tex, render: (o = {}) => world.renderFrame(o.T ?? 0, { spp: 6, frameIndex: 1, ...o }) };

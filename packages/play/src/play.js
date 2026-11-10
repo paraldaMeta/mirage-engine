@@ -54,6 +54,13 @@ function mountPlay(world, opts, life) {
   const flyPos = new THREE.Vector3(), flyVel = new THREE.Vector3(), gameTarget = new THREE.Vector3();
   const gameCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 400);
   const orbitLens = { fov: camera.fov, near: camera.near, far: camera.far };   // the stills view keeps the world's lens
+  // the world's camera is the host's: dispose() gives back its lens and pose
+  const hostCamera = { ...orbitLens, aspect: camera.aspect, position: camera.position.clone(), quaternion: camera.quaternion.clone() };
+  life.defer(() => {
+    Object.assign(camera, { fov: hostCamera.fov, near: hostCamera.near, far: hostCamera.far, aspect: hostCamera.aspect });
+    camera.position.copy(hostCamera.position); camera.quaternion.copy(hostCamera.quaternion);
+    camera.updateProjectionMatrix(); camera.updateMatrixWorld();
+  });
   const avatar = createCharacter(world, opts.appearance), figure = avatar.root;
   figure.visible = false;
   life.defer(() => avatar.dispose());
@@ -108,17 +115,24 @@ function mountPlay(world, opts, life) {
     const above = v.eye[1] - (grid.groundAt(v.eye[0], v.eye[2], v.eye[1]) || 0);
     place(v.eye, v.look, v.mode || (mode === 'game' || mode === 'orbit' ? mode : above > 3 ? 'fly' : 'walk'));
   }
+  // leaving fly or orbit for the ground: over a column with no floor at all (outside the plan), back to the spawn
+  // instead (the walker used to stay hanging there, unable to move)
+  const land = (p) => {
+    if (Number.isNaN(grid.groundAt(p[0], p[2], 1e4))) walker.place([spawn.eye[0], spawn.eye[1] - B.eye, spawn.eye[2]]);
+    else walker.place(p);
+    eyeY = walker.pos[1] + B.eye;
+  };
   function setMode(m) {
     if (life.disposed) return;
     if (mode === 'orbit' && m !== 'orbit') {   // leave the orbit where its camera is, looking where it looks
       const d = camera.getWorldDirection(new THREE.Vector3());
       yaw = Math.atan2(d.z, d.x); pitch = Math.asin(THREE.MathUtils.clamp(d.y, -1, 1));
       flyPos.copy(camera.position);
-      if (m !== 'fly') { walker.place([camera.position.x, camera.position.y - B.eye + 0.3, camera.position.z]); eyeY = walker.pos[1] + B.eye; }
+      if (m !== 'fly') land([camera.position.x, camera.position.y - B.eye + 0.3, camera.position.z]);
       mode = 'fly';
     }
     if (m === 'fly' && mode !== 'fly') flyPos.set(walker.pos[0], eyeY, walker.pos[2]);
-    if (m === 'walk' && mode === 'fly') { walker.place([flyPos.x, flyPos.y - B.eye + 0.3, flyPos.z]); eyeY = walker.pos[1] + B.eye; }
+    if ((m === 'walk' || m === 'game') && mode === 'fly') land([flyPos.x, flyPos.y - B.eye + 0.3, flyPos.z]);
     if (m === 'orbit' && mode !== 'orbit') {
       camera.position.copy(mode === 'fly' ? flyPos : new THREE.Vector3(walker.pos[0], eyeY, walker.pos[2]));
       controls.target.copy(camera.position).addScaledVector(forward(), 8);
@@ -129,7 +143,8 @@ function mountPlay(world, opts, life) {
     figure.visible = mode === 'game';
     controls.enabled = mode === 'orbit';
     if (mode === 'game') gameTarget.set(walker.pos[0], walker.pos[1] + 0.9, walker.pos[2]);
-    if (mode === 'game' && document.pointerLockElement === canvas) document.exitPointerLock();
+    // orbit drags and the game view's cursor need the pointer back
+    if ((mode === 'game' || mode === 'orbit') && document.pointerLockElement === canvas) document.exitPointerLock();
     ui.mode(mode);
     still = 0;
   }
@@ -144,7 +159,7 @@ function mountPlay(world, opts, life) {
     nextView: () => viewpoint((viewIndex = (viewIndex + 1) % plan.viewpoints.length)),
   });
   const onKey = (e) => {
-    if (e.repeat) return;
+    if (e.repeat || typing(e)) return;   // keys typed into the host page's fields are not moves
     keys.add(e.code);
     const k = e.code;
     if (opts.devKeys === false) return;   // a game maps its own keys (opts.input)
@@ -159,6 +174,8 @@ function mountPlay(world, opts, life) {
   life.listen(window, 'keydown', onKey);
   life.listen(window, 'keyup', (e) => keys.delete(e.code));
   life.listen(window, 'blur', () => keys.clear());
+  // a field taking focus mid-press would otherwise leave the key held (its keyup goes to the field, handled above)
+  life.listen(window, 'focusin', (e) => { if (typing(e)) keys.clear(); });
   const turn = (dx, dy, k) => { turned = true; yaw += dx * k; pitch = THREE.MathUtils.clamp(pitch - dy * k, -1.45, 1.45); };
   life.listen(document, 'mousemove', (e) => {
     if (mode === 'orbit' || mode === 'game') return;
@@ -231,11 +248,12 @@ function mountPlay(world, opts, life) {
       up: (k('KeyE') || (mode === 'fly' && k('Space'))) - k('KeyQ', 'KeyC'), run: k('ShiftLeft', 'ShiftRight') || pad.run, jump: k('Space'),
     };
   }
-  let changed = false, acting = false, turned = false;
+  let changed = false, acting = false, turned = false, xrInput = null;
   function step(dt) {
     if (life.disposed) return;
     // opts.input(): { x (right), z (forward), up, run, jump } from a game's action map; default: the keys above
-    const inp = opts.input ? opts.input(dt) : keyInput();
+    const base = opts.input ? opts.input(dt) : keyInput();
+    const inp = xrInput ? xrInput(base, dt) : base;   // [xr] packages/play/src/xr.js adds the controllers' sticks
     if (life.disposed) return;
     const fx = inp.x || 0, fz = inp.z || 0, up = inp.up || 0, run = !!inp.run;
     acting = !!(fx || fz || up || inp.jump);
@@ -271,7 +289,9 @@ function mountPlay(world, opts, life) {
         figure.position.set(p[0], p[1], p[2]); figure.rotation.y = heading;
       } else camera.position.set(p[0], eyeY, p[2]);
     } else if (mode === 'fly') {
-      const target = new THREE.Vector3().addScaledVector(fwd, fz).addScaledVector(right, fx).setY(up).multiplyScalar(run ? FLY_FAST : FLY);
+      const target = new THREE.Vector3().addScaledVector(fwd, fz).addScaledVector(right, fx).setY(up);
+      if (target.lengthSq() > 1) target.normalize();   // diagonals and stick + keys fly no faster than straight ahead
+      target.multiplyScalar(run ? FLY_FAST : FLY);
       flyVel.lerp(target, Math.min(1, dt * 4));
       flyPos.addScaledVector(flyVel, dt);
       const g = grid.groundAt(flyPos.x, flyPos.z, flyPos.y);
@@ -395,14 +415,18 @@ function mountPlay(world, opts, life) {
   const wake = () => { lastInput = performance.now(); };
   for (const ev of ['keydown', 'pointerdown', 'pointermove', 'wheel', 'touchstart']) life.listen(window, ev, wake, { passive: true });
   const power = { saver: false, maxFps: opts.maxFps ?? 60 }, gate = frameGate(() => power.maxFps);
+  // dynamic resolution must not read this cap as a slow GPU
+  const capDynamicRes = () => { if (world.dynamicRes) world.dynamicRes.cap = power.maxFps; };
+  capDynamicRes();
   const setSaver = (on) => {
     if (life.disposed) return;
     power.saver = !!on; power.maxFps = on ? 30 : opts.maxFps ?? 60;
+    capDynamicRes();
     try { localStorage.setItem(POWER_KEY, on ? '1' : '0'); } catch { /* no storage */ }
     if (opts.onPowerSaver) opts.onPowerSaver(power.saver);
     hud.update(); wake();
   };
-  const hud = makeHud(life, opts.hud !== false, { quality: opts.quality || world.ctx.quality, power, setSaver });
+  const hud = makeHud(life, opts.hud !== false, { quality: opts.quality || world.ctx.quality, power, setSaver, onQuality: opts.onQuality });
   try { if (localStorage.getItem(POWER_KEY) === '1') setSaver(true); } catch { /* no storage */ }
   life.listen(document, 'visibilitychange', () => {
     hidden = document.hidden;
@@ -419,6 +443,8 @@ function mountPlay(world, opts, life) {
     lookAt: (p) => look(camera.position.toArray(), p),
     get yaw() { return yaw; }, set yaw(v) { yaw = v; }, get pitch() { return pitch; }, set pitch(v) { pitch = v; },
     get mode() { return mode; }, get still() { return still; },
+    /** [xr] (input, dt) -> input: merged into each step's input by packages/play/src/xr.js (null: none) */
+    get xrInput() { return xrInput; }, set xrInput(fn) { xrInput = fn || null; },
     /** the scene clock in seconds (see the top of this file) */
     get clock() { return clock; },
     /** [sub-frames of the first still frame, of the final one] */
@@ -449,9 +475,15 @@ export function frameGate(fps) {
   };
 }
 
+/** true for an event whose target is a text field, select or editable element (the host page's, or the HUD's) */
+export function typing(e) {
+  const t = (e && e.composedPath && e.composedPath()[0]) || (e && e.target);   // inside shadow DOM, the real field
+  return !!(t && (t.isContentEditable || /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName || '')));
+}
+
 // the corner: quality (a choice is saved and applied on reload), frames drawn per second, the power saver
 const POWER_KEY = 'mirage:power-saver';
-function makeHud(life, on, { quality, power, setSaver }) {
+function makeHud(life, on, { quality, power, setSaver, onQuality }) {
   if (!on) return { show() {}, update() {} };
   const el = document.createElement('div');
   el.className = 'mirage-hud';
@@ -460,7 +492,10 @@ function makeHud(life, on, { quality, power, setSaver }) {
   el.innerHTML = `<select title="Quality (reloads the page)" style="${ctl}">${QUALITY_LEVELS.map((q) => `<option${q === quality ? ' selected' : ''}>${q}</option>`).join('')}</select>` +
     `<span class="f" style="min-width:7ch;text-align:right"></span><button type="button" style="${ctl}">Power saver</button>`;
   const sel = el.querySelector('select'), fps = el.querySelector('.f'), btn = el.querySelector('button');
-  life.listen(sel, 'change', () => { try { localStorage.setItem(QUALITY_KEY, sel.value); } catch { /* no storage */ } location.reload(); });
+  life.listen(sel, 'change', () => {
+    try { localStorage.setItem(QUALITY_KEY, sel.value); } catch { /* no storage */ }
+    if (onQuality) onQuality(sel.value); else location.reload();   // an embedding page decides how to apply it
+  });
   life.listen(btn, 'click', () => { setSaver(!power.saver); btn.blur(); });   // no focus: Space must stay a jump
   for (const c of [sel, btn]) life.listen(c, 'keydown', (e) => e.stopPropagation());
   life.defer(() => el.remove());
@@ -484,7 +519,8 @@ function makeHud(life, on, { quality, power, setSaver }) {
 function makeUI(life, on, plan, { toggleOrbit, nextView }) {
   const root = document.createElement('div');
   root.style.cssText = 'position:fixed;left:14px;bottom:12px;font:12px/1.5 system-ui,sans-serif;color:#f3e6cc;text-shadow:0 1px 2px #000;pointer-events:none;';
-  const vps = plan.viewpoints.slice(0, 9).map((v, i) => `${i + 1} ${v.name}`).join(' · ');
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  const vps = plan.viewpoints.slice(0, 9).map((v, i) => `${i + 1} ${esc(v.name ?? 'view')}`).join(' · ');
   root.innerHTML = `<div class="m" style="font-weight:600;letter-spacing:.08em"></div><div class="k">WASD walk · mouse look · Shift run · Space jump · F fly · G game view · O orbit · R spawn · H hide</div><div style="opacity:.8">${vps}</div><div class="s" style="opacity:.6;font-family:ui-monospace,monospace"></div>`;
   // touch has no keys: buttons for walk / orbit and the next viewpoint
   const bar = document.createElement('div');

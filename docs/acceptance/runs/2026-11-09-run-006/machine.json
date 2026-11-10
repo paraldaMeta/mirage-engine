@@ -1,0 +1,11 @@
+{
+  "label": "racso-mac-mini-m4pro",
+  "model": "Mac mini (Mac16,11)",
+  "cpu": "Apple M4 Pro",
+  "gpu": "Apple M4 Pro (20-core GPU)",
+  "memoryGB": 64,
+  "os": "macOS 26.6.2 (25G83)",
+  "powerMode": "AC power, desktop (no battery); default energy settings",
+  "displayHz": 120,
+  "notes": "Run by Claude Code on 2026-11-09 for the 1.0 finish branch (claude/mirage-1.0-finish): full code review fixes + woodland horizon. Two 3840x1080 displays at 120 Hz."
+}

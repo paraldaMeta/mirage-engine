@@ -21,10 +21,13 @@ import { planProblems } from './plan-validation.js';
 export function definePlan(plan) {
   const problems = planProblems(plan);
   if (problems.length) throw new Error('[plan ' + (typeof plan?.name === 'string' ? plan.name : '?') + ']\n' + problems.join('\n'));
+  // fields set to undefined are absent: they must not overwrite the defaults below
+  const given = (o) => Object.fromEntries(Object.entries(o || {}).filter(([, v]) => v !== undefined));
+  const p = given(plan);
   return {
-    units: 'm', regions: {}, footprints: {}, paths: {}, points: {}, viewpoints: [], ...plan,
-    axes: { x: 'east', y: 'up', z: 'south', ...plan.axes }, walk: { yMin: -1, yMax: 12, ...plan.walk },
-    seed: plan.seed ?? plan.name,
+    units: 'm', regions: {}, footprints: {}, paths: {}, points: {}, viewpoints: [], ...p,
+    axes: { x: 'east', y: 'up', z: 'south', ...given(p.axes) }, walk: { yMin: -1, yMax: 12, ...given(p.walk) },
+    seed: p.seed ?? p.name,
   };
 }
 
@@ -59,9 +62,18 @@ export function pathLength(path) {
 /** Point and unit direction at distance s along a path: { x, z, dx, dz }. */
 export function along(path, s) {
   const P = path.points;
+  // the direction of the nearest segment with a length (repeated points have none)
+  const dir = (i) => {
+    for (let d = 0; d < P.length; d++) for (const j of [i + d, i - d]) {
+      if (j < 1 || j >= P.length) continue;
+      const dx = P[j][0] - P[j - 1][0], dz = P[j][1] - P[j - 1][1], l = Math.hypot(dx, dz);
+      if (l) return [dx / l, dz / l];
+    }
+    return [0, 0];
+  };
   for (let i = 1; i < P.length; i++) {
     const [ax, az] = P[i - 1], [bx, bz] = P[i], l = Math.hypot(bx - ax, bz - az);
-    if (s <= l || i === P.length - 1) { const t = l ? Math.min(Math.max(s / l, 0), 1) : 0; return { x: ax + (bx - ax) * t, z: az + (bz - az) * t, dx: (bx - ax) / (l || 1), dz: (bz - az) / (l || 1) }; }
+    if ((l && s <= l) || i === P.length - 1) { const t = l ? Math.min(Math.max(s / l, 0), 1) : 0, [dx, dz] = dir(i); return { x: ax + (bx - ax) * t, z: az + (bz - az) * t, dx, dz }; }
     s -= l;
   }
 }

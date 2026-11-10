@@ -1,0 +1,961 @@
+{
+  "schemaVersion": 1,
+  "status": "machine-pass-pending-review",
+  "releaseReady": false,
+  "commit": "f05ccca9acecb4c0fe33d2ed289b2479cb8a023b",
+  "started": "2026-11-09T09:25:03.104Z",
+  "machine": {
+    "label": "racso-mac-mini-m4pro",
+    "model": "Mac mini (Mac16,11)",
+    "cpu": "Apple M4 Pro",
+    "gpu": "Apple M4 Pro (20-core GPU)",
+    "memoryGB": 64,
+    "os": "macOS 26.6.2 (25G83)",
+    "powerMode": "AC power, desktop (no battery); default energy settings",
+    "displayHz": 120,
+    "notes": "Run by Claude Code on 2026-11-09 for the 1.0 finish branch (claude/mirage-1.0-finish): full code review fixes + woodland horizon. Two 3840x1080 displays at 120 Hz."
+  },
+  "host": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "release": "25.6.0",
+    "node": "v22.23.1",
+    "npm": "10.9.8",
+    "chrome": "Google Chrome 156.0.8078.80"
+  },
+  "steps": [
+    {
+      "id": "npm-version",
+      "command": "npm",
+      "args": [
+        "--version"
+      ],
+      "cwd": "../src-006",
+      "started": "2026-11-09T09:25:03.105Z",
+      "status": "passed",
+      "log": "logs/npm-version.log",
+      "code": 0,
+      "signal": null,
+      "seconds": 0.1
+    },
+    {
+      "id": "chrome-version",
+      "command": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+      "args": [
+        "--version"
+      ],
+      "cwd": "../src-006",
+      "started": "2026-11-09T09:25:03.158Z",
+      "status": "passed",
+      "log": "logs/chrome-version.log",
+      "code": 0,
+      "signal": null,
+      "seconds": 0
+    },
+    {
+      "id": "archive",
+      "command": "git",
+      "args": [
+        "archive",
+        "--format=tar",
+        "-o",
+        "/Users/mac/mirage-acceptance/run-006/source.tar",
+        "f05ccca9acecb4c0fe33d2ed289b2479cb8a023b"
+      ],
+      "cwd": "../src-006",
+      "started": "2026-11-09T09:25:03.196Z",
+      "status": "passed",
+      "log": "logs/archive.log",
+      "code": 0,
+      "signal": null,
+      "seconds": 0
+    },
+    {
+      "id": "extract",
+      "command": "tar",
+      "args": [
+        "-xf",
+        "/Users/mac/mirage-acceptance/run-006/source.tar",
+        "-C",
+        "/Users/mac/mirage-acceptance/run-006/workspace"
+      ],
+      "cwd": "workspace",
+      "started": "2026-11-09T09:25:03.226Z",
+      "status": "passed",
+      "log": "logs/extract.log",
+      "code": 0,
+      "signal": null,
+      "seconds": 0
+    },
+    {
+      "id": "install",
+      "command": "npm",
+      "args": [
+        "ci",
+        "--include=dev",
+        "--include=optional",
+        "--no-audit",
+        "--no-fund"
+      ],
+      "cwd": "workspace",
+      "started": "2026-11-09T09:25:03.269Z",
+      "status": "passed",
+      "log": "logs/install.log",
+      "code": 0,
+      "signal": null,
+      "seconds": 0.6
+    },
+    {
+      "id": "gpu-preflight",
+      "command": "/Users/mac/.hermes/node/bin/node",
+      "args": [
+        "packages/tools/src/gpu-preflight.mjs",
+        "/Users/mac/mirage-acceptance/run-006/gpu.json"
+      ],
+      "cwd": "workspace",
+      "started": "2026-11-09T09:25:03.901Z",
+      "status": "passed",
+      "log": "logs/gpu-preflight.log",
+      "code": 0,
+      "signal": null,
+      "seconds": 0.9
+    },
+    {
+      "id": "types-consumer",
+      "command": "/Users/mac/.hermes/node/bin/node",
+      "args": [
+        "packages/tools/src/typecheck.mjs",
+        "--out",
+        "/Users/mac/mirage-acceptance/run-006/types"
+      ],
+      "cwd": "workspace",
+      "started": "2026-11-09T09:25:04.752Z",
+      "status": "passed",
+      "log": "logs/types-consumer.log",
+      "code": 0,
+      "signal": null,
+      "seconds": 63.7
+    },
+    {
+      "id": "unit-and-protocol",
+      "command": "npm",
+      "args": [
+        "test"
+      ],
+      "cwd": "workspace",
+      "started": "2026-11-09T09:26:08.452Z",
+      "status": "passed",
+      "log": "logs/unit-and-protocol.log",
+      "code": 0,
+      "signal": null,
+      "seconds": 6
+    },
+    {
+      "id": "e2e",
+      "command": "/Users/mac/.hermes/node/bin/node",
+      "args": [
+        "packages/tools/src/e2e.mjs"
+      ],
+      "cwd": "workspace",
+      "started": "2026-11-09T09:26:14.490Z",
+      "status": "passed",
+      "log": "logs/e2e.log",
+      "code": 0,
+      "signal": null,
+      "seconds": 1382
+    },
+    {
+      "id": "fixed-step",
+      "command": "/Users/mac/.hermes/node/bin/node",
+      "args": [
+        "packages/tools/src/fixed-step-check.mjs",
+        "examples/snow-hut/dist"
+      ],
+      "cwd": "workspace",
+      "started": "2026-11-09T09:49:16.441Z",
+      "status": "passed",
+      "log": "logs/fixed-step.log",
+      "code": 0,
+      "signal": null,
+      "seconds": 6.2
+    },
+    {
+      "id": "touch",
+      "command": "npm",
+      "args": [
+        "run",
+        "test:touch"
+      ],
+      "cwd": "workspace",
+      "started": "2026-11-09T09:49:22.601Z",
+      "status": "passed",
+      "log": "logs/touch.log",
+      "code": 0,
+      "signal": null,
+      "seconds": 33.9
+    },
+    {
+      "id": "still-pop",
+      "command": "npm",
+      "args": [
+        "run",
+        "test:still-pop"
+      ],
+      "cwd": "workspace",
+      "started": "2026-11-09T09:49:56.484Z",
+      "status": "passed",
+      "log": "logs/still-pop.log",
+      "code": 0,
+      "signal": null,
+      "seconds": 29.7
+    },
+    {
+      "id": "gpu-load",
+      "command": "npm",
+      "args": [
+        "run",
+        "test:gpu-load"
+      ],
+      "cwd": "workspace",
+      "started": "2026-11-09T09:50:26.226Z",
+      "status": "passed",
+      "log": "logs/gpu-load.log",
+      "code": 0,
+      "signal": null,
+      "seconds": 206.6
+    },
+    {
+      "id": "still-identity",
+      "command": "/Users/mac/.hermes/node/bin/node",
+      "args": [
+        "scripts/verify.mjs",
+        "out/verify"
+      ],
+      "cwd": "workspace/examples/hello-courtyard",
+      "started": "2026-11-09T09:53:52.787Z",
+      "status": "passed",
+      "log": "logs/still-identity.log",
+      "code": 0,
+      "signal": null,
+      "seconds": 12.1
+    },
+    {
+      "id": "metrics-woodland-path",
+      "command": "npm",
+      "args": [
+        "run",
+        "metrics",
+        "-w",
+        "woodland-path"
+      ],
+      "cwd": "workspace",
+      "started": "2026-11-09T09:54:04.907Z",
+      "status": "passed",
+      "log": "logs/metrics-woodland-path.log",
+      "code": 0,
+      "signal": null,
+      "seconds": 0.1
+    },
+    {
+      "id": "metrics-river-ford",
+      "command": "npm",
+      "args": [
+        "run",
+        "metrics",
+        "-w",
+        "river-ford"
+      ],
+      "cwd": "workspace",
+      "started": "2026-11-09T09:54:05.013Z",
+      "status": "passed",
+      "log": "logs/metrics-river-ford.log",
+      "code": 0,
+      "signal": null,
+      "seconds": 0.1
+    },
+    {
+      "id": "character-http",
+      "command": "/Users/mac/.hermes/node/bin/node",
+      "args": [
+        "packages/tools/src/character-review.mjs",
+        "examples/river-ford/dist"
+      ],
+      "cwd": "workspace",
+      "started": "2026-11-09T09:54:05.120Z",
+      "status": "passed",
+      "log": "logs/character-http.log",
+      "code": 0,
+      "signal": null,
+      "seconds": 4.4
+    },
+    {
+      "id": "character-file",
+      "command": "/Users/mac/.hermes/node/bin/node",
+      "args": [
+        "packages/tools/src/character-review.mjs",
+        "examples/river-ford/release/river-ford.html"
+      ],
+      "cwd": "workspace",
+      "started": "2026-11-09T09:54:09.493Z",
+      "status": "passed",
+      "log": "logs/character-file.log",
+      "code": 0,
+      "signal": null,
+      "seconds": 3.1
+    }
+  ],
+  "pending": [
+    "visual-review",
+    "real-phone",
+    "integrated-gpu",
+    "browser-matrix",
+    "A1",
+    "GPU-CI",
+    "API-types-packaging"
+  ],
+  "sourceSha256": "5eb4afe537498355a922d99738b00d060dda9b844e237d311d0660f7eb92bff1",
+  "lockSha256": "5a4962cc1189cacb9239ff4a0b0261651f259bcc95a6fba80c9fe64869f90794",
+  "examples": [
+    "agent-trial",
+    "garden-quest",
+    "hello-courtyard",
+    "river-ford",
+    "snow-hut",
+    "walled-garden",
+    "woodland-path"
+  ],
+  "gpu": {
+    "status": "passed",
+    "started": "2026-11-09T09:25:03.973Z",
+    "devices": [
+      {
+        "vendorId": 4203,
+        "deviceId": 0,
+        "vendorString": "Google Inc. (Apple)",
+        "deviceString": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Version 26.6.2 (Build 25G83))",
+        "driverVendor": "Apple",
+        "driverVersion": "26.6.2"
+      }
+    ],
+    "featureStatus": {
+      "2d_canvas": "enabled",
+      "direct_rendering_display_compositor": "disabled_off_ok",
+      "gpu_compositing": "enabled",
+      "multiple_raster_threads": "enabled_on",
+      "opengl": "enabled_on",
+      "rasterization": "enabled",
+      "raw_draw": "disabled_off_ok",
+      "skia_graphite": "enabled_on",
+      "trees_in_viz": "disabled_off",
+      "video_decode": "enabled",
+      "video_encode": "enabled",
+      "webgl": "enabled",
+      "webgpu": "enabled",
+      "webnn": "disabled_off"
+    },
+    "browser": "Chrome/156.0.8078.80",
+    "webgl": {
+      "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)",
+      "vendor": "Google Inc. (Apple)",
+      "pixel": [
+        32,
+        128,
+        192,
+        255
+      ],
+      "error": 0
+    },
+    "finished": "2026-11-09T09:25:04.395Z"
+  },
+  "types": {
+    "status": "passed",
+    "started": "2026-11-09T09:25:04.773Z",
+    "node": "v22.23.1",
+    "source": "/Users/mac/mirage-acceptance/run-006/workspace",
+    "toolchain": {
+      "typescript": "5.9.3",
+      "@types/three": "0.186.0",
+      "three": "0.186.1"
+    },
+    "packages": [
+      {
+        "name": "@mirage/core",
+        "version": "1.0.0",
+        "file": "tarballs/mirage-core-1.0.0.tgz",
+        "sha256": "9558ba6229beca7086bd6ffc8130c7b543edd47ae381dc5deca768fedd8ccb17",
+        "files": [
+          "LICENSE",
+          "README.md",
+          "package.json",
+          "src/atmosphere.d.ts",
+          "src/atmosphere.js",
+          "src/daynight.d.ts",
+          "src/daynight.js",
+          "src/device.d.ts",
+          "src/device.js",
+          "src/env.d.ts",
+          "src/env.js",
+          "src/envlight.d.ts",
+          "src/envlight.js",
+          "src/fog.d.ts",
+          "src/fog.js",
+          "src/geom.d.ts",
+          "src/geom.js",
+          "src/index.d.ts",
+          "src/index.js",
+          "src/lifetime.d.ts",
+          "src/lifetime.js",
+          "src/lod.d.ts",
+          "src/lod.js",
+          "src/materials.d.ts",
+          "src/materials.js",
+          "src/noise.d.ts",
+          "src/noise.js",
+          "src/post.d.ts",
+          "src/post.js",
+          "src/rng.d.ts",
+          "src/rng.js",
+          "src/sky-time.d.ts",
+          "src/sky-time.js",
+          "src/sky.d.ts",
+          "src/sky.js",
+          "src/stars.d.ts",
+          "src/stars.js",
+          "src/textures.d.ts",
+          "src/textures.js",
+          "src/world.d.ts",
+          "src/world.js"
+        ]
+      },
+      {
+        "name": "@mirage/world",
+        "version": "1.0.0",
+        "file": "tarballs/mirage-world-1.0.0.tgz",
+        "sha256": "088533891b4ad133fe0e39c5529375fea2c91bded2ac3581d2244a3b5e5ee9ba",
+        "files": [
+          "LICENSE",
+          "NOTES.template.md",
+          "README.md",
+          "package.json",
+          "plan.schema.json",
+          "src/index.d.ts",
+          "src/index.js",
+          "src/kits/terrain.d.ts",
+          "src/kits/terrain.js",
+          "src/kits/vegetation.d.ts",
+          "src/kits/vegetation.js",
+          "src/kits/water.d.ts",
+          "src/kits/water.js",
+          "src/loader.d.ts",
+          "src/loader.js",
+          "src/plan-validation.d.ts",
+          "src/plan-validation.js",
+          "src/plan.d.ts",
+          "src/plan.js"
+        ]
+      },
+      {
+        "name": "@mirage/play",
+        "version": "1.0.0",
+        "file": "tarballs/mirage-play-1.0.0.tgz",
+        "sha256": "e4b6fefbbf782daaf7a0b6b15279000e5b68ef838d10cbebc489e8160c851186",
+        "files": [
+          "LICENSE",
+          "README.md",
+          "package.json",
+          "src/character-model.d.ts",
+          "src/character-model.js",
+          "src/character.d.ts",
+          "src/character.js",
+          "src/embed.d.ts",
+          "src/embed.js",
+          "src/index.d.ts",
+          "src/index.js",
+          "src/play.d.ts",
+          "src/play.js",
+          "src/walker.d.ts",
+          "src/walker.js",
+          "src/walkgrid.d.ts",
+          "src/walkgrid.js"
+        ]
+      },
+      {
+        "name": "@mirage/game",
+        "version": "1.0.0",
+        "file": "tarballs/mirage-game-1.0.0.tgz",
+        "sha256": "93401263e20d0740e6d2e629bfac281fb4c702179218f451162591a958fee68a",
+        "files": [
+          "LICENSE",
+          "README.md",
+          "package.json",
+          "src/audio.d.ts",
+          "src/audio.js",
+          "src/game.d.ts",
+          "src/game.js",
+          "src/index.d.ts",
+          "src/index.js",
+          "src/input.d.ts",
+          "src/input.js",
+          "src/physics.d.ts",
+          "src/physics.js",
+          "src/simulation.d.ts",
+          "src/simulation.js",
+          "src/start.d.ts",
+          "src/start.js",
+          "src/ui.d.ts",
+          "src/ui.js",
+          "types/rapier/coarena.d.ts",
+          "types/rapier/control/character_controller.d.ts",
+          "types/rapier/control/index.d.ts",
+          "types/rapier/control/pid_controller.d.ts",
+          "types/rapier/control/ray_cast_vehicle_controller.d.ts",
+          "types/rapier/dynamics/ccd_solver.d.ts",
+          "types/rapier/dynamics/coefficient_combine_rule.d.ts",
+          "types/rapier/dynamics/impulse_joint_set.d.ts",
+          "types/rapier/dynamics/impulse_joint.d.ts",
+          "types/rapier/dynamics/index.d.ts",
+          "types/rapier/dynamics/integration_parameters.d.ts",
+          "types/rapier/dynamics/island_manager.d.ts",
+          "types/rapier/dynamics/multibody_joint_set.d.ts",
+          "types/rapier/dynamics/multibody_joint.d.ts",
+          "types/rapier/dynamics/rigid_body_set.d.ts",
+          "types/rapier/dynamics/rigid_body.d.ts",
+          "types/rapier/exports.d.ts",
+          "types/rapier/geometry/broad_phase.d.ts",
+          "types/rapier/geometry/collider_set.d.ts",
+          "types/rapier/geometry/collider.d.ts",
+          "types/rapier/geometry/contact.d.ts",
+          "types/rapier/geometry/feature.d.ts",
+          "types/rapier/geometry/index.d.ts",
+          "types/rapier/geometry/interaction_groups.d.ts",
+          "types/rapier/geometry/narrow_phase.d.ts",
+          "types/rapier/geometry/point.d.ts",
+          "types/rapier/geometry/ray.d.ts",
+          "types/rapier/geometry/shape.d.ts",
+          "types/rapier/geometry/toi.d.ts",
+          "types/rapier/init.d.ts",
+          "types/rapier/LICENSE",
+          "types/rapier/math.d.ts",
+          "types/rapier/package.json",
+          "types/rapier/pipeline/debug_render_pipeline.d.ts",
+          "types/rapier/pipeline/event_queue.d.ts",
+          "types/rapier/pipeline/index.d.ts",
+          "types/rapier/pipeline/physics_hooks.d.ts",
+          "types/rapier/pipeline/physics_pipeline.d.ts",
+          "types/rapier/pipeline/query_pipeline.d.ts",
+          "types/rapier/pipeline/serialization_pipeline.d.ts",
+          "types/rapier/pipeline/world.d.ts",
+          "types/rapier/rapier_wasm3d_bg.wasm.d.ts",
+          "types/rapier/rapier_wasm3d.d.ts",
+          "types/rapier/rapier.d.ts",
+          "types/rapier/raw.d.ts",
+          "types/rapier/README.md"
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "id": "npm-version",
+        "command": "npm",
+        "args": [
+          "--version"
+        ],
+        "log": "npm-version.log",
+        "status": "passed",
+        "code": 0,
+        "signal": null,
+        "seconds": 0.1
+      },
+      {
+        "id": "pack-core",
+        "command": "npm",
+        "args": [
+          "pack",
+          ".",
+          "--workspaces=false",
+          "--ignore-scripts",
+          "--json",
+          "--pack-destination",
+          "/Users/mac/mirage-acceptance/run-006/types/tarballs"
+        ],
+        "log": "pack-core.log",
+        "status": "passed",
+        "code": 0,
+        "signal": null,
+        "seconds": 0.2
+      },
+      {
+        "id": "pack-world",
+        "command": "npm",
+        "args": [
+          "pack",
+          ".",
+          "--workspaces=false",
+          "--ignore-scripts",
+          "--json",
+          "--pack-destination",
+          "/Users/mac/mirage-acceptance/run-006/types/tarballs"
+        ],
+        "log": "pack-world.log",
+        "status": "passed",
+        "code": 0,
+        "signal": null,
+        "seconds": 0.2
+      },
+      {
+        "id": "pack-play",
+        "command": "npm",
+        "args": [
+          "pack",
+          ".",
+          "--workspaces=false",
+          "--ignore-scripts",
+          "--json",
+          "--pack-destination",
+          "/Users/mac/mirage-acceptance/run-006/types/tarballs"
+        ],
+        "log": "pack-play.log",
+        "status": "passed",
+        "code": 0,
+        "signal": null,
+        "seconds": 0.2
+      },
+      {
+        "id": "pack-game",
+        "command": "npm",
+        "args": [
+          "pack",
+          ".",
+          "--workspaces=false",
+          "--ignore-scripts",
+          "--json",
+          "--pack-destination",
+          "/Users/mac/mirage-acceptance/run-006/types/tarballs"
+        ],
+        "log": "pack-game.log",
+        "status": "passed",
+        "code": 0,
+        "signal": null,
+        "seconds": 0.2
+      },
+      {
+        "id": "install",
+        "command": "npm",
+        "args": [
+          "install",
+          "--include=dev",
+          "--include=optional",
+          "--ignore-scripts",
+          "--no-audit",
+          "--no-fund"
+        ],
+        "log": "install.log",
+        "status": "passed",
+        "code": 0,
+        "signal": null,
+        "seconds": 60.2
+      },
+      {
+        "id": "nodenext",
+        "command": "/Users/mac/.hermes/node/bin/node",
+        "args": [
+          "/Users/mac/mirage-acceptance/run-006/types/node_modules/typescript/bin/tsc",
+          "-p",
+          "tsconfig.nodenext.json"
+        ],
+        "log": "nodenext.log",
+        "status": "passed",
+        "code": 0,
+        "signal": null,
+        "seconds": 1.4
+      },
+      {
+        "id": "bundler",
+        "command": "/Users/mac/.hermes/node/bin/node",
+        "args": [
+          "/Users/mac/mirage-acceptance/run-006/types/node_modules/typescript/bin/tsc",
+          "-p",
+          "tsconfig.bundler.json"
+        ],
+        "log": "bundler.log",
+        "status": "passed",
+        "code": 0,
+        "signal": null,
+        "seconds": 1.4
+      }
+    ],
+    "npm": "10.9.8",
+    "lockSha256": "e89e3531ee99465858d6f310d3809feaafa2ffa4d8fe5255d928371882321866",
+    "rapier": {
+      "version": "0.19.3",
+      "identicalDeclarations": 43
+    },
+    "finished": "2026-11-09T09:26:08.449Z"
+  },
+  "evidence": {
+    "examples": [
+      {
+        "name": "agent-trial",
+        "bytes": 3179258,
+        "targets": [
+          {
+            "protocol": "http:",
+            "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)",
+            "report": "examples/agent-trial/out/playtest/report.json"
+          },
+          {
+            "protocol": "file:",
+            "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)",
+            "report": "examples/agent-trial/out/playtest-file/report.json"
+          }
+        ]
+      },
+      {
+        "name": "garden-quest",
+        "bytes": 4554927,
+        "targets": [
+          {
+            "protocol": "http:",
+            "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)",
+            "report": "examples/garden-quest/out/playtest/report.json"
+          },
+          {
+            "protocol": "file:",
+            "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)",
+            "report": "examples/garden-quest/out/playtest-file/report.json"
+          }
+        ]
+      },
+      {
+        "name": "hello-courtyard",
+        "bytes": 2259240,
+        "targets": [
+          {
+            "protocol": "http:",
+            "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)",
+            "report": "examples/hello-courtyard/out/playtest/report.json"
+          },
+          {
+            "protocol": "file:",
+            "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)",
+            "report": "examples/hello-courtyard/out/playtest-file/report.json"
+          }
+        ]
+      },
+      {
+        "name": "river-ford",
+        "bytes": 887781,
+        "targets": [
+          {
+            "protocol": "http:",
+            "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)",
+            "report": "examples/river-ford/out/playtest/report.json"
+          },
+          {
+            "protocol": "file:",
+            "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)",
+            "report": "examples/river-ford/out/playtest-file/report.json"
+          }
+        ]
+      },
+      {
+        "name": "snow-hut",
+        "bytes": 3174645,
+        "targets": [
+          {
+            "protocol": "http:",
+            "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)",
+            "report": "examples/snow-hut/out/playtest/report.json"
+          },
+          {
+            "protocol": "file:",
+            "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)",
+            "report": "examples/snow-hut/out/playtest-file/report.json"
+          }
+        ]
+      },
+      {
+        "name": "walled-garden",
+        "bytes": 2267695,
+        "targets": [
+          {
+            "protocol": "http:",
+            "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)",
+            "report": "examples/walled-garden/out/playtest/report.json"
+          },
+          {
+            "protocol": "file:",
+            "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)",
+            "report": "examples/walled-garden/out/playtest-file/report.json"
+          }
+        ]
+      },
+      {
+        "name": "woodland-path",
+        "bytes": 886557,
+        "targets": [
+          {
+            "protocol": "http:",
+            "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)",
+            "report": "examples/woodland-path/out/playtest/report.json"
+          },
+          {
+            "protocol": "file:",
+            "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)",
+            "report": "examples/woodland-path/out/playtest-file/report.json"
+          }
+        ]
+      }
+    ],
+    "stillViews": [
+      "golden",
+      "noon",
+      "dusk-lanterns",
+      "night",
+      "golden-dof"
+    ],
+    "scenes": {
+      "woodland-path": {
+        "file": "release/woodland-path.html",
+        "bytes": 886557,
+        "byteLimit": 5000000,
+        "targets": [
+          {
+            "url": "http://127.0.0.1:61477/?mode=walk&quality=medium&grain=0&ui=0&hud=0&w=1440&h=900",
+            "quality": "medium",
+            "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)",
+            "frameMs": 3.27,
+            "p95Ms": 3.5,
+            "calls": 32,
+            "triangles": 356862,
+            "sheet": "out/playtest/sheet.png",
+            "pass": true
+          },
+          {
+            "url": "file:///Users/mac/mirage-acceptance/run-006/workspace/examples/woodland-path/release/woodland-path.html?mode=walk&quality=medium&grain=0&ui=0&hud=0&w=1440&h=900",
+            "quality": "medium",
+            "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)",
+            "frameMs": 3.68,
+            "p95Ms": 4.3,
+            "calls": 32,
+            "triangles": 356862,
+            "sheet": "out/playtest-file/sheet.png",
+            "pass": true
+          }
+        ],
+        "pass": true
+      },
+      "river-ford": {
+        "file": "release/river-ford.html",
+        "bytes": 887781,
+        "byteLimit": 5000000,
+        "targets": [
+          {
+            "url": "http://127.0.0.1:60963/?mode=walk&quality=medium&ui=0&hud=0&w=1440&h=900",
+            "quality": "medium",
+            "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)",
+            "frameMs": 3,
+            "p95Ms": 3.2,
+            "calls": 31,
+            "triangles": 180722,
+            "sheet": "out/playtest/sheet.png",
+            "pass": true
+          },
+          {
+            "url": "file:///Users/mac/mirage-acceptance/run-006/workspace/examples/river-ford/release/river-ford.html?mode=walk&quality=medium&ui=0&hud=0&w=1440&h=900",
+            "quality": "medium",
+            "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)",
+            "frameMs": 3,
+            "p95Ms": 3.1,
+            "calls": 31,
+            "triangles": 180722,
+            "sheet": "out/playtest-file/sheet.png",
+            "pass": true
+          }
+        ],
+        "pass": true
+      }
+    },
+    "character": {
+      "http": {
+        "report": "examples/river-ford/out/character-http/report.json",
+        "model": {
+          "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)",
+          "rig": "traveller",
+          "bones": 13,
+          "triangles": 2708
+        },
+        "timing": {
+          "hidden": {
+            "calls": 31,
+            "triangles": 180722,
+            "render": {
+              "n": 90,
+              "meanMs": 2.153333333796925,
+              "p95Ms": 2.2000000178813934
+            },
+            "frame": {
+              "n": 90,
+              "meanMs": 2.1633333335320155,
+              "p95Ms": 2.2999999821186066
+            }
+          },
+          "visible": {
+            "calls": 33,
+            "triangles": 186138,
+            "render": {
+              "n": 90,
+              "meanMs": 2.2022222214274936,
+              "p95Ms": 2.300000011920929
+            },
+            "frame": {
+              "n": 90,
+              "meanMs": 2.218888889087571,
+              "p95Ms": 2.300000011920929
+            }
+          }
+        }
+      },
+      "file": {
+        "report": "examples/river-ford/out/character-file/report.json",
+        "model": {
+          "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)",
+          "rig": "traveller",
+          "bones": 13,
+          "triangles": 2708
+        },
+        "timing": {
+          "hidden": {
+            "calls": 31,
+            "triangles": 180722,
+            "render": {
+              "n": 90,
+              "meanMs": 2.162222221824858,
+              "p95Ms": 2.2999999821186066
+            },
+            "frame": {
+              "n": 90,
+              "meanMs": 2.1744444443119897,
+              "p95Ms": 2.300000011920929
+            }
+          },
+          "visible": {
+            "calls": 33,
+            "triangles": 186138,
+            "render": {
+              "n": 90,
+              "meanMs": 2.2200000004635916,
+              "p95Ms": 2.4000000059604645
+            },
+            "frame": {
+              "n": 90,
+              "meanMs": 2.2288888891537986,
+              "p95Ms": 2.4000000059604645
+            }
+          }
+        }
+      }
+    }
+  },
+  "finished": "2026-11-09T09:54:12.554Z"
+}

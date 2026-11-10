@@ -21,7 +21,7 @@ const EXAMPLES = ['hello-courtyard', 'walled-garden', 'garden-quest', 'agent-tri
 const BUDGET = 5_000_000; // the single-file budget the e2e run checks
 
 let out;
-try { out = checkOut(values.out ?? path.join(repo, 'deploy', 'site'), { keep: [repo], marker: '.nojekyll' }); }
+try { out = checkOut(values.out ?? path.join(repo, 'deploy', 'site'), { keep: [repo], marker: '.mirage-deploy' }); }
 catch (e) { console.error('[site] ' + e.message); process.exit(2); }
 fs.rmSync(out, { recursive: true, force: true });
 fs.mkdirSync(out, { recursive: true });
@@ -41,6 +41,7 @@ for (const name of EXAMPLES) {
 const version = JSON.parse(fs.readFileSync(path.join(repo, 'packages/core/package.json'), 'utf8')).version;
 const sha = process.env.GITHUB_SHA?.slice(0, 7) || execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: repo, encoding: 'utf8' }).trim();
 fs.writeFileSync(path.join(out, '.nojekyll'), '');
+fs.writeFileSync(path.join(out, '.mirage-deploy'), 'made by scripts/build-site.mjs; it empties this folder on its next run\n');
 fs.writeFileSync(path.join(out, 'index.html'), `<!doctype html>
 <html lang="en">
 <head>

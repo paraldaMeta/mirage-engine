@@ -1,13 +1,16 @@
 // walls: the four plastered walls (a pointed gate south, a round-arched arcade west, windows north and east),
 // coping, a stone plinth broken by the doors, the gate's frame and open leaves, the bench and the pergola.
-// Offers `lamps` anchors: { pos (the lantern's ring), rotY } on the pergola posts, an arcade pier and the gate wall.
+// Offers `lamps` anchors: { pos (the lantern's ring), rotY, wall } on the pergola posts, an arcade pier and the gate wall.
+// With ctx.shared.detail (default; off with `?nodetail`) the walls' arrises are rounded (5 cm) and the coping, plinth
+// and gate frame are soft-edged boxes, all inside the same bounds (the walk grid does not change).
 import * as THREE from 'three';
 import { materials } from './materials.js';
 
 export default {
   name: 'walls',
   build(ctx) {
-    const { geom, root, plan } = ctx, M = materials(ctx);
+    const { geom, root, plan } = ctx, M = materials(ctx), D = ctx.shared.detail !== false;
+    const box = D ? (w, h, d) => geom.softBox(w, h, d, 0.035) : (w, h, d) => new THREE.BoxGeometry(w, h, d);
     const { half: S, wallHeight: HW, thickness: T } = plan.court;
     const b = new geom.MeshBatch();
     const walls = [
@@ -18,12 +21,12 @@ export default {
     ];
     for (const w of walls) {
       const m = geom.compose(w.pos, [0, w.rot, 0]);
-      b.add(geom.wall({ length: 2 * S + T, height: HW, thickness: T, openings: w.open }), M.plaster, m);
-      b.add(new THREE.BoxGeometry(2 * S + T + 0.12, 0.18, T + 0.14), M.ashlar, m.clone().multiply(geom.compose([0, HW + 0.09, 0])));   // coping
+      b.add(geom.wall({ length: 2 * S + T, height: HW, thickness: T, openings: w.open, ...(D ? { round: 0.05 } : {}) }), M.plaster, m);
+      b.add(box(2 * S + T + 0.12, 0.18, T + 0.14), M.ashlar, m.clone().multiply(geom.compose([0, HW + 0.09, 0])));   // coping
       let x0 = -S - T / 2 - 0.03;   // a stone plinth, broken by the doors
       for (const o of [...w.open.filter((o) => !o.sill), { x: S + T / 2 + 0.03, width: 0 }]) {
         const x1 = o.x - o.width / 2;
-        b.add(new THREE.BoxGeometry(x1 - x0, 0.55, T + 0.08), M.ashlar, m.clone().multiply(geom.compose([(x0 + x1) / 2, 0.275, 0])));
+        b.add(box(x1 - x0, 0.55, T + 0.08), M.ashlar, m.clone().multiply(geom.compose([(x0 + x1) / 2, 0.275, 0])));
         x0 = o.x + o.width / 2;
       }
       for (const o of w.open) if (o.sill) b.add(new THREE.BoxGeometry(o.width + 0.2, 0.08, T + 0.1), M.ashlar, m.clone().multiply(geom.compose([o.x, o.sill, 0])));
@@ -31,7 +34,7 @@ export default {
     // the gate: a stone frame, and two timber leaves standing open
     const gate = geom.compose(plan.points.gate);
     for (const s of [-1, 1]) {
-      b.add(new THREE.BoxGeometry(0.25, 2.6, T + 0.08), M.ashlar, gate.clone().multiply(geom.compose([s * 1.32, 1.3, 0])));
+      b.add(box(0.25, 2.6, T + 0.08), M.ashlar, gate.clone().multiply(geom.compose([s * 1.32, 1.3, 0])));
       b.add(new THREE.BoxGeometry(1.15, 2.5, 0.08), M.planks, geom.compose([s * 1.2, 1.25, S - T / 2], [0, -s * 1.2, 0]).multiply(geom.compose([-s * 0.58, 0, 0])));   // hinged, swung in
     }
     // a bench along the north wall under a timber pergola
@@ -46,7 +49,7 @@ export default {
     const S = ctx.plan.court.half;
     return { lamps: [
       { pos: [-1.07, 2.35, -S + 2.54], rotY: 0 }, { pos: [1.07, 2.35, -S + 2.54], rotY: 0 },
-      { pos: [-S + 0.42, 2.45, 0], rotY: Math.PI / 2 }, { pos: [3.3, 2.45, S - 0.42], rotY: Math.PI },
+      { pos: [-S + 0.42, 2.45, 0], rotY: Math.PI / 2, wall: 0.12 }, { pos: [3.3, 2.45, S - 0.42], rotY: Math.PI, wall: 0.12 },
     ] };
   },
 };

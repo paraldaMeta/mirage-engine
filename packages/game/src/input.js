@@ -109,7 +109,7 @@ export function createInput({ target = globalThis, bindings = DEFAULT_BINDINGS, 
   };
   const padDown = (a) => !!(inp.enabled && pad && PAD[a] && PAD[a].some((i) => pad.buttons[i] && !spent.has('pad' + i) && (pad.buttons[i].pressed || pad.buttons[i].value > 0.5)));
   const stick = (x = 0, y = 0) => { const l = Math.hypot(x, y); if (l < deadzone) return [0, 0]; const k = Math.min(1, (l - deadzone) / (1 - deadzone)) / l; return [x * k, y * k]; };
-  const inField = (e) => e.target && /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName);
+  const inField = (e) => !!(e.target && (e.target.isContentEditable || /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName || '')));
   life.defer(() => {
     capturing?.(null); inp.clear();
     enabled = false; padPrev = []; pad = inp.pad = null;

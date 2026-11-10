@@ -107,19 +107,33 @@ npm 库"该有的东西**——接口边界、卸载（dispose）、发布元数
 | 9 | 中 | `game/src/game.js` | 导入存档不检查 `id`：别的游戏同版本的存档会被静默读入；`v: 0.5` 这种版本号能通过 | 已修 + 测 |
 | 10 | 中 | `play/src/walkgrid.js` | 总平面图超过 GPU 纹理尺寸（0.125 m 格子下约 512 m，很多安卓 GPU 是 4096）时烘焙出空网格、不报错，人掉下去；烘焙中途抛错会把 `overrideMaterial`、隐藏的物体、`fog = null` 留在场景上 | 已修（报错 + try/finally） |
 | 11 | 中 | `tools/src/chrome.mjs` 等 | Chrome 路径写死 macOS；`file://` 拼接在 Windows 上坏 | 已修 + 单元测试 |
-| 12 | 中 | `core/src/daynight.js` | 时间或地点写错（`'noon'`、ISO 字符串、只有 `elevation`、地点缺 `lon`）时光照静默变 NaN，画面全黑；`{ time: '18:00' }` 不带日期抛 TypeError | 未修（P1，和 B15 schema 一起做输入校验） |
-| 13 | 中 | `world/src/plan.js` | 校验不全：`regions: null`、非数组 `viewpoints` 抛裸 TypeError；`rect: [1, 2]`、一个点的 `poly` 能过；`spawn` 不校验但 `startGame` 直接读 `sp.eye` | 未修（P1，B15） |
-| 14 | 中 | `game/src/physics.js:body()` | 旋转过的道具：用世界 AABB 建盒子再按物体旋转一次，碰撞盒偏大且歪 | 未修（P1） |
-| 15 | 中 | `tools/src/e2e.mjs` 等 | `mirage-e2e`、`gpu-load`、`still-pop` 作为 bin 发布，但只能在本仓库里跑（`ROOT = '../../..'`） | 文档里标为实验性、仓库内用（P1：要么不发 bin，要么改成接收路径） |
-| 16 | 低 | `game/src/ui.js` | 菜单在"按一个键"时被手柄关掉，之后第一个游戏按键会被吞掉并改绑 | 部分修：`input.dispose()` 会结束等待；菜单关闭时取消等待未做（P2） |
-| 17 | 低 | `play/src/play.js` | 键盘处理不看焦点：宿主页面的输入框里打字会让人走动、触发 R/F/G/O/1–9 | 未修（P1，嵌入场景下是真问题） |
-| 18 | 低 | `play.js` / `start.js` | 库代码里直接 `location.reload()`（画质下拉框、默认的重新开始） | 未修（P2，嵌入时应改成回调） |
+| 12 | 中 | `core/src/daynight.js` | 时间或地点写错（`'noon'`、ISO 字符串、只有 `elevation`、地点缺 `lon`）时光照静默变 NaN，画面全黑；`{ time: '18:00' }` 不带日期抛 TypeError | 已修 + 测（`0ffb24f`：抛 `TypeError` 并指出字段；`core/check.mjs`） |
+| 13 | 中 | `world/src/plan.js` | 校验不全：`regions: null`、非数组 `viewpoints` 抛裸 TypeError；`rect: [1, 2]`、一个点的 `poly` 能过；`spawn` 不校验但 `startGame` 直接读 `sp.eye` | 已修（Codex 的 schema；2026-11-09 复查 6 个用例都报出字段） |
+| 14 | 中 | `game/src/physics.js:body()` | 旋转过的道具：用世界 AABB 建盒子再按物体旋转一次，碰撞盒偏大且歪 | 已修 + 测（`02f7e3d`；旧代码 45° 木板半宽 0.884，新 1.0） |
+| 15 | 中 | `tools/src/e2e.mjs` 等 | `mirage-e2e`、`gpu-load`、`still-pop` 作为 bin 发布，但只能在本仓库里跑（`ROOT = '../../..'`） | 已修（`b8cf5d6`：`mirage-e2e` 用当前目录或 `--root`；gpu-load、still-pop 本来就接收路径） |
+| 16 | 低 | `game/src/ui.js` | 菜单在"按一个键"时被手柄关掉，之后第一个游戏按键会被吞掉并改绑 | 已修 + 测（`b8e5aa6`：菜单关闭或换面板即取消；`tools/rebind-check.mjs`，旧代码 jump 被绑成 W） |
+| 17 | 低 | `play/src/play.js` | 键盘处理不看焦点：宿主页面的输入框里打字会让人走动、触发 R/F/G/O/1–9 | 已修 + 测（`3c33d62`、`cfb33e7`；`dispose-check.mjs`，旧代码按 W 走了 0.75 m） |
+| 18 | 低 | `play.js` / `start.js` | 库代码里直接 `location.reload()`（画质下拉框、默认的重新开始） | 已修（`3c33d62`：`onQuality`、`onRestart`，默认仍刷新） |
 | 19 | 低 | `game/src/input.js` | 控制面板里方向键显示成 ` L` / ` R` | 已修 |
-| 20 | 低 | `game/src/start.js` | `load('auto')` 把任何字符串当 JSON 解析 | 未修（P2） |
-| 21 | 低 | `core/src/textures.js` | 贴图集名字直接拼进 GLSL 标识符，带 `-` 时着色器编译失败且没有清楚的报错 | 未修（P2） |
-| 22 | 低 | `tools/src/chrome.mjs:serve` | `decodeURIComponent` 遇到坏的 `%` 抛错会让测试服务器进程崩；`startsWith(root)` 放过同前缀的兄弟目录（只在本机测试用） | 未修（P2） |
-| 23 | 低 | `game/src/game.js` | 头注释说"能在 node 跑"，但不传 `storage` 时 `save()` 在 node 里抛错 | 未修（P2，文档） |
-| 24 | 低 | 文档 | core README 说默认画质 `'high'` 且只有 high / low 两档，实际有 medium，页面默认用 `pickQuality()` 选 medium | 未修（P2） |
+| 20 | 低 | `game/src/start.js` | `load('auto')` 把任何字符串当 JSON 解析 | 已修（`3c33d62`：只有 JSON 对象字符串才当导入，其余是存档名） |
+| 21 | 低 | `core/src/textures.js` | 贴图集名字直接拼进 GLSL 标识符，带 `-` 时着色器编译失败且没有清楚的报错 | 已修 + 测（`7a9a201`：`glslName`） |
+| 22 | 低 | `tools/src/chrome.mjs:serve` | `decodeURIComponent` 遇到坏的 `%` 抛错会让测试服务器进程崩；`startsWith(root)` 放过同前缀的兄弟目录（只在本机测试用） | 已修 + 测（`7a9a201`；旧代码 `URIError` 崩溃） |
+| 23 | 低 | `game/src/game.js` | 头注释说"能在 node 跑"，但不传 `storage` 时 `save()` 在 node 里抛错 | 已修 + 测（`3c33d62`：没有 localStorage 时存在内存里；沙盒 iframe 同理） |
+| 24 | 低 | 文档 | core README 说默认画质 `'high'` 且只有 high / low 两档，实际有 medium，页面默认用 `pickQuality()` 选 medium | 已修（`7a9a201`） |
+
+### 3b. 第二轮：全量代码审查（2026-11-09，分支 `claude/mirage-1.0-finish`）
+
+四个只读审查分别查 world、play、game、core 加 tools，每条发现先复现，再修，再写一个在旧代码上会失败的检查。
+四份报告共 34 条（其中 2 条审查时已在本分支修掉），全部已修，提交 `00798e2`、`b8e5aa6`、`cfb33e7`、`83acaf6` 等，清单见 CHANGELOG 1.0.0 的"1.0 code review"一节。第一轮遗留的 #12–#24 也都修了（上表）。较重的几条：
+
+| 位置 | 问题 | 证据 |
+|---|---|---|
+| `core/geom.js` `taperedTube` | 侧面三角形全部朝内（360 / 360），院子棕榈和花园树干看到的是远侧内壁 | `core/check.mjs`（旧代码 360 / 360 朝内） |
+| `world/loader.js` | 一个 `null` 模块、一个没有 position 的网格或一个坏的环境光体积，会让整个 `buildWorld` 失败 | `world/check.mjs`（旧代码：reading 'name' of null） |
+| `game/game.js` | 读档会用存档里的设置覆盖玩家的按键和音量；坏存档先改了 flags 再报错 | `game/check.mjs` |
+| `play/walkgrid.js` | 一列超过 8 层时丢的是最低的（地面） | `bake-check.mjs`（旧代码走不进去，停在 x −0.25） |
+| `play/play.js` | 在地图外从飞行或环绕切回行走，人悬在半空不能动；`dispose()` 不还相机镜头 | `play/check.mjs`、`dispose-check.mjs` |
+| `tools/deploy.mjs` | 用 `.nojekyll` 判断"是自己建的目录"，手写的 Pages 目录（带 `.git`）也会被清空 | `tools/unit.mjs` |
 
 ## 4. 实际打开看效果（浏览器）
 

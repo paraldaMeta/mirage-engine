@@ -28,6 +28,12 @@ const run = async (kind) => {
     name: 'rail',
     build(ctx) {
       ctx.root.add(new THREE.Mesh(new THREE.BoxGeometry(10, 0.2, 10).translate(0, -0.1, 0), mat));
+      if (kind === 'shelves') {
+        // nine plates above head height over x 0..5: with the ground that is ten floors in a column, more than the
+        // eight the bake collects; the ground must be among the ones kept (it used to be the one dropped)
+        for (let i = 0; i < 9; i++) ctx.root.add(new THREE.Mesh(new THREE.BoxGeometry(5, 0.05, 6).translate(2.5, 2.2 + i * 0.5, 0), mat));
+        return;
+      }
       if (kind === 'bare' || kind === 'proxy') {
         // 5 cm thick, between the cell centres at x = -0.0625 and 0.0625
         ctx.root.add(new THREE.Mesh(new THREE.BoxGeometry(0.05, 1, 6).translate(0, 0.5, 0), mat));
@@ -43,13 +49,13 @@ const run = async (kind) => {
   };
   await buildWorld(world, { plan: { name: 'rail', seed: 1, bounds: [-5, -5, 5, 5] }, modules: [rail], log: { log() {}, error: console.error } });
   scene.updateMatrixWorld(true);
-  const grid = bakeWalkGrid(world, { bounds: [-5, -5, 5, 5], yMin: -1, yMax: 3 });
+  const grid = bakeWalkGrid(world, { bounds: [-5, -5, 5, 5], yMin: -1, yMax: kind === 'shelves' ? 7 : 3 });
   const w = createWalker(grid, { pos: [-1.5, 0, 0] }).place([-1.5, 1, 0]);
   for (let i = 0; i < 180; i++) w.update(1 / 60, { x: 1, z: 0 });
   return { x: +w.pos[0].toFixed(3), y: +w.pos[1].toFixed(3) };
 };
 window.__R = {};
-for (const k of ['bare', 'proxy', 'object3d', 'lod', 'transparent']) window.__R[k] = await run(k);
+for (const k of ['bare', 'proxy', 'object3d', 'lod', 'transparent', 'shelves']) window.__R[k] = await run(k);
 window.__READY = true;
 `);
 await build({ root: src, logLevel: 'error', build: { outDir: dist, emptyOutDir: true } });
@@ -66,6 +72,7 @@ try {
   check('a wall under a plain Object3D blocks', R.object3d.x < -0.1 && R.object3d.x > -0.7, R.object3d);
   check('a wall under a LOD blocks', R.lod.x < -0.1 && R.lod.x > -0.7, R.lod);
   check('a transparent wall does not block', R.transparent.x > 0.5, R.transparent);
+  check('under ten stacked floors the ground is kept (walks in at y 0)', R.shelves.x > 1 && Math.abs(R.shelves.y) < 0.05, R.shelves);
   check('no console errors', errors.length === 0, errors);
 } finally {
   await browser.close();

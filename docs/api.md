@@ -11,9 +11,9 @@ a release may change. `npm run test:pack` fails if a package exports a name that
 
 The entry points `@mirage/<pkg>` are the API. Every file under `src/` can also be imported as a subpath
 (`"./*"` in the export map) and has its own `.d.ts`; the world kits live there (`@mirage/world/kits/vegetation`,
-`/kits/terrain`, `/kits/water`, documented in the world README). Which subpaths stay supported is open:
+`/kits/terrain`, `/kits/water`, `/kits/rain`, documented in the world README). Which subpaths stay supported is open:
 [API-CANDIDATE.md](API-CANDIDATE.md) lists them; until a whitelist is decided, treat subpaths other than the kits,
-`@mirage/core/rng` and `@mirage/world/plan` as internal. Types: each package's root entry declares `types`
+`@mirage/core/rng`, `@mirage/world/plan` and `@mirage/core/export` (`exportWorld`, experimental: [export.md](export.md)) as internal. Types: each package's root entry declares `types`
 ([TYPES.md](TYPES.md)).
 
 > The split 1.0.0 ships with, as proposed in the 1.0 review (docs/review-1.0.md); the owner can still move names
@@ -28,9 +28,31 @@ The entry points `@mirage/<pkg>` are the API. Every file under `src/` can also b
 | `PROC` | stable | ready hook sets: `plaster`, `stone`, `wood`, `terracotta` |
 | `createTextures(world, { manifest, url, anisotropy })` | stable | the optional world-space texture layer for CC0 PBR sets |
 | `TEX_GLSL` | stable | the GLSL of the texture layer (`mgTexTri`, `mgTexWall`, `mgTexGround`, …) |
+| `glslName(name)` | stable | how a texture set name is spelled in `MG_TEX_<name>` (`'stone-wall'` → `stone_2d_wall`; plain names unchanged) |
+| `LIGHT2_DEFAULTS` | experimental | light2's settings (`ls` lamp shadows, `ssr` reflections, `vol` volumetric light, `bloom` mixed bloom); `createWorldRenderer({ light2 })` turns it on |
+| `light2Config(option)` | experimental | the full light2 settings for `true` / a partial object; null when off |
+| `installLight2()` | experimental | patch three's chunks for light2 (page-global, idempotent; the world renderer calls it) |
+| `addLampSource(scene, fn)` | experimental | register a lamp table (not PointLights) that competes for lamp-shadow slots |
+| `LampShadows` | experimental | the lamp-shadow slots and their octahedral atlas (the pipeline owns one when light2 is on) |
+| `SOFTSHADOW_DEFAULTS` | experimental | the soft sun shadows' settings (`on`, `sunAngle`, `maxPenumbra`, `maxPenumbraTexels`, `minBlocker`, tap counts, `slopeMax`, `edgeFade`); `createWorldRenderer({ softShadows })` turns them on |
+| `softShadowConfig(option)` | experimental | the full soft-shadow settings for `true` / a partial object (numbers clamped); null when off |
+| `installSoftShadows(settings)` | experimental | patch three's sun-shadow lookup for contact-hardening soft shadows (page-global, idempotent; tap counts compiled in by the first call; the world renderer calls it) |
+| `TEX_RELIEF_GLSL` | experimental | the texture layer's relief taps (`mgTexTriRelief`, `mgTexWallRelief`, `mgTexGroundRelief`); compiled in by the relief opt-ins |
+| `RELIEF` | experimental | the close-range relief's shared uniforms (`uRelief` on / off, `uReliefFar` fade distance) |
+| `setRelief(level)` | experimental | relief level: 0 off, 1 full (8 m), in between a shorter reach |
+| `RELIEF_GLSL` | experimental | the relief GLSL (`mgRlFade`, `mgRlShift`, `mgRlSunProbe`, `mgRlSelfShadow`, `mgRlLip`, `mgRlArris`, `mgRlRenderH`, …) |
+| `RELIEF_LIGHT` | experimental | `lighting` hook snippet: the relief's self-shadow on the direct light |
+| `withRelief(hooks)` | experimental | put the relief GLSL and uniforms in front of a hooks object |
+| `renderHeight(name, und, swipe)` | experimental | GLSL declaring a hand-applied render's height (m), faded with distance |
+| `renderShade(name)` | experimental | `output` hook snippet: shade the render's hollows |
+| `withWet(hooks, options)` | experimental | wet surfaces on a hooks object: damp → soaked → standing water (puddles), run-off streaks, a damp band at the ground, rain rings; options `porosity`, `ground`, `band`, `puddles`, `height`, `heightMid`, `heightScale` |
+| `setWetness(level)` | experimental | wetness 0 (off: the wet code not compiled; crossing 0 recompiles the opted-in materials) .. 1 (full puddles); page-global |
+| `setRain(intensity)` | experimental | rain 0 .. 1: ripples on standing water and the rain kit's streak density; page-global |
+| `WET` | experimental | the wetness's page-global uniforms (`uWet`, `uRain`) |
+| `WET_GLSL` | experimental | the wet GLSL (`mgWetApply`, `mgWetNormal`, `mgWetRipples`, `mgWetH`) |
 | `NOISE_GLSL` | stable | the GLSL noise library (`mgHash`, `mgValue2/3`, `mgFbm2/3`, `mgCell2/3`, …) |
 | `rng(seed)` | stable | seeded random stream: `next`, `float`, `range`, `int`, `pick`, `chance`, `sign`, `gauss`, `inDisc`, `onSphere`, `fork(name)` (also `@mirage/core/rng`) |
-| `geom` | stable | geometry helpers: `wall`, `archPath`, `lathe`, `taperedTube`, `instances`, `MeshBatch`, `compose`, `lerp`, `clamp`, `smoothstep`, `remap`; three's `mergeGeometries` and `RoundedBoxGeometry` re-exported |
+| `geom` | stable | geometry helpers: `wall`, `archPath`, `lathe`, `taperedTube`, `instances`, `MeshBatch`, `compose`, `lerp`, `clamp`, `smoothstep`, `remap` (experimental: `softExtrude`, `softBox`, `sootPlumes`, `wall({ round })`); three's `mergeGeometries` and `RoundedBoxGeometry` re-exported |
 | `skyAt(date, place)` | stable | Sun and Moon position for a date and a place (pure JS) |
 | `placeDate(day, time, tzHours)` | stable | a `Date` for a local wall-clock time |
 | `placeClock(date, tzHours)` | stable | the local wall-clock parts of a `Date` |
@@ -48,6 +70,7 @@ The entry points `@mirage/<pkg>` are the API. Every file under `src/` can also b
 | `WIND_GLSL` | experimental | `mgWind()` for vertex hooks |
 | `createSky(uniforms)` | experimental | the sky dome mesh |
 | `createSkyUniforms()` | experimental | its uniforms |
+| `createSkyLut(renderer, uniforms, options?)` | experimental | bakes the sky's air into direction tables per `setTime` (call before `createSky`) |
 | `createStars(skyUniforms, { faint })` | experimental | stars and the Moon's disc |
 | `ATMO` | experimental | atmosphere constants (radii, scattering coefficients) |
 | `ATMOSPHERE_GLSL` | experimental | the atmosphere in GLSL |
@@ -94,6 +117,8 @@ see [world-protocol.md](world-protocol.md).
 | `BODY` | stable | the character's sizes and speeds |
 | `makeGrid(data)` | experimental | a grid from raw arrays (tests, saved grids) |
 | `MAXL` | experimental | floors per grid column (4) |
+| `createXR(play, opts)` | experimental | WebXR: Enter VR / Enter AR buttons, the walker in a headset, teleport, snap turn, in-world game prompts, AR table model (`docs/xr.md`) |
+| `xrSupport()` | experimental | `{ vr, ar }`: which immersive sessions the browser offers; pass `vr \|\| ar` as the world's `xr` option |
 
 ## @mirage/game
 
@@ -114,6 +139,6 @@ see [world-protocol.md](world-protocol.md).
 ## @mirage/tools
 
 Command-line tools (no JS entry point). Stable: `mirage-playtest` (scenario format in the playtest skill),
-`mirage-package`, `mirage-snap`, `mirage-deploy`. Experimental: `mirage-walktest`, `mirage-perf`, `mirage-e2e`,
-`mirage-gpu-load`, `mirage-still-pop` (repository checks; some expect this repository's `examples/`). The tools
+`mirage-package`, `mirage-snap`, `mirage-deploy`. Experimental: `mirage-walktest`, `mirage-perf`, `mirage-e2e` (runs the `examples/` of the current folder or `--root`),
+`mirage-gpu-load`, `mirage-still-pop`, `mirage-xr-check` (WebXR in an emulated Quest 3; repository checks; some expect this repository's `examples/`). The tools
 need Chrome: `$CHROME`, or the usual install place on macOS, Linux and Windows.

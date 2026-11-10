@@ -29,18 +29,43 @@ const scale = (c, k) => c.map((v) => v * k);
 const add = (a, b) => a.map((v, i) => v + b[i]);
 const toArr = (d) => [d.x, d.y, d.z];
 
+const TIME_FORMS = "'golden', a Date, an ISO date string, { day: 'YYYY-MM-DD', time: 'HH:MM' } or { elevation, azimuth }";
+const finite = (v) => typeof v === 'number' && Number.isFinite(v);
+// A wrong time or place used to light the world with NaN (a black frame, no error): say what is wrong instead.
+function checkPlace(place) {
+  if (!place || !finite(place.lat) || !finite(place.lon)) {
+    throw new TypeError(`place: a clock time needs { lat, lon } in degrees, got ${JSON.stringify(place)}`);
+  }
+  if (place.tzHours != null && !finite(place.tzHours)) throw new TypeError(`place.tzHours: a number of hours, got ${JSON.stringify(place.tzHours)}`);
+}
+const dated = (date, place) => {
+  checkPlace(place);
+  const s = skyAt(date, place);
+  return { date: s.date, sun: s.sun, moon: s.moon, eqToWorld: s.eqToWorld };
+};
+
 export function skyState(time, place) {
   if (time === 'golden' || time == null) time = GOLDEN;
-  if (time instanceof Date || typeof time === 'number') {
-    const s = skyAt(new Date(time), place);
-    return { date: s.date, sun: s.sun, moon: s.moon, eqToWorld: s.eqToWorld };
+  if (typeof time === 'string') {
+    const d = new Date(time);
+    if (!/^\d{4}-\d{2}-\d{2}/.test(time) || Number.isNaN(d.getTime())) throw new TypeError(`time: expected ${TIME_FORMS}, got ${JSON.stringify(time)}`);
+    return dated(d, place);
   }
-  if (time.day || (typeof time.time === 'string')) {
-    const s = skyAt(placeDate(time.day, time.time, place.tzHours ?? 0), place);
-    return { date: s.date, sun: s.sun, moon: s.moon, eqToWorld: s.eqToWorld };
+  if (time instanceof Date || typeof time === 'number') {
+    const d = new Date(time);
+    if (Number.isNaN(d.getTime())) throw new TypeError(`time: an invalid date (${String(time)})`);
+    return dated(d, place);
+  }
+  if (typeof time !== 'object') throw new TypeError(`time: expected ${TIME_FORMS}, got ${JSON.stringify(time)}`);
+  if (time.day != null || time.time != null) {
+    if (typeof time.day !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(time.day)) throw new TypeError(`time.day: 'YYYY-MM-DD', got ${JSON.stringify(time.day)}`);
+    if (time.time != null && (typeof time.time !== 'string' || !/^\d{1,2}:\d{2}(:\d{2})?$/.test(time.time))) throw new TypeError(`time.time: 'HH:MM' or 'HH:MM:SS', got ${JSON.stringify(time.time)}`);
+    checkPlace(place);
+    return dated(placeDate(time.day, time.time, place.tzHours ?? 0), place);
   }
   // a fixed sun position: no Moon, no stars
   const { elevation, azimuth } = time;
+  if (!finite(elevation) || !finite(azimuth)) throw new TypeError(`time: a fixed sun needs numbers { elevation, azimuth } in degrees, got ${JSON.stringify(time)}`);
   return { sun: { elevation, azimuth, dir: toArr(dirFromElevAz(elevation, azimuth)) }, moon: null, eqToWorld: null };
 }
 

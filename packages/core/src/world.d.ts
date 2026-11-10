@@ -4,6 +4,8 @@ import type { rng } from './rng.js';
 import type { EnvironmentUniforms, createEnv } from './env.js';
 import type { MaterialKit } from './materials.js';
 import type { Pipeline, PostSettings } from './post.js';
+import type { Light2Option, Light2Settings } from './light2.js';
+import type { SoftShadowOption, SoftShadowSettings } from './softshadow.js';
 import type { SkyTime, SkyState, LightState } from './daynight.js';
 import type { Place } from './sky-time.js';
 import type { Quality, DeviceProfile } from './device.js';
@@ -15,11 +17,24 @@ export interface AmbientVolume { min: XYZ; max: XYZ; factor?: number; soft?: num
 export interface WorldRendererOptions {
   canvas?: HTMLCanvasElement; renderer?: THREE.WebGLRenderer;
   width?: number; height?: number; pixelRatio?: number; quality?: Quality;
-  place?: Place; time?: SkyTime; shadow?: ShadowRegion; envProbe?: XYZ;
+  /** Missing fields keep their defaults (lat 0, lon 0, height 0, tzHours 0). */
+  place?: Partial<Place>; time?: SkyTime; shadow?: ShadowRegion; envProbe?: XYZ;
   envIntensity?: number; envFade?: number; wind?: NonNullable<Parameters<typeof createEnv>[0]>['wind'];
   clouds?: number; fog?: Partial<{ density: number; groundDensity: number; height: number; air: number; level: number; color: number; glow: number }>;
   post?: Partial<PostSettings>; preserveDrawingBuffer?: boolean; mobile?: boolean; shadowMapSize?: number; spp?: number;
+  /** A multisampled, XR-compatible context, so a WebXR session (@mirage/play/xr) gets MSAA. Pass `(await xrSupport()).vr`. */
+  xr?: boolean;
+  /** Lamp shadows, screen-space reflections, volumetric light, mixed bloom (off by default). */
+  light2?: Light2Option;
+  /** Moving frames render below the canvas size when they run over budget (off by default; stills stay full size). */
+  dynamicRes?: boolean | Partial<DynamicResSettings>;
+  /** Contact-hardening soft sun shadows, per pixel (off by default): still and walking frames alike. */
+  softShadows?: SoftShadowOption;
 }
+/** cap: the app's own frame cap (fps; @mirage/play sets it from maxFps / the power saver) — the budget is never tighter. */
+export interface DynamicResSettings { target: number; min: number; step: number; cap?: number }
+/** The full dynamic-resolution settings for `true` / a partial object; null when off. */
+export function dynamicResConfig(option?: boolean | Partial<DynamicResSettings> | null): DynamicResSettings | null;
 export interface RenderFrameOptions {
   camera?: RenderCamera; getCamera?: (seconds: number) => RenderCamera; spp?: number; dt?: number;
   shutter?: number; frameIndex?: number; target?: THREE.WebGLRenderTarget | null;
@@ -38,6 +53,16 @@ export interface WorldRenderer {
   stars: THREE.Points<THREE.BufferGeometry, THREE.ShaderMaterial>;
   pipeline: Pipeline; ctx: WorldContext; G: EnvironmentUniforms; keyDir: THREE.Vector3;
   mat: MaterialKit; geom: typeof geom; rng: typeof rng; post: PostSettings; device: DeviceProfile;
+  /** The light2 settings in use (live), null when off. */
+  light2: Light2Settings | null;
+  /** The dynamic-resolution settings in use (live), null when off. */
+  dynamicRes: DynamicResSettings | null;
+  /** The moving frames' render scale (1 = the canvas size). */
+  readonly resolutionScale: number;
+  /** Auto exposure: forget the adapted exposure, so the next frame is metered on its own (after a teleport or cut). */
+  resetExposure(): void;
+  /** The soft-shadow settings in use (live: `on`, `sunAngle`, …), null when off. */
+  softShadows: SoftShadowSettings | null;
   /** Null before setTime(), prepare() or the first renderFrame(). */
   readonly light: LightState | null; readonly state: SkyState | null; readonly exposure: number;
   setTime(time: SkyTime, options?: { ease?: boolean }): LightState;
@@ -45,6 +70,8 @@ export interface WorldRenderer {
   /** Compile materials and capture lighting after building the scene. Requires WebGL. */
   prepare(): Promise<void>;
   renderFrame(seconds?: number, options?: RenderFrameOptions): void;
+  /** One plain draw of the scene into the current framebuffer (the XR path): no pipeline; the renderer's tone mapping grades. */
+  renderDirect(seconds?: number, options?: { camera?: THREE.Camera; shadow?: ShadowRegion; fog?: number }): void;
   resize(width: number, height: number): void;
   /** Call after setTime() or prepare(). */
   captureEnv(instant?: boolean): void;
