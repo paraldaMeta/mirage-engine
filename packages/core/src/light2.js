@@ -1,6 +1,7 @@
 // Mirage code adapted from the author's own Nizwa engine (oman-golden, "P11 LIGHT"); no Golden Temple code in it.
 import * as THREE from 'three';
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
+import { patch } from './materials.js';
 
 // ---------------------------------------------------------------------------
 // light2: lamp shadows, volumetric light, screen-space reflections and an energy-conserving bloom. Opt-in:
@@ -24,7 +25,7 @@ import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 // The chunks are page-global once installed: a second world on the same page without light2 sees no slot (one
 // uniform test) but does get the analytic DFG (a tiny difference in the specular of rough surfaces).
 //
-// Reflections. Opaque Standard / Physical surfaces that are smooth (roughness < ~0.42) write 2 + reflectance into
+// Reflections. Opaque Standard / Physical surfaces that are smooth (roughness < ~0.42) write -reflectance into
 // the scene target's alpha; the pipeline marches those pixels in screen space at half resolution and mixes the hit
 // in; misses keep the material's own environment reflection.
 //
@@ -96,7 +97,6 @@ function atlasFor(tile, cols, rows) {
     LS_SHARED.atlas = dt;
     for (const k of MATS) { const u = THREE.ShaderLib[k] && THREE.ShaderLib[k].uniforms; if (u && u.mgLsAtlas) u.mgLsAtlas.value = dt; }
   } else ATLAS.setSize(w, h);
-  OWNER = null;
   return ATLAS;
 }
 
@@ -184,7 +184,8 @@ export function installLight2() {
   const dfgA = 'material.dfg = texture2D( dfgLUT, vec2( material.roughness, dotNVms ) ).rg;';
   const dfgB = 'vec2 fab = texture2D( dfgLUT, vec2( roughness, dotNV ) ).rg;';
   const outA = 'gl_FragColor = vec4( outgoingLight, diffuseColor.a );';
-  if (!C.lights_fragment_begin.includes(hook) || !C.lights_fragment_begin.includes(dfgA) || !C.lights_physical_pars_fragment.includes(dfgB) || !C.opaque_fragment.includes(outA)) {
+  const trA = 'material.transmissionAlpha = mix( material.transmissionAlpha, transmitted.a, material.transmission );';
+  if (!C.lights_fragment_begin.includes(hook) || !C.lights_fragment_begin.includes(dfgA) || !C.lights_physical_pars_fragment.includes(dfgB) || !C.opaque_fragment.includes(outA) || !C.transmission_fragment.includes(trA)) {
     console.warn('[light2] three\'s shader chunks changed: lamp shadows and reflections not installed');
     return false;
   }
@@ -201,21 +202,26 @@ export function installLight2() {
   atlasFor(512, 2, 2);
   C.common = C.common + LS_GLSL;
   C.lights_fragment_begin = C.lights_fragment_begin
-    .replace(hook, hook + '\n\t\t#ifdef MG_LS\n\t\tif ( mgLsInfo2.x > 0.5 ) directLight.color *= mgLsVisV( pointLight.position, geometryPosition, geometryNormal );\n\t\t#endif')
+    .replace(hook, hook + '\n\t\t#ifdef MG_LS\n\t\tif ( mgLsInfo2.x > 0.5 && receiveShadow ) directLight.color *= mgLsVisV( pointLight.position, geometryPosition, geometryNormal );\n\t\t#endif')
     .replace(dfgA, '#ifdef MG_LS\n\tmaterial.dfg = mgDFG( material.roughness, dotNVms );\n\t#else\n\t' + dfgA + '\n\t#endif');
   C.lights_physical_pars_fragment = C.lights_physical_pars_fragment.replace(dfgB, '#ifdef MG_LS\n\tvec2 fab = mgDFG( roughness, dotNV );\n\t#else\n\t' + dfgB + '\n\t#endif');
-  // the reflectance of a smooth opaque surface goes out in the scene target's alpha (2 + w, above any real alpha:
-  // alpha-tested or covered materials can never read as mirrors); the pipeline's reflections read it
+  // the reflectance of a smooth opaque surface goes out in the scene target's alpha as -w (below any real alpha:
+  // transparent layers drawn over it, additive ones included, can only weaken it; a rough surface stays >= 0).
+  // The share of the pixel that is emitted light is left out, so a reflection never dims a glowing surface.
   C.opaque_fragment = C.opaque_fragment.replace(outA, outA + `
-#if defined( MG_LS ) && defined( STANDARD ) && defined( OPAQUE ) && !defined( MG_NO_SSR )
+#if defined( MG_LS ) && defined( STANDARD ) && defined( OPAQUE ) && !defined( PREMULTIPLIED_ALPHA ) && !defined( MG_NO_SSR )
 {
   float mgNV = saturate( dot( geometryNormal, geometryViewDir ) );
   vec2 mgAB = mgDFG( material.roughness, mgNV );
   vec3 mgSp = material.specularColorBlended * mgAB.x + material.specularF90 * mgAB.y;
   float mgW = dot( mgSp, vec3( 0.2126, 0.7152, 0.0722 ) ) * ( 1.0 - smoothstep( 0.12, 0.42, material.roughness ) );
-  if ( mgW > 0.02 ) gl_FragColor.a = 2.0 + clamp( mgW, 0.0, 1.0 );
+  float mgL = dot( outgoingLight, vec3( 0.2126, 0.7152, 0.0722 ) );
+  mgW *= 1.0 - clamp( dot( totalEmissiveRadiance, vec3( 0.2126, 0.7152, 0.0722 ) ) / max( mgL, 1e-4 ), 0.0, 1.0 );
+  if ( mgW > 0.02 ) gl_FragColor.a = -clamp( mgW, 0.0, 1.0 );
 }
 #endif`);
+  // glass reads the opaque scene behind it from the transmission target: a flagged pixel there is opaque
+  C.transmission_fragment = C.transmission_fragment.replace(trA, '#ifdef MG_LS\n\ttransmitted.a = transmitted.a < 0.0 ? 1.0 : transmitted.a;\n\t#endif\n\t' + trA);
   return true;
 }
 
@@ -259,11 +265,14 @@ void main(){
 }`;
 
 export class LampShadows {
-  /** cfg: LIGHT2_DEFAULTS.ls; lampLevel(): the world's lamp level (0 by day .. 1 at night) */
-  constructor(renderer, cfg, lampLevel = () => 1) {
+  /** cfg: LIGHT2_DEFAULTS.ls (on, refreshS, dynEvery, dayLevel, reach, near are read live; slots, tile, cube,
+   *  perFrame at construction); lampLevel(): the world's lamp level (0 by day .. 1 at night); G: the world's
+   *  uniforms (wind-swayed casters get a matching distance material) */
+  constructor(renderer, cfg, lampLevel = () => 1, G = null) {
     this.r = renderer;
     this.cfg = cfg;
     this.lampLevel = lampLevel;
+    this.G = G;
     this.slots = Math.max(1, Math.min(cfg.slots, LS_N));
     this.tile = cfg.tile; this.perFrame = cfg.perFrame;
     this.cols = 2; this.rows = Math.ceil(this.slots / 2);
@@ -297,9 +306,11 @@ export class LampShadows {
     this.stats = { slots: 0, drawn: 0, cands: 0, tris: 0 };
     this._cp = new THREE.Vector3(); this._v = new THREE.Vector3();
     this._plCache = null; this._plT = -1e9;
+    this._dist = new Map();   // depth material -> its distance twin (wind-swayed casters)
+    this._warned = false;
   }
 
-  // every PointLight of the scene (rescanned every 2 s)
+  // every PointLight of the scene (rescanned every 2 s; a light removed since is dropped by the root check below)
   _pointLights(scene) {
     const now = performance.now();
     if (!this._plCache || now - this._plT > 2000) {
@@ -316,14 +327,21 @@ export class LampShadows {
     if (this.lampLevel() >= cfg.dayLevel) {
       for (const l of this._pointLights(scene)) {
         if (!l.visible || l.intensity <= 0.02) continue;
-        let p = l.parent, vis = true;
-        while (p) { if (!p.visible) { vis = false; break; } p = p.parent; }
-        if (!vis) continue;
+        // visible all the way up, and still in this scene
+        let p = l, vis = true;
+        while (p.parent) { p = p.parent; if (!p.visible) { vis = false; break; } }
+        if (!vis || p !== scene) continue;
         l.getWorldPosition(v);
-        c.push({ x: v.x, y: v.y, z: v.z, range: l.distance || 8, power: l.intensity, near: l.userData.lsNear ?? cfg.near, col: [l.color.r * l.intensity, l.color.g * l.intensity, l.color.b * l.intensity] });
+        // distance 0 is three's "no cut-off": the shadow reaches where a decay-2 light falls to 1 % of 1 m
+        const range = l.distance > 0 ? l.distance : Math.min(60, Math.sqrt(Math.max(l.intensity, 0) * 100));
+        c.push({ id: l.uuid, x: v.x, y: v.y, z: v.z, range, power: l.intensity, near: l.userData.lsNear ?? cfg.near, col: [l.color.r * l.intensity, l.color.g * l.intensity, l.color.b * l.intensity] });
       }
     }
-    for (const fn of scene.userData.mgLampSources || []) { const a = fn(cp); if (a) for (const q of a) c.push({ ...q }); }
+    for (const fn of scene.userData.mgLampSources || []) {
+      if (typeof fn !== 'function') continue;
+      const a = fn(cp);
+      if (a) for (const q of a) c.push({ ...q });
+    }
     const out = [];
     for (const q of c) {
       if (!q.col) q.col = [q.power, q.power * 0.56, q.power * 0.25];
@@ -332,17 +350,28 @@ export class LampShadows {
       const d = Math.hypot(q.x - cp.x, q.y - cp.y, q.z - cp.z);
       if (d > q.range + cfg.reach) continue;
       q.score = q.power * Math.min(1, q.range * 0.25) / (1 + (d / Math.max(4, q.range * 1.5)) ** 2);
-      q.key = `${q.x.toFixed(2)},${q.y.toFixed(2)},${q.z.toFixed(2)}`;
+      // a slot follows its lamp by identity (a PointLight's uuid, a source's id), else by position
+      q.key = q.id != null ? String(q.id) : `${q.x.toFixed(2)},${q.y.toFixed(2)},${q.z.toFixed(2)}`;
       out.push(q);
     }
     return out;
   }
 
-  /** before the scene render: choose the slots, arm what is due, publish the uniforms */
-  update(scene, camera) {
+  /** before the scene render: choose the slots, arm what is due, publish the uniforms.
+   *  frame: { k: sub-frame index, still: a still frame of several sub-frames } (cube redraws then depend on k only) */
+  update(scene, camera, frame = { k: 0, still: false }) {
     if (!this.cfg.on) { this.clear(); this.top = []; if (ARMED === this) ARMED = null; this._pending = null; return; }
+    if (OWNER && OWNER !== this) {
+      // one lamp-shadow atlas per page: a second light2 world gets no lamp shadows (its lamps still scatter)
+      if (!this._warned) { this._warned = true; console.warn('[light2] another world on this page owns the lamp-shadow atlas: no lamp shadows here'); }
+      this.clear(); this._pending = null;
+      const cp = this._cp.setFromMatrixPosition(camera.matrixWorld);
+      this.top = this._candidates(scene, cp).sort((a, b) => b.score - a.score).slice(0, VOL_LAMPS);
+      for (const q of this.top) q.slotIdx = -1;
+      return;
+    }
+    if (!OWNER) { OWNER = this; for (const s of this.slot) { s.valid = false; s.validS = false; s.validD = false; } }
     atlasFor(this.tile, this.cols, this.rows);
-    if (OWNER !== this) { OWNER = this; for (const s of this.slot) { s.valid = false; s.validS = false; s.validD = false; } }
     const cp = this._cp.setFromMatrixPosition(camera.matrixWorld);
     const cand = this._candidates(scene, cp);
     this.stats.cands = cand.length;
@@ -355,8 +384,13 @@ export class LampShadows {
     const keep = new Set();
     for (const s of this.slot) {
       const q = s.key && byKey.get(s.key);
-      if (q && (top.includes(q) || q.score * 1.4 > weakestTop)) { keep.add(q.key); s.score = q.score; s.range = q.range; }
-      else { s.key = ''; s.valid = false; s.validS = false; s.validD = false; }
+      if (q && (top.includes(q) || q.score * 1.4 > weakestTop)) {
+        keep.add(q.key); s.score = q.score;
+        // the lamp moved (2 cm) or its range / near plane changed: redraw (unpublished until then: lit, not wrong)
+        if (Math.hypot(q.x - s.x, q.y - s.y, q.z - s.z) > 0.02 || Math.abs(q.range - s.range) > 1e-3 || Math.abs(q.near - s.near) > 1e-3) {
+          Object.assign(s, { x: q.x, y: q.y, z: q.z, range: q.range, near: q.near, valid: false, validS: false, validD: false });
+        }
+      } else { s.key = ''; s.valid = false; s.validS = false; s.validD = false; }
     }
     let kept = keep.size;
     for (const q of cand) {
@@ -369,24 +403,38 @@ export class LampShadows {
     }
     const now = performance.now() / 1000;
     const dynRoots = scene.children.filter((c) => c.visible && c.userData.mgDynamic);
-    const stat = [], dyn = [];
-    for (let i = 0; i < this.slot.length && stat.length < this.perFrame; i++) if (this.slot[i].key && !this.slot[i].validS) stat.push(i);
-    if (!stat.length) {
-      let old = -1;
-      for (let i = 0; i < this.slot.length; i++) if (this.slot[i].key && now - this.slot[i].tS > this.cfg.refreshS && (old < 0 || this.slot[i].tS < this.slot[old].tS)) old = i;
-      if (old >= 0) stat.push(old);
+    const stat = [], dyn = [], refold = [];
+    const due = (i) => this.slot[i].key && !this.slot[i].validS;
+    if (frame.still) {
+      // a still frame: every due cube at once, and the moving casters at sub-frame 0 only (k decides, nothing else)
+      for (let i = 0; i < this.slot.length; i++) if (due(i)) stat.push(i);
+      if (frame.k === 0 && !stat.length) {
+        let old = -1;
+        for (let i = 0; i < this.slot.length; i++) if (this.slot[i].key && now - this.slot[i].tS > this.cfg.refreshS && (old < 0 || this.slot[i].tS < this.slot[old].tS)) old = i;
+        if (old >= 0) stat.push(old);
+      }
+      if (dynRoots.length) for (let i = 0; i < this.slot.length; i++) if (this.slot[i].key && (stat.includes(i) || (frame.k === 0 && this.slot[i].validS))) dyn.push(i);
+    } else {
+      for (let i = 0; i < this.slot.length && stat.length < this.perFrame; i++) if (due(i)) stat.push(i);
+      if (!stat.length) {
+        let old = -1;
+        for (let i = 0; i < this.slot.length; i++) if (this.slot[i].key && now - this.slot[i].tS > this.cfg.refreshS && (old < 0 || this.slot[i].tS < this.slot[old].tS)) old = i;
+        if (old >= 0) stat.push(old);
+      }
+      this.fn++;
+      if (dynRoots.length) {
+        for (const i of stat) dyn.push(i);
+        if (this.fn % Math.max(1, this.cfg.dynEvery) === 0)
+          for (let k = 0; k < this.slot.length; k++) {
+            const i = (this.rr + k) % this.slot.length;
+            if (this.slot[i].key && this.slot[i].validS && !dyn.includes(i)) { dyn.push(i); this.rr = i + 1; break; }
+          }
+      }
     }
-    this.fn++;
-    if (dynRoots.length) {
-      for (const i of stat) dyn.push(i);
-      if (this.fn % Math.max(1, this.cfg.dynEvery) === 0)
-        for (let k = 0; k < this.slot.length; k++) {
-          const i = (this.rr + k) % this.slot.length;
-          if (this.slot[i].key && this.slot[i].validS && !dyn.includes(i)) { dyn.push(i); this.rr = i + 1; break; }
-        }
-    }
+    // the last moving caster has gone: fold the slots again without its cube (else its shadow stays until a refresh)
+    if (!dynRoots.length) for (let i = 0; i < this.slot.length; i++) if (this.slot[i].validD) { this.slot[i].validD = false; if (this.slot[i].validS) refold.push(i); }
     this.stats.drawn = stat.length + dyn.length;
-    this._pending = stat.length || dyn.length ? { scene, stat, dyn, dynRoots, now } : null;
+    this._pending = stat.length || dyn.length || refold.length ? { scene, stat, dyn, refold, dynRoots, now } : null;
     for (const i of new Set([...stat, ...dyn])) {
       const s = this.slot[i];
       for (const l of [this.lights[i], this.lightsD[i]]) {
@@ -399,11 +447,28 @@ export class LampShadows {
     this._publish();
   }
 
+  // wind-swayed casters: a distance material with the same vertex hooks as their depth material (else the cubes
+  // see them in their rest pose); made once per depth material
+  _distanceTwins(roots) {
+    if (!this.G) return;
+    for (const root of roots) root.traverse((o) => {
+      const dm = o.customDepthMaterial;
+      if (!dm || o.customDistanceMaterial || !dm.userData.hooks || !dm.userData.hooks.vertexWorld) return;
+      let m = this._dist.get(dm);
+      if (!m) {
+        m = patch(new THREE.MeshDistanceMaterial({ map: dm.map, alphaMap: dm.alphaMap, alphaTest: dm.alphaTest, side: dm.side }),
+          { vertexDecl: dm.userData.hooks.vertexDecl, vertexWorld: dm.userData.hooks.vertexWorld }, this.G);
+        this._dist.set(dm, m);
+      }
+      o.customDistanceMaterial = m;
+    });
+  }
+
   // inside renderer.render, after the sun's shadow map: the due cubes, folded into the atlas
   _drawPending(sm, orig, scene, camera) {
     const pend = this._pending;
     this._pending = null;
-    if (!pend || pend.scene !== scene) return;
+    if (!pend || pend.scene !== scene || !sm.enabled) return;   // shadow maps off: three would draw nothing
     const r = this.r, atlas = ATLAS;
     const prevNU = sm.needsUpdate, prevAU = sm.autoUpdate;
     const t0 = r.info.render.triangles;
@@ -411,12 +476,14 @@ export class LampShadows {
     const skip = (c) => c.userData.mgLampCast === false;
     if (pend.stat.length) {
       kids.forEach((c, k) => { c.visible = vis[k] && !skip(c) && !pend.dynRoots.includes(c); });
+      this._distanceTwins(kids.filter((c) => c.visible));
       sm.needsUpdate = true; sm.autoUpdate = true;
       orig.call(sm, pend.stat.map((i) => this.lights[i]), scene, camera);
       for (const i of pend.stat) { this.slot[i].validS = true; this.slot[i].tS = pend.now; }
     }
     if (pend.dyn.length) {
       kids.forEach((c, k) => { c.visible = vis[k] && pend.dynRoots.includes(c); });
+      this._distanceTwins(pend.dynRoots);
       sm.needsUpdate = true; sm.autoUpdate = true;
       orig.call(sm, pend.dyn.map((i) => this.lightsD[i]), scene, camera);
       for (const i of pend.dyn) this.slot[i].validD = true;
@@ -426,8 +493,7 @@ export class LampShadows {
     this.stats.tris = r.info.render.triangles - t0;
     const prevRT = r.getRenderTarget(), prevFace = r.getActiveCubeFace(), prevMip = r.getActiveMipmapLevel(), prevAuto = r.autoClear;
     r.autoClear = false;
-    const hasDyn = pend.dynRoots.length > 0;
-    for (const i of new Set([...pend.stat, ...pend.dyn])) {
+    for (const i of new Set([...pend.stat, ...pend.dyn, ...pend.refold])) {
       if (!this.slot[i].validS) continue;
       const cx = i % this.cols, cy = Math.floor(i / this.cols);
       atlas.viewport.set(cx * this.tile, cy * this.tile, this.tile, this.tile);
@@ -435,7 +501,7 @@ export class LampShadows {
       u.tCube.value = this.lights[i].shadow.map.texture;
       u.tCubeD.value = this.lightsD[i].shadow.map.texture;
       // the moving casters' cube only once it was drawn for this lamp (an undrawn cube would read as all shadow)
-      u.uDyn.value = hasDyn && this.slot[i].validD ? 1 : 0;
+      u.uDyn.value = this.slot[i].validD ? 1 : 0;
       r.setRenderTarget(atlas);
       this.quad.render(r);
       this.slot[i].valid = true;
@@ -465,12 +531,25 @@ export class LampShadows {
   done() { if (ARMED === this) ARMED = null; this._pending = null; }
 
   /** publish no slot */
-  clear() { LS_SHARED.pos.fill(0); LS_SHARED.info2[0] = 0; for (let i = 0; i < LS_N; i++) LS_SHARED.pos[i * 4 + 1] = -1e4; }
+  clear() { lampShadowsIdle(); }
 
   dispose() {
-    if (OWNER === this) { OWNER = null; this.clear(); }
     this.done();
+    if (OWNER === this) {
+      OWNER = null; this.clear();
+      // the renderers drop their GL objects and listeners; the next owner (or a later use) allocates them again
+      if (ATLAS) { ATLAS.dispose(); LS_SHARED.atlas.dispose(); }
+    }
     for (const l of [...this.lights, ...this.lightsD]) { l.shadow.map.dispose(); l.dispose(); }
+    for (const m of this._dist.values()) m.dispose();
+    this._dist.clear();
     this.octMat.dispose(); this.quad.dispose();
   }
+}
+
+/** a world without lamp shadows draws next: no slot is published (the uniforms are page-global) */
+export function lampShadowsIdle() {
+  if (!installed) return;
+  LS_SHARED.pos.fill(0); LS_SHARED.info2[0] = 0;
+  for (let i = 0; i < LS_N; i++) LS_SHARED.pos[i * 4 + 1] = -1e4;
 }

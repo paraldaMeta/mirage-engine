@@ -85,20 +85,31 @@ patched and a world renders bit-identical to before.
   `userData.mgDynamic` (people, doors) are redrawn round-robin, `userData.mgLampCast === false` ones (terrain, big
   ground meshes) never cast. All slots live in one octahedral depth atlas sampled through one `sampler2DShadow`
   (5 fixed PCF taps: stable under TAA). A lamp's own lantern within `PointLight.userData.lsNear` (default 0.45 m) of
-  the flame does not shadow it. Lamp tables that are not PointLights: `addLampSource(scene, (camPos) => [{ x, y, z,
-  range, power }])`, and call `mgLsVis(lampWorld, pWorld, nWorld)` in your shader.
-- **Reflections.** Opaque Standard / Physical surfaces smoother than ~0.42 roughness flag their reflectance; the
-  pipeline marches them in screen space at half resolution (water, polished stone, wet ground). Misses keep the
-  environment map's reflection. `#define MG_NO_SSR` on a material opts it out.
+  the flame does not shadow it. A slot follows its lamp (by the PointLight, or a source's `id`): a lamp that moves
+  or changes range is redrawn. `distance: 0` (three's "no cut-off") is treated as the radius where the light falls
+  to 1 % of its 1 m value. Meshes with `receiveShadow = false` get no lamp shadow; wind-swayed casters (a
+  `customDepthMaterial` from `world.mat.depth(hooks)`) get a matching distance material, so they shadow as they
+  sway. Lamp tables that are not PointLights: `addLampSource(scene, (camPos) => [{ id, x, y, z, range, power }])`,
+  and call `mgLsVis(lampWorld, pWorld, nWorld)` in your shader. Still frames (`spp > 1`) stay bit-identical:
+  their cube redraws depend on the sub-frame index only.
+- **Reflections.** Opaque Standard / Physical surfaces smoother than ~0.42 roughness flag their reflectance (as a
+  negative alpha, less what they emit); the pipeline marches them in screen space at half resolution (water,
+  polished stone, wet ground). Misses keep the environment map's reflection. `#define MG_NO_SSR` on a material, or
+  `premultipliedAlpha`, opts it out.
 - **Volumetric light.** The key light through its shadow map (only toward a low sun, or near an ambient volume) and
   the 8 best lamps through the atlas scatter in a low dust layer, denser inside `setAmbientVolumes` boxes. Shafts
   only: an open, wholly lit ray lays no veil. Half resolution, jittered per sub-frame.
 - **Bloom.** The frame is mixed toward its blurred self (7 % by day, 18 % at night) instead of the blur being added;
   the exposure is raised by what the additive bloom of `post.bloom` lifted, so mid-tones stay.
 - **Cost** (hello-courtyard, 1440 x 900, 1 sub-frame + TAA, Apple silicon): about +1.5 ms at night with 4 lamps in
-  view (mostly the lamps' in-scatter), +0.5 ms toward a low sun, ~0 at noon. Live tuning: `world.pipeline.l2.cfg`.
+  view (mostly the lamps' in-scatter), +0.5 ms toward a low sun, ~0 at noon. Live tuning: `world.light2` (the
+  same object as `world.pipeline.l2.cfg`): every field except `ls.slots`, `ls.tile`, `ls.cube`, `ls.perFrame`.
 - Page-global once installed: the analytic DFG fit replaces three's lookup table for every Standard material under
-  `FogExp2` on the page (a tiny difference in rough speculars of other worlds on the same page).
+  `FogExp2` on the page (a tiny difference in rough speculars of other worlds on the same page). One lamp-shadow
+  atlas per page: the first light2 world owns it until disposed; a second one gets reflections, volumetric light
+  and bloom but no lamp shadows (a console warning says so). Worlds without light2 publish no lamp slots.
+- Install before the first compile: with `config.renderer` shared by an earlier world, programs that renderer
+  compiled before light2 was installed are reused without it (three's program cache does not see chunk edits).
 
 ## Materials: `world.mat`
 

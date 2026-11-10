@@ -81,7 +81,7 @@ assert.ok(L2.installLight2() && L2.installLight2(), 'light2 installs (idempotent
 const lfb = THREE.ShaderChunk.lights_fragment_begin;
 assert.equal(lfb.split('mgLsVisV').length, 2, 'one lamp-shadow lookup in the point-light loop');
 assert.ok(THREE.ShaderChunk.common.startsWith(common0) && THREE.ShaderChunk.common.includes('defined( FOG_EXP2 )'), 'lamp shadows only under FogExp2');
-assert.ok(THREE.ShaderChunk.opaque_fragment.includes('gl_FragColor.a = 2.0'), 'smooth surfaces flag reflections');
+assert.ok(THREE.ShaderChunk.opaque_fragment.includes('gl_FragColor.a = -clamp'), 'smooth surfaces flag reflections');
 assert.ok(THREE.ShaderLib.standard.uniforms.mgLsAtlas.value === L2.LS_SHARED.atlas && L2.LS_SHARED.atlas.clone() === L2.LS_SHARED.atlas, 'one shared atlas, never cloned');
 
 // relief (opt-in close-range detail): soft geometry stays inside the plain bounds; opting out changes nothing

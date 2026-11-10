@@ -230,7 +230,7 @@ export function createWorldRenderer(config = {}) {
       // soft shadows: the light moves over the solar disc (Vogel spiral, 0.27° radius)
       const r = spp > 1 ? Math.sqrt((k + 0.5) / spp) * 0.0047 : 0, th = k * 2.39996323 + 0.5;
       fitShadow(sh.center, sh.radius, r ? [r * Math.cos(th), r * Math.sin(th)] : null);
-      pipeline.add(scene, cam, W[k], k, P, taa ? taaK : k);
+      pipeline.add(scene, cam, W[k], k, P, taa ? taaK : k, !taa && spp > 1);
       if (taa) {
         pipeline.taa(invVP.copy(curVP).invert(), prevVP, taaValid ? (typeof opts.taa === 'number' ? opts.taa : 0.12) : 1);
         prevVP.copy(curVP); taaValid = true;

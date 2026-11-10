@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-import { LampShadows, LS_SHARED, LS_N, VOL_LAMPS } from './light2.js';
+import { LampShadows, LS_SHARED, LS_N, VOL_LAMPS, lampShadowsIdle } from './light2.js';
 import { AMBIENT_GLSL } from './env.js';
 
 // ---------------------------------------------------------------------------
@@ -160,7 +160,7 @@ export class Pipeline {
   /** light2 (light2.js): cfg = light2Config(...), ctx = { sun: DirectionalLight, G: the world's uniforms }. */
   useLight2(cfg, { sun, G }) {
     if (this.l2 || !cfg) return;
-    const lamps = cfg.ls.on ? new LampShadows(this.r, cfg.ls, () => G.uLamp.value) : null;
+    const lamps = new LampShadows(this.r, cfg.ls, () => G.uLamp.value, G);   // cfg.ls.on is read live
     this.l2 = { cfg, sun, G, lamps, ssrMat: this._ssrMat(), volMat: this._volMat(G) };
     this._l2Targets();
   }
@@ -182,7 +182,7 @@ export class Pipeline {
       ${VIEWPOS}
       vec2 proj(vec3 p){ vec4 c = uProj * vec4(p, 1.0); return c.xy / c.w * 0.5 + 0.5; }
       void main(){
-        float w = clamp(texture2D(tColor, vUv).a - 2.0, 0.0, 1.0);   // 2 + reflectance; <= 1 everywhere else
+        float w = clamp(-texture2D(tColor, vUv).a, 0.0, 1.0);   // -reflectance (light2.js); >= 0 everywhere else
         if (w < 0.02) { gl_FragColor = vec4(0.0); return; }
         if (texture2D(tDepth, vUv).x >= 1.0) { gl_FragColor = vec4(0.0); return; }
         vec3 P = viewPos(vUv);
@@ -442,14 +442,15 @@ export class Pipeline {
   }
 
   /** Render sub-frame k of the frame with weight w (weights of one frame sum to 1). */
-  add(scene, camera, w, k, P, jk = k) {
+  add(scene, camera, w, k, P, jk = k, still = false) {
     const r = this.r, l2 = this.l2;
-    if (l2 && l2.lamps) l2.lamps.update(scene, camera);
+    if (l2) l2.lamps.update(scene, camera, { k, still });
+    else lampShadowsIdle();   // another world may have published its lamps into the page-global uniforms
     r.setRenderTarget(this.sceneRT);
     r.setClearColor(0x000000, 1);
     r.clear(true, true, false);
     r.render(scene, camera);
-    if (l2 && l2.lamps) l2.lamps.done();
+    if (l2) l2.lamps.done();
     const useAO = P.ao > 0;
     if (useAO) {
       const u = this.ao.uniforms;
@@ -486,13 +487,13 @@ export class Pipeline {
     // the mid-range factor of three's bloom composite (3 x the radius-mixed mip weights): the lift an additive
     // bloom of strength 1 gives a flat image
     const lift = 3 * [1.0, 0.8, 0.6, 0.4, 0.2].reduce((s, f) => s + f + (1.2 - 2 * f) * P.bloomRadius, 0);
-    const B2 = this.l2 && this.l2.cfg.bloom.on ? this.l2.cfg.bloom : null;
+    const B2 = this.l2 && this.l2.cfg.bloom.on && P.bloom > 0 ? this.l2.cfg.bloom : null;
     let expK = 1;
     if (B2) {
       // light2: mix toward the normalised blur (k by the lamp level) through constant-alpha blending, and raise the
       // exposure by what the additive bloom of P.bloom used to add, so the mid-tones stay
       const n = Math.min(1, Math.max(0, this.l2.G.uLamp.value));
-      const k = B2.day + (B2.night - B2.day) * n;
+      const k = Math.max(1e-4, B2.day + (B2.night - B2.day) * n);   // never exactly 0 (three skips blendColor then)
       // threshold below 0: three's high-pass otherwise drops pixels darker than 0.01, and mixing toward a blur that
       // lacks them would darken dusk and night
       b.strength = 1 / lift; b.radius = P.bloomRadius; b.threshold = -1;
@@ -526,7 +527,7 @@ export class Pipeline {
 
   dispose() {
     for (const t of [this.sceneRT, this.aoRT, this.accRT, this.histA, this.histB, this.ssrRT, this.volRT]) t && t.dispose();
-    if (this.l2) { this.l2.lamps && this.l2.lamps.dispose(); this.l2.ssrMat.dispose(); this.l2.volMat.dispose(); }
+    if (this.l2) { this.l2.lamps.dispose(); this.l2.ssrMat.dispose(); this.l2.volMat.dispose(); }
     this.bloomPass.dispose(); this.quad.dispose();
     for (const m of [this.ao, this.acc, this.grade, this.taaMat, this.copyMat, this.blendMat]) m.dispose();
   }
