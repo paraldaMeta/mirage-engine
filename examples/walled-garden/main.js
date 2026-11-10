@@ -11,6 +11,7 @@ import manifest from '../hello-courtyard/tex/manifest.json';
 import plan from './plan.js';
 import modules from './modules/index.js';
 import { npcDemo } from './npc.js';   // ?npc=N only (static: a dynamic import would split the bundle in two)
+import { addLamps } from './lamps.js';
 
 const Q = new URLSearchParams(location.search);
 const W = +Q.get('w') || innerWidth, H = +Q.get('h') || innerHeight;
@@ -20,7 +21,18 @@ const canvas = document.querySelector('canvas');
 canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
 const quality = Q.get('quality') || (await pickQuality()).quality, hud = Q.get('hud') !== '0';   // ?quality=low|medium|high
 const xrs = await xrSupport();   // a headset browser: an MSAA context for the headset, and the Enter VR / AR buttons
-const world = createWorldRenderer({ quality, xr: xrs.vr || xrs.ar,
+// realtime lighting (opt-in, docs/lighting.md): ?csm=1 cascaded sun shadows, ?gi=1 irradiance probe volume,
+// ?probes=1 a box reflection probe,
+// ?lights=N clustered lamps (&cluster=0 plain loop, &lshadows=K shadowed, &stock=1 three's own lights instead)
+const LF = (k) => Q.get(k) === '1';
+const NL = +Q.get('lights') || 0, stock = LF('stock');
+const lighting = ['csm', 'gi', 'probes'].some(LF) || (NL && !stock) ? {
+  csm: LF('csm') && { cascades: +Q.get('cascades') || 4 },
+  gi: LF('gi') && { min: [-4.08, 3.6, -29.08], max: [4.08, 7.4, -20.92], spacing: +Q.get('gispacing') || 1.4, fade: 0.4 },
+  probes: LF('probes') && [{ min: [-4.08, 3.6, -29.08], max: [4.08, 7.4, -20.92], fade: 0.5 }],
+  lights: NL > 0 && !stock && { cluster: Q.get('cluster') !== '0' },
+} : undefined;
+const world = createWorldRenderer({ quality, xr: xrs.vr || xrs.ar, lighting, softShadows: Q.get('soft') === '1',
   canvas, width: W, height: H, place, time: t === 'golden' ? 'golden' : placeDate(Q.get('date') || '2026-10-25', t, place.tzHours), preserveDrawingBuffer: true,
   shadow: { center: [0, 2, 0], radius: 42 }, envProbe: [0, 4, 6],
   fog: { groundDensity: 0.0018, height: 40 },
@@ -29,6 +41,8 @@ const world = createWorldRenderer({ quality, xr: xrs.vr || xrs.ar,
 const urls = import.meta.glob('../hello-courtyard/tex/*.webp', { eager: true, query: '?url', import: 'default' });
 const tex = createTextures(world, { manifest, url: (f) => urls['../hello-courtyard/tex/' + f] });
 const built = await buildWorld(world, { plan, modules: modules({ broken: Q.has('broken'), lawn: Q.get('lawn') }), shared: { tex } });
+if (lighting?.gi) world.setAmbientVolumes([]);   // the probes light the pavilion: the module's dimming box would darken it twice
+if (NL) addLamps(world, { n: NL, min: [-20, 0.8, -18], max: [20, 2.6, 22], first: [[0, 5.6, -25], [0, 1.6, 6], [-6, 1.4, 0], [6, 1.4, 0]], shadows: +Q.get('lshadows') || 0, stock });
 const { camera } = world;
 camera.aspect = W / H; camera.fov = 55; camera.near = 0.1; camera.far = 3000; camera.updateProjectionMatrix();
 await tex.ready();

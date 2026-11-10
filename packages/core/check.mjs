@@ -383,3 +383,4 @@ console.log('core check: ok');
   console.log('stream check: ok');
 }
 await import('./vfx.check.mjs');
+await import('./lighting.check.mjs');

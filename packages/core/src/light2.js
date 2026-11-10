@@ -317,7 +317,7 @@ export class LampShadows {
     const now = performance.now();
     if (!this._plCache || now - this._plT > 2000) {
       const out = [];
-      scene.traverse((o) => { if (o.isPointLight) out.push(o); });
+      scene.traverse((o) => { if (o.isPointLight && !o.userData.mgClustered) out.push(o); });   // lights.js draws and shadows its own
       this._plCache = out; this._plT = now;
     }
     return this._plCache;

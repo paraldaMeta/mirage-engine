@@ -6,6 +6,7 @@ import type { MaterialKit } from './materials.js';
 import type { Pipeline, PostSettings } from './post.js';
 import type { Light2Option, Light2Settings } from './light2.js';
 import type { SoftShadowOption, SoftShadowSettings } from './softshadow.js';
+import type { Lighting, LightingOption } from './lighting.js';
 import type { SkyTime, SkyState, LightState } from './daynight.js';
 import type { Place } from './sky-time.js';
 import type { Quality, DeviceProfile } from './device.js';
@@ -30,6 +31,8 @@ export interface WorldRendererOptions {
   dynamicRes?: boolean | Partial<DynamicResSettings>;
   /** Contact-hardening soft sun shadows, per pixel (off by default): still and walking frames alike. */
   softShadows?: SoftShadowOption;
+  /** Realtime lighting features (off by default, each one opt-in): cascaded sun shadows, probe GI, reflection probes, clustered local lights. */
+  lighting?: LightingOption;
   /** Reduced motion from the start (off by default; @mirage/play follows prefers-reduced-motion): see setReducedMotion. */
   reducedMotion?: boolean | Partial<ReducedMotionSettings>;
 }
@@ -78,6 +81,8 @@ export interface WorldRenderer {
   resetExposure(): void;
   /** The soft-shadow settings in use (live: `on`, `sunAngle`, …), null when off. */
   softShadows: SoftShadowSettings | null;
+  /** The lighting features of the `lighting` option, null when off. */
+  lighting: Lighting | null;
   /** Null before setTime(), prepare() or the first renderFrame(). */
   readonly light: LightState | null; readonly state: SkyState | null; readonly exposure: number;
   setTime(time: SkyTime, options?: { ease?: boolean }): LightState;
