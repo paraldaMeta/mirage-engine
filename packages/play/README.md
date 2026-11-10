@@ -97,6 +97,13 @@ proxy (`ctx.collider(mesh)`, layer 2): a vertical face is never seen from above.
 its centre, so a solid thinner than a cell (a railing, a post, a rope) can fall between samples: if it must block,
 give it a proxy box at least 0.2 m thick. `node packages/tools/bake-check.mjs` shows both (needs Chrome).
 
+Over frames, and in parts (opt-in): `await bakeWalkGridAsync(world, { bounds, ...plan.walk, budgetMs = 4, inflight = 8,
+tile = 1024 })` makes the same arrays bit for bit (the same draws through the same camera; tiles only scissor them),
+reading the slabs through pixel-pack buffers polled with fences, so the page keeps drawing; pass the grid to
+`createPlay(world, { grid })`. `{ region: [x0, z0, x1, z1], into: grid }` (sync or async) re-bakes only the cells
+under a region of an earlier bake, in place, e.g. after a streamed module came in. The scene is sampled as it is in
+each frame: change it during an async bake and re-bake that region afterwards.
+
 ## The walker (`createWalker(grid, { pos, body })`)
 
 A cylinder (r 0.28 m, head 1.8 m, eye 1.62 m) that steps up ≤ 0.4 m (0.12 m in the air), falls under gravity,

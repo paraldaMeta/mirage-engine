@@ -54,6 +54,8 @@ requestAnimationFrame(loop);
 Returns `{ renderer, scene, camera, sun, sky, stars, pipeline, ctx, G, keyDir, mat, geom, rng, post, device, light2, softShadows,
 light, state, exposure, setTime(time, { ease }), tick(dt), prepare(), renderFrame(T, opts), resize(w, h), dispose(), captureEnv(),
 setAmbientVolumes(list), setReducedMotion(option), reducedMotion, renderTransparent(T, opts) }`.
+light, state, exposure, setTime(time, { ease }), tick(dt), prepare({ warm }), renderFrame(T, opts), resize(w, h), dispose(), captureEnv(),
+setAmbientVolumes(list) }`. `prepare({ warm: true })` (opt-in) also draws one discarded frame: see Seamless loading below.
 
 - `renderFrame(T, { camera, getCamera(t), spp, dt, shutter, frameIndex, target, shadow, taa })` renders the frame
   at time `T` seconds as `spp` sub-frames. `getCamera(t)` gives motion blur (it is called at each sub-frame's
@@ -246,6 +248,7 @@ exactly: the tone map is not linear). Cost: two stills plus a read-back (walled-
 against 304 / 70 ms for the normal still, on a shared GPU).
 
 ## Textures (optional): `createTextures(world, { manifest, url })`
+## Textures (optional): `createTextures(world, { manifest, url, decode, ktx2 })`
 
 World-space sampling of photo-scanned PBR sets from patch() hooks; the project ships the files and the manifest
 (`packages/tools/tex/pack.py` fetches CC0 sets from Poly Haven and packs them; see `examples/hello-courtyard/tex`).
@@ -368,6 +371,37 @@ addRain(ctx);                     // falling streaks around the camera (a world 
   such materials their own `withWet` options or none); no splashes, drips or wet-darkened foliage; the ripples are
   normals only (no refraction of the bed); `ground` is read once (an Object3D moved later needs the material
   re-made, or `hooks.uniforms.mgWetP.value.y` set). ponytail: the uniforms are shared by every world on a page.
+
+## Seamless loading (opt-in): decode, upload, warm-up, streaming helpers
+
+For worlds that load more while they run (a street, then an interior, no loading screen). Nothing here is on by
+default; with every option off the engine draws exactly what it did (stills compared byte for byte). Measured by
+`node examples/demos/streaming/streaming-check.mjs` (A/B, interleaved, a cold browser per page): numbers in the
+changelog (1.0.0, **New**).
+
+```js
+const tex = createTextures(world, { manifest, url, decode: 'bitmap' });   // decode off the main thread
+await world.prepare({ warm: true });                                     // one discarded frame + 1-px readback
+const up = createUploadBudget(world.renderer, { bytes: 8 << 20 }).add(tex.textures());   // or: upload over frames
+// per frame, before the draw: up.step();
+```
+
+- `createTextures({ decode: 'bitmap' })`: `fetch` + `createImageBitmap` (three's `ImageBitmapLoader`) decode the
+  images off the main thread; the `<img>` path decodes each one on the main thread when three first uploads it.
+  Same pixels: flipped while decoding (`imageOrientation: 'flipY'`), straight alpha, no colour conversion, as three
+  uploads these `<img>` textures. Falls back to the image loader where `createImageBitmap` is missing or fails.
+- `createTextures({ ktx2 })`: manifest files ending in `.ktx2` (ETC1S / UASTC, made with `basisu -ktx2 -mipmap -y_flip`,
+  normal maps `-linear -normal_map`) load through three's KTX2Loader from `@mirage/core/ktx2`
+  (`createKTX2Loader(renderer, { transcoderPath })`); serve `three/examples/jsm/libs/basis/basis_transcoder.{js,wasm}`.
+  A subpath on purpose: a bundle that never imports it has no KTX2Loader and no transcoder.
+- `world.prepare({ warm: true })`: `compileAsync` links the programs, but the first frame still pays texture
+  uploads (and `<img>` decodes), the shadow map's allocation and the first draw of each program. The warm-up draws
+  one still frame (one sub-frame) to the canvas, waits for the GPU with a 1-px readback, clears the canvas and puts
+  back every per-frame history (TAA, auto exposure, dynamic resolution), so the next frame is the same as without it.
+- `createUploadBudget(renderer, { bytes, count })`: `renderer.initTexture` spread over frames (at least one a frame).
+- `createJobQueue`, `createLRU`, `objectBytes`, `texturesOf`, `disposeObject`: the parts of `@mirage/world`'s
+  `createStreamer` (modules streamed in and out by distance), usable on their own.
+- `watchLongTasks()`: long tasks (PerformanceObserver) from now until `stop()`.
 
 ## Rules learnt the hard way
 

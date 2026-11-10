@@ -77,8 +77,9 @@ export interface WorldRenderer {
   readonly light: LightState | null; readonly state: SkyState | null; readonly exposure: number;
   setTime(time: SkyTime, options?: { ease?: boolean }): LightState;
   tick(dt: number): boolean;
-  /** Compile materials and capture lighting after building the scene. Requires WebGL. */
-  prepare(): Promise<void>;
+  /** Compile materials and capture lighting after building the scene. Requires WebGL.
+   *  { warm: true } (opt-in): also draw one discarded frame and wait for the GPU, so the first visible frame pays no upload or driver work. */
+  prepare(options?: { warm?: boolean }): Promise<void | { warmMs: number }>;
   renderFrame(seconds?: number, options?: RenderFrameOptions): void;
   /** A still with a transparent sky: rendered over black and over white (sky and stars hidden), straight alpha recovered
    *  per pixel. Still-path options (spp, frameIndex, camera, shadow, shutter); no bloom, no auto exposure. */

@@ -23,9 +23,15 @@ export interface TextureLibrary {
   ready(): Promise<(THREE.Texture | undefined)[]>;
   /** Frees loaded textures; materials returned by material() belong to the caller. */
   dispose(): void;
+  /** The textures of the sets used so far (e.g. for createUploadBudget). */
+  textures(): THREE.Texture[];
 }
 export function createTextures(world: { renderer: THREE.WebGLRenderer; mat: MaterialKit }, options: {
   manifest: { sets: Record<string, TextureSetInfo> }; url: string | ((file: string) => string); anisotropy?: number;
+  /** 'bitmap' (opt-in): decode off the main thread (createImageBitmap), same pixels; falls back to 'image'. */
+  decode?: 'image' | 'bitmap';
+  /** a KTX2Loader (createKTX2Loader) for manifest files ending in .ktx2 (opt-in) */
+  ktx2?: { load(url: string, onLoad: (texture: THREE.CompressedTexture) => void, onProgress?: unknown, onError?: (error: unknown) => void): unknown } | null;
 }): TextureLibrary;
 
 /** The GLSL spelling of a set name in MG_TEX_<name> ('stone-wall' -> 'stone_2d_wall'; plain names are unchanged). */

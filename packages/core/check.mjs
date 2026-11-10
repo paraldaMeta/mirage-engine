@@ -277,3 +277,62 @@ console.log('core check: ok');
   assert.deepEqual(reducedMotionConfig({ sway: NaN }), { sway: 0.25, rain: 0.4 });
   console.log('metals, reduced-motion config: ok');
 }
+
+// streaming helpers (stream.js): the job queue's priority order and concurrency, the LRU's byte budget with pins,
+// the upload budget's per-frame split, byte estimates
+{
+  const S = await import('./src/stream.js');
+  const order = [], dist = { a: 5, b: 1, c: 3, d: 2 };
+  let live = 0, peak = 0;
+  const q = S.createJobQueue({ concurrency: 2, priority: (j) => dist[j.key] });
+  const tick = () => new Promise((r) => setTimeout(r, 1));
+  const job = (k) => async () => { live++; peak = Math.max(peak, live); order.push(k); await tick(); live--; return k; };
+  // a and b start at once (two slots); then d (2) before c (3): the lowest priority first, not the order added
+  let ps = ['a', 'b', 'c', 'd'].map((k) => q.add(k, job(k)));
+  assert.equal(q.add('c', job('c')), ps[2], 'a key already queued returns its promise');
+  await Promise.all(ps);
+  assert.deepEqual(order, ['a', 'b', 'd', 'c'], 'the first two run at once, then the lowest priority first');
+  order.length = 0;
+  ps = ['a', 'b', 'c', 'd'].map((k) => q.add(k, job(k)));
+  dist.d = 9;   // read at every pick, not when added: d moved away
+  await Promise.all(ps);
+  assert.deepEqual(order, ['a', 'b', 'c', 'd'], 'the priority follows the viewer');
+  assert.equal(peak, 2, 'at most `concurrency` at once');
+  const q2 = S.createJobQueue({ concurrency: 1 });
+  q2.add('x', tick); const cancelled = q2.add('y', tick).catch((e) => e.cancelled);
+  assert.ok(q2.cancel('y') && (await cancelled) === true, 'a waiting job can be cancelled');
+  await q2.idle();
+  assert.ok(!q2.waiting && !q2.running, 'idle');
+
+  const out = [];
+  const lru = S.createLRU({ budget: 100, evict: (k) => out.push(k) });
+  lru.set('a', 1, 40); lru.set('b', 2, 40); lru.pin('a'); lru.get('b');
+  lru.set('c', 3, 40);   // 120 > 100: a is pinned, b is the oldest unpinned
+  assert.deepEqual(out, ['b'], 'the least recently used unpinned entry goes first');
+  lru.unpin('a'); lru.set('d', 4, 40);
+  assert.deepEqual(out, ['b', 'a'], 'unpinned, a goes next');
+  assert.equal(lru.bytes, 80, 'bytes after eviction');
+
+  const tex = (w) => { const t = new THREE.Texture({ width: w, height: w }); t.needsUpdate = true; return t; };
+  const up = [], fake = { initTexture: (t) => up.push(t) };
+  const ub = S.createUploadBudget(fake, { bytes: 5 * 1024 * 1024 });
+  const big = tex(1024), small = [tex(512), tex(512)], late = new THREE.Texture();
+  ub.add(big, small, late);
+  assert.equal(S.textureBytes(big), Math.round(1024 * 1024 * 4 * 4 / 3), 'RGBA8 with mipmaps');
+  const done = ub.whenDone([big, ...small]);
+  const s1 = ub.step();
+  assert.ok(s1.textures === 1 && s1.bytes === S.textureBytes(big) && up[0] === big && ub.pending === 3, 'frame 1: the big one alone (5.6 MB > 5 MB still goes: one at least)');
+  ub.step();
+  assert.equal(up.length, 3, 'frame 2: both small ones (2.8 MB)');
+  await done;
+  assert.equal(ub.pending, 1, 'a texture without its image waits');
+  late.image = { width: 4, height: 4 }; late.needsUpdate = true; ub.step();
+  assert.ok(ub.uploaded(late) && !ub.pending, 'then goes');
+
+  const g = new THREE.BoxGeometry(1, 1, 1), m = new THREE.MeshBasicMaterial({ map: big }), root = new THREE.Group();
+  root.add(new THREE.Mesh(g, m), new THREE.Mesh(g, m));
+  const geoBytes = Object.values(g.attributes).reduce((s, a) => s + a.array.byteLength, 0) + g.index.array.byteLength;
+  assert.equal(S.objectBytes(root), geoBytes + S.textureBytes(big), 'shared geometry and textures are counted once');
+  const lt = S.watchLongTasks(); assert.equal(lt.stop().count, 0, 'no long tasks in Node (no observer, no rAF)');
+  console.log('stream check: ok');
+}

@@ -268,7 +268,9 @@ export function createWorldRenderer(config = {}) {
     envState = null;
   }
 
-  async function prepare() {
+  /** Compile every program the first frames need, capture the environment. { warm: true } (opt-in) also draws one
+   *  frame and waits for the GPU (see warmUp); returns { warmMs } then. */
+  async function prepare({ warm = false } = {}) {
     if (!light) setTime(time);
     scene.environment = null;
     camera.updateMatrixWorld();
@@ -288,6 +290,26 @@ export function createWorldRenderer(config = {}) {
       scene.environment = null;
     }
     captureEnv(true);
+    if (warm) return { warmMs: warmUp() };
+  }
+
+  // Warm-up (prepare({ warm: true })): compileAsync links the programs, but the first frame that uses them still pays
+  // the rest inside the driver: texture uploads (and an <img>'s decode), the shadow map's first allocation, the
+  // pipeline targets' first clears, the first draw of each program. One discarded still frame (one sub-frame, the
+  // same programs and output as a visible frame) followed by a 1-px readback pays all of it here, under the loading
+  // screen. Then the canvas is cleared and the per-frame histories are put back, so the next frame is drawn exactly
+  // as without the warm-up (still frames have no history; the moving ones restart theirs, as after a pause).
+  function warmUp() {
+    const t0 = performance.now(), fc = frameCounter;
+    renderFrame(0, { spp: 1, frameIndex: 0 });
+    const gl = renderer.getContext();
+    renderer.setRenderTarget(null);
+    gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
+    const cc = new THREE.Color(), ca = renderer.getClearAlpha();
+    renderer.getClearColor(cc); renderer.setClearColor(0x000000, 1); renderer.clear(true, true, true); renderer.setClearColor(cc, ca);
+    frameCounter = fc; taaValid = false; lastMoving = 0; dr.last = 0; dr.ema = 0;
+    pipeline.resetExposure();
+    return +(performance.now() - t0).toFixed(1);
   }
 
   /** Render the frame at time T (seconds). opts: { camera, getCamera(t), spp, dt, shutter, frameIndex, target, shadow,

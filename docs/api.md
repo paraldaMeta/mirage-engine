@@ -14,7 +14,7 @@ The entry points `@mirage/<pkg>` are the API. Every file under `src/` can also b
 `/kits/terrain`, `/kits/water`, `/kits/rain`, `/kits/fur` (experimental), documented in the world README). Which subpaths stay supported is open:
 `/kits/terrain`, `/kits/water`, `/kits/rain`, `/kits/splat`, documented in the world README). Which subpaths stay supported is open:
 [API-CANDIDATE.md](API-CANDIDATE.md) lists them; until a whitelist is decided, treat subpaths other than the kits,
-`@mirage/core/rng`, `@mirage/world/plan` and `@mirage/core/export` (`exportWorld`, experimental: [export.md](export.md)) as internal. Types: each package's root entry declares `types`
+`@mirage/core/rng`, `@mirage/world/plan`, `@mirage/core/export` (`exportWorld`, experimental: [export.md](export.md)) and `@mirage/core/ktx2` (`createKTX2Loader(renderer, { transcoderPath, workers })`, experimental: a KTX2Loader for `createTextures({ ktx2 })`; a subpath so bundles that never import it never contain three's KTX2Loader) as internal. Types: each package's root entry declares `types`
 ([TYPES.md](TYPES.md)).
 
 > The split 1.0.0 ships with, as proposed in the 1.0 review (docs/review-1.0.md); the owner can still move names
@@ -26,8 +26,9 @@ The entry points `@mirage/<pkg>` are the API. Every file under `src/` can also b
 |---|---|---|
 | `createWorldRenderer(config)` | stable | the renderer for one world: sky, light, shadows, post, day / night; returns the `world` object (fields in the core README; experimental fields: `setReducedMotion`, `reducedMotion`, `renderTransparent`, `ctx.motion`) |
 | `patch(material, hooks, G)` | stable | add GLSL hooks to a three.js material (vertex, albedo, roughness, normal, emissive, lighting, output) |
-| `PROC` | stable | ready hook sets: `plaster`, `stone`, `wood`, `terracotta` (experimental: the metals `brushed`, `hammered`, `patina`) |
 | `createTextures(world, { manifest, url, anisotropy })` | stable | the optional world-space texture layer for CC0 PBR sets |
+| `PROC` | stable | ready hook sets: `plaster`, `stone`, `wood`, `terracotta` |
+| `createTextures(world, { manifest, url, anisotropy, decode, ktx2 })` | stable | the optional world-space texture layer for CC0 PBR sets; opt-ins (experimental): `decode: 'bitmap'` decodes off the main thread (same pixels), `ktx2` loads `.ktx2` files (`@mirage/core/ktx2`); `tex.textures()` lists its textures |
 | `TEX_GLSL` | stable | the GLSL of the texture layer (`mgTexTri`, `mgTexWall`, `mgTexGround`, …) |
 | `glslName(name)` | stable | how a texture set name is spelled in `MG_TEX_<name>` (`'stone-wall'` → `stone_2d_wall`; plain names unchanged) |
 | `LIGHT2_DEFAULTS` | experimental | light2's settings (`ls` lamp shadows, `ssr` reflections, `vol` volumetric light, `bloom` mixed bloom); `createWorldRenderer({ light2 })` turns it on |
@@ -90,6 +91,15 @@ The entry points `@mirage/<pkg>` are the API. Every file under `src/` can also b
 | `sfc32(seed)` | experimental | the raw SFC32 generator |
 | `valueNoise2(x, z, seed)` | experimental | smooth 2D value noise on the CPU |
 | `fbm2(x, z, octaves, seed)` | experimental | fractal sum of `valueNoise2` |
+| `createJobQueue({ concurrency, priority })` | experimental | streaming: a job queue that runs the lowest `priority(job)` first, re-read at every pick, at most `concurrency` at once; `add(key, fn, { priority, data })`, `cancel`, `idle` |
+| `createLRU({ budget, evict })` | experimental | streaming: an LRU cache with a byte budget; `set(key, value, bytes)`, `get`, `pin` / `unpin` (in-use entries are never evicted), `trim` |
+| `createUploadBudget(renderer, { bytes, count })` | experimental | streaming: texture uploads (`renderer.initTexture`) spread over frames, `bytes` (8 MB) a frame; `add(textures)`, `step()` once a frame, `whenDone(textures)` |
+| `textureBytes(texture)` | experimental | estimated GPU bytes of a texture (mipmaps, compressed levels) |
+| `objectBytes(root)` | experimental | GPU bytes of an object tree: geometry attributes, indices, instance matrices, sampled textures (each once) |
+| `texturesOf(object)` | experimental | the textures an object's materials sample (maps and `patch()` / ShaderMaterial sampler uniforms) |
+| `disposeObject(root, { keepTextures })` | experimental | free an object tree's geometries, materials and textures |
+| `watchLongTasks()` | experimental | count main-thread long tasks (PerformanceObserver `longtask`, or frame gaps over 50 ms): `stop()` → `{ count, totalMs, maxMs, source, tasks }` |
+| `nextFrame(timeout)` | experimental | resolves after the next frame was drawn (a macrotask where there is no `requestAnimationFrame`) |
 
 ## @mirage/world
 
@@ -100,7 +110,9 @@ The entry points `@mirage/<pkg>` are the API. Every file under `src/` can also b
 | `bbox(shape)` | stable | bounding rectangle of a shape |
 | `pathLength(path)` | stable | length of a plan path |
 | `along(path, s)` | stable | point and direction at a distance along a path |
-| `buildWorld(world, { plan, modules, shared, log })` | stable | build modules in order with failure isolation; anchors, finalize, ambient volumes, report |
+| `buildWorld(world, { plan, modules, shared, log, slice })` | stable | build modules in order with failure isolation; anchors, finalize, ambient volumes, report; `slice` (experimental, opt-in) yields to the frame between modules after a time budget and reports `slices` |
+| `createStreamer(world, { plan, modules, shared, camera, concurrency, budget, uploadBytes, hysteresis, sync, onChange })` | experimental | modules that come into the scene near the viewer and leave when far: queued nearest first, built, compiled off-frame (`compileAsync`), textures uploaded over frames, cached in an LRU byte budget; `update(position)` once a frame |
+| `regionOf(root, pad)` | experimental | the XZ rectangle an object covers (for a walk-grid region re-bake) |
 | `LAYER` | stable | `{ VIEW: 0, COLLIDE: 2 }` |
 
 The module interface (`name`, `build`, `finalize`, `anchors`, `ambientVolumes`, and the `ctx` fields) is stable;
@@ -123,7 +135,8 @@ Gaussian splats, `@mirage/world/kits/splat` (opt-in subpath, world README "Gauss
 | `createPlay(world, opts)` | stable | walk / fly / game view / orbit, input, still refinement; returns `play` (fields in the play README); experimental: the `reducedMotion` option and field (follows `prefers-reduced-motion`), `render({ transparent: true })` |
 | `createCharacter(world, { palette })` | experimental | the procedural traveller of the game view (rig, palette, locomotion); hosts can add its `root` to their own scene |
 | `mountWorld(opts)` | stable | build a world into a host page's own renderer (the embed API) |
-| `bakeWalkGrid(world, opts)` | stable | the walk grid baked from the geometry |
+| `bakeWalkGrid(world, opts)` | stable | the walk grid baked from the geometry; `{ region, into }` (experimental) re-bakes only a region of an earlier grid in place |
+| `bakeWalkGridAsync(world, opts)` | experimental | the same arrays, baked over frames: fenced pixel-pack reads, `budgetMs` (4) of main thread a frame, tiles; `{ region, into }` too |
 | `createWalker(grid, { pos, body })` | stable | the walk-grid character |
 | `BODY` | stable | the character's sizes and speeds |
 | `makeGrid(data)` | experimental | a grid from raw arrays (tests, saved grids) |
