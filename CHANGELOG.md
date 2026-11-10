@@ -11,6 +11,23 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
 
 **New**
 
+- @mirage/core: an opt-in post chain (`postfx.js`; `PostFX`, `FX_DEFAULTS`, `postFromQuery`, `parseCube`, `makeLut`,
+  `lutTexture`, `apertureRadius`, `halton`; experimental; guide: `docs/post.md`). `post.taa2`: a velocity buffer
+  (camera, moved and skinned meshes) and a TAA that reprojects with it, clips history in YCoCg by variance and
+  rejects disoccluded history; `post.upscale` 0.5..1: the same pass as a temporal upscaler; `post.motionBlur`,
+  `post.bokeh` (thin-lens circle of confusion, half-resolution gather), `post.bloomPyramid` (down / up-sample
+  pyramid), `post.lut` (3D LUT, `.cube` parser), `post.chroma`. The pipeline's targets are now allocated once:
+  a lower render scale draws into a corner through the viewport, so dynamic resolution no longer reallocates.
+  hello-courtyard and walled-garden read `?taa2=1&upscale=0.67&mb=0.5&bokeh=1&lens=0.03&focus=6&bloom2=1&lut=warm&chroma=0.6`.
+  With everything off the stills of both examples are byte-identical to before (6 of 6). hello-courtyard,
+  1280 x 720, PSNR to a 16-sample still under a pan: old TAA 37.7 dB, taa2 40.2, upscale 0.67 37.3, upscale 0.5
+  34.7. ms per frame off → on at 2560 x 1440 (median of 5 interleaved blocks, spread ±0.5): taa2 7.3 → 7.8,
+  upscale 0.67 7.5 → 5.4, upscale 0.5 7.4 → 4.2, motion blur 7.7 → 8.8, bokeh 7.8 → 10.1, bloom pyramid 7.9 → 7.9.
+  Not built: a roughness-aware SSR, the chain in XR (`docs/post.md` says what xr.js would need).
+- @mirage/tools: `mirage-snap --seq N [--fps --from --to --shutter --video [file] --encoder]`: a deterministic image
+  sequence whose frames integrate motion blur and depth of field by accumulation, encoded with a local ffmpeg
+  (H.264 .mp4) or, without one, Chrome's WebCodecs VP9 into .ivf; `--png16` and `--exr` (linear half float) for
+  stills and frames. 12 frames of 640 x 360 at 8 samples: frames byte-identical across two runs.
 - @mirage/play: NPC navigation on the walk grid (`createNavGrid`, `createNavAgent`, `createNavCrowd`; experimental,
   opt-in). No navmesh: per-radius fit bits from the walker's own disc / step / head-room test (equal to the walker
   on every floor of the node checks' grids and on 20 000 of 20 000 random floors of walled-garden), coarse A* (4 x 4

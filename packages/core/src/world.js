@@ -345,6 +345,9 @@ export function createWorldRenderer(config = {}) {
       if (taa) dynamicStep(now); else dr.last = 0;
       fitPipeline(taa ? resScale : 1);
       if (taa && resScale < 1) P.sharpen = post.sharpen + (1 - resScale) * 0.6;   // the stretch softens: sharpen a little more
+    } else if (post.upscale > 0 || pipeline.renderScale !== 1) {
+      // post.upscale: render smaller and let taa2 reconstruct the output size (moving frames only)
+      fitPipeline(taa && post.taa2 > 0 && post.upscale > 0 ? Math.min(1, Math.max(0.5, post.upscale)) : 1);
     }
     writeFog();
     const W = aaWeights(spp);
@@ -368,7 +371,8 @@ export function createWorldRenderer(config = {}) {
       const o = cam.isOrthographicCamera ? 12 : 8;
       if (spp > 1 || taa) {
         // AA: a 2-px footprint across the sub-frames; a 1-px one across the frames of temporal AA
-        const [jx, jy] = taa ? aaOffset((taaK = (taaK + 1) % 16)).map((v) => v * 0.5) : aaOffset(k);
+        let [jx, jy] = taa ? aaOffset((taaK = (taaK + 1) % 16)).map((v) => v * 0.5) : aaOffset(k);
+        if (taa && P.taa2 > 0) [jx, jy] = pipeline.fxJitter();   // post.taa2: its own sequence (postfx.js)
         pm[o] += (2 * jx) / w; pm[o + 1] += (2 * jy) / h;
       }
       if (spp > 1 && P.dof > 0 && cam.isPerspectiveCamera) {

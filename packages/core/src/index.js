@@ -8,6 +8,7 @@ export { skyState, lightAt } from './daynight.js';
 export { skyAt, placeDate, placeClock, dirFromAltAz } from './sky-time.js';
 export { createStars } from './stars.js';
 export { Pipeline, DEFAULT_POST } from './post.js';
+export { PostFX, FX_DEFAULTS, postFromQuery, parseCube, makeLut, lutTexture, apertureRadius, halton } from './postfx.js';
 export { LIGHT2_DEFAULTS, light2Config, installLight2, addLampSource, LampShadows } from './light2.js';
 export { SOFTSHADOW_DEFAULTS, softShadowConfig, installSoftShadows } from './softshadow.js';
 export { patch, createMaterials, PROC } from './materials.js';

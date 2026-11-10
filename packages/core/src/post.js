@@ -4,6 +4,7 @@ import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { LampShadows, LS_SHARED, LS_N, VOL_LAMPS, lampShadowsIdle } from './light2.js';
 import { AMBIENT_GLSL } from './env.js';
+import { FX_DEFAULTS, PostFX } from './postfx.js';
 
 // ---------------------------------------------------------------------------
 // The frame pipeline. A frame is the weighted average of `spp` sub-frames; the caller moves the camera
@@ -37,6 +38,7 @@ export const DEFAULT_POST = {
   aeKey: 0.07, aeNight: 1, aeRange: 1, aeUp: 1.0, aeDown: 2.5,
   sky: 1,              // multiplier for sky pixels (nothing drawn), applied per sub-frame
   dof: 0, focus: 8,    // depth of field: lens radius (m, 0 = off) and focus distance (m); needs spp > 1
+  ...FX_DEFAULTS,      // the opt-in passes (postfx.js), all off
 };
 
 // the grade's CLEAR variant: alpha from the black / white sums before the sharpening (weighted by alpha: no bright
@@ -59,20 +61,30 @@ const VS = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position
 const quadMat = (fs, uniforms, extra) => new THREE.ShaderMaterial({ vertexShader: VS, fragmentShader: fs, uniforms, depthTest: false, depthWrite: false, ...extra });
 
 // view-space position from depth (perspective or orthographic: through the inverse projection)
+// The render scale never reallocates: every target is as large as the output and a scaled frame is drawn into its
+// lower-left corner (viewport + scissor, _fit()). Passes keep working in 0..1 of that corner; texS / texH map a
+// lookup into the full-size / half-size texture and clamp it to the corner's last texel centre (bilinear taps must
+// not reach the stale pixels beyond). At scale 1 uSub = (1, 1, 1e9, 1e9): the coordinate goes through unchanged.
+const SUB = /* glsl */ `
+uniform vec4 uSub, uSubH;
+vec4 texS(sampler2D t, vec2 uv){ return texture2D(t, min(uv * uSub.xy, uSub.zw)); }
+vec4 texH(sampler2D t, vec2 uv){ return texture2D(t, min(uv * uSubH.xy, uSubH.zw)); }`;
 const VIEWPOS = /* glsl */ `
 uniform sampler2D tDepth; uniform mat4 uInvProj;
-vec3 viewPos(vec2 uv){ float d = texture2D(tDepth, uv).x; vec4 v = uInvProj * vec4(uv * 2.0 - 1.0, d * 2.0 - 1.0, 1.0); return v.xyz / v.w; }`;
+${SUB}
+vec3 viewPos(vec2 uv){ float d = texS(tDepth, uv).x; vec4 v = uInvProj * vec4(uv * 2.0 - 1.0, d * 2.0 - 1.0, 1.0); return v.xyz / v.w; }`;
 
 export class Pipeline {
   constructor(renderer, { width, height, msaa = 4, aoSamples = 12 }) {
     this.r = renderer;
     this.msaa = msaa;
     this.quad = new FullScreenQuad();
+    this.sub = { uSub: { value: new THREE.Vector4(1, 1, 1e9, 1e9) }, uSubH: { value: new THREE.Vector4(1, 1, 1e9, 1e9) } };
     this.ao = quadMat(/* glsl */ `
       varying vec2 vUv; uniform vec2 uTexel; uniform float uRadius, uPower, uK; uniform mat4 uProj;
       ${VIEWPOS}
       void main(){
-        if (texture2D(tDepth, vUv).x >= 1.0) { gl_FragColor = vec4(1.0); return; }
+        if (texS(tDepth, vUv).x >= 1.0) { gl_FragColor = vec4(1.0); return; }
         vec3 P = viewPos(vUv);
         vec3 N = normalize(cross(dFdx(P), dFdy(P)));
         // rotation: a 4x4 interleaved pattern plus a step per sub-frame (golden ratio), nothing else
@@ -101,15 +113,15 @@ export class Pipeline {
       uniform sampler2D tSSR, tVol; uniform float uUseSSR, uUseVol; uniform vec2 uVolTexel;
       ${VIEWPOS}
       void main(){
-        vec3 c = texture2D(tColor, vUv).rgb;
-        bool sky = texture2D(tDepth, vUv).x >= 1.0;
+        vec3 c = texS(tColor, vUv).rgb;
+        bool sky = texS(tDepth, vUv).x >= 1.0;
         if (sky) c *= uSky;
         else if (uAO > 0.0) {
           float z0 = viewPos(vUv).z, s = 0.0, w = 0.0;
           for (int y = -2; y < 2; y++) for (int x = -2; x < 2; x++){
             vec2 q = vUv + (vec2(x, y) + 0.5) * uAOTexel;
             float wz = exp(-abs(viewPos(q).z - z0) / (0.03 * abs(z0) + 0.05));
-            s += texture2D(tAO, q).r * wz; w += wz;
+            s += texH(tAO, q).r * wz; w += wz;
           }
           float o = s / max(w, 1e-4);
           // aoLit: occlusion belongs to ambient light; a brightly lit pixel (exposed luminance; sunlit plaster sits at
@@ -119,14 +131,14 @@ export class Pipeline {
         }
         if (uUseSSR > 0.5) {
           // light2: toward the screen-space reflection where it hit (premultiplied: bilinear up-sampling keeps the colour)
-          vec4 r = texture2D(tSSR, vUv);
+          vec4 r = texH(tSSR, vUv);
           if (r.a > 0.001) c = mix(c, r.rgb / r.a, min(r.a, 1.0));
         }
         if (uUseVol > 0.5) {
           // light2: the half-resolution in-scatter, a small cross filter
-          vec3 v = texture2D(tVol, vUv).rgb * 0.4;
-          v += (texture2D(tVol, vUv + vec2(uVolTexel.x, 0.0)).rgb + texture2D(tVol, vUv - vec2(uVolTexel.x, 0.0)).rgb
-              + texture2D(tVol, vUv + vec2(0.0, uVolTexel.y)).rgb + texture2D(tVol, vUv - vec2(0.0, uVolTexel.y)).rgb) * 0.15;
+          vec3 v = texH(tVol, vUv).rgb * 0.4;
+          v += (texH(tVol, vUv + vec2(uVolTexel.x, 0.0)).rgb + texH(tVol, vUv - vec2(uVolTexel.x, 0.0)).rgb
+              + texH(tVol, vUv + vec2(0.0, uVolTexel.y)).rgb + texH(tVol, vUv - vec2(0.0, uVolTexel.y)).rgb) * 0.15;
           c += v;
         }
         if (any(isnan(c))) c = vec3(0.0);
@@ -162,6 +174,7 @@ export class Pipeline {
     const gradeU = () => ({ tColor: { value: null }, uTexel: { value: new THREE.Vector2() }, uExposure: { value: 1 }, uSat: { value: 1 }, uCon: { value: 1 }, uLift: { value: 0 }, uVig: { value: 0 }, uSharp: { value: 0 }, uGrain: { value: 0 }, uFrame: { value: 0 }, uTM: { value: 0 }, uWB: { value: new THREE.Vector3(1, 1, 1) },
       tAE: { value: null }, uUseAE: { value: 0 } });
     this.grade = quadMat(gradeFS, gradeU());
+    this._gradeFS = gradeFS; this._gradeU = gradeU;   // postfx.js builds its LUT / chromatic variant from these
     // the transparent still (endClear; illos.dev's CLEAR variant of the grade): tColor holds the frame summed over a
     // black background, tWhite over white (uClearK in linear HDR); both sums are linear in the background, so
     // alpha = 1 - (white - black) / K and the straight colour = black / alpha, graded as usual. Built from the grade's
@@ -206,15 +219,16 @@ export class Pipeline {
     // history; wind-blown leaves rely on the clip. Add velocity buffers when things move fast on screen.
     this.taaMat = quadMat(/* glsl */ `
       varying vec2 vUv; uniform sampler2D tCur, tHist, tDepth; uniform mat4 uInvVP, uPrevVP; uniform vec2 uTexel; uniform float uAlpha;
+      ${SUB}
       vec3 squash(vec3 c){ return c / (1.0 + max(c.r, max(c.g, c.b))); }
       vec3 unsquash(vec3 c){ return c / max(1.0 - max(c.r, max(c.g, c.b)), 1e-4); }
       void main(){
-        vec3 cur = squash(texture2D(tCur, vUv).rgb), m1 = vec3(0.0), m2 = vec3(0.0);
+        vec3 cur = squash(texS(tCur, vUv).rgb), m1 = vec3(0.0), m2 = vec3(0.0);
         for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++){
-          vec3 c = squash(texture2D(tCur, vUv + vec2(x, y) * uTexel).rgb); m1 += c; m2 += c * c;
+          vec3 c = squash(texS(tCur, vUv + vec2(x, y) * uTexel).rgb); m1 += c; m2 += c * c;
         }
         m1 /= 9.0; vec3 sd = sqrt(max(m2 / 9.0 - m1 * m1, 0.0));
-        vec4 w = uInvVP * vec4(vUv * 2.0 - 1.0, texture2D(tDepth, vUv).x * 2.0 - 1.0, 1.0);
+        vec4 w = uInvVP * vec4(vUv * 2.0 - 1.0, texS(tDepth, vUv).x * 2.0 - 1.0, 1.0);
         vec4 pc = uPrevVP * vec4(w.xyz / w.w, 1.0);
         vec2 q = pc.xy / pc.w * 0.5 + 0.5;
         vec3 h = clamp(squash(texture2D(tHist, q).rgb), m1 - 1.25 * sd, m1 + 1.25 * sd);
@@ -223,6 +237,7 @@ export class Pipeline {
       }`, { tCur: { value: null }, tHist: { value: null }, tDepth: { value: null }, uInvVP: { value: new THREE.Matrix4() }, uPrevVP: { value: new THREE.Matrix4() }, uTexel: { value: new THREE.Vector2() }, uAlpha: { value: 1 } });
     this.copyMat = quadMat('varying vec2 vUv; uniform sampler2D tColor; void main(){ gl_FragColor = texture2D(tColor, vUv); }', { tColor: { value: null } });
     this.blendMat = quadMat('varying vec2 vUv; uniform sampler2D tA, tB; uniform float uT; void main(){ gl_FragColor = mix(texture2D(tA, vUv), texture2D(tB, vUv), uT); }', { tA: { value: null }, tB: { value: null }, uT: { value: 0 } });
+    for (const m of [this.ao, this.acc, this.taaMat]) Object.assign(m.uniforms, this.sub);
     this.setSize(width, height);
   }
 
@@ -231,14 +246,16 @@ export class Pipeline {
     if (this.l2 || !cfg) return;
     const lamps = new LampShadows(this.r, cfg.ls, () => G.uLamp.value, G);   // cfg.ls.on is read live
     this.l2 = { cfg, sun, G, lamps, ssrMat: this._ssrMat(), volMat: this._volMat(G) };
+    for (const m of [this.l2.ssrMat, this.l2.volMat]) Object.assign(m.uniforms, this.sub);
     this._l2Targets();
   }
 
   _l2Targets() {
     for (const t of [this.ssrRT, this.volRT]) t && t.dispose();
-    const hw = Math.ceil(this.rw / 2), hh = Math.ceil(this.rh / 2);
+    const hw = Math.ceil(this.w / 2), hh = Math.ceil(this.h / 2);
     this.ssrRT = new THREE.WebGLRenderTarget(hw, hh, { type: THREE.HalfFloatType, depthBuffer: false });
     this.volRT = new THREE.WebGLRenderTarget(hw, hh, { type: THREE.HalfFloatType, depthBuffer: false });
+    this._fit();
   }
 
   // screen-space reflections: smooth opaque surfaces mark their reflectance in the scene target's alpha (light2.js);
@@ -251,9 +268,9 @@ export class Pipeline {
       ${VIEWPOS}
       vec2 proj(vec3 p){ vec4 c = uProj * vec4(p, 1.0); return c.xy / c.w * 0.5 + 0.5; }
       void main(){
-        float w = clamp(-texture2D(tColor, vUv).a, 0.0, 1.0);   // -reflectance (light2.js); >= 0 everywhere else
+        float w = clamp(-texS(tColor, vUv).a, 0.0, 1.0);   // -reflectance (light2.js); >= 0 everywhere else
         if (w < 0.02) { gl_FragColor = vec4(0.0); return; }
-        if (texture2D(tDepth, vUv).x >= 1.0) { gl_FragColor = vec4(0.0); return; }
+        if (texS(tDepth, vUv).x >= 1.0) { gl_FragColor = vec4(0.0); return; }
         vec3 P = viewPos(vUv);
         vec2 px = 1.0 / uRes;
         vec3 pr = viewPos(vUv + vec2(px.x, 0.0)), pl = viewPos(vUv - vec2(px.x, 0.0));
@@ -283,8 +300,8 @@ export class Pipeline {
         }
         Q = O + R * t1; uv = proj(Q);
         // a thick crossing is a ray passing behind an object, not a hit
-        if (viewPos(uv).z - Q.z > uThick + 0.03 * t1 || texture2D(tDepth, uv).x >= 1.0) { gl_FragColor = vec4(0.0); return; }
-        vec3 c = texture2D(tColor, uv).rgb;
+        if (viewPos(uv).z - Q.z > uThick + 0.03 * t1 || texS(tDepth, uv).x >= 1.0) { gl_FragColor = vec4(0.0); return; }
+        vec3 c = texS(tColor, uv).rgb;
         vec2 e = smoothstep(0.0, 0.08, uv) * smoothstep(0.0, 0.08, 1.0 - uv);
         float wa = w * e.x * e.y * (1.0 - smoothstep(uMaxDist * 0.6, uMaxDist, t1)) * (1.0 - smoothstep(0.2, 0.6, R.z)) * uGain;
         gl_FragColor = vec4(min(c, vec3(1000.0)) * wa, wa);
@@ -300,7 +317,7 @@ export class Pipeline {
     const u = this.l2.ssrMat.uniforms;
     u.tColor.value = this.sceneRT.texture; u.tDepth.value = this.sceneRT.depthTexture;
     u.uProj.value.copy(camera.projectionMatrix); u.uInvProj.value.copy(camera.projectionMatrixInverse);
-    u.uRes.value.set(this.ssrRT.width, this.ssrRT.height); u.uNear.value = camera.near;
+    u.uRes.value.set(this.hw, this.hh); u.uNear.value = camera.near;
     u.uJ.value = jk; u.uMaxDist.value = S.maxDist; u.uThick.value = S.thick; u.uGain.value = S.gain;
     this._draw(this.l2.ssrMat, this.ssrRT);
     return true;
@@ -359,7 +376,7 @@ export class Pipeline {
         return texture(tLs, vec3((base + t) * uLsInfo.yz, ref));
       }
       void main(){
-        bool sky = texture2D(tDepth, vUv).x >= 1.0;
+        bool sky = texS(tDepth, vUv).x >= 1.0;
         vec3 vpos;
         if (sky) { vec4 v4 = uInvProj * vec4(vUv * 2.0 - 1.0, 1.0, 1.0); vpos = v4.xyz / v4.w; }   // the far plane
         else vpos = viewPos(vUv);
@@ -486,17 +503,41 @@ export class Pipeline {
   setSize(w, h) {
     this.w = w; this.h = h; this.renderScale = 1;
     this._alloc(w, h);
+    this._fit();
   }
 
-  /** Dynamic resolution: render at s x the output size (stretched by the grade pass). Reallocates when it changes;
-   *  w and h stay as they are. s = 1 renders at exactly the output size. */
+  /** Dynamic resolution / temporal upscaling: render the scene at s x the output size into the lower-left corner of
+   *  the same targets (nothing is reallocated, so the scale may change every frame); the temporal resolve (taa())
+   *  reads that corner and writes a full-size frame, which bloom and grade then see. Only meaningful with taa():
+   *  without a resolve keep s = 1. Returns false (the history stays valid). */
   setRenderScale(s) {
     s = Number.isFinite(s) ? Math.min(1, Math.max(0.1, s)) : 1;
     const rw = s === 1 ? this.w : Math.max(16, Math.round(this.w * s)), rh = s === 1 ? this.h : Math.max(16, Math.round(this.h * s));
     this.renderScale = s;
     if (rw === this.rw && rh === this.rh) return false;
-    this._alloc(rw, rh);
-    return true;
+    this.rw = rw; this.rh = rh;
+    this._fit();
+    return false;
+  }
+
+  // point the scene-sized targets and the lookups at the current render size (see SUB)
+  _fit() {
+    const { w, h, rw, rh } = this, on = rw !== w || rh !== h, hw = Math.ceil(rw / 2), hh = Math.ceil(rh / 2);
+    for (const [t, tw, th] of [[this.sceneRT, rw, rh], [this.aoRT, hw, hh], [this.ssrRT, hw, hh], [this.volRT, hw, hh]]) {
+      if (t) { t.viewport.set(0, 0, tw, th); t.scissor.set(0, 0, tw, th); t.scissorTest = on; }
+    }
+    this.hw = hw; this.hh = hh;
+    if (on) { this.sub.uSub.value.set(rw / w, rh / h, (rw - 0.5) / w, (rh - 0.5) / h); this.sub.uSubH.value.set(hw / Math.ceil(w / 2), hh / Math.ceil(h / 2), (hw - 0.5) / Math.ceil(w / 2), (hh - 0.5) / Math.ceil(h / 2)); }
+    else { this.sub.uSub.value.set(1, 1, 1e9, 1e9); this.sub.uSubH.value.set(1, 1, 1e9, 1e9); }
+    this._accView(false);
+    if (this.fx) this.fx.fit();
+  }
+
+  // the accumulation target: the render-size corner while sub-frames add into it, whole once resolved
+  _accView(corner) {
+    const t = this.accRT, on = corner && (this.rw !== this.w || this.rh !== this.h);
+    if (!t || t.scissorTest === on) return;
+    t.viewport.set(0, 0, on ? this.rw : this.w, on ? this.rh : this.h); t.scissor.copy(t.viewport); t.scissorTest = on;
   }
 
   _alloc(w, h) {
@@ -543,6 +584,7 @@ export class Pipeline {
   }
 
   begin() {
+    this._accView(false);
     this.r.setRenderTarget(this.accRT);
     this.r.setClearColor(0x000000, 0);
     this.r.clear(true, false, false);
@@ -559,6 +601,10 @@ export class Pipeline {
     r.clear(true, true, false);
     r.render(scene, camera);
     if (l2) l2.lamps.done();
+    // opt-in passes (postfx.js): a moving frame is one sub-frame of weight 1; it gets a velocity buffer when asked
+    this._live = w === 1 && !still; this._cam = camera;
+    this._taa2 = this._live && P.taa2 > 0;
+    if (this._live && (P.taa2 > 0 || P.motionBlur > 0)) this._fx().velocity(scene, camera);
     const useAO = P.ao > 0;
     if (useAO) {
       const u = this.ao.uniforms;
@@ -570,16 +616,18 @@ export class Pipeline {
     const useSSR = !!l2 && this._ssr(camera, jk), useVol = !!l2 && this._vol(camera, jk);
     const a = this.acc.uniforms;
     a.uUseSSR.value = useSSR ? 1 : 0; a.uUseVol.value = useVol ? 1 : 0;
-    if (l2) { a.tSSR.value = this.ssrRT.texture; a.tVol.value = this.volRT.texture; a.uVolTexel.value.set(0.75 / this.volRT.width, 0.75 / this.volRT.height); }
+    if (l2) { a.tSSR.value = this.ssrRT.texture; a.tVol.value = this.volRT.texture; a.uVolTexel.value.set(0.75 / this.hw, 0.75 / this.hh); }
     a.tColor.value = this.sceneRT.texture; a.tAO.value = this.aoRT.texture; a.tDepth.value = this.sceneRT.depthTexture;
-    a.uInvProj.value.copy(camera.projectionMatrixInverse); a.uAOTexel.value.set(1 / this.aoRT.width, 1 / this.aoRT.height);
+    a.uInvProj.value.copy(camera.projectionMatrixInverse); a.uAOTexel.value.set(1 / this.hw, 1 / this.hh);
     a.uW.value = w; a.uAO.value = useAO ? P.ao : 0; a.uSky.value = P.sky;
     a.uAOLit.value = useAO ? Math.min(1, Math.max(0, P.aoLit || 0)) : 0; a.uAOExp.value = P.exposure;
+    this._accView(true);
     this._draw(this.acc, this.accRT);
   }
 
   /** Temporal AA of the sub-frame just added: blend into the reprojected history (alpha = weight of the new frame). */
   taa(invVP, prevVP, alpha) {
+    if (this._taa2) return this.fx.resolve(alpha);   // post.taa2: the velocity-buffer resolve (postfx.js)
     const u = this.taaMat.uniforms;
     u.tCur.value = this.accRT.texture; u.tHist.value = this.histA.texture; u.tDepth.value = this.sceneRT.depthTexture;
     u.uInvVP.value.copy(invVP); u.uPrevVP.value.copy(prevVP); u.uTexel.value.set(1 / this.rw, 1 / this.rh); u.uAlpha.value = alpha;
@@ -587,6 +635,7 @@ export class Pipeline {
     [this.histA, this.histB] = [this.histB, this.histA];
     // ponytail: one extra copy, because bloom adds into accRT in place and must never reach the history
     this.copyMat.uniforms.tColor.value = this.histA.texture;
+    this._accView(false);
     this._draw(this.copyMat, this.accRT);
   }
 
@@ -643,6 +692,10 @@ export class Pipeline {
     this.copyMat.uniforms.tColor.value = this.histB.texture;
     this._draw(this.copyMat, this.accRT);
   }
+
+  _fx() { return this.fx || (this.fx = new PostFX(this)); }
+  /** post.taa2: the projection's next sub-pixel offset, in render pixels (the caller applies it; see postfx.js). */
+  fxJitter() { return this._fx().jitter(); }
 
   /** Forget the adapted exposure: the next frame is metered on its own (a cut, a teleport). */
   resetExposure() { this.aeValid = false; }
@@ -702,16 +755,21 @@ export class Pipeline {
     const useAE = P.autoExposure > 0;
     if (useAE) this._meter(P, P.exposure, opts);
     else this.aeValid = false;
-    const expK = this._bloom(P);
-    const u = this.grade.uniforms;
-    u.tColor.value = this.accRT.texture; u.uTexel.value.set(1 / this.rw, 1 / this.rh);
+    // opt-in passes (postfx.js) on a moving frame: lens blur, then motion blur, over the resolved frame
+    const live = opts.still === false && this._live;
+    if (live && P.bokeh > 0) this._fx().bokeh(P, this._cam);
+    if (live && P.motionBlur > 0) this._fx().motionBlur(P);
+    const expK = P.bloomPyramid > 0 && P.bloom > 0 ? this._fx().bloom(P) : this._bloom(P);
+    const gm = (!setOnly && (P.lut || P.chroma > 0) && this._fx().grade(P)) || this.grade;
+    const u = gm.uniforms;
+    u.tColor.value = this.accRT.texture; u.uTexel.value.set(1 / this.w, 1 / this.h);
     u.uExposure.value = P.exposure * expK; u.uSat.value = P.saturation; u.uCon.value = P.contrast; u.uLift.value = P.lift;
     u.uVig.value = P.vignette; u.uSharp.value = P.sharpen; u.uGrain.value = P.grain; u.uFrame.value = frameIndex % 4096;
     u.uTM.value = { agx: 0, aces: 1, neutral: 2 }[P.tonemap] ?? 0;
     u.uUseAE.value = useAE ? 1 : 0; u.tAE.value = this.aeA.texture;
     const t = P.temperature;   // -1 cool .. +1 warm, a simple channel tilt
     u.uWB.value.set(1 + 0.1 * t, 1, 1 - 0.12 * t);
-    if (!setOnly) this._draw(this.grade, target);
+    if (!setOnly) this._draw(gm, target);
   }
 
   /** Show mix(a, b, t) of two finished frames (render targets that end() drew into) on `target` (null = the canvas). */
@@ -740,7 +798,7 @@ export class Pipeline {
   dispose() {
     for (const t of [this.sceneRT, this.aoRT, this.accRT, this.histA, this.histB, this.ssrRT, this.volRT, this.meterRT, this.aeA, this.aeB]) t && t.dispose();
     if (this.l2) { this.l2.lamps.dispose(); this.l2.ssrMat.dispose(); this.l2.volMat.dispose(); }
-    this.bloomPass.dispose(); this.quad.dispose();
+    this.bloomPass.dispose(); this.quad.dispose(); this.fx && this.fx.dispose();
     for (const m of [this.ao, this.acc, this.grade, this.gradeClear, this.taaMat, this.copyMat, this.blendMat, this.meterMat, this.adaptMat, this.cvDiff, this.cvScale]) m && m.dispose();
     if (this.cv) { this.cv.prev.dispose(); this.cv.stats.dispose(); this.cv = null; }
   }
