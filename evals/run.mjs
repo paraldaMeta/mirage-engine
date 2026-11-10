@@ -13,6 +13,8 @@
 //   --arms diag,raw    diag: the diagnostics (codes, messages, fixes; DIAGNOSTICS.md). raw: what the playtest said
 //                      before diagnostics existed (failing checks, step errors, console errors, failed modules;
 //                      REPORT.md). Default both, so the codes and fixes can be measured against the raw errors.
+//   --brief task|vague task (default): the agent reads the symptom (the task's title and prompt) beside the report;
+//                      vague: only "the playtest fails", so it must find the problem from the report alone
 //   --tasks a,b        only these tasks (default all in evals/tasks)
 //   --timeout S        seconds per agent call (default 900)
 //   --out DIR          results (default evals/results/<timestamp>): results.json, summary.md, per run: the prompts,
@@ -34,6 +36,10 @@ const dry = has('dry'), oracle = has('oracle'), cmd = flag('cmd');
 if (!dry && !oracle && !cmd) { console.error('usage: node evals/run.mjs --cmd "<agent command>" [--mode one|multi] [--turns N] [--arms diag,raw] [--tasks a,b] [--dry | --oracle]'); process.exit(2); }
 const mode = flag('mode', 'one'), turns = mode === 'multi' ? +flag('turns', 3) : 1;
 const arms = flag('arms', 'diag,raw').split(',');
+// task: the symptom as a user would say it (the task's title and prompt); vague: nothing but "the playtest fails",
+// so the agent has to find the problem from the report alone (what the diagnostics are for)
+const brief = flag('brief', 'task');
+if (!['task', 'vague'].includes(brief)) { console.error('--brief task|vague'); process.exit(2); }
 const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
 const OUT = path.resolve(flag('out', path.join(EVALS, 'results', stamp)));
 const timeout = +flag('timeout', 900) * 1000;
@@ -69,7 +75,8 @@ function rawText(report) {
 function prompt(task, arm, report, turn) {
   const multi = mode === 'multi', file = arm === 'diag' ? 'DIAGNOSTICS.md' : 'REPORT.md';
   const what = arm === 'diag' ? diagText(report) : rawText(report);
-  return `${turn > 1 ? `Your last change was checked and the world still fails. ` : ''}Fix this Mirage world.\n\n# Task: ${task.title}\n\n${task.prompt}\n\n` +
+  const head = brief === 'vague' ? 'This Mirage world fails its playtest. Find what is wrong and fix it.\n\n' : `# Task: ${task.title}\n\n${task.prompt}\n\n`;
+  return `${turn > 1 ? `Your last change was checked and the world still fails. ` : ''}Fix this Mirage world.\n\n${head}` +
     (arm === 'diag' ? `The check is the playtest scenario in scenario.json; it must pass with no error diagnostics${task.forbid.length ? ` and none of ${task.forbid.join(', ')}` : ''}. `
       : 'The check is the playtest scenario in scenario.json plus the engine\'s own load-time checks of the world; both must pass. ') +
     `Here is what the playtest reports (also in ${file}):\n\n${what}\n${RULES(multi, turn)}\n`;
@@ -131,6 +138,7 @@ try {
       const runDir = path.join(OUT, `${task.id}-${arm}`);
       fs.mkdirSync(runDir, { recursive: true });
       const dir = materialize(task, 'start', path.join(WORK, `run-${stamp}`, `${task.id}-${arm}`));
+      if (brief === 'vague') fs.writeFileSync(path.join(dir, 'TASK.md'), '# Fix this world\n\nIt fails its playtest. Find what is wrong and fix it.\n');   // no symptom in the folder either
       const t0 = Date.now();
       let r = await check(task, dir, path.join(runDir, 'check-0'));
       const first = r.codes;
@@ -169,7 +177,7 @@ try {
 // ---- summary
 const by = (arm) => results.filter((r) => r.arm === arm);
 const mean = (a) => (a.length ? a.reduce((s, v) => s + v, 0) / a.length : NaN);
-const lines = [`# Repair-rate eval ${stamp}`, '', `agent: \`${dry ? '(dry run: no agent)' : oracle ? '(oracle: the reference fixes)' : cmd}\`; mode ${mode}${mode === 'multi' ? ` (up to ${turns} turns)` : ''}`, '',
+const lines = [`# Repair-rate eval ${stamp}`, '', `agent: \`${dry ? '(dry run: no agent)' : oracle ? '(oracle: the reference fixes)' : cmd}\`; mode ${mode}${mode === 'multi' ? ` (up to ${turns} turns)` : ''}; brief ${brief}`, '',
   '| arm | tasks | agent errors (not counted) | pass | rate | mean turns (passing) | mean tool calls | mean wall s |', '|---|---|---|---|---|---|---|---|',
   ...arms.map((a) => { const all = by(a), r = all.filter((x) => !x.agentError), p = r.filter((x) => x.pass), tc = r.filter((x) => x.toolCalls !== null).map((x) => x.toolCalls);
     return `| ${a} | ${all.length} | ${all.length - r.length} | ${p.length} | ${r.length ? Math.round((100 * p.length) / r.length) + ' %' : '-'} | ${p.length ? mean(p.map((x) => x.turns)).toFixed(2) : '-'} | ${tc.length ? mean(tc).toFixed(1) : '-'} | ${all.length ? mean(all.map((x) => x.wallMs / 1000)).toFixed(0) : '-'} |`; }),
