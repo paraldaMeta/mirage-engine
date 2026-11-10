@@ -71,7 +71,9 @@ export function createInjector() {
     const inner = m.onBeforeCompile, innerKey = m.customProgramCacheKey;
     const fn = function (shader, renderer) { inner.call(this, shader, renderer); if (key) compile(shader); };
     m.onBeforeCompile = fn;
-    m.customProgramCacheKey = function () { const k = innerKey.call(this); return key ? k + '|mgL:' + key : k; };
+    // three's default key is the hook's own source: asked through a view of the material that still has the inner hook,
+    // or every wrapped material would answer with this wrapper's source and two different hooks would share a program
+    m.customProgramCacheKey = function () { const k = innerKey.call(Object.create(this, { onBeforeCompile: { value: inner } })); return key ? k + '|mgL:' + key : k; };
     wrapped.set(m, fn);
     if (!all.has(m)) { all.add(m); m.addEventListener('dispose', () => all.delete(m)); }
     if (key) m.needsUpdate = true;

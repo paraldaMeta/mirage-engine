@@ -17,6 +17,10 @@ import { csmConfig, createCsm } from './csm.js';
 import { giConfig, createGi } from './gi.js';
 import { lightsConfig, createLights } from './lights.js';
 import { probesConfig, createProbes } from './probes.js';
+export { CSM_DEFAULTS } from './csm.js';
+export { GI_DEFAULTS } from './gi.js';
+export { LIGHTS_DEFAULTS } from './lights.js';
+export { PROBE_DEFAULTS } from './probes.js';
 
 export function createLighting(w, config) {
   const { renderer, scene, sun } = w;

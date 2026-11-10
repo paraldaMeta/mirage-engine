@@ -10,6 +10,7 @@ export { createStars } from './stars.js';
 export { Pipeline, DEFAULT_POST } from './post.js';
 export { LIGHT2_DEFAULTS, light2Config, installLight2, addLampSource, LampShadows } from './light2.js';
 export { SOFTSHADOW_DEFAULTS, softShadowConfig, installSoftShadows } from './softshadow.js';
+export { createLighting, CSM_DEFAULTS, GI_DEFAULTS, LIGHTS_DEFAULTS, PROBE_DEFAULTS } from './lighting.js';
 export { patch, createMaterials, PROC } from './materials.js';
 export { NOISE_GLSL } from './noise.js';
 export { rng, hash32, sfc32, valueNoise2, fbm2 } from './rng.js';

@@ -39,6 +39,11 @@ The entry points `@mirage/<pkg>` are the API. Every file under `src/` can also b
 | `SOFTSHADOW_DEFAULTS` | experimental | the soft sun shadows' settings (`on`, `sunAngle`, `maxPenumbra`, `maxPenumbraTexels`, `minBlocker`, tap counts, `slopeMax`, `edgeFade`); `createWorldRenderer({ softShadows })` turns them on |
 | `softShadowConfig(option)` | experimental | the full soft-shadow settings for `true` / a partial object (numbers clamped); null when off |
 | `installSoftShadows(settings)` | experimental | patch three's sun-shadow lookup for contact-hardening soft shadows (page-global, idempotent; tap counts compiled in by the first call; the world renderer calls it) |
+| `createLighting(world, option)` | experimental | the realtime lighting features behind `createWorldRenderer({ lighting })` (the world renderer calls it; `world.lighting` is its result): `csm`, `gi`, `probes`, `lights`, `addLight(light, { shadow })`, `removeLight`, `invalidate()`, `busy`. Shader parts go into the world's own lit materials, not three's chunks (`docs/lighting.md`) |
+| `CSM_DEFAULTS` | experimental | cascaded sun shadows' settings (`cascades` 2-4, `distance`, `lambda`, `blend`, `tile`, `taps`, ...); `lighting: { csm: true }` |
+| `GI_DEFAULTS` | experimental | the irradiance probe volume's settings (`spacing`, `bounces`, `cube`, `perFrame`, `intensity`, `fade`, `bias`, `specular`); `lighting: { gi: { min, max } }` |
+| `LIGHTS_DEFAULTS` | experimental | clustered local lights and their shadow atlas (`max`, `cluster`, `perCell`, `atlas`, `tileMax`, `tileMin`, `perFrame`, `bias`); `lighting: { lights: true }` |
+| `PROBE_DEFAULTS` | experimental | a reflection probe's defaults (`fade`, `intensity`); `lighting: { probes: [{ min, max, position }] }`, at most 4 |
 | `TEX_RELIEF_GLSL` | experimental | the texture layer's relief taps (`mgTexTriRelief`, `mgTexWallRelief`, `mgTexGroundRelief`); compiled in by the relief opt-ins |
 | `RELIEF` | experimental | the close-range relief's shared uniforms (`uRelief` on / off, `uReliefFar` fade distance) |
 | `setRelief(level)` | experimental | relief level: 0 off, 1 full (8 m), in between a shorter reach |

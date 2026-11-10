@@ -382,3 +382,4 @@ console.log('core check: ok');
   }
   console.log('stream check: ok');
 }
+await import('./lighting.check.mjs');
