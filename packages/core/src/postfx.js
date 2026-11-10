@@ -97,6 +97,7 @@ export function lutTexture({ size, data }) {
 export function postFromQuery(Q) {
   const o = {}, num = (k, to = k) => { if (Q.has(k) && Number.isFinite(+Q.get(k))) o[to] = +Q.get(k); };
   num('taa2'); num('upscale'); num('mb', 'motionBlur'); num('bokeh'); num('lens', 'dof'); num('focus'); num('bloom'); num('bloom2', 'bloomPyramid'); num('chroma');
+  num('ssr', 'ssr2'); num('ssrrough', 'ssrRough'); num('ssgi'); num('girange', 'ssgiRange'); num('girays', 'ssgiRays'); num('contact');   // screen.js (lighting.screen)
   const L = { warm: ([r, g, b]) => [r ** 0.92, g, b ** 1.12], cool: ([r, g, b]) => [r ** 1.1, g, b ** 0.9],
     bleach: ([r, g, b]) => { const l = 0.2126 * r + 0.7152 * g + 0.0722 * b, s = (x) => { const m = l + (x - l) * 0.55; return m * m * (3 - 2 * m); }; return [s(r), s(g), s(b)]; } }[Q.get('lut')];
   if (L) o.lut = lutTexture(makeLut(L));
