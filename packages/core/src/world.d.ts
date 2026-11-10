@@ -20,6 +20,8 @@ export interface WorldRendererOptions {
   envIntensity?: number; envFade?: number; wind?: NonNullable<Parameters<typeof createEnv>[0]>['wind'];
   clouds?: number; fog?: Partial<{ density: number; groundDensity: number; height: number; air: number; level: number; color: number; glow: number }>;
   post?: Partial<PostSettings>; preserveDrawingBuffer?: boolean; mobile?: boolean; shadowMapSize?: number; spp?: number;
+  /** A multisampled, XR-compatible context, so a WebXR session (@mirage/play/xr) gets MSAA. Pass `(await xrSupport()).vr`. */
+  xr?: boolean;
 }
 export interface RenderFrameOptions {
   camera?: RenderCamera; getCamera?: (seconds: number) => RenderCamera; spp?: number; dt?: number;
@@ -46,6 +48,8 @@ export interface WorldRenderer {
   /** Compile materials and capture lighting after building the scene. Requires WebGL. */
   prepare(): Promise<void>;
   renderFrame(seconds?: number, options?: RenderFrameOptions): void;
+  /** One plain draw of the scene into the current framebuffer (the XR path): no pipeline; the renderer's tone mapping grades. */
+  renderDirect(seconds?: number, options?: { camera?: THREE.Camera; shadow?: ShadowRegion; fog?: number }): void;
   resize(width: number, height: number): void;
   /** Call after setTime() or prepare(). */
   captureEnv(instant?: boolean): void;

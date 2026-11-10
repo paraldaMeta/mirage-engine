@@ -248,11 +248,12 @@ function mountPlay(world, opts, life) {
       up: (k('KeyE') || (mode === 'fly' && k('Space'))) - k('KeyQ', 'KeyC'), run: k('ShiftLeft', 'ShiftRight') || pad.run, jump: k('Space'),
     };
   }
-  let changed = false, acting = false, turned = false;
+  let changed = false, acting = false, turned = false, xrInput = null;
   function step(dt) {
     if (life.disposed) return;
     // opts.input(): { x (right), z (forward), up, run, jump } from a game's action map; default: the keys above
-    const inp = opts.input ? opts.input(dt) : keyInput();
+    const base = opts.input ? opts.input(dt) : keyInput();
+    const inp = xrInput ? xrInput(base, dt) : base;   // [xr] packages/play/src/xr.js adds the controllers' sticks
     if (life.disposed) return;
     const fx = inp.x || 0, fz = inp.z || 0, up = inp.up || 0, run = !!inp.run;
     acting = !!(fx || fz || up || inp.jump);
@@ -438,6 +439,8 @@ function mountPlay(world, opts, life) {
     lookAt: (p) => look(camera.position.toArray(), p),
     get yaw() { return yaw; }, set yaw(v) { yaw = v; }, get pitch() { return pitch; }, set pitch(v) { pitch = v; },
     get mode() { return mode; }, get still() { return still; },
+    /** [xr] (input, dt) -> input: merged into each step's input by packages/play/src/xr.js (null: none) */
+    get xrInput() { return xrInput; }, set xrInput(fn) { xrInput = fn || null; },
     /** the scene clock in seconds (see the top of this file) */
     get clock() { return clock; },
     /** [sub-frames of the first still frame, of the final one] */

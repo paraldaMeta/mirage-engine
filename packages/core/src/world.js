@@ -50,7 +50,9 @@ export function createWorldRenderer(config = {}) {
   const post = { ...DEFAULT_POST, ...config.post };
 
   installFog();
-  const renderer = config.renderer || new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false, stencil: false, powerPreference: 'high-performance', preserveDrawingBuffer: !!config.preserveDrawingBuffer });
+  // [xr] config.xr: the context is made multisampled and XR-compatible, because three gives the headset's framebuffer
+  // MSAA only when the canvas context has it (packages/play/src/xr.js); the pipeline never draws geometry to the canvas
+  const renderer = config.renderer || new THREE.WebGLRenderer({ canvas, antialias: !!config.xr, alpha: false, stencil: false, powerPreference: 'high-performance', preserveDrawingBuffer: !!config.preserveDrawingBuffer, ...(config.xr ? { xrCompatible: true } : {}) });
   renderer.setPixelRatio(pixelRatio);
   renderer.setSize(width, height, false);
   renderer.toneMapping = THREE.NoToneMapping;
@@ -253,6 +255,23 @@ export function createWorldRenderer(config = {}) {
     pipeline.end(P, opts.frameIndex ?? frameCounter++, opts.target ?? null);
   }
 
+  // [xr] one plain draw of the scene into the current framebuffer (the headset's, inside an XR frame; see
+  // packages/play/src/xr.js): renderFrame's frame state (scene clock, ctx.onUpdate, fog, shadow fit), none of the
+  // pipeline. The renderer's tone mapping does the grade. A pending environment capture runs with XR off (its
+  // full-screen passes would otherwise be drawn through the headset's cameras).
+  function renderDirect(T = 0, opts = {}) {
+    if (!light) setTime(time);
+    if (envState === 'instant') { const xe = renderer.xr.enabled; renderer.xr.enabled = false; try { captureEnv(true); } finally { renderer.xr.enabled = xe; } }
+    writeFog();
+    if (opts.fog !== undefined) scene.fog.density *= opts.fog;   // AR: a table model is seen through metres of air, not km
+    G.uTime.value = T; G.uFrame.value = 0;
+    skyU.uCloudOffset.value.set(T * 0.004, T * 0.0015);
+    for (const fn of updates) fn(T);
+    const sh = opts.shadow || shadow;
+    fitShadow(sh.center, sh.radius, null);
+    renderer.render(scene, opts.camera || camera);
+  }
+
   /** Interiors: [{ min: [x,y,z], max: [x,y,z], factor = 0.3, soft = 0.6 }] scale the image-based light inside
    *  each box (up to 8). Recaptures the environment, so call it before prepare() or after building. */
   function setAmbientVolumes(list = []) {
@@ -290,6 +309,6 @@ export function createWorldRenderer(config = {}) {
   return {
     renderer, scene, camera, sun, sky, stars, pipeline, ctx, G, keyDir, mat, geom, rng, post, device,
     get light() { return light; }, get state() { return state; }, get exposure() { return exposure; },
-    setTime, tick, prepare, renderFrame, resize, dispose, captureEnv, setAmbientVolumes,
+    setTime, tick, prepare, renderFrame, renderDirect, resize, dispose, captureEnv, setAmbientVolumes,
   };
 }

@@ -29,6 +29,8 @@ export interface Play<W extends WalkerLike = GridWalker> {
   viewpoint(index: number): void; setMode(mode: ViewMode): void;
   turn(dx: number, dy: number, scale: number): void; syncWalkerView(): void; lookAt(position: XYZ): void;
   yaw: number; pitch: number; viewSize: number; powerSaver: boolean;
+  /** Merged into each step's input (WebXR controllers, @mirage/play/xr); null for none. */
+  xrInput: ((input: MotionInput, dt: number) => MotionInput) | null;
   readonly mode: ViewMode; readonly still: number; readonly clock: number; readonly refine: [number, number];
   readonly maxFps: number; readonly idleFor: number;
   state(): { mode: ViewMode; pos: [number, number, number]; eye: [number, number, number]; onGround: boolean; blocked: boolean; yaw: number; still: number };
