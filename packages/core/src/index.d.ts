@@ -22,6 +22,9 @@ export { RELIEF, RELIEF_GLSL, RELIEF_LIGHT, setRelief, withRelief, renderHeight,
 export { WET, WET_GLSL, setWetness, setRain, withWet } from './wet.js';
 export { createEnvLight } from './envlight.js';
 export { deviceProfile, pickQuality, QUALITY_LEVELS, QUALITY_KEY } from './device.js';
+export { createVfx } from './vfx.js';
+export { VFX_LIBRARY } from './vfx-library.js';
+export { defineEffect, evalCurve, bakeCurves, effectRadius, VFX_ENUMS } from './vfx-data.js';
 export * as geom from './geom.js';
 
 export type { WorldRenderer, WorldRendererOptions, WorldContext, RenderFrameOptions, ConvergeResult, RenderCamera, ShadowRegion, AmbientVolume, XYZ } from './world.js';
@@ -36,6 +39,8 @@ export type { LodGroup, LodController } from './lod.js';
 export type { TextureLibrary, TextureSetInfo, TextureMaterialOptions } from './textures.js';
 export type { JobQueue, Job, LRUCache, UploadBudget, LongTaskStats } from './stream.js';
 export type { EnvironmentLight } from './envlight.js';
+export type { Vfx, VfxOptions, VfxHandle, VfxPlace, VfxStats, VfxBeamOptions, VfxDecalOptions } from './vfx.js';
+export type { VfxEffect, VfxEmitter, VfxDefinedEffect } from './vfx-data.js';
 export type { WetOptions } from './wet.js';
 export type { Quality, DeviceProfile } from './device.js';
 export type { SoftShadowSettings, SoftShadowOption } from './softshadow.js';

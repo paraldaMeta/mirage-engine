@@ -94,6 +94,13 @@ The entry points `@mirage/<pkg>` are the API. Every file under `src/` can also b
 | `halton(i, base)` | experimental | the Halton sequence (taa2's jitter) |
 | `createMaterials(G)` | experimental | the `world.mat` kit (`std`, `phys`, `patch`, `depth`, `glow`) for a set of uniforms |
 | `createEnvLight(renderer, { size, fade })` | experimental | image-based light captured from the world, cross-faded |
+| `createVfx(world, { hz, maxParticles, instances, gain })` | experimental | GPU particles and effects (`docs/vfx.md`): `spawn`, `burst`, `prewarm`, `beam`, `decal`, `setGround`, `registerMesh` / `registerField` / `registerSheet`, `stats`; also takes `{ renderer, scene, camera }` with `update(seconds)` called by hand |
+| `VFX_LIBRARY` | experimental | ten ready effects as JSON: fire, smoke, sparks, dust, splash, snow, leaves, fireflies, magic, explosion |
+| `defineEffect(json)` | experimental | validate an effect description and fill its defaults (no GPU; unknown keys throw with their path) |
+| `evalCurve(curve, t)` | experimental | a `[[t, v], ...]` curve at `t` |
+| `bakeCurves(emitter)` | experimental | an emitter's curves and gradients as the lookup rows the shaders read |
+| `effectRadius(emitter)` | experimental | radius of a sphere about a defined emitter that holds its particles, for culling |
+| `VFX_ENUMS` | experimental | the allowed values of the format's enumerated keys (shapes, blends, sorts, …) |
 | `createLod()` | experimental | merge-and-swap level-of-detail helper |
 | `hash32(string)` | experimental | 32-bit string hash used for seeds |
 | `sfc32(seed)` | experimental | the raw SFC32 generator |
