@@ -19,6 +19,8 @@ export interface CrowdOptions {
   /** wall-clock ms of path queries an update (1); or bring a queue */
   pathBudgetMs?: number;
   queue?: PathQueue;
+  /** radii are rounded UP to this for everything asked of the nav (one fit profile per distinct radius); 0.05 m */
+  radiusStep?: number;
 }
 export interface Crowd {
   x: Float64Array; y: Float64Array; z: Float64Array; vx: Float64Array; vz: Float64Array; radius: Float64Array; speed: Float64Array;

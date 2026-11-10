@@ -15,7 +15,7 @@
 // post() copies the pose back with solid.set(), so the walker, the camera and the navigation carve see where the
 // crate really is. A mover pushes a dynamic solid through space.push, which lands here as an impulse. Shapes are
 // built from the same half extents on both sides, so "blocked in one world, free in the other" can only be the
-// grid's sampling (a cell, 0.125 m) and one step of latency: play/solids.check.mjs measures both.
+// grid's sampling (a cell, 0.125 m) and one step of latency: play/mover.check.mjs measures both.
 // ---------------------------------------------------------------------------
 
 export function linkSolids(space, { R, world }) {

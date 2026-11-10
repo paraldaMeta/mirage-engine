@@ -6,7 +6,7 @@ export interface PathQueue {
   readonly pending: number;
   /** the last update: how many ran, its ms, the slowest one; total since creation */
   stats: { ran: number; ms: number; worst: number; total: number };
-  request(from: NavPoint, to: NavPoint, options?: PathOptions & { priority?: number; then?: (path: NavPoint[] | null) => void }): PathJob;
+  request(from: NavPoint, to: NavPoint, options?: PathOptions & { priority?: number; then?: (path: NavPoint[] | null) => void; /** Where the asker is when the query runs (a query that waited starts from there); null drops it. */ origin?: () => NavPoint | null }): PathJob;
   /** run queued queries, best priority first, until the budget is spent (at least one); returns how many ran */
   update(budgetMs?: number): number;
   clear(): void;

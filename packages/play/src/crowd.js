@@ -24,6 +24,8 @@
 // Off-mesh links: a waypoint carrying .link is crossed in link.time seconds (default: its length at the agent's
 // speed) along link.traverse(f, link, actor) or a straight line (with a hop for type 'jump'); link.canEnter(actor,
 // link) === false holds the agent at the near end (a door that is still shut). Agents on a link are not avoided.
+// Radii: the nav bakes one fit profile per radius, so paths and the wall clamp use the radius rounded UP to
+// opts.radiusStep (0.05 m); avoidance uses the true one. One path query per agent waits in the queue at a time.
 // ponytail: walls are not velocity obstacles, the nav clamp stops an agent at them (a dense crowd pressed into a
 // corner packs rather than flows round); no gravity or falling: an agent is on a floor or on a link; agents and
 // createNavAgent walkers do not see each other unless the walker is added as a `fixed` agent.
