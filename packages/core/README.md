@@ -46,6 +46,7 @@ requestAnimationFrame(loop);
 | `wind` | `{ dir: [0.8, 0.6], strength: 1 }` | for `mgWind()` in vertex hooks |
 | `clouds` | `0.35` | cloud cover 0..1 |
 | `shadowMapSize`, `mobile`, `preserveDrawingBuffer` | | overrides |
+| `light2` | off | `true` or `{ ls, ssr, vol, bloom }` overriding `LIGHT2_DEFAULTS` (each part `false` to drop it): lamp shadows, screen-space reflections, volumetric light, mixed bloom (see below) |
 
 Returns `{ renderer, scene, camera, sun, sky, stars, pipeline, ctx, G, keyDir, mat, geom, rng, post, device,
 light, state, exposure, setTime(time, { ease }), tick(dt), prepare(), renderFrame(T, opts), resize(w, h), dispose(), captureEnv(),
@@ -72,6 +73,32 @@ setAmbientVolumes(list) }`.
   worlds without them render exactly as before. `@mirage/world` passes modules' `ambientVolumes` here.
 - `ctx` = `{ THREE, renderer, scene, camera, G, keyDir, mat, geom, rng, quality, place, onUpdate(fn) }` for
   world-building modules; `onUpdate(fn(t))` runs before every sub-frame.
+
+## Lamp shadows, reflections, volumetric light (opt-in): `light2`
+
+`createWorldRenderer({ ..., light2: true })` (or an object: `{ ls: { slots: 2 }, vol: false }`). Off, nothing is
+patched and a world renders bit-identical to before.
+
+- **Lamp shadows.** Every visible `PointLight` (intensity > 0) competes for 4 shadow slots by power and distance
+  from the view, with hysteresis. A slot's cube is drawn by three's own shadow renderer (so `castShadow`, instancing,
+  skinning, alpha test work as for the sun) once, then refreshed every 20 s; top-level objects with
+  `userData.mgDynamic` (people, doors) are redrawn round-robin, `userData.mgLampCast === false` ones (terrain, big
+  ground meshes) never cast. All slots live in one octahedral depth atlas sampled through one `sampler2DShadow`
+  (5 fixed PCF taps: stable under TAA). A lamp's own lantern within `PointLight.userData.lsNear` (default 0.45 m) of
+  the flame does not shadow it. Lamp tables that are not PointLights: `addLampSource(scene, (camPos) => [{ x, y, z,
+  range, power }])`, and call `mgLsVis(lampWorld, pWorld, nWorld)` in your shader.
+- **Reflections.** Opaque Standard / Physical surfaces smoother than ~0.42 roughness flag their reflectance; the
+  pipeline marches them in screen space at half resolution (water, polished stone, wet ground). Misses keep the
+  environment map's reflection. `#define MG_NO_SSR` on a material opts it out.
+- **Volumetric light.** The key light through its shadow map (only toward a low sun, or near an ambient volume) and
+  the 8 best lamps through the atlas scatter in a low dust layer, denser inside `setAmbientVolumes` boxes. Shafts
+  only: an open, wholly lit ray lays no veil. Half resolution, jittered per sub-frame.
+- **Bloom.** The frame is mixed toward its blurred self (7 % by day, 18 % at night) instead of the blur being added;
+  the exposure is raised by what the additive bloom of `post.bloom` lifted, so mid-tones stay.
+- **Cost** (hello-courtyard, 1440 x 900, 1 sub-frame + TAA, Apple silicon): about +1.5 ms at night with 4 lamps in
+  view (mostly the lamps' in-scatter), +0.5 ms toward a low sun, ~0 at noon. Live tuning: `world.pipeline.l2.cfg`.
+- Page-global once installed: the analytic DFG fit replaces three's lookup table for every Standard material under
+  `FogExp2` on the page (a tiny difference in rough speculars of other worlds on the same page).
 
 ## Materials: `world.mat`
 
@@ -123,6 +150,6 @@ own derivatives and a repetition breaker; every patched Standard / Physical mate
 
 `skyAt(date, place)`, `placeDate(day, time, tzHours)`, `placeClock(date, tzHours)` (astronomy, pure JS);
 `skyState`, `lightAt` (pure light model); `transmit`, `scatter`, `skyLightAt` (the atmosphere on the CPU);
-`createSky`, `createStars`, `Pipeline`, `installFog`, `createLod`, `deviceProfile`, `createEnvLight`, `TEX_GLSL`,
+`createSky`, `createStars`, `Pipeline`, `installFog`, `LIGHT2_DEFAULTS`, `light2Config`, `installLight2`, `addLampSource`, `LampShadows`, `createLod`, `deviceProfile`, `createEnvLight`, `TEX_GLSL`,
 `geom.*`, `NOISE_GLSL`.
 `npm test -w @mirage/core` runs `check.mjs`.
