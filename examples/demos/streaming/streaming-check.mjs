@@ -188,17 +188,35 @@ if (ONLY.includes('bake')) {
       const scribbled = !same(c1, full);
       const tr = performance.now(); lib.bakeWalkGrid(world, { into: c1, region }); const regionSyncMs = performance.now() - tr;
       const ta = performance.now(); const ra = await lib.bakeWalkGridAsync(world, { into: c2, region, tile: 32 }); const regionAsyncMs = performance.now() - ta;
+      // review regressions: a zero budget still finishes (one read a frame at least); overlapping region re-bakes into one
+      // grid while the scene changes under them end equal to a fresh bake of the changed scene
+      const zero = await lib.bakeWalkGridAsync(world, { ...o, budgetMs: 0 });
+      const T3 = world.ctx.THREE, cx = (region[0] + region[2]) / 2, cz = (region[1] + region[3]) / 2;
+      const block = new T3.Mesh(new T3.BoxGeometry(2, 1.5, 2), new T3.MeshBasicMaterial()); block.position.set(cx, plan.walk.yMax - 1.2, cz);   // a plate high above everything: a new floor
+      const c3 = copy();
+      const pA = lib.bakeWalkGridAsync(world, { into: c3, region, inflight: 1, budgetMs: 0 });   // one slab a frame: still running when the block comes
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      world.scene.add(block); block.updateMatrixWorld();
+      const pB = lib.bakeWalkGridAsync(world, { into: c3, region });
+      const [restartsA] = await Promise.all([pA.then((g) => g.stats.restarts), pB]);   // stats live on the grid: read A's before B ends
+      const withBlock = lib.bakeWalkGrid(world, o);
+      world.scene.remove(block); block.geometry.dispose();
+      const overlap = { restartsA, same: same(c3, withBlock), blockSeen: !same(withBlock, full) };
       const gs = gaps.sort((a, b) => a - b);
+
       return { cells: full.nx * full.nz, slabs: full.stats.slabs, floors: full.stats.floors, syncMs: syncs.map((v) => +v.toFixed(1)), hash: hash(full),
         asyncTiled: { same: same(full, asy), hash: hash(asy), ms: asy.stats.ms, frames: asy.stats.frames, tiles: asy.stats.tiles, maxSliceMs: asy.stats.maxSliceMs },
         asyncWhole: { same: same(full, asyWhole), ms: asyWhole.stats.ms, frames: asyWhole.stats.frames, maxSliceMs: asyWhole.stats.maxSliceMs },
         frameGapsDuringAsync: { n: gs.length, p95: +(gs[Math.floor(gs.length * 0.95)] || 0).toFixed(1), max: +(gs.at(-1) || 0).toFixed(1) },
+        zeroBudget: { same: same(zero, full), frames: zero.stats.frames }, overlap,
         region: { scribbled, syncSame: same(c1, full), asyncSame: same(c2, full), cells: ra.stats.region.w * ra.stats.region.h, syncMs: +regionSyncMs.toFixed(1), asyncMs: +regionAsyncMs.toFixed(1), asyncFrames: ra.stats.frames } };
     });
     results.bake[w] = r;
     console.log('bake', w, JSON.stringify(r));
     if (!r.asyncTiled.same || !r.asyncWhole.same) fail(`bake ${w}: the async bake differs from the sync bake`);
     if (!r.region.scribbled || !r.region.syncSame || !r.region.asyncSame) fail(`bake ${w}: a region re-bake does not give the full bake back`);
+    if (!r.zeroBudget.same) fail(`bake ${w}: budgetMs 0 does not finish with the same arrays`);
+    if (!r.overlap.blockSeen || !r.overlap.same || !r.overlap.restartsA) fail(`bake ${w}: overlapping region re-bakes with a scene change do not end equal to a fresh bake (${JSON.stringify(r.overlap)})`);
     await close(p, 'bake ' + w);
   }
 }

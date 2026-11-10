@@ -58,9 +58,11 @@ export function createJobQueue({ concurrency = 1, priority = (job) => job.priori
   };
 }
 
-/** An LRU cache with a byte budget: set(key, value, bytes) / get(key) (marks it used). When the total passes `budget`
- *  the least recently used unpinned entries are evicted (evict(key, value) frees them) until it fits again.
- *  pin(key) keeps an entry (e.g. while it is in the scene); unpin(key) makes it evictable again. */
+/** An LRU cache with a byte budget: set(key, value, bytes, { pin }) / get(key) (marks it used). When the total passes
+ *  `budget` the least recently used unpinned entries are evicted (evict(key, value) frees them) until it fits again;
+ *  the entry being set is never the one evicted by its own set(). pin(key) keeps an entry (e.g. while it is in the
+ *  scene); unpin(key) makes it evictable again. set(..., { pin: true }) inserts it pinned (no window between the
+ *  insert and the pin in which a full cache could evict it). */
 export function createLRU({ budget = 256 * 1024 * 1024, evict = () => {} } = {}) {
   const map = new Map();   // insertion order = use order (oldest first)
   let bytes = 0;
@@ -68,11 +70,11 @@ export function createLRU({ budget = 256 * 1024 * 1024, evict = () => {} } = {})
     get bytes() { return bytes; }, get size() { return map.size; }, budget,
     has: (key) => map.has(key),
     get(key) { const e = map.get(key); if (!e) return undefined; map.delete(key); map.set(key, e); return e.value; },
-    set(key, value, size = 0) {
+    set(key, value, size = 0, { pin = false } = {}) {
       const old = map.get(key);
       if (old) { bytes -= old.bytes; map.delete(key); }
-      map.set(key, { value, bytes: size, pins: old ? old.pins : 0 }); bytes += size;
-      lru.trim();
+      map.set(key, { value, bytes: size, pins: (old ? old.pins : 0) + (pin ? 1 : 0) }); bytes += size;
+      lru.trim(lru.budget, key);
       return value;
     },
     pin(key) { const e = map.get(key); if (e) e.pins++; return !!e; },
@@ -80,12 +82,12 @@ export function createLRU({ budget = 256 * 1024 * 1024, evict = () => {} } = {})
     /** remove without evict() (the caller frees it, or keeps it) */
     delete(key) { const e = map.get(key); if (!e) return false; bytes -= e.bytes; map.delete(key); return true; },
     /** evict unpinned entries, oldest first, until bytes <= budget (or `to`); returns the keys evicted */
-    trim(to = lru.budget) {
+    trim(to = lru.budget, except) {
       const out = [];
       if (bytes <= to) return out;
       for (const [key, e] of map) {
         if (bytes <= to) break;
-        if (e.pins) continue;
+        if (e.pins || key === except) continue;
         map.delete(key); bytes -= e.bytes; out.push(key);
         evict(key, e.value);
       }
@@ -148,35 +150,54 @@ export function disposeObject(root, { keepTextures = false } = {}) {
 
 /** Spread texture uploads over frames: add(texture) queues it; step() (once per frame, before the draw) uploads with
  *  renderer.initTexture until `bytes` (or `count` textures) were spent this frame; at least one per step, so a
- *  texture larger than the budget still goes. A texture whose image has not arrived yet waits in the queue.
- *  whenDone(textures?) resolves when those (default: all queued) are on the GPU. */
-export function createUploadBudget(renderer, { bytes = 8 * 1024 * 1024, count = Infinity } = {}) {
-  const queue = [], done = new WeakSet();
+ *  texture larger than the budget still goes. A texture whose image has not arrived yet waits in the queue, at most
+ *  `maxWaitMs` (10 s: a 404, a loader that never calls back); then, or when it is disposed, it leaves the queue
+ *  unuploaded (three uploads it at its first draw if it ever gets an image). whenDone(textures?) resolves when those
+ *  (default: all queued) are uploaded or have left the queue. A texture disposed after its upload is forgotten, so a
+ *  later add() uploads it again. */
+export function createUploadBudget(renderer, { bytes = 8 * 1024 * 1024, count = Infinity, maxWaitMs = 10000 } = {}) {
+  const queue = [], done = new WeakSet(), gone = new WeakSet(), since = new WeakMap();
   let waiters = [];
-  const ready = (t) => t.version > 0 && !!(t.image && (t.image.width || t.image.data || t.mipmaps?.length));   // its image arrived
-  const settle = () => { waiters = waiters.filter((w) => { if (w.list.every((t) => done.has(t))) { w.resolve(); return false; } return true; }); };
+  // its image arrived: a plain image / bitmap / canvas, a data texture, a compressed texture's levels, a cube's six faces
+  const has = (i) => !!(i && (i.width || i.data));
+  const ready = (t) => t.version > 0 && (Array.isArray(t.image) ? t.image.length > 0 && t.image.every(has) : has(t.image) || t.mipmaps?.length > 0);
+  const settled = (t) => done.has(t) || gone.has(t);
+  const settle = () => { waiters = waiters.filter((w) => { if (w.list.every(settled)) { w.resolve(); return false; } return true; }); };
+  const drop = (t) => { const i = queue.indexOf(t); if (i >= 0) queue.splice(i, 1); done.delete(t); gone.add(t); settle(); };
+  const onDispose = (ev) => { ev.target.removeEventListener('dispose', onDispose); drop(ev.target); };
   const up = {
-    add(...textures) { for (const t of textures.flat()) if (t && !done.has(t) && !queue.includes(t)) queue.push(t); return up; },
+    add(...textures) {
+      for (const t of textures.flat()) {
+        if (!t || done.has(t) || queue.includes(t)) continue;
+        gone.delete(t); since.set(t, now()); queue.push(t);
+        if (!t.hasEventListener('dispose', onDispose)) t.addEventListener('dispose', onDispose);
+      }
+      return up;
+    },
     get pending() { return queue.length; },
     uploaded: (t) => done.has(t),
     /** upload this frame's share; returns { textures, bytes, ms } spent */
     step() {
       const t0 = now();
       let n = 0, b = 0;
+      let dropped = 0;
       for (let i = 0; i < queue.length && n < count; ) {
         const t = queue[i];
-        if (!ready(t)) { i++; continue; }
+        if (!ready(t)) {
+          if (t0 - since.get(t) > maxWaitMs) { queue.splice(i, 1); gone.add(t); dropped++; } else i++;
+          continue;
+        }
         const tb = textureBytes(t);
         if (n > 0 && b + tb > bytes) break;
         renderer.initTexture(t); done.add(t); queue.splice(i, 1);
         n++; b += tb;
       }
-      if (n) settle();
+      if (n || dropped) settle();
       return { textures: n, bytes: b, ms: +(now() - t0).toFixed(2) };
     },
     whenDone(list = queue.slice()) {
-      list = [].concat(list);
-      return list.every((t) => done.has(t)) ? Promise.resolve() : new Promise((resolve) => waiters.push({ list, resolve }));
+      list = [].concat(list).filter(Boolean);
+      return list.every(settled) ? Promise.resolve() : new Promise((resolve) => waiters.push({ list, resolve }));
     },
   };
   return up;

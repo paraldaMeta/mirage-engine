@@ -185,6 +185,19 @@ const vec4 = (a) => `vec4(${a.map(f).join(', ')})`;
  *  _<hex code>_ (stone_2d_wall), so any manifest name compiles. */
 export const glslName = (name) => String(name).replace(/[^A-Za-z0-9_]/g, (c) => '_' + c.codePointAt(0).toString(16) + '_');
 
+/** Can this browser decode to an ImageBitmap with the options the bitmap path needs? Safari before 17 and Firefox
+ *  before 98 have createImageBitmap but ignore or reject imageOrientation / colorSpaceConversion (the image would come
+ *  out unflipped or colour-converted), so they keep the <img> path. `ua` for tests. */
+export function bitmapDecodeOK(ua = globalThis.navigator?.userAgent ?? '') {
+  if (typeof createImageBitmap !== 'function' || typeof fetch !== 'function') return false;
+  // WebKit without Blink: Safari, and every iOS browser (CriOS, FxiOS: WebKit underneath, versioned by the OS)
+  const webkit = /applewebkit/i.test(ua) && !/(chrome|chromium|edg|android)\//i.test(ua) && !/android/i.test(ua);
+  const firefox = /firefox\/(\d+)/i.exec(ua), version = /version\/(\d+)/i.exec(ua) || / os (\d+)_/i.exec(ua);
+  if (webkit && (!version || +version[1] < 17)) return false;
+  if (firefox && +firefox[1] < 98) return false;
+  return true;
+}
+
 export function createTextures(world, { manifest, url, anisotropy = 8, decode = 'image', ktx2 = null }) {
   const { renderer, mat } = world;
   const aniso = Math.min(anisotropy, renderer.capabilities.getMaxAnisotropy());
@@ -195,8 +208,8 @@ export function createTextures(world, { manifest, url, anisotropy = 8, decode = 
   // Same pixels: the bitmap is flipped while decoding (imageOrientation 'flipY') instead of by UNPACK_FLIP_Y, alpha
   // stays straight and no colour conversion is applied (three uploads these <img> textures with
   // UNPACK_COLORSPACE_CONVERSION NONE too). A file the bitmap path fails on is loaded again by the image loader.
-  const bitmaps = decode === 'bitmap' && typeof createImageBitmap === 'function' && typeof fetch === 'function'
-    ? new THREE.ImageBitmapLoader().setOptions({ imageOrientation: 'flipY', premultiplyAlpha: 'none' }) : null;
+  const bitmaps = decode === 'bitmap' && bitmapDecodeOK()
+    ? new THREE.ImageBitmapLoader().setOptions({ imageOrientation: 'flipY', premultiplyAlpha: 'none', colorSpaceConversion: 'none' }) : null;
   const sets = new Map(), loads = [];
   const info = (name) => {
     const m = manifest.sets[name];
