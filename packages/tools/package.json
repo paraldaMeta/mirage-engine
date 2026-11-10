@@ -23,7 +23,8 @@
     "mirage-deploy": "./src/deploy.mjs",
     "mirage-e2e": "./src/e2e.mjs",
     "mirage-gpu-load": "./src/gpu-load.mjs",
-    "mirage-still-pop": "./src/still-pop.mjs"
+    "mirage-still-pop": "./src/still-pop.mjs",
+    "mirage-xr-check": "./src/xr-check.mjs"
   },
   "files": [
     "src",
@@ -42,5 +43,8 @@
   "scripts": {
     "test": "node validate-plan.check.mjs && node acceptance.check.mjs && node gpu-ci.check.mjs && node unit.mjs"
   },
-  "author": "灰叔 Racso"
+  "author": "灰叔 Racso",
+  "devDependencies": {
+    "iwer": "^2.8.0"
+  }
 }

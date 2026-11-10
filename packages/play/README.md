@@ -23,7 +23,8 @@ Options for games (`@mirage/game` uses them): `walker` (any object with the walk
 digits), `onStep(dt)` (runs after each step; truthy = the scene moved, so the frame is not treated as still).
 
 `play`: `place(eye, look, mode)`, `viewpoint(i)`, `setMode(m)`, `state()`, `render({ moving, spp, frameIndex })`,
-`step(dt)`, `stop()`, `start()`, `dispose()` (see below), `turn(dx, dy, k)`, `lookAt(p)`, `yaw` / `pitch`, `keys` (a Set of held `KeyboardEvent.code`s), `grid`, `walker`, `stats`.
+`step(dt)`, `stop()`, `start()`, `dispose()` (see below), `turn(dx, dy, k)`, `lookAt(p)`, `yaw` / `pitch`, `keys` (a Set of held `KeyboardEvent.code`s), `grid`, `walker`, `stats`,
+`xrInput` (`(input, dt) => input`, merged into each step's input; set by `createXR`).
 Moving frames: one jittered sub-frame resolved by the core's temporal AA. When the view stops: the core's still
 path at `refine[0]` sub-frames, later `refine[1]`, then nothing until something moves. Each still frame fades in
 over 10 frames from the image before it, so stopping does not pop the image sharp; the last fade frame is the still
@@ -31,6 +32,25 @@ frame itself. `npm run test:still-pop` measures the change per frame after stopp
 `ctx.onUpdate`) runs on the frames the player drives (keys, stick, looking) and stands still with the view;
 `place()` sets it to 0, so a viewpoint looks as it always did (`play.clock`; `animate: true` runs it on real time). Shadows follow the view,
 their centre snapped to whole shadow texels.
+
+## WebXR: VR and AR (`createXR(play, opts)`, experimental)
+
+```js
+import { createPlay, createXR, xrSupport } from '@mirage/play';
+const xrs = await xrSupport();                                  // before the world: its context gets MSAA for XR
+const world = createWorldRenderer({ ..., xr: xrs.vr || xrs.ar });
+const play = createPlay(world, { plan, canvas });               // or a game's g.play
+const xr = createXR(play, { support: xrs, game: g });           // "Enter VR" / "Enter AR" when the browser offers them
+```
+
+In the headset the same walker (or a game's physics character) walks: collisions, steps and ground follow are the
+desktop's (the check below replays the XR frames through the desktop path and gets the same end position).
+Left stick walks where you look, left grip runs, right stick turns (snap 30°) or, pushed forward, aims a teleport arc
+onto walkable ground; A jumps; the trigger is a game's E, prompts and messages float in the world. AR puts the world
+on the floor or a table as a model. The frame is one plain stereo draw (`world.renderDirect`) graded by the
+renderer's tone mapping to match the desktop look (no SSAO / TAA / bloom; a measured stand-in for the bloom).
+Everything else — options, controls, the grade, limits — is in [docs/xr.md](../../docs/xr.md). Without a headset:
+`node packages/tools/src/xr-check.mjs examples/hello-courtyard/dist` (Meta's iwer emulator in headless Chrome).
 
 ## The player character
 

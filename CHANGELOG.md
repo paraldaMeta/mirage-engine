@@ -11,6 +11,18 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
 
 **New**
 
+- WebXR (`docs/xr.md`, experimental): `createXR(play, { game })` in @mirage/play adds Enter VR / Enter AR buttons to
+  any world (all seven examples opt in). In the headset the desktop walker or a game's physics character walks
+  (left stick, head-relative; room-scale steps go through it too, walls push the view back), with snap or smooth
+  turning, a teleport arc onto walkable ground of the walk grid, a comfort vignette, the trigger as a game's E and its
+  prompts and messages as text in the world. The frame is one stereo draw (`world.renderDirect`) graded by a
+  CustomToneMapping with the desktop's exposure, white balance, tone map, saturation, contrast and lift and a
+  measured stand-in for the bloom; MSAA, fixed foveation, framebuffer scale by quality. AR sets the world on the
+  hit-tested floor or a table as a model. `mirage-xr-check` (Meta's iwer emulating a Quest 3 in headless Chrome)
+  enters both, drives the controllers, replays the XR frames through the desktop path to the same end position and
+  saves both eyes; `xr-fit.mjs` fits the bloom stand-in. Small hooks: `createWorldRenderer({ xr })` (a multisampled,
+  XR-compatible context), `world.renderDirect(T, { camera, shadow, fog })`, `play.xrInput`. Not yet tried on a real
+  headset.
 - @mirage/tools: `rapierWasm()` Vite plugin (`src/vite-rapier.mjs`): Rapier's wasm ships as its own file instead
   of base64 inside the bundle, and Rapier's init compiles it while it downloads. garden-quest: 814 -> 594 KB gzip;
   over a 10 Mbps link (uncompressed test server) ready 4.3-4.7 -> 3.9-4.0 s. It also removes Rapier's init
