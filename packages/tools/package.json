@@ -23,7 +23,8 @@
     "mirage-deploy": "./src/deploy.mjs",
     "mirage-e2e": "./src/e2e.mjs",
     "mirage-gpu-load": "./src/gpu-load.mjs",
-    "mirage-still-pop": "./src/still-pop.mjs"
+    "mirage-still-pop": "./src/still-pop.mjs",
+    "mirage-export": "./src/export.mjs"
   },
   "files": [
     "src",
@@ -32,6 +33,7 @@
     "LICENSE"
   ],
   "dependencies": {
+    "@mirage/core": "^1.0.0",
     "@mirage/world": "^1.0.0",
     "puppeteer-core": "25.13.0",
     "vite": "8.3.4"
@@ -40,7 +42,10 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "node validate-plan.check.mjs && node acceptance.check.mjs && node gpu-ci.check.mjs && node unit.mjs"
+    "test": "node validate-plan.check.mjs && node acceptance.check.mjs && node gpu-ci.check.mjs && node unit.mjs && node export.check.mjs"
   },
-  "author": "灰叔 Racso"
+  "author": "灰叔 Racso",
+  "devDependencies": {
+    "gltf-validator": "2.0.0-dev.3.10"
+  }
 }
