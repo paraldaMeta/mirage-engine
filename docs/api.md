@@ -13,7 +13,7 @@ The entry points `@mirage/<pkg>` are the API. Every file under `src/` can also b
 (`"./*"` in the export map) and has its own `.d.ts`; the world kits live there (`@mirage/world/kits/vegetation`,
 `/kits/terrain`, `/kits/water`, documented in the world README). Which subpaths stay supported is open:
 [API-CANDIDATE.md](API-CANDIDATE.md) lists them; until a whitelist is decided, treat subpaths other than the kits,
-`@mirage/core/rng` and `@mirage/world/plan` as internal. Types: each package's root entry declares `types`
+`@mirage/core/rng`, `@mirage/world/plan` and `@mirage/core/export` (`exportWorld`, experimental: [export.md](export.md)) as internal. Types: each package's root entry declares `types`
 ([TYPES.md](TYPES.md)).
 
 > The split 1.0.0 ships with, as proposed in the 1.0 review (docs/review-1.0.md); the owner can still move names

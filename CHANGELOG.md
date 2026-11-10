@@ -14,6 +14,12 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
 - Live examples on Cloudflare Pages (https://mirage-engine-4qj.pages.dev/): `npm run site` builds the seven examples
   as single files plus an index page (`scripts/build-site.mjs`); the owner deploys it with wrangler (see that file).
   Not rebuilt automatically: redeploy after changes to `main`.
+- Export to GLB and USDZ: `mirage-export <dist> --out world.glb [--usdz world.usdz] [--verify dir]`
+  (@mirage/tools) and `exportWorld(world, opts)` (`@mirage/core/export`, page side). Procedural patch() surfaces are
+  baked into atlas textures (box-projection charts, 2x supersampled, base colour + roughness/metalness + normal);
+  instancing survives in the GLB (`EXT_mesh_gpu_instancing`). Sky, stars, wind, translucency, lamp gain, ambient
+  volumes, fog and post do not travel. Checked on woodland-path, hello-courtyard and garden-quest: the re-imported
+  GLB covers the same pixels as the live world from every viewpoint, 0 gltf-validator errors (`docs/export.md`).
 - @mirage/game: trigger zones — `game.zone({ id, box | sphere, enter, exit, once })`, `'zone'` events, kept in saves.
 - @mirage/game: physics and the character run on one fixed 60 Hz clock, the camera interpolates (`simulation.js`;
   `npm run test:fixed-step`).
