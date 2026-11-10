@@ -133,5 +133,66 @@ console.log(`  sort vs a full CPU sort: exact positions ${(100 * r1.exact).toFix
   ok(threw === 2, 'bad data and options throw');
 }
 
+// .ply headers: a non-ASCII comment, a list element after the vertices, floats off 4-byte boundaries
+{
+  const mk = (pre, props, post, write) => {
+    const head = new TextEncoder().encode(`ply\nformat binary_little_endian 1.0\n${pre}element vertex 2\n${props.map((p) => `property ${p}\n`).join('')}${post}end_header\n`);
+    const stride = props.reduce((a, p) => a + (p.startsWith('uchar') ? 1 : 4), 0), buf = new ArrayBuffer(head.length + 2 * stride + 16), v = new DataView(buf);
+    new Uint8Array(buf).set(head); write(v, head.length, stride);
+    return buf;
+  };
+  const props3 = ['float x', 'float y', 'float z', 'float f_dc_0', 'float f_dc_1', 'float f_dc_2', 'float opacity', 'float scale_0', 'float scale_1', 'float scale_2', 'float rot_0', 'float rot_1', 'float rot_2', 'float rot_3'];
+  const fill = (lead) => (v, o, stride) => { for (let i = 0; i < 2; i++) { const b = o + i * stride + lead; [i + 0.5, -2, 3, 0, 0, 0, 0, Math.log(0.1), Math.log(0.2), Math.log(0.3), 1, 0, 0, 0].forEach((x, k) => v.setFloat32(b + k * 4, x, true)); } };
+  const a = parsePly(mk('comment scanned by Zoë at 測量 ☀\n', props3, 'element face 0\nproperty list uchar int vertex_indices\n', fill(0)));
+  ok(a.count === 2 && a.center[3] === 1.5 && Math.abs(a.scale[5] - 0.3) < 1e-6, '.ply: a UTF-8 comment and a list element after the vertices');
+  const b = parsePly(mk('', ['uchar tag', ...props3], '', fill(1)));
+  ok(b.count === 2 && b.center[0] === 0.5 && b.center[4] === -2 && Math.abs(b.scale[2] - 0.3) < 1e-6, '.ply: unaligned floats (DataView path)');
+  let threw = 0;
+  try { parsePly(mk('element face 1\nproperty list uchar int vertex_indices\n', props3, '', () => {})); } catch { threw++; }
+  ok(threw === 1, '.ply: a list element before the vertices throws');
+}
+
+// texture size: more splats than the GPU's rows hold throws a clear error
+{
+  const root = new THREE.Group(), renderer = { capabilities: { maxTextureSize: 16 } };
+  ok(addSplats({ root, renderer }, makeHill({ count: 128, seed: 1 }), { worker: false }).mesh.material.uniforms.tSplat.value.image.height === 16, '128 splats fit 16 rows of 8');
+  let msg = '';
+  try { addSplats({ root, renderer }, makeHill({ count: 129, seed: 1 }), { worker: false }); } catch (e) { msg = e.message; }
+  ok(/texture rows/.test(msg), `too many splats for the texture: ${msg}`);
+}
+
+// with a stand-in worker: redraws after turning in place, stale results dropped, sorted() always settles
+{
+  const made = [];
+  globalThis.Worker = class { constructor() { this.msgs = []; made.push(this); } postMessage(m) { this.msgs.push(m); } terminate() { this.dead = true; } };
+  const S = splatSorter(), small2 = makeHill({ count: 1500, seed: 4 });
+  S.init(small2.center);
+  const reply = (fw) => { const m = fw.msgs.pop(), r = S.sort(m.d, m.o, new Uint32Array(m.out), 0); fw.onmessage({ data: { out: m.out, count: r.count, ms: r.ms } }); };
+  const G = { uKeyColor: { value: new THREE.Vector3(7, 4.9, 3) }, uSkyLight: { value: 1 }, uFrame: { value: 0 } }, rend = { getRenderTarget: () => ({ width: 64, height: 64 }) };
+  const cam = new THREE.PerspectiveCamera(50, 1, 0.1, 100), root = new THREE.Group();
+  const s = addSplats({ root, G }, small2), fw = made.at(-1);
+  const frame = () => { cam.updateMatrixWorld(); root.updateMatrixWorld(true); s.mesh.onBeforeRender(rend, null, cam); };
+  cam.position.set(0, 1.6, 8); cam.lookAt(0, 1.6, 0); frame(); s.changed();
+  const turns = [];
+  for (let k = 1; k <= 4; k++) { cam.rotation.y += 0.08; frame(); reply(fw); frame(); turns.push(s.changed()); }
+  ok(s.stats.worker && turns.every(Boolean), `turning in place redraws every time (${turns})`);
+  const lens = [];
+  for (let k = 0; k < 4; k++) { cam.position.x += k % 2 ? -0.004 : 0.004; frame(); if (fw.msgs.length) reply(fw); lens.push(s.changed()); }
+  ok(lens.filter(Boolean).length <= 2, `a lens moving millimetres asks for at most two redraws (${lens})`);
+  cam.rotation.y += 0.1; frame();               // a worker sort in flight
+  cam.rotation.y += 0.1; s.sortNow(cam);         // then a newer one on this thread
+  const mine = s.mesh.material.uniforms.tOrder.value.image.data;
+  reply(fw);
+  ok(s.mesh.material.uniforms.tOrder.value.image.data === mine, 'an older worker result does not replace a newer main-thread sort');
+  cam.rotation.y += 0.1; frame();
+  let done = s.sorted();
+  fw.onerror(); await done;
+  const s2 = addSplats({ root, G }, small2), fw2 = made.at(-1);
+  frame(); cam.rotation.y += 0.1; s2.mesh.onBeforeRender(rend, null, cam);
+  done = s2.sorted(); s2.dispose(); await done;
+  ok(fw2.dead && !s.stats.worker, 'sorted() settles when the worker fails or the splats are disposed');
+  s.dispose(); delete globalThis.Worker;
+}
+
 if (fails) { console.error(`splat checks: ${fails} FAILED`); process.exit(1); }
 console.log('splat checks: ok');

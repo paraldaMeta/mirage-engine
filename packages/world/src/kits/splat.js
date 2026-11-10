@@ -108,24 +108,35 @@ const PLY_SIZE = { Int8: 1, Uint8: 1, Int16: 2, Uint16: 2, Int32: 4, Uint32: 4, 
 /** An uncompressed 3D Gaussian Splatting .ply (binary little endian): x y z, f_dc_0..2, opacity (logit), scale_0..2
  *  (log), rot_0..3 (w x y z). Higher spherical harmonics are ignored (the colour is the view-independent SH0). */
 export function parsePly(buffer) {
-  const head = new TextDecoder().decode(new Uint8Array(buffer, 0, Math.min(buffer.byteLength, 65536)));
-  const end = head.indexOf('end_header');
-  if (!head.startsWith('ply') || end < 0) throw new Error('splat: not a .ply file');
-  const lines = head.slice(0, end).split(/\r?\n/).map((l) => l.trim().split(/\s+/));
+  // the header is ASCII up to "end_header\n"; find it in the bytes (a comment may hold other text)
+  const B = new Uint8Array(buffer, 0, Math.min(buffer.byteLength, 65536)), tag = [...'end_header'].map((c) => c.charCodeAt(0));
+  let end = -1;
+  for (let i = 0; i + tag.length <= B.length && end < 0; i++) if (tag.every((c, j) => B[i + j] === c) && (i === 0 || B[i - 1] === 10)) end = i;
+  if (B[0] !== 112 || B[1] !== 108 || B[2] !== 121 || end < 0) throw new Error('splat: not a .ply file');
+  let offset = end + tag.length;
+  while (offset < B.length && B[offset] !== 10) offset++;
+  offset++;
+  const lines = new TextDecoder('latin1').decode(B.subarray(0, end)).split(/\r?\n/).map((l) => l.trim().split(/\s+/));
   if (!lines.some((l) => l[0] === 'format' && l[1] === 'binary_little_endian')) throw new Error('splat: only binary_little_endian .ply is supported');
-  let offset = head.indexOf('\n', end) + 1, el = null;
+  let el = null;
   const els = [];
   for (const l of lines) {
-    if (l[0] === 'element') els.push(el = { name: l[1], n: +l[2], props: [], stride: 0 });
+    if (l[0] === 'element') els.push(el = { name: l[1], n: +l[2], props: [], stride: 0, list: false });
     else if (l[0] === 'property' && el) {
-      if (l[1] === 'list') throw new Error(`splat: .ply list property "${l[4]}" is not supported`);
+      if (l[1] === 'list') { el.list = true; continue; }   // only a problem before the vertices (no fixed stride)
       const t = PLY_TYPES[l[1]];
       if (!t) throw new Error(`splat: .ply property type "${l[1]}" is not supported`);
       el.props.push({ name: l[2], t, at: el.stride }); el.stride += PLY_SIZE[t];
     }
   }
-  for (const e of els) { if (e.name === 'vertex') { el = e; break; } offset += e.n * e.stride; }
-  if (!el || el.name !== 'vertex') throw new Error('splat: .ply has no vertex element');
+  el = null;
+  for (const e of els) {
+    if (e.name === 'vertex') { el = e; break; }
+    if (e.list && e.n > 0) throw new Error(`splat: .ply element "${e.name}" with a list property comes before the vertices`);
+    offset += e.n * e.stride;
+  }
+  if (!el) throw new Error('splat: .ply has no vertex element');
+  if (el.list) throw new Error('splat: .ply vertex element has a list property');
   const P = Object.fromEntries(el.props.map((p) => [p.name, p]));
   const need = ['x', 'y', 'z', 'f_dc_0', 'f_dc_1', 'f_dc_2', 'opacity', 'scale_0', 'scale_1', 'scale_2', 'rot_0', 'rot_1', 'rot_2', 'rot_3'];
   const miss = need.filter((k) => !P[k]);
@@ -133,7 +144,8 @@ export function parsePly(buffer) {
   if (offset + el.n * el.stride > buffer.byteLength) throw new Error('splat: .ply is truncated');
   const v = new DataView(buffer), D = alloc(el.n), s = el.stride;
   const rd = need.map((k) => { const p = P[k], g = v['get' + p.t].bind(v); return (i) => g(offset + i * s + p.at, true); });
-  const allF32 = need.every((k) => P[k].t === 'Float32') && offset % 4 === 0 && s % 4 === 0;
+  // fast path: every property read is a float32 on a 4-byte boundary
+  const allF32 = need.every((k) => P[k].t === 'Float32' && P[k].at % 4 === 0) && offset % 4 === 0 && s % 4 === 0;
   const F = allF32 ? new Float32Array(buffer, offset, el.n * s / 4) : null, at = need.map((k) => P[k].at / 4), s4 = s / 4;
   const get = F ? (i, k) => F[i * s4 + at[k]] : (i, k) => rd[k](i);
   for (let i = 0; i < el.n; i++) {
@@ -181,21 +193,27 @@ export function parseSog(meta, images) {
   return D;
 }
 
-// RGBA bytes of an image, read without premultiplying or colour conversion (the SOG textures carry data in alpha)
+// RGBA bytes of an image, read without premultiplying or colour conversion (the SOG textures carry data in alpha).
+// One small WebGL2 context for every image the page decodes (Chrome keeps 16 at most and drops the oldest, which
+// could be the world's own); the GL part runs without awaiting, so images never interleave in it.
+let readGL = null;
 async function imagePixels(blob) {
   const bmp = await createImageBitmap(blob, { premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
-  const cv = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(1, 1) : document.createElement('canvas');
-  const gl = cv.getContext('webgl2');
-  if (!gl) throw new Error('splat: WebGL2 is needed to read SOG images');
   try {
-    const t = gl.createTexture(), fb = gl.createFramebuffer(), { width: w, height: h } = bmp, px = new Uint8Array(w * h * 4);
+    if (!readGL || readGL.isContextLost()) {
+      const cv = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(1, 1) : document.createElement('canvas');
+      readGL = cv.getContext('webgl2');
+      if (!readGL) throw new Error('splat: WebGL2 is needed to read SOG images');
+    }
+    const gl = readGL, t = gl.createTexture(), fb = gl.createFramebuffer(), { width: w, height: h } = bmp, px = new Uint8Array(w * h * 4);
     gl.bindTexture(gl.TEXTURE_2D, t);
     gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false); gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, bmp);
     gl.bindFramebuffer(gl.FRAMEBUFFER, fb); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t, 0);
     gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    gl.deleteFramebuffer(fb); gl.deleteTexture(t);
     return { width: w, height: h, data: px };
-  } finally { bmp.close(); const x = gl.getExtension('WEBGL_lose_context'); if (x) x.loseContext(); }
+  } finally { bmp.close(); }
 }
 
 /** Fetch and parse by extension: .splat, .ply, or a SOG meta.json (its webp files next to it). options.fetch: a
@@ -422,7 +440,9 @@ export function addSplats(ctx, D, opts = {}) {
     worker: useWorker = true, resort = 1e-3, depth = false, name = 'splats' } = opts;
   if (!D || !(D.count >= 0) || !D.center) throw new TypeError('addSplats: data must come from loadSplats / parse*');
   if (![minPixelSize, gain, resort].every(Number.isFinite) || !(depth === false || (depth > 0 && depth <= 1))) throw new RangeError('addSplats: minPixelSize, gain and resort must be finite, depth false or 0 < depth <= 1');
-  const n = D.count, max = Math.min(4096, (ctx.renderer && ctx.renderer.capabilities.maxTextureSize) || 4096), row = max / 2;
+  // two texels a splat, rows as wide as the GPU allows (up to 8192): 33M splats at 8192 x 8192, 8.4M at 4096
+  const n = D.count, limit = (ctx.renderer && ctx.renderer.capabilities.maxTextureSize) || 4096, max = Math.min(8192, limit), row = max / 2;
+  if (Math.ceil(n / row) > limit) throw new RangeError(`addSplats: ${n} splats need ${Math.ceil(n / row)} texture rows; this GPU allows ${limit} (at most ${row * limit} splats)`);
   const packed = packSplats(D, row);
   const tSplat = new THREE.DataTexture(packed.data, packed.width, packed.height, THREE.RGBAIntegerFormat, THREE.UnsignedIntType);
   tSplat.internalFormat = 'RGBA32UI';
@@ -490,12 +510,19 @@ export function addSplats(ctx, D, opts = {}) {
   // ---- sorting: on the worker while frames go by, on this thread for the very first frame (or without workers)
   const centers = D.center.slice();
   let w = useWorker ? makeWorker() : null, local = null, pending = null, sortFresh = false, fxDirty = false, stale = false, flags = 0;
+  let seq = 0, appliedSeq = 0;   // a worker result older than a later main-thread sort is dropped
   const stats = { sorts: 0, skipped: 0, lastMs: 0, maxMs: 0, totalMs: 0, visible: 0, worker: !!w };
   let applied = null;
-  const waiting = [], anchor = new THREE.Vector3(Infinity, 0, 0), cp = new THREE.Vector3(), cd = new THREE.Vector3();
+  const waiting = [], anchor = new THREE.Vector3(Infinity, 0, 0), anchorDir = new THREE.Vector3(), cp = new THREE.Vector3(), cd = new THREE.Vector3();
+  const release = () => { while (waiting.length) waiting.shift()(); };
   if (w) {
-    w.onmessage = (e) => { const k = pending; pending = null; apply(new Uint32Array(e.data.out), e.data.count, e.data.ms, k); };
-    w.onerror = () => { w.terminate(); w = null; stats.worker = false; pending = null; };
+    w.onmessage = (e) => {
+      const k = pending, arr = new Uint32Array(e.data.out);
+      pending = null;
+      if (k.seq < appliedSeq) { if (spare.length !== orderLen) spare = arr; release(); return; }
+      apply(arr, e.data.count, e.data.ms, k);
+    };
+    w.onerror = () => { w.terminate(); w = null; stats.worker = false; pending = null; release(); };
     const c = centers.slice();
     w.postMessage({ centers: c }, [c.buffer]);
   }
@@ -503,10 +530,10 @@ export function addSplats(ctx, D, opts = {}) {
     spare = order; order = arr;
     tOrder.image.data = order; tOrder.needsUpdate = true;
     U.uCount.value = count; geometry.instanceCount = Math.ceil(count / BATCH);
-    applied = k;
+    applied = k; appliedSeq = k.seq;
     stats.sorts++; stats.lastMs = ms; stats.maxMs = Math.max(stats.maxMs, ms); stats.totalMs += ms; stats.visible = count;
     if (stale) { sortFresh = true; stale = false; }
-    while (waiting.length) waiting.shift()();
+    release();
   }
   // a model-space centre c lies dot(c, d) + o metres in front of the eye, d = (model 3x3)' x the view direction
   function viewKey(camera) {
@@ -514,13 +541,14 @@ export function addSplats(ctx, D, opts = {}) {
     mesh.updateWorldMatrix(true, false);
     const e = mesh.matrixWorld.elements;
     return { d: [e[0] * cd.x + e[1] * cd.y + e[2] * cd.z, e[4] * cd.x + e[5] * cd.y + e[6] * cd.z, e[8] * cd.x + e[9] * cd.y + e[10] * cd.z],
-      o: (e[12] - cp.x) * cd.x + (e[13] - cp.y) * cd.y + (e[14] - cp.z) * cd.z };
+      o: (e[12] - cp.x) * cd.x + (e[13] - cp.y) * cd.y + (e[14] - cp.z) * cd.z, seq: 0 };
   }
   const near = (a, b) => !!a && Math.abs(a.d[0] - b.d[0]) < resort && Math.abs(a.d[1] - b.d[1]) < resort && Math.abs(a.d[2] - b.d[2]) < resort && Math.abs(a.o - b.o) < resort;
   const outBuffer = () => (spare.length === orderLen ? spare : new Uint32Array(orderLen));
   function sortSync(k) {
     if (!local) { local = splatSorter(); local.init(centers); }
     const out = outBuffer(), r = local.sort(k.d, k.o, out, 0);
+    k.seq = ++seq;
     apply(out, r.count, r.ms, k);
     return r.ms;
   }
@@ -528,7 +556,7 @@ export function addSplats(ctx, D, opts = {}) {
     if (near(applied, k) || (pending && near(pending, k))) { stats.skipped++; return; }
     if (pending) return;   // one sort in flight; the next frame asks again
     const out = outBuffer();
-    spare = new Uint32Array(0); pending = k;
+    spare = new Uint32Array(0); pending = k; k.seq = ++seq;
     w.postMessage({ d: k.d, o: k.o, eps: 0, out: out.buffer }, [out.buffer]);
   }
   const vsize = new THREE.Vector2(), G = ctx.G;
@@ -544,8 +572,10 @@ export function addSplats(ctx, D, opts = {}) {
     if (!applied || !w) { if (!near(applied, k)) sortSync(k); else stats.skipped++; return; }
     if (!near(applied, k)) {
       stale = true;
-      camera.getWorldPosition(cp);
-      if (cp.distanceTo(anchor) > 0.05) { anchor.copy(cp); flags = 0; }
+      // a new resting view (moved 5 cm or turned 0.5 degrees) gets its own two redraws; a lens moving over its aperture
+      // (depth of field) only shifts the eye by millimetres and keeps the direction
+      camera.getWorldPosition(cp); camera.getWorldDirection(cd);
+      if (cp.distanceTo(anchor) > 0.05 || cd.dot(anchorDir) < 0.99996) { anchor.copy(cp); anchorDir.copy(cd); flags = 0; }
     }
     request(k);
   };
@@ -576,12 +606,12 @@ export function addSplats(ctx, D, opts = {}) {
     },
     /** sort now, on this thread, for `camera` (tests; a host that renders a single still): the ms it took */
     sortNow(camera) { stale = false; return sortSync(viewKey(camera)); },
-    /** resolves once the sort in flight (if any) is in */
+    /** resolves once the sort in flight (if any) is in, dropped, or the worker is gone */
     sorted() { return pending ? new Promise((r) => waiting.push(r)) : Promise.resolve(); },
     dispose() {
       mesh.removeFromParent(); geometry.dispose(); material.dispose(); if (depthMat) depthMat.dispose(); tSplat.dispose(); tOrder.dispose();
       if (w) w.terminate();
-      w = null;
+      w = null; pending = null; release();
     },
   };
   return handle;

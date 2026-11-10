@@ -150,6 +150,25 @@ try {
   for (const [k, n] of [['__fxA', 'splats-reveal.png'], ['__fxB', 'splats-dissolve.png']]) { const u = await page.evaluate((k2) => window[k2], k); fs.writeFileSync(path.join(out, n), Buffer.from(u.split(',')[1], 'base64')); }
   report.effects = fx;
   ok('effects at rest draw the plain image; half way they change it', fx.revealRest === 0 && fx.dissolveRest === 0 && fx.off === 0 && fx.revealHalf > 1 && fx.dissolveHalf > 1, fx);
+  // turning in place: each new direction gets its redraw once its worker sort lands
+  const turn = await page.evaluate(async () => {
+    const { world, splats } = window.__mirage, cam = world.camera, r = [];
+    cam.position.set(4, 1.7, 8); cam.lookAt(0, 1.3, 0); cam.updateMatrixWorld(); splats.sortNow(cam); window.__mirage.render({ spp: 1 }); splats.changed();
+    for (let k = 0; k < 4; k++) {
+      cam.rotation.y += 0.06; cam.updateMatrixWorld();
+      window.__mirage.render({ spp: 1 }); await splats.sorted(); r.push(splats.changed());
+    }
+    return r;
+  });
+  ok('turning in place redraws after each fresh sort', turn.every(Boolean), turn);
+  // three SOG sets loading at once share one decoding context: the world's own context survives
+  const many = await page.evaluate(async () => {
+    const { world, kit } = window.__mirage, gl = world.renderer.getContext();
+    const sets = await Promise.all([0, 1, 2].map(() => kit.loadSplats('fixtures/hill-sog/meta.json')));
+    window.__mirage.render({ spp: 1 });
+    return { counts: sets.map((d) => d.count), lost: gl.isContextLost() };
+  });
+  ok('three SOG sets loaded together, the world keeps its WebGL context', !many.lost && many.counts.every((c) => c === N), many);
   ok('no page errors (300k)', errors.length === 0, errors.slice(0, 3));
   await page.close();
 
