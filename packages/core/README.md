@@ -41,11 +41,12 @@ requestAnimationFrame(loop);
 | `envProbe`, `envIntensity` | `[0, 3, 0]`, `0.5` | capture point and strength of the image-based light |
 | `envFade` | `1.5` | seconds an eased environment recapture cross-fades over |
 | `fog` | `{ density: 1, groundDensity: 0.0016, height: 18, air: 0.00012, level: 0, color: 1, glow: 1 }` | height fog (extinction /m at `level`, scale height m), thin air, multipliers for the haze colour and the glow toward the light |
-| `post` | `DEFAULT_POST` | `exposure (0.4), temperature, saturation, contrast, lift, vignette, tonemap ('aces' \| 'agx' \| 'neutral'), sharpen, grain, bloom, bloomRadius, ao, aoRadius, aoPower, sky, dof (lens radius m, 0 = off), focus (m)` |
+| `post` | `DEFAULT_POST` | `exposure (0.4), temperature, saturation, contrast, lift, vignette, tonemap ('aces' \| 'agx' \| 'neutral'), sharpen, grain, bloom, bloomRadius, ao, aoRadius, aoPower, aoLit, autoExposure, aeKey, aeNight, aeRange, aeUp, aeDown, sky, dof (lens radius m, 0 = off), focus (m)` (the opt-in ones: see "Ambient-only AO, auto exposure, dynamic resolution") |
 | `spp` | per quality | sub-frames per frame |
 | `wind` | `{ dir: [0.8, 0.6], strength: 1 }` | for `mgWind()` in vertex hooks |
 | `clouds` | `0.35` | cloud cover 0..1 |
 | `shadowMapSize`, `mobile`, `preserveDrawingBuffer` | | overrides |
+| `dynamicRes` | off | `true` or `{ target: 60 fps, min: 0.6, step: 0.1 }`: moving frames render smaller when they run over budget (see below) |
 | `light2` | off | `true` or `{ ls, ssr, vol, bloom }` overriding `LIGHT2_DEFAULTS` (each part `false` to drop it): lamp shadows, screen-space reflections, volumetric light, mixed bloom (see below) |
 
 Returns `{ renderer, scene, camera, sun, sky, stars, pipeline, ctx, G, keyDir, mat, geom, rng, post, device,
@@ -110,6 +111,31 @@ patched and a world renders bit-identical to before.
   and bloom but no lamp shadows (a console warning says so). Worlds without light2 publish no lamp slots.
 - Install before the first compile: with `config.renderer` shared by an earlier world, programs that renderer
   compiled before light2 was installed are reused without it (three's program cache does not see chunk edits).
+
+## Ambient-only AO, auto exposure, dynamic resolution (opt-in)
+
+All three are off by default; off, frames are bit-identical to before.
+
+- **`post.aoLit`** (0..1): SSAO darkens ambient light, not sunlight. The accumulation fades the occlusion on pixels
+  whose exposed luminance says they are lit (sunlit plaster sits at about 0.25-0.5, shade at 0.05-0.2), so
+  sunlit edges lose their grey halos while corners in shade keep them. A heuristic: a dark material in full sun
+  keeps some AO. Free (one smoothstep).
+- **`post.autoExposure`** (0..1, the share of the correction applied; 0.5 is a good start): the frame is metered
+  into a 32 x 18 grid of centre-weighted log luminances, reduced to one EV on the GPU (no read-back) and applied
+  in the grade, on top of the day-night exposure. Target: `aeKey` (the exposed log-mean by day; hello-courtyard's
+  views average about 0.07), `aeNight` EV lower at full lamp level, at most `aeRange` EV either way. While moving
+  the EV eases in log space, `aeDown` (darkening, 2.5/s) faster than `aeUp` (brightening, 1/s). A still frame is
+  metered on its own, so it stays bit-identical (adaptation completes when the view stops; play's fade covers
+  it). `world.resetExposure()` after a teleport. It changes the look of dim scenes most: a dawn courtyard
+  (06:30) is lifted by about 0.8 EV at 0.5.
+- **`dynamicRes`** (world option): while moving (`taa` frames), the interval between frames drives a render scale
+  (`world.resolutionScale`, `min`..1 in `step`s): over 112 % of the budget, one step down; at budget for 2 s, one
+  step up (a step up undone within 2 s doubles that wait, up to 32 s); a step down that did not shorten the
+  frame (the CPU, not the pixels, is the limit) is undone and the scaler rests for 30 s. The grade pass stretches
+  the smaller frame to the canvas and sharpens a little more. Each step reallocates the pipeline's targets and
+  restarts TAA (a brief shimmer). Still frames always render at full size. The interval includes the page's own
+  work and the display's refresh: on a 60 Hz display a 60 fps target can only be met, never beaten, so steps up are
+  probes.
 
 ## Materials: `world.mat`
 

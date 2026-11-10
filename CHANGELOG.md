@@ -15,6 +15,10 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
   (PointLights or `addLampSource` tables) through one octahedral depth atlas, half-resolution screen-space
   reflections on smooth surfaces, volumetric light (key light through its shadow map, lamps through the atlas),
   bloom mixed instead of added. Off by default; frames without it are bit-identical. hello-courtyard: `?light2=1`.
+- @mirage/core: optional `post.aoLit` (SSAO fades on lit pixels: occlusion belongs to ambient light),
+  `post.autoExposure` (centre-weighted metering on the GPU, eased in log space while moving, still frames metered
+  on their own) and `dynamicRes` (moving frames render smaller when over budget; stills stay full size). All off by
+  default; frames without them are bit-identical. hello-courtyard: `?aolit=1`, `?ae=1`, `?dynres=1`.
 - @mirage/core: optional close-range relief (`relief.js`): one parallax step and the relief's own shadow on the
   photo sets (`tex.material(name, { relief, render })`, `tex.hooks(names, h, { relief: true })`,
   `mgTex{Tri,Wall,Ground}Relief`), a hand-applied render's undulation and trowel swipes (`PROC.plaster(base,

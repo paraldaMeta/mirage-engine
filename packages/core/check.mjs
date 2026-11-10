@@ -2,6 +2,8 @@
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { rng, skyAt, placeDate, skyState, lightAt, transmitAtGround, geom } from './src/index.js';
+import { dynamicResConfig } from './src/world.js';
+import { DEFAULT_POST } from './src/post.js';
 
 const a = rng('x'), b = rng('x');
 assert.deepEqual([a.next(), a.int(1, 6), a.gauss()], [b.next(), b.int(1, 6), b.gauss()], 'rng is deterministic');
@@ -121,4 +123,9 @@ const tx = createTextures({ renderer: { capabilities: { getMaxAnisotropy: () => 
 const h0 = tx.material('s', { mapping: 'wall' }).userData.hooks, h1 = tx.material('s', { mapping: 'wall', relief: 0.02, render: 0.009 }).userData.hooks;
 assert.ok(!JSON.stringify(h0).includes('Relief') && !('lighting' in h0) && !('uRelief' in h0.uniforms), 'no relief unless asked');
 assert.ok(h1.albedo.includes('mgTexWallRelief(') && h1.albedo.includes(', 0.02); diffuse') && h1.lighting.includes('mgRlSh') && 'uRelief' in h1.uniforms, 'relief taps, self-shadow and uniforms');
+// ambient-only AO, auto exposure, dynamic resolution: off by default
+assert.ok(DEFAULT_POST.aoLit === 0 && DEFAULT_POST.autoExposure === 0, 'aoLit and autoExposure are off by default');
+assert.equal(dynamicResConfig(undefined), null); assert.equal(dynamicResConfig(false), null);
+assert.deepEqual(dynamicResConfig(true), { target: 60, min: 0.6, step: 0.1 });
+assert.deepEqual(dynamicResConfig({ target: 1000, min: 0, step: NaN }), { target: 240, min: 0.25, step: 0.1 }, 'clamped, NaN falls back');
 console.log('core check: ok');

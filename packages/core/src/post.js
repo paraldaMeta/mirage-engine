@@ -31,7 +31,10 @@ export const DEFAULT_POST = {
   ao: 0.8, aoRadius: 0.9, aoPower: 1.3,
   aoLit: 0,            // 0..1: fade the AO out on brightly lit pixels (occlusion belongs to ambient light), 0 = off
   autoExposure: 0,     // 0..1: how far the eye adapts toward aeKey (log2 space), 0 = off; see end()
-  aeKey: 0.2, aeRange: 1.5, aeUp: 1.0, aeDown: 2.5,   // target mean (exposed luminance), max EV either way, rates (1/s)
+  // auto exposure: aeKey = the target log-mean of the exposed luminance by day (hello-courtyard's views average about
+  // 0.07), aeNight = how many EV lower the target sits at full lamp level (night stays night), aeRange = the largest
+  // correction either way (EV), aeUp / aeDown = adaptation rates (1/s) when brightening / darkening
+  aeKey: 0.07, aeNight: 1, aeRange: 1, aeUp: 1.0, aeDown: 2.5,
   sky: 1,              // multiplier for sky pixels (nothing drawn), applied per sub-frame
   dof: 0, focus: 8,    // depth of field: lens radius (m, 0 = off) and focus distance (m); needs spp > 1
 };
@@ -93,9 +96,9 @@ export class Pipeline {
             s += texture2D(tAO, q).r * wz; w += wz;
           }
           float o = s / max(w, 1e-4);
-          // aoLit: occlusion belongs to ambient light; a brightly lit pixel (exposed luminance) is mostly direct light,
-          // so fade the darkening there (sunlit walls get no dirty halos)
-          if (uAOLit > 0.0) o = mix(o, 1.0, uAOLit * smoothstep(0.25, 1.0, dot(c, vec3(0.2126, 0.7152, 0.0722)) * uAOExp));
+          // aoLit: occlusion belongs to ambient light; a brightly lit pixel (exposed luminance; sunlit plaster sits at
+          // about 0.25-0.5, shade at 0.05-0.2) is mostly direct light, so fade the darkening there (no dirty halos in sun)
+          if (uAOLit > 0.0) o = mix(o, 1.0, uAOLit * smoothstep(0.1, 0.32, dot(c, vec3(0.2126, 0.7152, 0.0722)) * uAOExp));
           c *= mix(1.0, o, uAO);
         }
         if (uUseSSR > 0.5) {

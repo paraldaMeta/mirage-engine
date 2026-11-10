@@ -10,9 +10,11 @@ export interface PostSettings {
   aoLit: number;
   /** 0..1: how far the exposure adapts toward aeKey (0 = off). */
   autoExposure: number;
-  /** Auto exposure: target mean exposed luminance, the largest correction in EV either way, the adaptation rates (1/s)
+  /** Auto exposure: target log-mean exposed luminance by day, the largest correction in EV either way, the adaptation rates (1/s)
    *  when brightening (aeUp) and darkening (aeDown). */
   aeKey: number; aeRange: number; aeUp: number; aeDown: number;
+  /** Auto exposure: how many EV lower the target sits at full lamp level (night). */
+  aeNight: number;
 }
 export const DEFAULT_POST: PostSettings;
 export class Pipeline {

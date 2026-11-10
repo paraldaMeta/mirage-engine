@@ -5,7 +5,7 @@
 //      ?broken=1 (adds a module that throws)  ?ui=0  ?nodetail (no close-range relief, soft edges or soot: A/B)
 //      ?light2=1 lamp shadows, reflections, volumetric light, mixed bloom (@mirage/core light2.js);
 //      &l2=nols,nossr,novol,nobloom switches single parts off
-//      ?aolit=1 AO on ambient light only  ?ae=1 auto exposure  ?dynres=1 dynamic resolution (moving frames)
+//      ?aolit=1 AO on ambient light only  ?ae=1 auto exposure  ?dynres=1 | <fps> dynamic resolution (moving frames)
 import { createWorldRenderer, createTextures, placeDate, pickQuality, setRelief } from '@mirage/core';
 import { buildWorld } from '@mirage/world';
 import { createPlay } from '@mirage/play';
@@ -25,12 +25,12 @@ const quality = Q.get('quality') || (await pickQuality()).quality, hud = Q.get('
 setRelief({ low: 0, medium: 0.7, high: 1 }[quality] ?? 1);   // the relief's reach: off on low, 5.6 m on medium, 8 m on high
 // light2 (opt-in): ?light2=1, parts off with &l2=nols,nossr,novol,nobloom
 const light2 = Q.get('light2') === '1' && Object.fromEntries((Q.get('l2') || '').split(',').filter(Boolean).map((k) => [k.replace(/^no/, ''), false]));
-const world = createWorldRenderer({ quality, light2, dynamicRes: Q.get('dynres') === '1',
+const world = createWorldRenderer({ quality, light2, dynamicRes: Q.get('dynres') ? (Q.get('dynres') === '1' || { target: +Q.get('dynres') }) : false,
   canvas, width: W, height: H, place, time: date || 'golden', preserveDrawingBuffer: true,
   shadow: { center: [0, 2, 0], radius: 17 }, envProbe: [0, 2.2, 0],
   fog: { groundDensity: 0.0022, height: 30 },
   post: { grain: Q.get('grain') === '0' ? 0 : 0.012, dof: Q.get('dof') ? 0.025 : 0, focus: 9,
-    ...(Q.get('aolit') === '1' ? { aoLit: 1 } : {}), ...(Q.get('ae') === '1' ? { autoExposure: 0.7 } : {}) },
+    ...(Q.get('aolit') === '1' ? { aoLit: 1 } : {}), ...(Q.get('ae') === '1' ? { autoExposure: 0.5 } : {}) },
 });
 const urls = import.meta.glob('./tex/*.webp', { eager: true, query: '?url', import: 'default' });
 const tex = createTextures(world, { manifest, url: (f) => urls['./tex/' + f] });

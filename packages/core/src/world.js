@@ -239,6 +239,7 @@ export function createWorldRenderer(config = {}) {
     const dt = opts.dt ?? 1 / 60, shutter = opts.shutter ?? 0.5;
     const sh = opts.shadow || shadow;
     const P = { ...post, exposure: post.exposure * exposure, temperature: post.temperature + light.warmth };
+    if (P.autoExposure > 0) P.aeKey = post.aeKey * Math.pow(2, -(post.aeNight || 0) * Math.min(1, Math.max(0, light.lamp)));
     const now = performance.now();
     // the seconds since the last moving frame, for auto exposure (still frames are metered on their own)
     const frameDt = taa ? (lastMoving ? Math.min((now - lastMoving) / 1000, 0.25) : 1 / 60) : 0;
