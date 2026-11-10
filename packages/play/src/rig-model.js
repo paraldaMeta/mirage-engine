@@ -135,7 +135,7 @@ function strafe(p, sign, u) {
   const s = still();
   for (const [side, off, x] of [['Left', 0, 1], ['Right', 0.5, -1]]) {
     const ph = TAU * (p + off), out = 0.2 * Math.sin(ph) * sign, lift = 0.5 * Math.max(0, Math.cos(ph)) ** 2;
-    s[`${side}UpLeg`] = qz(out * x * x).multiply(qx(-lift * 0.5));
+    s[`${side}UpLeg`] = qz(out).multiply(qx(-lift * 0.5));
     s[`${side}Leg`] = qx(lift);
     s[`${side}Foot`] = qz(-out).multiply(qx(-lift * 0.5));
   }
