@@ -31,10 +31,11 @@ const vec = (p, into) => (p ? (p.isVector3 ? into.copy(p) : into.set(p[0], p[1],
 /** target: a Mirage world (createWorldRenderer), or { renderer, scene, camera, G? } for a plain three.js scene (then
  *  call vfx.update(seconds) yourself each frame). opts: hz (60, the fixed simulation rate), maxParticles (200000,
  *  the global cap: above it every emitter's rate is scaled down), instances (4: each effect's pools hold this many
- *  instances at once; vfx.prewarm(effect, { instances }) sets it per effect), windSpeed (2 m/s per unit of the world's wind). */
+ *  instances at once; vfx.prewarm(effect, { instances }) sets it per effect), windSpeed (2 m/s per unit of the world's wind),
+ *  gain (the brightness of unlit and emissive colours; default: follows the world's exposure, 1 outside a world). */
 export function createVfx(target, opts = {}) {
   const { renderer, scene, camera } = target, isWorld = !!(target.ctx && target.ctx.onUpdate);
-  const G = target.G || createEnv(), hz = opts.hz || 60, maxParticles = opts.maxParticles || 200000, windSpeed = opts.windSpeed ?? 2, defaultInstances = opts.instances || 4;
+  const G = target.G || createEnv().G, hz = opts.hz || 60, maxParticles = opts.maxParticles || 200000, windSpeed = opts.windSpeed ?? 2, defaultInstances = opts.instances || 4;
   const root = new THREE.Group(); root.name = 'vfx'; root.userData.collide = false; scene.add(root);
   const depth = createDepthCopy(); root.add(depth.mesh);
   const sorter = createSorter(renderer);
@@ -44,7 +45,7 @@ export function createVfx(target, opts = {}) {
   // follows its exposure (the same -0.9 power the world's lamps use); opts.gain fixes it.
   const gain = { value: opts.gain ?? 1 };
   const stats = { pools: 0, particles: 0, capacity: 0, spawned: 0, dropped: 0, steps: 0, instances: 0, budget: 1, simMs: 0, sortPasses: 0 };
-  let lastN = -1, budget = 1, disposed = false;
+  let lastN = -1, budget = 1, over = 1, disposed = false;
 
   // --- registries --------------------------------------------------------------------------------------------------
   /** a mesh to emit from (shape 'mesh') and to draw (render 'mesh'). samples: surface points baked for emission */
@@ -193,7 +194,7 @@ export function createVfx(target, opts = {}) {
       for (const s of h.sources) if (s.live) { prev.copy(s.position); setSourceTransform(s, { matrix: h.follow.matrixWorld }); if (dtFrame > 0) s.velocity.subVectors(s.position, prev).multiplyScalar(1 / dtFrame); }
     }
     stats.pools = stats.particles = stats.capacity = stats.instances = 0;
-    let spawned = 0, dropped = 0, steps = 0;
+    let spawned = 0, dropped = 0, steps = 0, demand = 0;
     for (const k of kits.values()) for (const u of k.units) {
       const pool = u.pool, e = u.e, sp = bounds(u), L = e.lod;
       const idle = !pool.sources.length, away = e.pauseOffscreen && sp.radius >= 0 && !_f.intersectsSphere(sp);
@@ -201,7 +202,8 @@ export function createVfx(target, opts = {}) {
       else {
         for (const s of pool.sources) {
           const d = eye.distanceTo(s.position), f = d <= L.near ? 1 : d >= L.far ? L.min : 1 + (L.min - 1) * (d - L.near) / (L.far - L.near);
-          s.lod = (L.cull > 0 && d > L.cull ? 0 : f) * budget;
+          const q = L.cull > 0 && d > L.cull ? 0 : f;
+          s.lod = q * budget; demand += q * s.rate * (s.stopAt < 0 ? e.rate * e.life[1] : 0);
         }
         steps += pool.advanceTo(n - pool.lag, env);
       }
@@ -209,8 +211,11 @@ export function createVfx(target, opts = {}) {
       show(u, sp, 0);
       for (const c of u.subs) { show(c, sp, c.pool.radius); spawned += c.pool.spawned; }
     }
-    // the global cap: when the slots in use pass it, every emitter's rate comes down together; it recovers slowly
-    budget = stats.particles > maxParticles ? Math.max(0.02, budget * maxParticles / stats.particles) : Math.min(1, budget * 1.02);
+    // the global cap. Looping emitters say what they will hold (rate × life), so their share is known before a single
+    // particle is over; bursts cannot be foreseen, so a second, slow factor comes down while the slots in use are over
+    // the cap and recovers when they are not. Every emitter's rate and burst counts are scaled by the product.
+    over = stats.particles > maxParticles ? Math.max(0.02, over * Math.pow(maxParticles / stats.particles, 0.05)) : Math.min(1, over * 1.01);
+    budget = Math.min(1, maxParticles / Math.max(demand, 1)) * over;
     beams.update(T); decals.update(T);
     Object.assign(stats, { spawned, dropped, budget, sortPasses: sorter.passes }); stats.steps += steps;
     stats.simMs = performance.now() - t0;
@@ -238,7 +243,7 @@ export function createVfx(target, opts = {}) {
     scene.remove(root); disposed = true;
   }
   if (isWorld) target.ctx.onUpdate((tk) => update(tk));
-  return { root, stats, depth, hz, define, spawn, burst, prewarm, update, clear, release, dispose, countAlive, setGround, registerMesh, registerField, registerSheet,
+  return { root, stats, depth, hz, sorter, define, spawn, burst, prewarm, update, clear, release, dispose, countAlive, setGround, registerMesh, registerField, registerSheet,
     /** a beam or a lightning bolt between two points (vfx-extras.js) */
     beam: (o) => beams.add(o),
     /** a decal projected onto whatever the scene shows there (vfx-extras.js) */

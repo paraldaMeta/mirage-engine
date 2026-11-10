@@ -93,7 +93,7 @@ export function createSorter(renderer) {
         gpuPass(renderer, passM, t.b); const sw = t.a; t.a = t.b; t.b = sw; this.passes++;
         if (D === 0 && B < 4) break;
       }
-      return { texture: t.a.texture, width: t.w };
+      return { texture: t.a.texture, width: t.w, target: t.a };
     },
     forget(pool) { const t = targets.get(pool); if (t) { t.a.dispose(); t.b.dispose(); targets.delete(pool); } },
     dispose() { for (const t of targets.values()) { t.a.dispose(); t.b.dispose(); } targets.clear(); keyM.dispose(); passM.dispose(); },

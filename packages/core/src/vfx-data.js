@@ -95,7 +95,7 @@ function emitter(e, path, depth) {
     shell: num(s.shell, 0, `${path}.shape.shell`, 0, 1), hemisphere: !!s.hemisphere, size: vec3(s.size, [1, 1, 1], `${path}.shape.size`),
     angle: num(s.angle, 25, `${path}.shape.angle`, 0, 89), length: num(s.length, 0, `${path}.shape.length`, 0),
     a: vec3(s.a, [-0.5, 0, 0], `${path}.shape.a`), b: vec3(s.b, [0.5, 0, 0], `${path}.shape.b`), offset: vec3(s.offset, [0, 0, 0], `${path}.shape.offset`),
-    mesh: s.mesh === undefined ? null : String(s.mesh) };
+    mesh: s.mesh == null ? null : String(s.mesh) };
   if (o.shape.type === 'mesh' && !o.shape.mesh) fail(`${path}.shape.mesh`, 'names a mesh registered with vfx.registerMesh');
   const v = e.velocity || {};
   keys(v, ['dir', 'speed', 'spread', 'normal', 'random', 'inherit'], `${path}.velocity`);
@@ -114,7 +114,7 @@ function emitter(e, path, depth) {
     return { position: vec3(a.position, [0, 0, 0], `${path}.attractors[${i}].position`), strength: num(a.strength, 1, `${path}.attractors[${i}].strength`),
       radius: num(a.radius, 1, `${path}.attractors[${i}].radius`, 1e-3), spin: num(a.spin, 0, `${path}.attractors[${i}].spin`) };
   });
-  if (e.field !== undefined) {
+  if (e.field != null) {                                     // null as absent: a defined effect (where it is null) is a valid description
     keys(e.field, ['name', 'strength', 'min', 'size'], `${path}.field`);
     o.field = { name: String(e.field.name), strength: num(e.field.strength, 1, `${path}.field.strength`), min: vec3(e.field.min, [-1, -1, -1], `${path}.field.min`), size: vec3(e.field.size, [2, 2, 2], `${path}.field.size`) };
   } else o.field = null;
@@ -133,13 +133,13 @@ function emitter(e, path, depth) {
     sort: pick(r.sort, SORTS, 'none', `${path}.render.sort`), stretch: num(r.stretch, 0.05, `${path}.render.stretch`, 0),
     mesh: r.mesh === undefined ? 'shard' : String(r.mesh), additive: num(r.additive, 0, `${path}.render.additive`, 0, 1),
     order: Math.round(num(r.order, 0, `${path}.render.order`, -50, 50)), nearFade: num(r.nearFade, 0.4, `${path}.render.nearFade`, 0), flipbook: null };
-  if (r.flipbook !== undefined) {
+  if (r.flipbook != null) {
     keys(r.flipbook, ['sheet', 'cols', 'rows', 'fps', 'blend'], `${path}.render.flipbook`);
     o.render.flipbook = { sheet: String(r.flipbook.sheet === undefined ? 'smoke' : r.flipbook.sheet), cols: Math.round(num(r.flipbook.cols, 8, `${path}.render.flipbook.cols`, 1, 16)),
       rows: Math.round(num(r.flipbook.rows, 8, `${path}.render.flipbook.rows`, 1, 16)), fps: num(r.flipbook.fps, 0, `${path}.render.flipbook.fps`, 0),   // fps 0: the sheet plays once over the life
       blend: r.flipbook.blend !== false };
   }
-  if (e.collision !== undefined) {
+  if (e.collision != null) {
     const c = e.collision;
     keys(c, ['mode', 'depth', 'planes', 'ground', 'bounce', 'friction', 'radius', 'lifeLoss', 'thickness'], `${path}.collision`);
     if ((c.planes || []).length > 4) fail(`${path}.collision.planes`, 'holds at most 4');
@@ -148,7 +148,7 @@ function emitter(e, path, depth) {
       bounce: num(c.bounce, 0.4, `${path}.collision.bounce`, 0, 1), friction: num(c.friction, 0.2, `${path}.collision.friction`, 0, 1),
       radius: num(c.radius, 0.02, `${path}.collision.radius`, 0), lifeLoss: num(c.lifeLoss, 0, `${path}.collision.lifeLoss`, 0, 1), thickness: num(c.thickness, 0.6, `${path}.collision.thickness`, 0.01) };
   } else o.collision = null;
-  if (e.trail !== undefined) {
+  if (e.trail != null) {
     keys(e.trail, ['segments', 'every', 'width', 'taper'], `${path}.trail`);
     o.trail = { segments: Math.round(num(e.trail.segments, 12, `${path}.trail.segments`, 2, 64)), every: Math.round(num(e.trail.every, 2, `${path}.trail.every`, 1, 16)),
       width: num(e.trail.width, 1, `${path}.trail.width`, 0), taper: num(e.trail.taper, 1, `${path}.trail.taper`, 0, 1) };
@@ -159,7 +159,7 @@ function emitter(e, path, depth) {
     cull: num(l.cull, 0, `${path}.lod.cull`, 0), minPixels: num(l.minPixels, 0, `${path}.lod.minPixels`, 0) };   // cull 0: never culled by distance
   o.pauseOffscreen = !!e.pauseOffscreen;
   o.seed = Math.round(num(e.seed, 1, `${path}.seed`, 0, 0xffffff));
-  if (e.sub !== undefined && depth > 0) fail(`${path}.sub`, 'sub-emitters do not nest (one level)');
+  if ((e.sub || []).length && depth > 0) fail(`${path}.sub`, 'sub-emitters do not nest (one level)');
   o.sub = (e.sub || []).map((sb, i) => {
     keys(sb, ['on', 'count', 'rate', 'emitter', 'inherit'], `${path}.sub[${i}]`);
     const on = pick(sb.on, EVENTS, 'death', `${path}.sub[${i}].on`);

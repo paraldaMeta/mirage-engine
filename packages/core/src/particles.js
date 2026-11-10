@@ -318,7 +318,8 @@ export class ParticlePool {
    *  inherited by velocity.inherit), rate (multiplier), start (absolute step, default now). Reuses a retired record. */
   addSource(opts = {}) {
     const s = this.free.pop() || { matrix: new THREE.Matrix4(), velocity: new THREE.Vector3(), position: new THREE.Vector3() };
-    Object.assign(s, { live: true, emitting: true, acc: 0, start: opts.start === undefined ? this.step : opts.start, stopAt: -1, rate: opts.rate === undefined ? 1 : opts.rate, lod: 1, scale: 1, done: false, onDone: opts.onDone || null });
+    s.live = s.emitting = true; s.acc = 0; s.start = opts.start === undefined ? this.step : opts.start; s.stopAt = -1; s.rate = opts.rate === undefined ? 1 : opts.rate;
+    s.lod = 1; s.scale = 1; s.done = false; s.onDone = opts.onDone || null;      // field by field: a reused record, no garbage per burst
     s.velocity.set(0, 0, 0); if (opts.velocity) s.velocity.copy(opts.velocity);
     s.position.set(0, 0, 0); (s.quaternion ||= new THREE.Quaternion()).identity();
     setSourceTransform(s, opts);
@@ -338,7 +339,7 @@ export class ParticlePool {
         if (b.every > 0) k = Math.max(0, Math.floor((tm + dt - b.time) / b.every + 1e-9) + 1) - Math.max(0, Math.floor((tm - b.time) / b.every + 1e-9) + 1);
         else if (b.time >= tm - 1e-9 && b.time < tm + dt - 1e-9) k = 1;
         else if (span && tm + dt > span && b.time < tm + dt - span - 1e-9) k = 1;       // the loop wrapped inside this step
-        s.acc += k * b.count * s.rate * (s.lod > 0 ? 1 : 0);
+        s.acc += k * b.count * s.rate * s.lod;                 // LOD and the global budget thin bursts as they thin the rate
       }
     }
     const c = Math.floor(s.acc + 1e-6); s.acc -= c;
@@ -378,6 +379,11 @@ export class ParticlePool {
     gpuPass(this.renderer, this.material, this.b);
     const sw = this.a; this.a = this.b; this.b = sw;
     r[n % r.length] = total; this.cursor = (this.cursor + total) % this.cap; this.spawned += total; this.step = n + 1; this.steps++;
+    if (total > 0 && !this.parent) {
+      // the ring wrapped onto slots young enough to be alive: those particles are cut short, and counted as dropped
+      let c = 0; for (let i = 1, m = Math.min(this.lifeSteps, r.length, this.step); i <= m; i++) c += r[(this.step - i) % r.length];
+      if (c > this.cap) this.dropped += Math.min(total, c - this.cap);
+    }
     if (this.onStep) this.onStep(this);                          // trails record their history here (vfx-extras.js)
     for (const c of this.children) c._step(env);
   }
