@@ -15,12 +15,13 @@ export function npcDemo(world, play, plan, n = 6) {
   let seed = 12345;
   const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
   const regions = Object.values(plan.regions);
-  /** a random spot a traveller fits, on one of the terraces */
-  const spot = () => {
-    for (let tries = 0; tries < 50; tries++) {
+  const home = [plan.spawn.eye[0], plan.spawn.eye[1] - 1.62, plan.spawn.eye[2]];
+  /** a random spot on one of the terraces a traveller fits and can walk to from `from` (not inside a hedged lawn) */
+  const spot = (from = home) => {
+    for (let tries = 0; tries < 20; tries++) {
       const { rect, y } = regions[Math.floor(rnd() * regions.length)];
       const p = nav.nearest([rect[0] + rnd() * (rect[2] - rect[0]), y, rect[1] + rnd() * (rect[3] - rect[1])], { snap: 1.5 });
-      if (p) return p;
+      if (p && nav.findPath(from, p)) return p;
     }
     return null;
   };
@@ -38,7 +39,7 @@ export function npcDemo(world, play, plan, n = 6) {
   const ms = performance.now() - t0;
   /** advance them by dt; true while any moved (the frame is not still) */
   function step(dt) {
-    for (const c of npcs) if (c.agent.arrived || !c.agent.path) { if ((c.wait -= dt) <= 0) { const g = spot(); if (g) c.agent.setGoal(g); c.wait = 2 + rnd() * 3; } }
+    for (const c of npcs) if (c.agent.arrived || !c.agent.path) { if ((c.wait -= dt) <= 0) { const g = spot(c.agent.pos); if (g) c.agent.setGoal(g); c.wait = 2 + rnd() * 3; } }
     crowd.update(dt);
     let moved = false;
     for (const c of npcs) {

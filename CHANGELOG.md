@@ -11,6 +11,19 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
 
 **New**
 
+- @mirage/play: NPC navigation on the walk grid (`createNavGrid`, `createNavAgent`, `createNavCrowd`; experimental,
+  opt-in). No navmesh: per-radius fit bits from the walker's own disc / step / head-room test (equal to the walker
+  on every floor of the node checks' grids and on 20 000 of 20 000 random floors of walled-garden), coarse A* (4 x 4
+  cell blocks split into connected pieces) then cell A* in that corridor (octile, one binary heap, typed arrays
+  reused across queries), string pulling along a height-following cell walk, flow fields (one Dijkstra per goal),
+  dynamic obstacles (`block` box / cylinder, `unblock`: only the region around it is redone), agents that are
+  walkers of their own radius (dog 0.2, cart 0.5) and crowd separation. walled-garden (481 280 cells, 495 314 floors):
+  create + fit bake 84 ms (the GPU walk-grid bake is 280-340 ms); gate to pavilion interior, 71.5 m up both stairs,
+  1.5-1.6 ms per query, an agent walks it in 47 s and arrives; a whole-garden flow field 40 ms; shutting the
+  pavilion door 0.8-1.1 ms. Node, 160 x 160 cells with pillars and walls: 0.28 ms per query (plain cell A* 0.74 ms);
+  80 x 80 m: 1.5 ms (10 ms). 7.5 KB gzip with the walker (recast-navigation-js: ~211 KB gzip by the figure in the brief,
+  not measured here). walled-garden `?npc=N` shows N travellers (the bundle +7.4 KB gzip; stills unchanged, and
+  examples that do not use it build byte-identical). `node packages/tools/nav-check.mjs` checks it in Chrome.
 - @mirage/tools: one diagnostic shape everywhere, `{ code, severity, target, message, fix, at? }`, with stable codes
   (MG1xx plan, MG2xx modules, MG3xx walking, MG4xx frame, MG5xx budgets, MG6xx console, MG7xx game state;
   `docs/diagnostics.md`). The playtest writes them to `report.json` `diagnostics` and the top of `report.md`;

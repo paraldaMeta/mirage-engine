@@ -90,6 +90,30 @@ A cylinder (r 0.28 m, head 1.8 m, eye 1.62 m) that steps up ≤ 0.4 m (0.12 m in
 jumps (4.2 m/s: apex ≈ 0.9 m), and slides along what blocks it (sub-steps of 5 cm). Pure JS: `npm test -w @mirage/play`
 runs it on a hand-made grid in node.
 
+## NPC navigation (`createNavGrid(grid, opts)`, experimental)
+
+```js
+import { createNavGrid, createNavAgent, createNavCrowd } from '@mirage/play';
+const nav = createNavGrid(play.grid);                              // ~85 ms for the 80 x 94 m garden
+const path = nav.findPath([x, y, z], [x, y, z], { radius: 0.2 });  // [[x, y, z], ...] feet waypoints, or null
+const door = nav.block({ box: [x0, y0, z0, x1, y1, z1] });         // or { cylinder: [x, z, r, y0, y1] }; nav.unblock(door)
+const dog = createNavAgent(nav, { radius: 0.2, speed: 3, pos }); dog.setGoal(goal); dog.update(dt);
+const field = nav.flowField(goal);                                  // many agents, one goal: agent.setGoal(field)
+const crowd = createNavCrowd(nav, { separation: 2 }); crowd.add(dog); crowd.update(dt);
+```
+
+No second mesh: NPCs path on the grid the player walks on. Every floor of every cell carries a fit bit per
+radius, computed by the walker's own test (its disc of cells, each within `step` 0.4 m of the feet with `head`
+1.8 m of air) at the floor's height and where the feet settle; since the disc offsets are whole cells, the bit is
+the walker's answer anywhere in the cell (`npm test -w @mirage/play` compares them floor by floor; on
+walled-garden 20 000 of 20 000). A move lands on the next cell's highest floor within a step (drops up to `drop`,
+default a step), so stairs join floors and a slab above keeps its own nodes. Paths: A* over coarse blocks
+(`coarse` cells a side, each split into its connected pieces), then cell A* inside that corridor, then string
+pulling with a cell walk that follows heights. `block` / `unblock` edit the fit bits and pieces around the
+obstacle only (~1 ms); walkers made on `nav.grid` collide with it too. Agents are walkers (`nav.grid`, their own
+radius), so they climb stairs and follow the ground as the player does. Numbers and limits: the CHANGELOG entry;
+the browser check `node packages/tools/nav-check.mjs` (walled-garden; `?npc=N` there shows N travellers).
+
 ## Embedding (`mountWorld`)
 
 ```js
