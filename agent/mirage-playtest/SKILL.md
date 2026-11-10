@@ -44,7 +44,14 @@ codes) → `keys` + `ms` (held) or `ms` (wait) → `flicker` → `perf`. Expecta
 `< > <= >= ~ == != has`; values `x y z` (feet), `maxY`, `dist` (moved this step), `onGround`, `blocked`,
 `mode`, `fps`, `errors`; games add `near`, `prompt`, `inventory` (`has key`, `inventory.length`), `paused`,
 `flags.<name>`; `flicker`, `flickerMax`, `flickerMaxAt`, `meanAbsDiff`; `frameMs`, `p95Ms`, `calls`,
-`triangles`. Full reference: the header of `packages/tools/src/playtest.mjs`.
+`triangles`; `luma`, `dark`, `clipped` (of the step's screenshot). Full reference: the header of
+`packages/tools/src/playtest.mjs`.
+
+`"see"` checks what the final view shows: `{ "rail": ">= 0.005", "station": "> 0.02" }` (share of the frame,
+0..1) or `["rail"]` (each `> 0.001`). A name matches an object or anything under a node of that name; a module's
+root carries the module's name. A failed `see` says why: *out of frame*, *hidden* or *mostly hidden by* the named
+objects in front, or *too small*. Glass and water do not hide what is behind them. Name the meshes you will want to
+check (`b.finish({ name: 'rail' })`).
 
 ## What every world's scenario checks
 
@@ -60,8 +67,10 @@ codes) → `keys` + `ms` (held) or `ms` (wait) → `flicker` → `perf`. Expecta
 6. **Flicker** along the main path: `< 8` (walking through a tight court measures ~6, open garden ~2). Spikes:
    `flickerMaxAt` says where.
 7. **Frame cost** walking: `frameMs < plan.budget.frameMs` (8 ms on an M-series; 16.7 is the 60 fps limit).
-8. **Shots**: every step saves one; the sheet is the visual check (scale, gaps, floating parts, black or
-   blown-out materials, the sky and mood the brief asked for).
+8. **Shots**: every composition the brief asks for (each viewpoint, the barrier you claim the player sees)
+   gets a `see` with the objects it is about: a test that passes while the subject is out of frame proves
+   nothing. The sheet is still the visual check (scale, gaps, floating parts, black or blown-out materials, the
+   sky and mood the brief asked for); a black or clipped screenshot is listed as a warning in the report.
 
 ## Reading failures
 
@@ -74,6 +83,8 @@ codes) → `keys` + `ms` (held) or `ms` (wait) → `flicker` → `perf`. Expecta
 | high `flicker` at one spot | coplanar faces (z-fight), sub-pixel high-contrast detail, an animated thing; looking into a low sun, a thin post crossing the disc flashes the bloom (real, ~40 for one frame) | open `NN-<step>-worst-diff.png` (bright = what flickered); offset 1–2 cm, coarsen detail, exclude the animation; accept a sun crossing |
 | console error, module listed failed in the report header | the module threw | read the error: it names the module and phase |
 | `prompt` null | entity out of `reach` (2.4 m) or outside the view cone | walk closer, `lookAt` the entity id |
+| `see.<name>` fails: out of frame | the camera looks past it (a barrier right at your feet is below the view) | step back, `lookAt` it, or `place` a view that frames it |
+| `see.<name>` fails: hidden by … | the named objects stand in front | move the view, or the object; check it is not inside another mesh |
 | black / white surfaces in shots | NaN normals, `emissive` too strong, wrong side | check the material hook, `side: DoubleSide` only for cards |
 
 Loop: fix → rebuild → rerun the same scenario. Add a step for every bug you fix so it stays fixed. After five
