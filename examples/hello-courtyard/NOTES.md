@@ -43,3 +43,24 @@ geometry). The relief's reach follows the quality: low off, medium 5.6 m, high 8
 - **Left out**: the source's automatic rewrite of texture-library calls (Mirage's materials opt in explicitly
   instead). `mgRlArris` and `mgRlLip` are in core, but nothing here uses them yet (no plaster losses, and the walls
   carry no along-wall tangent).
+
+## light2 (lamp shadows, reflections, volumetric light, mixed bloom; optional)
+`?light2=1` (parts off with `&l2=nols,nossr,novol,nobloom`). The four lantern PointLights hold the four lamp-shadow
+slots at night: the pergola slats fan their shadows up the north wall, the posts shadow the wall behind them. By day
+no slot is used (the lamp level is under 0.15). The basin's water reflects the pergola and the walls at noon and the
+lantern at night (screen-space, misses fall back to the environment map). Volumetric light: shafts through the
+arcade toward a low sun, a warm haze within 5 m of each lantern.
+
+Frame cost, 1440 × 900, 1 sub-frame + TAA, Apple M4 Pro, parts toggled in one page and interleaved (6 rounds x 40
+frames; `none` = light2 compiled in, every part off):
+
+| view | none | all on | lamp shadows + their in-scatter | reflections | volumetric |
+|---|---|---|---|---|---|
+| hero 21:00 | 4.01 ms | 5.12 ms | ~1.0 ms | ~0.2 ms | ~1.0 ms |
+| pergola 21:00 | 3.96 | 4.45 | ~0.4 | ~0.1 | ~0.2 |
+| basin 21:00 | 3.60 | 4.22 | ~0.2 | ~0.1 | ~0.1 |
+| hero, golden hour | 3.82 | 4.06 | — | ~0.2 | ~0.4 |
+
+(The parts share work: switching off lamp shadows also drops the lamps' in-scatter through the atlas.) A later run
+was disturbed by another GPU job on the machine (every view at 11–13 ms) and is not used. Without `?light2` the
+frames are bit-identical to before (checked on three views). Single file: 2.2 MB with both light2 and the relief.
