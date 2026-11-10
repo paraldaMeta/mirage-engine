@@ -37,6 +37,14 @@ const SPRITES = {
   drop: 'float r = length(q); a = smoothstep(1.0, 0.8, r); sh = 0.7 + 0.6 * smoothstep(0.5, 0.0, length(q - vec2(-0.3, 0.35)));',
 };
 
+/** GLSL: needs `uniform vec4 uVFogP; uniform float uVFogD;` (FOG.params and the scene fog's density) */
+export const VFX_FOG_T = /* glsl */ `
+// the fog's transmittance alone (fog.js mgAerial without the in-scatter): for additive light
+float vfxFogT(vec3 wp){
+  vec3 V = wp - cameraPosition; float dist = length(V), H = uVFogP.y, k = V.y / H;
+  float layer = exp(-(cameraPosition.y - uVFogP.w) / H) * (abs(k) > 1e-3 ? (1.0 - exp(-k)) / k : 1.0 - 0.5 * k);
+  return exp(-(uVFogP.x * layer + uVFogP.z) * dist * uVFogD);
+}`;
 const VERT_DECL = /* glsl */ `
 uniform highp sampler2D tVP, tVV, tVX, tVSort; uniform sampler2D tVLut;
 uniform vec4 uVWin, uVA, uVB;      // base, count, state width, capacity | lead s, spin min, spin max, youngest first | stretch, near fade, min pixels, pixels per (m at 1 m)
@@ -101,12 +109,7 @@ ${fb ? /* glsl */ `vec4 vfxFrame(float f, vec2 uv){ float n = uVSheet.x * uVShee
   vec2 ts = 1.0 / vec2(textureSize(tVSheet, 0)); vec2 cu = clamp(uv, ts * uVSheet.xy * 0.5, 1.0 - ts * uVSheet.xy * 0.5);
   return texture2D(tVSheet, (vec2(cx, uVSheet.y - 1.0 - cy) + cu) / uVSheet.xy); }` : ''}
 float vfxDepth(float d){ return uVProj.z > 0.5 ? mix(uVProj.x, uVProj.y, d) : 2.0 * uVProj.x * uVProj.y / (uVProj.y + uVProj.x - (d * 2.0 - 1.0) * (uVProj.y - uVProj.x)); }
-// the fog's transmittance alone (fog.js mgAerial without the in-scatter): for additive light
-float vfxFogT(vec3 wp){
-  vec3 V = wp - cameraPosition; float dist = length(V), H = uVFogP.y, k = V.y / H;
-  float layer = exp(-(cameraPosition.y - uVFogP.w) / H) * (abs(k) > 1e-3 ? (1.0 - exp(-k)) / k : 1.0 - 0.5 * k);
-  return exp(-(uVFogP.x * layer + uVFogP.z) * dist * uVFogD);
-}`;
+${VFX_FOG_T}`;
 }
 function albedo(e) {
   const fb = e.render.flipbook;

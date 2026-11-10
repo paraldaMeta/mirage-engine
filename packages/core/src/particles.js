@@ -253,12 +253,12 @@ const stateTarget = (w, h) => new THREE.WebGLRenderTarget(w, h, { count: 3, type
 const D2R = Math.PI / 180, _m = new THREE.Matrix4(), _v = new THREE.Vector3();
 
 export class ParticlePool {
-  /** opts: hz (60), parent + sub ({ on, count, rate, inherit }) for a sub-emitter pool, meshes / fields (Maps of
+  /** opts: hz (60), instances (1: capacity is e.capacity × this), parent + sub ({ on, count, rate, inherit }) for a sub-emitter pool, meshes / fields (Maps of
    *  registered emission meshes and vector fields) */
   constructor(renderer, e, opts = {}) {
     this.renderer = renderer; this.e = e; this.hz = opts.hz || 60; this.dt = 1 / this.hz;
     this.parent = opts.parent || null; this.sub = opts.sub || null; this.children = [];
-    this.cap = this.parent ? this.parent.cap * this.sub.count : e.capacity;
+    this.cap = this.parent ? this.parent.cap * this.sub.count : Math.ceil(e.capacity * (opts.instances || 1));
     if (this.cap > 1 << 22) throw new RangeError(`vfx: ${e.name} needs ${this.cap} slots (parent capacity × sub count); the limit is ${1 << 22}`);
     this.W = Math.min(2048, 2 ** Math.ceil(Math.log2(Math.sqrt(this.cap)))); this.H = Math.ceil(this.cap / this.W);
     this.a = stateTarget(this.W, this.H); this.b = stateTarget(this.W, this.H);
@@ -351,8 +351,9 @@ export class ParticlePool {
       const ends = U.uSrcEnd.value, mats = U.uSrcMat.value, vels = U.uSrcVel.value; let k = 0;
       for (let i = 0; i < this.sources.length; i++) {
         const s = this.sources[i];
-        if (k < MAX_SPAWN_SOURCES) {
-          let c = this._emit(s, n);
+        let c = this._emit(s, n);
+        if (c > 0 && k >= MAX_SPAWN_SOURCES) s.acc += c;           // more instances spawning in one step than the shader has slots: theirs wait a step
+        else if (c > 0) {
           if (total + c > this.cap) { this.dropped += total + c - this.cap; c = this.cap - total; }
           if (c > 0) { total += c; ends[k] = total; s.matrix.toArray(mats, 16 * k); vels[4 * k] = s.velocity.x; vels[4 * k + 1] = s.velocity.y; vels[4 * k + 2] = s.velocity.z; vels[4 * k + 3] = s.scale; k++; }
         }
@@ -377,6 +378,7 @@ export class ParticlePool {
     gpuPass(this.renderer, this.material, this.b);
     const sw = this.a; this.a = this.b; this.b = sw;
     r[n % r.length] = total; this.cursor = (this.cursor + total) % this.cap; this.spawned += total; this.step = n + 1; this.steps++;
+    if (this.onStep) this.onStep(this);                          // trails record their history here (vfx-extras.js)
     for (const c of this.children) c._step(env);
   }
   childLife() { let m = 0; for (const c of this.children) m = Math.max(m, c.maxLife); return m; }
@@ -384,6 +386,7 @@ export class ParticlePool {
    *  the pool `catchUp` steps before `n` so the result is still a function of `n` alone */
   advanceTo(n, env, catchUp = 600) {
     if (this.parent) return 0;
+    if (n < this.step && this.step - n <= 4) return 0;          // a frame's sub-frames can start a step or two behind the last frame's end: wait
     if (n < this.step || n - this.step > catchUp) this.reset(Math.max(0, n - catchUp));
     const from = this.step;
     while (this.step < n) this._step(env);
