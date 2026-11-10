@@ -47,27 +47,36 @@ const launchChrome = ({ w, h, args }) => puppeteer.launch({
 
 // ---- the lease pool: one Chrome per command line for the whole tool run. lease() hands out a browser whose close()
 // only gives it back; the next lease with the same size and arguments gets the same Chrome (a launch costs ~0.3-1 s
-// and the GPU process' warm-up). Each lease still opens its own pages, and closes them on release, so a page never
-// sees another's state. The browser closes POOL_IDLE_MS after its last release (or at drain()), so a tool exits.
+// and the GPU process' warm-up). Each lease gets its own browser context (an incognito-like profile: its own
+// localStorage, so no quality pick, power-saver setting or game save, and its own HTTP cache), closed with its pages
+// on release, so a page never sees another lease's state. A Chrome that crashes or disconnects leaves the pool. The
+// browser closes POOL_IDLE_MS after its last release (or at drain()), so a tool exits.
 // launch() leases when MIRAGE_POOL=1; tools that loop over many pages can call lease() directly.
 const pool = new Map();   // key -> { browser: Promise, refs, timer }
 export const POOL_IDLE_MS = 1500;
-export async function lease({ w = 1440, h = 900, args = [] } = {}) {
+/** opts as launch(); launcher: how a Chrome starts (the checks pass a fake) */
+export async function lease({ w = 1440, h = 900, args = [] } = {}, launcher = launchChrome) {
   const key = JSON.stringify([w, h, args]);
   let e = pool.get(key);
-  if (!e) pool.set(key, (e = { browser: launchChrome({ w, h, args }), refs: 0, timer: null }));
+  if (!e) {
+    e = { browser: Promise.resolve().then(() => launcher({ w, h, args })), refs: 0, timer: null };
+    pool.set(key, e);
+    const entry = e;
+    // a crashed or closed Chrome must not be handed out again (only this entry: a newer one may hold the key)
+    entry.browser.then((b) => b.on?.('disconnected', () => { if (pool.get(key) === entry) pool.delete(key); }), () => {});
+  }
   e.refs++;
   clearTimeout(e.timer); e.timer = null;
   let browser;
-  try { browser = await e.browser; } catch (err) { pool.delete(key); throw err; }
-  const pages = new Set();
+  try { browser = await e.browser; } catch (err) { e.refs--; if (pool.get(key) === e) pool.delete(key); throw err; }
+  const context = await browser.createBrowserContext();
   let released = false;
   return {
-    pooled: true, browser, target: () => browser.target(), version: () => browser.version(),
-    async newPage() { const p = await browser.newPage(); pages.add(p); p.once('close', () => pages.delete(p)); return p; },
+    pooled: true, browser, context, target: () => browser.target(), version: () => browser.version(),
+    newPage: () => context.newPage(),
     async close() {
       if (released) return; released = true;
-      await Promise.all([...pages].map((p) => p.close().catch(() => {})));
+      await context.close().catch(() => {});   // its pages with it
       if (--e.refs > 0) return;
       e.timer = setTimeout(() => { if (e.refs === 0 && pool.get(key) === e) { pool.delete(key); browser.close().catch(() => {}); } }, POOL_IDLE_MS);
     },

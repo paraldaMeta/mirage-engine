@@ -42,3 +42,40 @@ const a = launchArgs({ w: 375, h: 812, args: ['--x'] });
 for (const f of CAPTURE_ARGS) assert.ok(a.includes(f));
 assert.ok(a.includes('--window-size=375,812') && a.at(-1) === '--x');
 console.log('chrome args unit: ok');
+
+// ---- snap's command line: --adaptive before the target or with 0; the determinism redraw order
+import { adaptiveOption, redrawOrder } from './src/snap-args.mjs';
+assert.equal(adaptiveOption(['dist']), null);
+assert.equal(adaptiveOption(['--adaptive', 'dist']), true, '--adaptive before the target is on, not NaN');
+assert.equal(adaptiveOption(['dist', '--adaptive']), true);
+assert.equal(adaptiveOption(['--adaptive', '0', 'dist']), 0, '--adaptive 0 is on');
+assert.equal(adaptiveOption(['--adaptive', '0.5']), 0.5);
+for (const n of [2, 3, 6, 9]) {
+  const o = redrawOrder(n), before = [n - 1, ...o.slice(0, -1)];   // what was drawn right before each redraw
+  assert.deepEqual([...o].sort((a, b) => a - b), [...Array(n).keys()], 'every view once');
+  assert.ok(o.every((k, i) => before[i] !== k), `no view is redrawn right after itself (n ${n}: ${o})`);
+}
+assert.deepEqual(redrawOrder(1), [0]); assert.deepEqual(redrawOrder(0), []);
+console.log('snap args unit: ok');
+
+// ---- the lease pool, with a fake Chrome: a context per lease (closed on release), one browser per key, a
+// disconnected browser leaves the pool, a failed launch does not remove a newer entry
+import { lease, drain, poolSize } from './src/chrome.mjs';
+{
+  const made = [];
+  const fake = () => { const b = { contexts: [], handlers: {}, closed: false, on(ev, fn) { b.handlers[ev] = fn; }, close: async () => { b.closed = true; }, version: () => 'fake',
+    createBrowserContext: async () => { const c = { closed: false, newPage: async () => ({}), close: async () => { c.closed = true; } }; b.contexts.push(c); return c; } }; made.push(b); return b; };
+  const a = await lease({ w: 10, h: 10 }, fake), b = await lease({ w: 10, h: 10 }, fake);
+  assert.equal(made.length, 1, 'one browser per size and arguments'); assert.equal(a.browser, b.browser);
+  assert.notEqual(a.context, b.context, 'a context per lease');
+  await a.close(); assert.ok(a.context.closed && !b.context.closed);
+  made[0].handlers.disconnected();   // Chrome crashed
+  const c = await lease({ w: 10, h: 10 }, fake);
+  assert.equal(made.length, 2, 'a crashed browser is not handed out again');
+  await assert.rejects(lease({ w: 20, h: 20 }, () => { throw new Error('no chrome'); }), /no chrome/);
+  const d = await lease({ w: 20, h: 20 }, fake);
+  assert.equal(made.length, 3);
+  await b.close(); await c.close(); await d.close(); await drain();
+  assert.equal(poolSize(), 0);
+  console.log('lease pool unit: ok');
+}

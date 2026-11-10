@@ -37,8 +37,9 @@
 //       the scene at the end of the step, measured behind the glyphs: values contrast (the worst ratio) and
 //       contrastFails; any text under 4.5:1 (3:1 large) fails the step with MG710
 //   "shot": false  (default true)
-//   walkTo also writes NN-<step>-route.png: the walk grid from above, the planned route, the path taken, the stuck
-//   point, and an onion skin of game entities that moved meanwhile
+//   walkTo also writes NN-<step>-route.png (after the walk, so the walk's timing is unchanged): the walk grid from
+//   above, the planned route, the path taken, the stuck point; "onion": true adds the game entities that moved
+//   meanwhile (sampled every 5th poll: a page call each, so it is not the default)
 // scenario level: "baseline": "<dir>" (or --baseline dir): each step whose view the scenario fixed (the spawn, place or
 //   viewpoint, and no walkTo / keys / tap since; "baseline": true on a step forces it, false skips it) is drawn once more on the deterministic
 //   still path (grain 0, frameIndex 1, 16 spp) and compared with <dir>/<shot> by region SSIM ("ssim": [0.92, 0.85,
@@ -144,10 +145,12 @@ try {
       const track = async (until, each) => { while (Date.now() < until) { await wait(40); const st = await state(); maxY = Math.max(maxY, st.pos[1]); if (each && (await each(st))) return true; } return false; };
       if (s.walkTo) {
         let run = !!s.run;
+        // the route map's path comes from the polls the walk makes anyway; entity trails ("onion": true) cost a page
+        // call every 5th poll, which changes the walk's timing, so they are asked for, not default
         const route = { name: `${idx} ${s.name ?? ''}`, plan: [[start.pos[0], start.pos[2]], ...s.walkTo], path: [start.pos], ents: {} };
         const entsAt = () => page.evaluate(() => { const g = window.__mirage.g; if (!g) return {}; const o = {}; for (const [id, e] of g.game.entities) { const p = g.game.where(e); if (p) o[id] = [+p[0].toFixed(3), +p[2].toFixed(3)]; } return o; }).catch(() => ({}));
-        const ent0 = await entsAt(); let polls = 0;
-        const sample = async (st) => { route.path.push(st.pos); if (++polls % 5 === 0) for (const [id, p] of Object.entries(await entsAt())) (route.ents[id] ??= [ent0[id] || p]).push(p); };
+        const ent0 = s.onion ? await entsAt() : null; let polls = 0;
+        const sample = async (st) => { route.path.push(st.pos); if (ent0 && ++polls % 5 === 0) for (const [id, p] of Object.entries(await entsAt())) (route.ents[id] ??= [ent0[id] || p]).push(p); };
         await keysDown(run ? ['KeyW', 'ShiftLeft'] : ['KeyW']);
         try {
           for (const [k, [x, z]] of s.walkTo.entries()) {
@@ -290,11 +293,20 @@ try {
     if (s.walkTo || s.keys || s.tap) fixedView = false;
     let still = null;
     if (BASE && shot && !err && (fixedView || s.baseline === true) && s.baseline !== false) {
-      still = await page.evaluate(() => {
+      still = await page.evaluate(async () => {
         const { play } = window.__mirage, w = play.world, grain = w.post.grain;
+        // was the loop running? (frames advance within three animation frames, even at the power saver's 30 fps)
+        const f0 = play.stats.frames;
+        for (let k = 0; k < 3; k++) await new Promise((r) => requestAnimationFrame(r));
+        const running = play.stats.frames > f0;
         play.stop(); w.post.grain = 0;
         try { play.render({ moving: false, spp: 16, frameIndex: 1 }); return document.querySelector('canvas').toDataURL('image/png'); }
-        finally { w.post.grain = grain; play.start(); }
+        finally {
+          w.post.grain = grain;
+          // the canvas now holds this grain-free still: setMode(mode) restarts the still counter, so the loop draws
+          // and refines the view again before a later screenshot; a loop the page had stopped stays stopped
+          if (running) { play.setMode(play.mode); play.start(); }
+        }
       }).catch((e) => { log('baseline still failed: ' + (e.message || e)); return null; });
     }
     const frame = shot ? await page.evaluate(frameStatsInPage, 'data:image/png;base64,' + fs.readFileSync(path.join(OUT, shot)).toString('base64')) : {};

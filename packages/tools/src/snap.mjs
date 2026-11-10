@@ -19,6 +19,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { launch, serve, open } from './chrome.mjs';
 import { sheetInPage, PHONE } from './sheet.mjs';
+import { adaptiveOption, redrawOrder } from './snap-args.mjs';
 import { readPNG, encodePNG, regionSSIM, ssimVerdict, parseThresholds, pixelDiff, boxed, sideBySide } from './imgcmp.mjs';
 import { diag, sortDiagnostics, formatDiagnostic } from './diagnostics.mjs';
 
@@ -31,7 +32,7 @@ const phone = !!flag('phone');
 const W = phone ? PHONE.w : +flag('w', 1440), H = phone ? PHONE.h : +flag('h', 900), SPP = +flag('spp', 16), COLS = +flag('cols', phone ? 4 : 3);
 const OUT = path.resolve(flag('out', 'out/snap'));
 const BASE = flag('baseline') ? path.resolve(flag('baseline')) : null;
-const adaptive = flag('adaptive') ? (flag('adaptive') === true ? true : +flag('adaptive')) : null;
+const adaptive = adaptiveOption(args);
 const grain0 = !!(BASE || flag('determinism'));   // the comparisons use the deterministic still: grain off, frameIndex 1
 fs.mkdirSync(OUT, { recursive: true });
 const isFile = target.endsWith('.html');
@@ -90,13 +91,14 @@ try {
   if (flag('game')) shots.push({ i: -1, name: 'game view' });
   const files = [];
   const still = (s, spp = SPP, o = {}) => page.evaluate(stillInPage, s, spp, { grain0, ...o });
+  const shotOpts = adaptive !== null ? { converge: adaptive } : {};   // every drawing of a view the same way
   for (const s of shots) {
-    const r = await still(s, SPP, adaptive ? { converge: adaptive } : {});
+    const r = await still(s, SPP, shotOpts);
     const f = `v${String(files.length).padStart(2, '0')}-${s.name.replace(/\W+/g, '-')}.png`;
     fs.writeFileSync(path.join(OUT, f), png64(r.png));
     files.push({ f, s, name: s.name, data: r.png });
     const row = { name: s.name, file: f, mode: r.mode, renderMs: r.ms };
-    if (adaptive) {
+    if (adaptive !== null) {
       Object.assign(row, { spp: r.used, diffs: r.diffs });
       if (flag('adaptive-check')) {   // the same view at the full spp: the difference, and the time (5 interleaved
         // pairs after the first, medians: the GPU is shared and the first drawing of a view pays its compiles)
@@ -139,12 +141,13 @@ try {
     }
   }
 
-  // ---- determinism: every view again after another one (in reverse order), then after a reload
+  // ---- determinism: every view again after a different view than the one before it the first time (the reverse
+  // order, rotated so the last view drawn is not redrawn right after itself), then after a reload
   if (flag('determinism')) {
     report.determinism = [];
     const again = async (phase, order) => {
       for (const k of order) {
-        const { s, f, data } = files[k], r = await still(s);
+        const { s, f, data } = files[k], r = await still(s, SPP, shotOpts);
         const d = pixelDiff(readPNG(data), readPNG(r.png));
         report.determinism.push({ phase, name: s.name, ...d });
         if (!d.same) {
@@ -154,7 +157,7 @@ try {
         console.log('determinism ' + JSON.stringify({ phase, name: s.name, same: d.same, differing: d.differing, max: d.max }));
       }
     };
-    const order = files.map((_, k) => k).reverse();
+    const order = redrawOrder(files.length);
     // with one view the jump goes to the game view (or the spawn) and back
     if (files.length === 1) await still({ i: -1, name: 'jump' });
     await again('after another view', order);
