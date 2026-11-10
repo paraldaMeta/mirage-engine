@@ -74,7 +74,7 @@ function transformTrack(def, camera) {
 
 function animationTrack(def) {
   const anim = def.animator;
-  const clips = def.clips.map((c) => { const cd = anim.clips.get(c.clip); if (!cd) throw new Error(`timeline: no clip "${c.clip}"`); return { t: c.t, clip: c.clip, speed: c.speed ?? 1, offset: c.offset ?? 0, fade: c.fade ?? 0, duration: c.duration ?? cd.duration / (c.speed ?? 1) }; }).sort((a, b) => a.t - b.t);
+  const clips = def.clips.map((c) => { const cd = anim.clips.get(c.clip); if (!cd) throw new Error(`timeline: no clip "${c.clip}"`); return { t: c.t, clip: c.clip, speed: c.speed ?? 1, offset: c.offset ?? 0, fade: c.fade ?? 0, over: c.over ?? null, duration: c.duration ?? cd.duration / (c.speed ?? 1) }; }).sort((a, b) => a.t - b.t);
   return {
     end: clips.reduce((m, c) => Math.max(m, c.t + c.duration), 0),
     apply(t) {
@@ -84,7 +84,10 @@ function animationTrack(def) {
       if (i < 0) { if (def.rest !== false) anim.reset(); return; }
       const c = clips[i], local = (x, tt) => Math.min(tt - x.t, x.duration) * x.speed + x.offset;
       const w = c.fade > 0 && i > 0 ? Math.min(1, (t - c.t) / c.fade) : 1;
-      if (w < 1) { const p = clips[i - 1]; anim.poseClip(p.clip, local(p, t), 1, false); anim.poseClip(c.clip, local(c, t), w); } else anim.poseClip(c.clip, local(c, t));
+      // `over`: a clip that keys part of the body (a wave) plays over another one (idle) instead of over the bind pose
+      const under = (x, k) => { if (x.over) { if (!anim.clips.get(x.over)) throw new Error(`timeline: no clip "${x.over}"`); anim.poseClip(x.over, t - x.t, k, false); } };
+      if (w < 1) { const p = clips[i - 1]; under(p, 1); anim.poseClip(p.clip, local(p, t), 1, false, !!p.over); under(c, w); anim.poseClip(c.clip, local(c, t), w); }
+      else { under(c, 1); anim.poseClip(c.clip, local(c, t), 1, true, !!c.over); }
     },
   };
 }

@@ -6,7 +6,7 @@
 //   import { createRigModel } from '@mirage/play';
 //   import { writeGLB } from '@mirage/core';
 //   const rig = createRigModel();                       // { root, mesh, bones, clips }
-//   const glb = writeGLB(rig.root, { clips: rig.clips });   // what examples/demos/anim/rig.glb is
+//   const glb = writeGLB(rig.root, { clips: rig.clips });   // what examples/demos/anim loads (written in the page)
 //
 // Deliberately unlike the procedural player (character-model.js): a T-pose rest, 20 bones under a ground `Root`
 // bone with Mixamo-style names, so retargeting between the two has real work to do (other names, other rest pose).

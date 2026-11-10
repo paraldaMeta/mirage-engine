@@ -12,7 +12,7 @@ export interface TimelineKey {
 }
 export type TimelineTrack =
   | { type: 'transform' | 'camera'; target: THREE.Object3D; keys: readonly TimelineKey[]; curve?: 'linear' | 'smooth' }
-  | { type: 'animation'; animator: Animator; clips: readonly { t: number; clip: string; duration?: number; speed?: number; offset?: number; fade?: number }[]; rest?: boolean }
+  | { type: 'animation'; animator: Animator; clips: readonly { t: number; clip: string; duration?: number; speed?: number; offset?: number; fade?: number; /** a clip posed under this one, for clips that key part of the body */ over?: string }[]; rest?: boolean }
   | { type: 'audio'; cues: readonly ({ t: number } & Record<string, unknown>)[]; play?: (cue: any, offset: number) => void; stop?: () => void }
   | { type: 'event'; keys: readonly ({ t: number; name: string } & Record<string, unknown>)[] };
 export interface TimelineEvent { name: string; time: number; [key: string]: unknown }

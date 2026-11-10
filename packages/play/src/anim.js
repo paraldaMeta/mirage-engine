@@ -382,9 +382,9 @@ export function createAnimator(root, clips, options = {}) {
     weights(layer = 0) { const c = layerOf(layer).cur; return c ? c.state.children.map((cd, i) => [cd.name, c.bw[i]]) : []; },
     on(name, fn) { if (!listeners.has(name)) listeners.set(name, new Set()); listeners.get(name).add(fn); return () => listeners.get(name).delete(fn); },
     /** Pose from one clip at `t` seconds, outside the state machine (timeline scrubbing, thumbnails). */
-    poseClip(name, t, weight = 1, apply = true) {
+    poseClip(name, t, weight = 1, apply = true, over = false) {
       const cd = need(name), tt = cd.loop ? ((t % cd.duration) + cd.duration) % cd.duration : Math.min(Math.max(t, 0), cd.duration);
-      if (weight >= 1) pose.set(rest);
+      if (weight >= 1 && !over) pose.set(rest);   // over: keep the pose already there for the bones this clip does not key
       for (const tr of cd.tracks) {
         const v = tr.interp.evaluate(tt), at = tr.s.at;
         if (weight >= 1) for (let k = 0; k < tr.s.n; k++) pose[at + k] = v[k];

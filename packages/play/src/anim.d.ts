@@ -68,7 +68,7 @@ export interface Animator {
   on(name: string, listener: (event: AnimEvent) => void): () => void;
   /** Show one clip at time t, outside the state machine (scrubbing, a timeline). weight < 1 blends onto the pose
    *  held from the last call; apply false holds the pose without writing bones. */
-  poseClip(name: string, t: number, weight?: number, apply?: boolean): Animator;
+  poseClip(name: string, t: number, weight?: number, apply?: boolean, over?: boolean): Animator;
   reset(): Animator;
   snapshot(): unknown; restore(snapshot: unknown): Animator;
   /** the flat pose buffer last written (positions, quaternions, scales of the animated nodes) */

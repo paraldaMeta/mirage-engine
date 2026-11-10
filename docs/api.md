@@ -100,6 +100,15 @@ The entry points `@mirage/<pkg>` are the API. Every file under `src/` can also b
 | `disposeObject(root, { keepTextures })` | experimental | free an object tree's geometries, materials and textures |
 | `watchLongTasks()` | experimental | count main-thread long tasks (PerformanceObserver `longtask`, or frame gaps over 50 ms): `stop()` → `{ count, totalMs, maxMs, source, tasks }` |
 | `nextFrame(timeout)` | experimental | resolves after the next frame was drawn (a macrotask where there is no `requestAnimationFrame`) |
+| `writeGLB(root, { clips, meshopt })` | experimental | a binary glTF of an object tree: nodes, meshes, skins, standard-material factors, embedded images, animation clips (clip `userData` as extras); `meshopt: true` compresses vertex streams (EXT_meshopt_compression, own encoder) |
+
+Model import, `@mirage/core/assets` (opt-in subpath, [import.md](import.md)):
+
+| export | stability | what it is |
+|---|---|---|
+| `createAssets(world, { decoders, adapt, anisotropy, workers })` | experimental | glTF / GLB import with a reference-counted cache: `load(urlOrBytes, { key, path, scale, shadows, collide, adapt })`, `instantiate`, `instances`, `retain`, `release`, `refs`, `get`, `stats`, `dispose`; Draco, meshopt and KTX2 decoders start only for files that name them; materials are patched into the world's fog, shadows and light; `collide: 'mesh' \| 'box' \| 'hull' \| false` says what the model adds to the walk grid and Rapier |
+| `gltfExtensions(buffer)` | experimental | the `extensionsUsed` of a .glb or .gltf buffer, without loading it |
+| `decoders` | experimental | from `@mirage/core/assets-decoders`: three's Draco and Basis decoder files as Vite `?url` imports (a single-file build inlines them); pass to `createAssets` |
 
 ## @mirage/world
 
@@ -146,6 +155,18 @@ Gaussian splats, `@mirage/world/kits/splat` (opt-in subpath, world README "Gauss
 | `createNavCrowd(nav, { separation, range })` | experimental | separation steering for many agents (`add`, `remove`, `update(dt)`) |
 | `createXR(play, opts)` | experimental | WebXR: Enter VR / Enter AR buttons, the walker in a headset, teleport, snap turn, in-world game prompts, AR table model; hand tracking (pinch, point-and-pinch teleport), `navigator.xr.offerSession` / `autoEnter` for hosts without a DOM, labels in a built-in glyph font where Canvas 2D draws no text (`opts.offer`, `autoEnter`, `hands`, `text`; `docs/xr.md`) |
 | `xrSupport()` | experimental | `{ vr, ar }`: which immersive sessions the browser offers; pass `vr \|\| ar` as the world's `xr` option |
+| `createAnimator(root, clips, { parameters, layers, rootMotion, fixedStep, events })` | experimental | the animation controller ([animation.md](animation.md)): per-layer state machines with cross-fades and conditions, 1D / 2D blend spaces on one phase, masked and additive layers, root motion returned from `update(dt)`, clip events, `snapshot` / `restore`, `poseClip`; `post` hooks for IK |
+| `blend1d(points, x)`, `blend2d(points, x, y, mode)` | experimental | the blend-space weights on their own |
+| `rootMotionInput(move, heading, body, dt)` | experimental | a root-motion step as the input `walker.update` takes, so clips drive the walker and the walk grid still decides where it may go |
+| `solveTwoBone(upper, lower, end, target, { pole, hint, weight })` | experimental | analytic two-bone IK in world space (arms, legs) |
+| `solveLookAt(bones, target, { share, limit, weight })` | experimental | turn a bone or a chain (neck, head) to face a point, within a limit |
+| `createFootIK(root, { ground, legs, hips })` | experimental | foot placement: each foot on its own floor (`grid.groundAt`), hips lowered to reach, feet pitched on slopes; `update(dt)` after the pose |
+| `humanoidRoles(root)`, `humanoidMap(source, target)` | experimental | humanoid bones found by name (Mixamo-style, `.L` / `_l` / `Left` spellings) and the bone map between two skeletons |
+| `retargetClip(clip, source, target, { map, scale, matchRest })` | experimental | a clip baked for another humanoid skeleton: world-space rotation deltas with rest poses matched, hip travel scaled by hip height, events kept |
+| `createTimeline({ tracks, duration, loop })` | experimental | a sequencer on one clock: camera, transform, animation, audio and event tracks; `play`, `pause`, `seek(t)` (the picture depends on `t` alone), `update(dt)` |
+| `createRigCharacter(root, clips, { clipNames, layers, rootBone, footIK, look })` | experimental | an imported rigged model as the play character: `createPlay(world, { character: () => createRigCharacter(...) })`; set `ground` for foot placement, `lookTarget` for the head |
+| `createRigModel({ material, colors })` | experimental | a rigged humanoid authored in code (20 bones, 880 vertices, T-pose, nine clips with root motion and foot events): the test rig of the checks and the anim demo |
+| `RIG` | experimental | that rig's measures and clip speeds |
 
 ## @mirage/game
 

@@ -72,7 +72,7 @@ export function createRigCharacter(root, clips, { clipNames = {}, layers = null,
       state = !onGround ? (verticalSpeed > 0 ? 'jump' : 'fall') : speed < 0.05 ? 'idle' : run && speed > (vWalk + (vRun || vWalk)) / 2 ? 'run' : 'walk';
       return true;   // an idle clip breathes: there is always a new pose to draw
     },
-    reset() { speed = 0; state = 'idle'; feet?.reset(); anim.reset(); anim.evaluate(); },
+    reset() { speed = 0; state = 'idle'; feet?.reset(); anim.reset(); anim.update(0); },   // update(0): enter the start states, so a still drawn straight after a place() shows idle, not the bind pose
     dispose() { if (!disposed) { disposed = true; root.removeFromParent(); onDispose?.(api); } },
   };
   api.reset();
