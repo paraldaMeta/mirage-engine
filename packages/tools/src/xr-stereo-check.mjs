@@ -33,7 +33,7 @@ const r3 = (v) => +(+v).toFixed(3);
 
 // ---- in the page: window.__t
 function helper() {
-  const { world, play, xr } = window.__mirage, D = window.__xrShim, THREE = world.ctx.THREE, R = world.renderer, gl = R.getContext();
+  const { world, xr } = window.__mirage, D = window.__xrShim, THREE = world.ctx.THREE, R = world.renderer, gl = R.getContext();
   const C = { on: false, passes: 0, calls: 0, tris: 0 }, render = R.render.bind(R);
   R.render = (s, c) => {
     const a = R.info.autoReset ? 0 : R.info.render.calls, t = R.info.autoReset ? 0 : R.info.render.triangles;
@@ -341,7 +341,7 @@ async function move(browser, url) {
     out.walk = { metres: Math.hypot(w1[0] - w0[0], w1[2] - w0[2]), vignette: xr.state().vignette };
     T.ctl('left', { stick: [0, 0] }); T.tick(10);
     // teleport: the right stick forward aims the arc from the controller, letting go jumps
-    const rig = xr.state(), sp = window.__mirage.built.plan.spawn;
+    const sp = window.__mirage.built.plan.spawn;
     xr.place(sp.eye, sp.look); T.tick(4);
     const w2 = xr.state().walker;
     T.ctl('right', { p: [w2[0] + 0.2, w2[1] + 1.1, w2[2] - 0.3], q: T.aimQ([0, 0, 0], [0, 0.2, -1]), stick: [0, -1] }); T.tick(4);

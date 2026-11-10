@@ -35,7 +35,6 @@
 import * as THREE from 'three';
 
 const AX = { x: 0, y: 1, z: 2 }, LIN = 0, ANG = 3;   // Rapier's joint axes: LinX, LinY, LinZ, AngX, AngY, AngZ = 0..5
-const V = (a) => ({ x: a[0], y: a[1], z: a[2] });
 const _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _a = new THREE.Vector3(), _b = new THREE.Vector3();
 const rbOf = (x) => x._b || x.body || x;
 const local = (rb, p) => { const t = rb.translation(), r = rb.rotation(); _p.set(p[0] - t.x, p[1] - t.y, p[2] - t.z).applyQuaternion(_q.set(r.x, r.y, r.z, r.w).invert()); return { x: _p.x, y: _p.y, z: _p.z }; };

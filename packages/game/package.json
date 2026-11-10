@@ -26,6 +26,7 @@
     "./game": { "types": "./src/game.d.ts", "default": "./src/game.js" },
     "./input": { "types": "./src/input.d.ts", "default": "./src/input.js" },
     "./physics": { "types": "./src/physics.d.ts", "default": "./src/physics.js" },
+    "./platform": { "types": "./src/platform.d.ts", "default": "./src/platform.js" },
     "./simulation": { "types": "./src/simulation.d.ts", "default": "./src/simulation.js" },
     "./start": { "types": "./src/start.d.ts", "default": "./src/start.js" },
     "./ui": { "types": "./src/ui.d.ts", "default": "./src/ui.js" },

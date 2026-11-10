@@ -5,7 +5,7 @@
 // it switches by itself once every tab of the old version is closed. Old caches are deleted on activation.
 const VERSION = '__VERSION__';
 const PREFIX = '__CACHE_PREFIX__';
-const FILES = __FILES__;
+const FILES = __FILES__;   // eslint-disable-line no-undef -- replaced by mirage-ship
 const CACHE = PREFIX + VERSION;
 
 self.addEventListener('install', (e) => {

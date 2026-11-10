@@ -19,6 +19,8 @@ Chinese; the dated ones are records of what was done and are not kept current.
 |---|---|
 | [lighting.md](lighting.md) | cascaded shadows, probe GI, reflection probes, many lights |
 | [post.md](post.md) | temporal AA, upscaling, lens, motion blur, bloom, grade, offline output |
+| [physics.md](physics.md) | rigid bodies, joints, ragdolls, vehicles, buoyancy, snapshots |
+| [platforms.md](platforms.md) | mirage-ship targets: web, PWA, desktop and mobile wrappers; the platform layer |
 | [vfx.md](vfx.md) | particles, trails, beams, decals, the effect library |
 | [animation.md](animation.md) | the animation controller, IK, retargeting, timelines |
 | [audio.md](audio.md) | the audio engine |
