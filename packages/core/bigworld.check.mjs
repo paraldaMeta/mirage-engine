@@ -1,6 +1,6 @@
 // Mirage original code. Node checks of the big-world modules that need no GPU: the simplifier, the chunker, the
 // HLOD proxy, the impostor's direction mapping and the floating origin. (The GPU paths: examples/demos/bigworld/bigworld-check.mjs.)
-import assert from 'node:assert/strict';
+import assert from '../../scripts/soft-assert.mjs';
 import * as THREE from 'three';
 import { simplify, createChain, createSimplifier } from './src/simplify.js';
 import { chunkGeometry, chunkObject } from './src/chunk.js';

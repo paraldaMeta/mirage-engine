@@ -21,8 +21,12 @@
 //       meanAbsDiff = mean |f1 - f0| per RGB channel, 0..255, mean over the frames (flickerMax, flickerMaxAt [x, z]:
 //       the worst triple and where it was, saved as NN-<step>-worst.png and -worst-diff.png (|f0 - 2 f1 + f2| x4);
 //       frames default to the whole path, at most 600: 14 m at walking speed, use "speed": 4.2 for longer paths)
-//   "perf": { "frames": 90 }  synchronous frame cost while the held keys act (step + render + 1-px readback)
-//       -> frameMs (mean), p95Ms, calls, triangles
+//   "perf": { "frames": 90, "runs": 3 }  synchronous frame cost while the held keys act (step + render + 1-px readback),
+//       the `frames` timed as `runs` consecutive parts -> frameMs (the MEDIAN part's mean), p95Ms (median of the
+//       parts' p95), frameMsRuns (each part's mean), frameMsSpread ((max - min) / median: over 0.25 the machine was
+//       busy, or the view changed a lot along the way, and the number is soft), calls, triangles. The frames go
+//       through play.step: in walk / game mode the held keys walk and collide as in play (frames / 60 s of it), in
+//       fly mode nothing collides; a perf step measures a view, a walkTo / keys step tests the walls. With MIRAGE_GL=software (no GPU) frameMs / p95Ms / fps expectations are reported, not gated.
 //   "expect": { "<value>": "<op> <operand> [tolerance]" }   ops: < > <= >= ~ == != has
 //       values: x y z maxY dist onGround blocked mode fps | near prompt inventory paused flags.<name> (games)
 //               | flicker meanAbsDiff flickerMax | frameMs p95Ms calls triangles | errors warnings (console errors / warnings so far)
@@ -53,7 +57,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { launch, serve, open } from './chrome.mjs';
+import { launch, serve, open, softwareGL } from './chrome.mjs';
 import { seeInPage, frameStatsInPage, seeWhy, DARK_SHARE, CLIPPED_SHARE } from './see.mjs';
 import { worldChecks, probe } from './world-checks.mjs';
 import { sheetInPage, PHONE } from './sheet.mjs';
@@ -61,8 +65,9 @@ import { contrastAudit } from './contrast.mjs';
 import { routeMapInPage } from './route.mjs';
 import { unknownFields } from './scenario-fields.mjs';
 import { readPNG, encodePNG, regionSSIM, ssimVerdict, boxed, sideBySide } from './imgcmp.mjs';
-import { diag, sortDiagnostics, markdownDiagnostics, fromBuildReport, fromConsole, fromStep, fromWorldChecks, lintPlan, budgetAtLoad, heaviest, lightFix, stuckWords, throughWords, axisVerdict, parseExpect, formatDiagnostic } from './diagnostics.mjs';
+import { diag, sortDiagnostics, markdownDiagnostics, fromBuildReport, fromConsole, fromWarnings, fromStep, fromWorldChecks, lintPlan, budgetAtLoad, heaviest, lightFix, stuckWords, throughWords, axisVerdict, parseExpect, formatDiagnostic } from './diagnostics.mjs';
 
+const SOFTWARE = softwareGL();
 function check(expr, v) {
   const [op, ...rest] = String(expr).trim().split(/\s+/);
   const a = rest[0], n = a === 'true' ? true : a === 'false' ? false : a === 'null' ? null : isNaN(+a) ? a : +a;
@@ -104,7 +109,7 @@ try {
   const { page, errors, warnings, stacks, loadMs } = opened;
   Object.assign(report, { loadMs, ...(await page.evaluate(() => {
     const { play, built } = window.__mirage, gl = play.world.renderer.getContext(), x = gl.getExtension('WEBGL_debug_renderer_info');
-    return { gpu: x ? gl.getParameter(x.UNMASKED_RENDERER_WEBGL) : '?', grid: play.grid.stats, build: built && built.report ? { ms: built.report.ms, failed: built.report.failed, modules: built.report.modules.map((m) => ({ name: m.name, ok: m.ok, ms: m.ms, tris: m.tris, consumes: m.consumes })), anchors: built.report.anchors } : null };
+    return { gpu: x ? gl.getParameter(x.UNMASKED_RENDERER_WEBGL) : '?', grid: play.grid.stats, build: built && built.report ? { ms: built.report.ms, failed: built.report.failed, modules: built.report.modules.map((m) => ({ name: m.name, ok: m.ok, ms: m.ms, tris: m.tris, consumes: m.consumes })), anchors: built.report.anchors, ambientVolumes: (built.report.ambientVolumes || []).map((v) => ({ min: v.min, max: v.max, factor: v.factor, from: v.from })) } : null };
   })) });
   log(JSON.stringify({ step: 'load', loadMs, grid: report.grid, build: report.build }));
   if (report.build?.failed.some(f => f.phase === 'consumes')) failed++;
@@ -249,14 +254,22 @@ try {
           const sync = () => gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
           play.stop();
           for (let i = 0; i < 10; i++) { play.step(1 / 60); play.render({ moving: true }); } sync();
-          const ms = [];
-          for (let i = 0; i < N; i++) { const t = performance.now(); play.step(1 / 60); play.render({ moving: true }); sync(); ms.push(performance.now() - t); }
+          // The N frames are timed as R consecutive runs of N / R (so the walker ends where it always did); the gate
+          // reads the MEDIAN run, so one run that lost the CPU to another process does not fail the step, and the
+          // spread between the runs says how far the number can be trusted
+          const R = Math.max(1, Math.min(9, o.runs ?? 3, N)), means = [], p95s = [];
+          for (let r = 0; r < R; r++) {
+            const ms = [], n = Math.floor(((r + 1) * N) / R) - Math.floor((r * N) / R);
+            for (let i = 0; i < n; i++) { const t = performance.now(); play.step(1 / 60); play.render({ moving: true }); sync(); ms.push(performance.now() - t); }
+            ms.sort((a, b) => a - b); means.push(ms.reduce((a, b) => a + b, 0) / n); p95s.push(ms[Math.min(n - 1, Math.floor(n * 0.95))]);
+          }
+          const med = (a) => { const v = [...a].sort((x, y) => x - y), h = v.length >> 1; return v.length % 2 ? v[h] : (v[h - 1] + v[h]) / 2; };
           const info = play.world.renderer.info; info.autoReset = false; info.reset();
           play.step(1 / 60); play.render({ moving: true }); sync();
           const c = { calls: info.render.calls, triangles: info.render.triangles }; info.autoReset = true;
           play.start();
-          ms.sort((a, b) => a - b);
-          return { frameMs: +(ms.reduce((a, b) => a + b, 0) / N).toFixed(2), p95Ms: +ms[Math.floor(N * 0.95)].toFixed(2), ...c };
+          const m = med(means);
+          return { frameMs: +m.toFixed(2), p95Ms: +med(p95s).toFixed(2), frameMsRuns: means.map((v) => +v.toFixed(2)), frameMsSpread: +((Math.max(...means) - Math.min(...means)) / (m || 1)).toFixed(2), ...c };
         }, s.perf));
         await keysUp(s.keys || []);
       }
@@ -316,7 +329,9 @@ try {
     const vals = { ...st, x: st.pos[0], y: st.pos[1], z: st.pos[2], maxY, errors: errors.length, warnings: warnings.length, fps: +(frames / (heldMs / 1000)).toFixed(1),
       dist: start ? Math.hypot(st.pos[0] - start.pos[0], st.pos[2] - start.pos[2]) : NaN, ...frame, ...metrics, see: seen ? Object.fromEntries(Object.entries(seen.names).map(([n, v]) => [n, v.share])) : undefined };
     const get = (k) => k.split('.').reduce((o, p) => (o == null ? undefined : o[p]), vals);
-    const checks = Object.entries(s.expect || {}).map(([k, e]) => { const v = get(k); return { k, e, v: typeof v === 'number' ? +v.toFixed(3) : v, ok: check(e, v) }; });
+    // without a GPU a frame time says nothing about the scene: the number is reported, the expectation is not gated
+    const ungated = (k) => SOFTWARE && (k === 'frameMs' || k === 'p95Ms' || k === 'fps');
+    const checks = Object.entries(s.expect || {}).map(([k, e]) => { const v = get(k); return { k, e, v: typeof v === 'number' ? +v.toFixed(3) : v, ok: ungated(k) || check(e, v), ...(ungated(k) ? { why: 'not gated: software GL' } : {}) }; });
     if (contrast) for (const it of contrast.items.filter((i) => !i.pass)) checks.push({ k: 'contrast', e: `>= ${it.need}`, v: it.ratio, ok: false, why: `"${it.text}" (${it.selector}, ${it.size} px, ${it.color} over ~${it.backdrop})` });
     let baseRow = null;
     if (still) {
@@ -359,7 +374,7 @@ try {
       } catch (e) { log('probe failed: ' + (e.message || e)); }
     }
     moved = moved || !!s.place || s.viewpoint !== undefined;
-    const stepDiags = fromStep({ ...row, checks: checks.filter((c) => c.k !== 'contrast') }, { idx, step: moved ? s : { ...s, atSpawn: true }, plan, probe: probes, heavy, lightFix: lightWords, loadDiags });
+    const stepDiags = fromStep({ ...row, checks: checks.filter((c) => c.k !== 'contrast') }, { idx, step: moved ? s : { ...s, atSpawn: true }, plan, probe: probes, heavy, lightFix: lightWords, loadDiags, volumes: report.build?.ambientVolumes });
     const tgt = `step ${idx + 1} "${s.name ?? idx}"`;
     if (contrast) for (const it of contrast.items.filter((i) => !i.pass)) {
       stepDiags.push(diag('MG710', { target: tgt, message: `"${it.text}" (${it.selector}, ${it.size} px${it.bold ? ' bold' : ''}, colour ${it.color}) reads at ${it.ratio}:1 over a backdrop of ~${it.backdrop} (median ${it.median}:1); WCAG AA needs ${it.need}:1${it.shadow ? '; its text-shadow is not counted' : ''}` }));
@@ -377,6 +392,7 @@ try {
   report.errors = errors; report.warnings = warnings;
   if (errors.length > allowed) { log('console errors: ' + JSON.stringify(errors)); failed++; }
   diagnostics.push(...fromConsole(errors, { allowed, stacks }));
+  diagnostics.push(...fromWarnings(warnings));
   // the contact sheet: every step's screenshot with its name and verdict
   const items = results.filter((r) => r.shot).map((r) => ({ label: `${r.step}  ${r.pass ? 'pass' : 'FAIL'}`, ok: r.pass, data: 'data:image/png;base64,' + fs.readFileSync(path.join(OUT, r.shot)).toString('base64') }));
   if (items.length) {

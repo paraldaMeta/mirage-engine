@@ -24,3 +24,5 @@ export function createEnv(options?: { wind?: { dir?: readonly [number, number]; 
 };
 export const AMBIENT_GLSL: string;
 export const WIND_GLSL: string;
+/** @internal bumped when a module patches three's shader chunks; Mirage materials put it in their program cache key */
+export const CHUNK_EPOCH: { n: number };

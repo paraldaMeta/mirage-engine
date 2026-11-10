@@ -5,7 +5,8 @@
 // from a Blob), and the bundle goes inline into the page.
 //
 // usage: mirage-package <example dir> [--out file.html]
-import { build } from 'vite';
+import { build, parseAst } from 'vite';
+import { embedWorkers, htmlSafe, scriptCloses } from './embed-workers.mjs';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -37,21 +38,14 @@ const mainName = (html0.match(/src="[^"]*assets\/([^"]+\.js)"/) || [])[1];
 if (!mainName) throw new Error('main bundle not found in the built index.html');
 let js = fs.readFileSync(path.join(assets, mainName), 'utf8');
 
-// workers: every other .js asset the bundle references becomes a Blob URL made from its source, started classic
-const workers = files.filter((f) => f.endsWith('.js') && f !== mainName && js.includes(f));
-let pre = '';
-workers.forEach((f, i) => {
-  const src = fs.readFileSync(path.join(assets, f), 'utf8');
-  if (/^\s*(import|export)\s/m.test(src)) throw new Error(`worker ${f} has imports/exports; it cannot run as a classic worker`);
-  const v = `__W${i}`, esc = f.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  pre += `const ${v}=URL.createObjectURL(new Blob([${JSON.stringify(src)}],{type:"text/javascript"}));\n`;
-  const before = js;
-  js = js.replace(new RegExp(`new URL\\(\\s*(?:"[^"]*?|'[^']*?|\`[^\`]*?)${esc}(?:"|'|\`)\\s*,\\s*(?:import\\.meta\\.url|self\\.location(?:\\.href)?|location\\.href)\\s*\\)`, 'g'), v);
-  js = js.replace(new RegExp(`(["'\`])[^"'\`]*?${esc}\\1`, 'g'), v);
-  if (js === before) throw new Error(`could not rewrite the reference to worker ${f}`);
-  js = js.replace(new RegExp(`new Worker\\(\\s*(?:new URL\\(\\s*${v}\\s*,[^()]*\\)|${v})\\s*,\\s*\\{\\s*type\\s*:\\s*[\`"']module[\`"']\\s*\\}\\s*\\)`, 'g'), `new Worker(${v})`);
-  console.log(`[package] worker ${f} (${(src.length / 1024).toFixed(0)} KB) embedded`);
-});
+// workers: every other .js asset the bundle names becomes a Blob URL made from its source, started classic. The
+// rewrite is done on the syntax tree and refuses what it cannot do safely (embed-workers.mjs).
+const others = files.filter((f) => f !== mainName);
+const workers = others.filter((f) => f.endsWith('.js') && js.includes(f));
+const done = embedWorkers(js, workers.map((f) => ({ name: f, src: fs.readFileSync(path.join(assets, f), 'utf8') })), parseAst, { otherFiles: others.filter((f) => !workers.includes(f)) });
+js = done.js;
+const pre = done.pre;
+for (const w of done.embedded) console.log(`[package] worker ${w.name} (${(w.bytes / 1024).toFixed(0)} KB) embedded, ${w.references} reference${w.references === 1 ? '' : 's'}`);
 const leftovers = files.filter((f) => f !== mainName && !workers.includes(f) && js.includes(f));
 if (leftovers.length) throw new Error('unresolved asset references (not inlined): ' + leftovers.join(', '));
 
@@ -61,7 +55,9 @@ let page = html0.replace(/<link\b[^>]*rel="stylesheet"[^>]*href="[^"]*?assets\/(
   `<style>\n${fs.readFileSync(path.join(assets, f), 'utf8').replace(/<\/style/gi, '<\\/style')}\n</style>`);
 const dangling = [...page.matchAll(/(?:src|href)="(?:\.?\/)?(assets\/[^"]+)"/g)].map((m) => m[1]).filter((f) => !f.endsWith(mainName));
 if (dangling.length) throw new Error('index.html references files that cannot be inlined: ' + dangling.join(', '));
-const script = `<script type="module">\n${pre}${js.replace(/<\/script/gi, '<\\/script')}\n</script>`;
+const body = pre + htmlSafe(js, parseAst);
+if (!scriptCloses(body)) throw new Error('the bundle holds `<!--` and `<script` in code the packager cannot escape: the inlined script would never close');
+const script = `<script type="module">\n${body}\n</script>`;
 const html = page.replace(/<script type="module"[^>]*src="[^"]*"[^>]*><\/script>/, () => script).replace(/<link rel="modulepreload"[^>]*>/g, '');
 fs.mkdirSync(path.dirname(outFile), { recursive: true });
 fs.writeFileSync(outFile, html);

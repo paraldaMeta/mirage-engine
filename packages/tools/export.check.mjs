@@ -1,5 +1,5 @@
 // Node checks of the exporter's pure parts (no browser): node packages/tools/export.check.mjs
-import assert from 'node:assert/strict';
+import assert from '../../scripts/soft-assert.mjs';
 import * as THREE from 'three';
 import { unwrap, layout, atlasUV, resolveBake, dilate, zipAligned, zipOffsets } from '@mirage/core/export';
 import { unzipSync } from 'three/addons/libs/fflate.module.js';

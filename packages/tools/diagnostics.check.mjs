@@ -1,6 +1,6 @@
 // Node checks of the diagnostics (no browser): the code table, the converters, and the walk-grid probes on hand-made
 // grids (each check fires on a broken case and stays quiet on a good one). `npm test -w @mirage/tools`
-import assert from 'node:assert/strict';
+import assert from '../../scripts/soft-assert.mjs';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { CODES, diag, sortDiagnostics, fromPlanIssues, lintPlan, fromBuildReport, fromConsole, fromStep, fromWorldChecks,

@@ -15,7 +15,7 @@
 // physics ray of your own). Pure parts (Node-tested): projectPoint, worldFade, clampToEdge.
 // ---------------------------------------------------------------------------
 import * as THREE from 'three';
-import { h, signal, read } from './ui-kit.js';
+import { h, signal } from './ui-kit.js';
 import { Bar } from './ui-widgets.js';
 
 /** Project a world point with a view-projection matrix (16 numbers, column-major) to pixels of a w x h viewport

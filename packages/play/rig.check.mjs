@@ -1,6 +1,6 @@
 // What sits on top of the animator, on the code-authored rig: IK solvers, retargeting onto the procedural
 // traveller's skeleton, the timeline, and the rig as the play character.
-import assert from 'node:assert/strict';
+import assert from '../../scripts/soft-assert.mjs';
 import * as THREE from 'three';
 import { createEnv, createMaterials } from '@mirage/core';
 import { createRigModel, RIG } from './src/rig-model.js';

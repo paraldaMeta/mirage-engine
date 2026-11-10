@@ -1,6 +1,6 @@
 // Model import contracts that need no GPU: the GLB writer, the meshopt vertex codec against three's decoder, the
 // asset cache's reference counts, instancing and the collision conventions.
-import assert from 'node:assert/strict';
+import assert from '../../scripts/soft-assert.mjs';
 import * as THREE from 'three';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { createEnv, createMaterials, writeGLB } from './src/index.js';

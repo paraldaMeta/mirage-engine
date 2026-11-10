@@ -62,8 +62,8 @@ export interface WorldContext {
   quality: Quality; place: Place;
   /** Live reduced-motion scales for kits (1 when off); world.setReducedMotion writes it. */
   motion: { reduced: boolean; sway: number; rain: number };
-  /** Called for each render sub-frame, not the fixed physics tick. Returns the new callback count, not an unsubscribe handle. */
-  onUpdate(callback: (seconds: number) => void): number;
+  /** Called for each render sub-frame, not the fixed physics tick. Returns an unsubscribe function (safe to call twice, or from inside the callback); world.dispose() drops every callback. */
+  onUpdate(callback: (seconds: number) => void): () => void;
 }
 export interface WorldRenderer {
   renderer: THREE.WebGLRenderer; scene: THREE.Scene; camera: THREE.PerspectiveCamera; sun: THREE.DirectionalLight;

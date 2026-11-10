@@ -185,6 +185,20 @@ function archTop(o) {
   return o.height + R * Math.sin(Math.acos((R - w / 2) / R));
 }
 
+const _told = new Set();   // each distinct problem is said once, not once per wall of a row of them
+/** Why an opening does not fit a wall of this height, or null. An opening's `height` is where its arch SPRINGS, not
+ *  its top, and the arch defaults to 'round' (+ width / 2): a 2.1 m door 1.2 m wide tops out at 2.7 m and cuts
+ *  through the top of a 2.4 m wall. wall() warns with this text (MG206); it is exported for checks. */
+export function openingProblem(o, wallHeight) {
+  const kind = o.arch || 'round', top = archTop(o);
+  if (!(top > wallHeight - 1e-6)) return null;
+  const f = (v) => +v.toFixed(2);
+  const where = `wall: the ${o.sill > 0 ? 'window' : 'door'} at x ${f(o.x)} (width ${f(o.width)}, height ${f(o.height)}, ${o.arch ? `arch '${kind}'` : "no arch given, so 'round'"}) tops out at ${f(top)} m, ${top > wallHeight + 1e-6 ? 'above' : 'at'} the ${f(wallHeight)} m wall top`;
+  const flatFits = o.height < wallHeight - 1e-6;
+  const spring = wallHeight - (top - o.height) - 0.2;
+  return `${where}: height is where the arch springs, not the top of the opening. ${flatFits ? `Add arch: 'flat' for a straight lintel at ${f(o.height)} m` : `Lower height below ${f(wallHeight)}`}${kind !== 'flat' && spring > (o.sill > 0 ? o.sill : 0) + 0.3 ? `${flatFits ? ', or' : ' and'} keep the ${kind} arch with height ${f(spring)}` : ''}.`;
+}
+
 /** An extruded wall along local +X (centred), from y = 0 to `height`, `thickness` along Z (centred).
  *  openings: [{ x (centre along the wall), width, height (springing height), arch: 'round' | 'pointed' |
  *  'segmental' | 'flat', rise, sill (0 = a door from the ground) }]; round: arris chamfer (m, 0 = sharp; 45°, cut
@@ -193,6 +207,7 @@ function archTop(o) {
  *  chamfered (the outline starts that far below y = 0). */
 export function wall({ length, height, thickness = 0.4, openings = [], curveSteps = 18, round = 0 }) {
   const L = length / 2;
+  for (const o of openings) { const why = openingProblem(o, height); if (why && !_told.has(why)) { _told.add(why); console.warn('[mirage/geom] MG206 ' + why); } }
   const doors = openings.filter((o) => !(o.sill > 0)).sort((a, b) => a.x - b.x);
   const windows = openings.filter((o) => o.sill > 0);
   let rr = 0;

@@ -77,6 +77,26 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
   `npm test` (`packages/game/physics.check.mjs`) and `node examples/demos/physics/physics-check.mjs`, 23 of 23 in
   headless Chrome. Not there: cloth, soft bodies, fracture, fluids, GPU or multi-threaded physics, break torque,
   cross-platform determinism.
+- Engineering: hosted CI draws frames. A `software-gl` job runs Chrome on SwiftShader (`MIRAGE_GL=software`) and
+  plays two examples, redraws two views of each bit-identically and compares five stills with committed baselines
+  by region SSIM (`npm run test:software-gl`, `docs/ci.md`; locally on macOS: four parts in about 230 s; not yet
+  run on a hosted runner). Timing is printed, not gated, under software GL. Every action in both workflows is
+  pinned to a commit SHA and a check fails on an unpinned one or a write scope.
+- Engineering: `npm test` also runs ESLint (flat config, correctness rules only, no formatting), an import check
+  against the export maps (299 files, 105 entries), a declaration check (95 modules, 602 runtime exports all
+  declared, `tsc` clean) and a docs check (every `docs/*.md` linked from `docs/README.md`, 251 relative links
+  resolve). Nothing is installed at test time. Check scripts report every failed assertion with a count
+  (`scripts/soft-assert.mjs`; 29 scripts moved, what they test unchanged).
+- Diagnostics: MG206 (a wall opening that reaches the wall top: `height` is where the arch springs and `arch`
+  defaults to `'round'`; `geom.openingProblem(opening, wallHeight)` returns the text, `geom.wall` warns once per
+  case) and MG442 (the eye is inside an `ambientVolumes` box and the picture's mean luma is under 40 of 255:
+  measured 25 to 33 in an unlit room with `factor: 0.35`, 55 to 76 with a lamp). MG102 for a list under
+  `plan.points` now says the two real ways out. `docs/diagnostics.md`.
+- Docs: `docs/making-a-world.md` (a first world by hand, built and playtested as written; pitfalls; escape hatches
+  to plain three.js), `docs/README.md` (the index), `docs/STABILITY.md` (37 of 212 exports are stable; the
+  promotion policy; the Node checks run 51.8 % of 24 487 source lines), `docs/ci.md`, `docs/releasing.md` (checklist, npm provenance:
+  documented, not run), `SECURITY.md`. `npm run coverage` and `npm run stability` produce the numbers.
+
 - @mirage/game: an audio engine on top of the mixer (`createAudioEngine`, `createMixer`, `createMusic`,
   `createAudioDebug`, occluders and DSP helpers; experimental, opt-in, `docs/audio.md`). `createAudio` is unchanged
   and, given to the engine, keeps playing through the new buses (`audio.play('pickup')` peak 0.284 alone, 0.284 again
@@ -461,6 +481,18 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
 
 **Changes in behaviour**
 
+- `ctx.onUpdate(fn)` / `world.onUpdate(fn)` return a function that unsubscribes (they returned the number of
+  subscribers). Calling it twice, or from inside the callback, is safe; `docs/LIFECYCLE.md`. Module callbacks of a
+  streamed or partitioned world are dropped with their module.
+- Export maps are explicit lists (core 42 subpaths, world 13, play 18, game 23, net 4): the `"./*": "./src/*.js"`
+  wildcard is gone, so a file under `src/` that no entry names (for example core's `particle-draw.js`) can no
+  longer be imported. Every subpath the examples, docs and packages use is listed; `node scripts/check-imports.mjs`
+  names an import that is not.
+- A playtest `perf` step times its frames in three consecutive parts and reports the median with the spread
+  (`frameMsRuns`, `frameMsSpread`; the same number of frames as before, so the walker ends where it did). MG501
+  no longer blames the triangle count for a slow frame unless the view is over `plan.budget`, and says so when the
+  runs disagree by more than 25 %.
+
 - Version 1.0.0 for every package and example. Peer ranges: `three >=0.186.1 <0.187.0`, `@mirage/*` `^1.0.0`
   (were exact versions). Each package ships its LICENSE and has repository, homepage and bugs fields. The `"./*"`
   subpath export stays until a whitelist is decided (`docs/api.md`).
@@ -495,6 +527,14 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
   cannot inline; `mirage-e2e` runs the `examples/` of the current folder or `--root`.
 
 **Fixes**
+
+- @mirage/core: `createLod().register()` threw a ReferenceError (`unit` was declared inside the traverse callback
+  and read after it; found by the linter, regression check in `scripts/checks/tooling.check.mjs`). `createVfx` on
+  a world left its per-frame callback subscribed after `dispose()`.
+- @mirage/tools, @mirage/net: the static servers followed a symlink inside the served folder to a file outside it;
+  they now compare the real path (27 assertions in `scripts/checks/serve.check.mjs`). `mirage-package` found worker
+  URLs with a regular expression, which a string or a comment could satisfy and a line break could defeat; it now
+  parses the bundle and refuses a worker path outside the build (44 assertions).
 
 - @mirage/game: text from saves and settings (inventory names, key bindings, slot summaries) is escaped in the
   overlay — an imported save file could run script in the page; `addStatic` skips meshes with nothing to collide

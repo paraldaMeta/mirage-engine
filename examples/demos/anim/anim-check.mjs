@@ -46,7 +46,7 @@ try {
   ok('Basis (KTX2) transcoder starts from the inlined WASM', dec.basis.ktx2 && dec.basis.inline, dec.basis);
 
   const adapt = await page.evaluate(() => {
-    const { hero, crate, play, world, THREE } = window.__mirage; let mat = null, heroMat = null;
+    const { hero, crate, play, world } = window.__mirage; let mat = null, heroMat = null;
     crate.scene.traverse((o) => { if (o.isMesh) mat = o.material; }); hero.root.traverse((o) => { if (o.isSkinnedMesh) heroMat = o.material; });
     const progs = world.renderer.info.programs.length;
     return { crateFog: mat.fog !== false, heroCast: (() => { let c = false; hero.root.traverse((o) => { if (o.isSkinnedMesh) c = o.castShadow; }); return c; })(), heroMatType: heroMat.type, progs,
@@ -100,7 +100,7 @@ try {
 
   // 7. retargeted traveller
   const rt = await page.evaluate(() => {
-    const { play, retargeted, THREE } = window.__mirage, k = retargeted.root.getObjectByName('knee.L'), q0 = k.quaternion.clone(); let turn = 0;
+    const { play, retargeted } = window.__mirage, k = retargeted.root.getObjectByName('knee.L'), q0 = k.quaternion.clone(); let turn = 0;
     for (let i = 0; i < 40; i++) { play.step(1 / 60); turn = Math.max(turn, k.quaternion.angleTo(q0)); }
     return { tracks: retargeted.clip.tracks.length, duration: retargeted.clip.duration, kneeTurn: turn };
   });

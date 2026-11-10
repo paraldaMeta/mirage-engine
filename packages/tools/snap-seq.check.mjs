@@ -1,6 +1,6 @@
 // Mirage original code. Node checks of mirage-snap's offline encoders and sequence options (src/snap-seq.mjs).
 // usage: node snap-seq.check.mjs
-import assert from 'node:assert/strict';
+import assert from '../../scripts/soft-assert.mjs';
 import zlib from 'node:zlib';
 import { halfToFloat, floatToHalf, encodePNG16, encodeEXR, encodeIVF, seqOptions } from './src/snap-seq.mjs';
 

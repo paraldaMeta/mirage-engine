@@ -29,7 +29,7 @@
 // ---------------------------------------------------------------------------
 import http from 'node:http';
 import { randomBytes, randomInt } from 'node:crypto';
-import { createReadStream, statSync } from 'node:fs';
+import { createReadStream, statSync, realpathSync } from 'node:fs';
 import { resolve, sep, extname, join } from 'node:path';
 import { acceptWebSocket } from './ws.js';
 import { conditioned } from './transport.js';
@@ -47,7 +47,8 @@ export function createServer(o = {}) {
   const hosts = o.hosts ?? (loop ? LOOPBACK : null), origins = o.origins ?? [];
   const maxConnections = o.maxConnections ?? 256, perAddress = o.perAddress ?? 32, maxRooms = o.maxRooms ?? 64, emptyMs = o.emptyMs ?? 60000;
   const gridBytes = o.grid ?? null, grid = gridBytes ? deserializeGrid(gridBytes) : null;
-  const root = o.dir ? resolve(o.dir) : null;
+  let root = o.dir ? resolve(o.dir) : null;
+  try { if (root) root = realpathSync(root); } catch { /* no such folder yet: every request is a 404 */ }
   const rooms = new Map(), conns = new Set(), perAddr = new Map();
   const stats = { connections: 0, refused: 0, dropped: 0, relayed: 0 };
   const now = o.now ?? (() => performance.now());
@@ -64,7 +65,10 @@ export function createServer(o = {}) {
     if (!root || path.includes('\0')) return end(404, 'not found');
     let file = resolve(join(root, path));
     if (file !== root && !file.startsWith(root + sep)) return end(403, 'forbidden');   // no way out of the folder
-    try { let st = statSync(file); if (st.isDirectory()) { file = join(file, 'index.html'); st = statSync(file); } if (!st.isFile()) throw 0;
+    try { let st = statSync(file); if (st.isDirectory()) { file = join(file, 'index.html'); st = statSync(file); } if (!st.isFile()) throw new Error('not a file');
+      // the file that would be read, symlinks followed: a link in the folder that points out of it is not served
+      file = realpathSync(file);
+      if (file !== root && !file.startsWith(root + sep)) return end(403, 'forbidden');
       res.writeHead(200, { 'Content-Type': MIME[extname(file).toLowerCase()] || 'application/octet-stream', 'Content-Length': st.size, 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-cache' });
       if (req.method === 'HEAD') return res.end();
       createReadStream(file).on('error', () => res.destroy()).pipe(res);

@@ -1,5 +1,5 @@
 // Deferred CLI acceptance: exercise installed package exports, real JS imports, JSON and aggregate diagnostics.
-import assert from 'node:assert/strict';
+import assert from '../../scripts/soft-assert.mjs';
 import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

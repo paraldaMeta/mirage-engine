@@ -240,9 +240,9 @@ export function createVfx(target, opts = {}) {
     for (const fx of [...kits.keys()]) release(fx);
     beams.dispose(); decals.dispose(); sorter.dispose(); depth.dispose(); setGround(null);
     for (const m of meshes.values()) { m.texture.dispose(); m.geometry.dispose(); } for (const f of fields.values()) f.dispose(); for (const s of sheets.values()) (s.target || s.texture).dispose();
-    scene.remove(root); disposed = true;
+    scene.remove(root); disposed = true; if (typeof offUpdate === 'function') offUpdate();
   }
-  if (isWorld) target.ctx.onUpdate((tk) => update(tk));
+  const offUpdate = isWorld ? target.ctx.onUpdate((tk) => update(tk)) : null;   // undone in dispose()
   return { root, stats, depth, hz, sorter, define, spawn, burst, prewarm, update, clear, release, dispose, countAlive, setGround, registerMesh, registerField, registerSheet,
     /** a beam or a lightning bolt between two points (vfx-extras.js) */
     beam: (o) => beams.add(o),

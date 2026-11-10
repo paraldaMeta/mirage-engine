@@ -69,7 +69,7 @@ function fadeMaterial(base) {
 export function createAutoLod(world, opts = {}) {
   const { ratios = [0.5, 0.25, 0.12], errorPx = 1, hysteresis = 0.2, fade = 0.3, minTriangles = 300, workers = 0, budgetMs = 3, maxError = Infinity, weights = WEIGHT, auto = true } = opts;
   const scene = world.scene || world, camera0 = world.camera;
-  const entries = [], queue = [], waiting = new Map();
+  const entries = [], queue = [];
   const stats = { meshes: 0, built: 0, pending: 0, levels: 0, sourceTriangles: 0, drawnTriangles: 0, fading: 0, buildMs: 0, switches: 0 };
   let frozen = null, current = null, lastCam = new Float32Array(16), readyResolve = [], disposed = false, jobId = 0, last = 0;
   const tris = (g) => (g.index ? g.index.count : g.attributes.position.count) / 3;

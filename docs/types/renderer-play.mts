@@ -23,9 +23,10 @@ createSubpath({ canvas: document.createElement('canvas') });
 const maybeLight: number | undefined = world.light?.exposure;
 // @ts-expect-error lighting is null before first initialization
 const prematureLight: number = world.light.exposure;
-const callbackCount: number = world.ctx.onUpdate(seconds => { world.G.uUser.value.x = seconds; });
-// @ts-expect-error onUpdate returns a count, not an unsubscribe function
-world.ctx.onUpdate(() => {})();
+const stopUpdate: () => void = world.ctx.onUpdate(seconds => { world.G.uUser.value.x = seconds; });
+stopUpdate();
+// @ts-expect-error onUpdate returns its unsubscribe function, not a count
+const callbackCount: number = world.ctx.onUpdate(() => {});
 world.setTime('golden'); world.setTime(Date.now(), { ease: true }); world.tick(1 / 60);
 await world.prepare(); world.captureEnv(false);
 world.setAmbientVolumes([{ min: [-2, 0, -2], max: [2, 3, 2], factor: 0.3 }]);

@@ -23,3 +23,10 @@ export class LampShadows {
   clear(): void;
   dispose(): void;
 }
+/** @internal lamp-shadow slots compiled into the shaders, and lamps the volumetric pass scatters */
+export const LS_N: number;
+export const VOL_LAMPS: number;
+/** @internal the page-global lamp-shadow uniforms */
+export const LS_SHARED: { pos: Float32Array; info: Float32Array; info2: Float32Array; near: Float32Array; atlas: THREE.Texture | null };
+/** @internal a world without lamp shadows draws next: no slot is published */
+export function lampShadowsIdle(): void;

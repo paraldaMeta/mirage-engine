@@ -65,6 +65,7 @@ when this page and the table disagree.
 | MG203 | error | required anchors missing (`consumes.required`) | a module that offers them, or move the key to `consumes.optional` |
 | MG204 | error | module definition invalid (no name / build, duplicate name, bad anchors, consumes, ambientVolumes) | the documented shape |
 | MG205 | info | module built no triangles | add meshes to `ctx.root`, if it should be visible |
+| MG206 | warning | a `wall()` opening reaches the top of its wall: an opening's `height` is where its arch springs and `arch` defaults to `'round'` (+ width / 2), so a 2.1 m door 1.2 m wide tops out at 2.7 m (console warning from `@mirage/core/geom`, listed by the playtest) | `arch: 'flat'`, or the lower `height` that keeps the arch under the wall top (the message has the numbers) |
 
 Module failures fail a playtest through the console errors they log (allowed with the scenario's `"errors": N`).
 
@@ -97,6 +98,7 @@ Module failures fail a playtest through the console errors they log (allowed wit
 | MG412 | warning | a viewpoint misses its subject (its `see: [...]` list, or the object it is named after) | the look point: the subject's centre |
 | MG440 | warning | black frame (98 % of pixels near black, or mean luma < 4); error when a `luma` / `dark` expectation fails | from the light state: `plan.render.post.exposure`, the sun below the horizon (`plan.render.time`), or a camera inside a mesh |
 | MG441 | warning | overexposed frame (35 % near white) | exposure, emissive |
+| MG442 | warning | interior nearly black: the step's eye is inside a module's `ambientVolumes` box and the screenshot's mean luma is under 40 of 255 (measured: an unlit 6 x 5 m room with a door at midday and `factor: 0.35` reads 25 - 33, the same room with a lamp 55 - 76, snow-hut's stove view 75) | a lamp or emissive surface inside, a higher `factor` (0.5 - 0.7), or a window to the sun |
 | MG450 | warning | coplanar upward surfaces (z-fighting) | raise the upper one 1 cm (the value to use) |
 | MG451 | error | flicker over the expectation | the worst frame's diff image and position |
 | MG452 | info | a flicker spike: one frame > 4 x the mean and > 15 | look at the worst frame |
@@ -107,7 +109,7 @@ Module failures fail a playtest through the console errors they log (allowed wit
 
 | code | severity | problem | fix |
 |---|---|---|---|
-| MG501 | error | frame time over budget (warning without an expectation) | the heaviest modules by triangles |
+| MG501 | error | frame time over budget (warning without an expectation); the time is the median of the perf step's runs (3 by default) and the message lists the runs and their spread | when the runs differ by more than 25 %: measure again on a quiet machine. Triangles or calls are blamed only when they are over `plan.budget`; otherwise the fix says the time is not a cause and lists what costs time without triangles |
 | MG502 | error | p95 frame time over budget | spikes: compile at load, no per-frame allocation |
 | MG503 | error | draw calls over budget | merge per material, instance |
 | MG504 | error | triangles over budget; a warning at load from the build report (module triangles vs `plan.budget.triangles`) | the heaviest module and the share of its triangles to cut |

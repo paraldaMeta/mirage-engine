@@ -12,7 +12,7 @@ execFileSync('node', [path.join(root, 'packages/tools/src/package.mjs'), here, '
 
 // runs in the page. A second, hand-clocked system (not the world's) so every test picks its own step count.
 const IN_PAGE = async () => {
-  const { world, createVfx, VFX_LIBRARY, THREE } = window.__mirage, R = {};
+  const { world, createVfx, VFX_LIBRARY } = window.__mirage, R = {};
   const mk = (o) => createVfx({ renderer: world.renderer, scene: world.scene, camera: world.camera }, o);
   const run = (v, from, to, every = 1) => { for (let i = from; i <= to; i += every) v.update(i / 60); };
   const hash = (v) => { let h = 2166136261 >>> 0, n = 0; for (const p of v.pools()) { const s = p.read(); for (const k of ['P', 'V', 'X']) { const b = new Uint32Array(s[k].buffer); for (let i = 0; i < b.length; i++) { h = Math.imul(h ^ b[i], 16777619) >>> 0; } n += b.length; } } return h.toString(16) + ':' + n; };

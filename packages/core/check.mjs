@@ -1,5 +1,5 @@
 // One runnable self-check for the non-trivial pure logic: `npm test -w @mirage/core`
-import assert from 'node:assert/strict';
+import assert from '../../scripts/soft-assert.mjs';
 import * as THREE from 'three';
 import { rng, skyAt, placeDate, skyState, lightAt, transmitAtGround, geom } from './src/index.js';
 import { dynamicResConfig } from './src/world.js';

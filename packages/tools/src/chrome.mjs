@@ -30,9 +30,13 @@ export const chromePath = () => (chrome ??= findChrome());
 export const CAPTURE_ARGS = ['--disable-background-media-suspend', '--disable-component-update', '--disable-domain-reliability', '--no-pings',
   '--disable-features=IntensiveWakeUpThrottling,BackForwardCache'];
 /** the full Chrome command line launch() uses (without puppeteer's defaults) */
-export const launchArgs = ({ w = 1440, h = 900, args = [] } = {}) =>
+/** MIRAGE_GL=software: draw with SwiftShader through ANGLE (no GPU: a hosted CI runner). Slow and not bit-identical
+ *  to a GPU, so timing expectations are reported but not gated (playtest) and stills compare by SSIM, never by bits. */
+export const softwareGL = (env = process.env) => env.MIRAGE_GL === 'software';
+export const SOFTWARE_GL_ARGS = ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'];
+export const launchArgs = ({ w = 1440, h = 900, args = [], software = softwareGL() } = {}) =>
   // --disable-audio-output: Web Audio runs against a null sink, so the host's sound device cannot fail a test
-  ['--enable-gpu', '--ignore-gpu-blocklist', '--disable-gpu-watchdog', '--disable-audio-output', ...CAPTURE_ARGS, `--window-size=${w},${h}`, ...args];
+  [...(software ? SOFTWARE_GL_ARGS : ['--enable-gpu', '--ignore-gpu-blocklist']), '--disable-gpu-watchdog', '--disable-audio-output', ...CAPTURE_ARGS, `--window-size=${w},${h}`, ...args];
 
 export function launch({ w = 1440, h = 900, args = [] } = {}) {
   const other = process.env.MIRAGE_BROWSER;
@@ -113,17 +117,25 @@ async function launchPlaywright(name, { w, h }) {
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.webp': 'image/webp', '.png': 'image/png', '.css': 'text/css', '.svg': 'image/svg+xml', '.wasm': 'application/wasm' };
 /** a static server for a built folder; resolves to { url, close() } */
 export function serve(dir, port = 0) {
-  const root = path.resolve(dir);
+  // the real folder: a root that is itself a symlink (macOS /tmp) compares equal to the real paths below
+  const root = fs.existsSync(dir) ? fs.realpathSync(path.resolve(dir)) : path.resolve(dir);
+  const inside = (p) => p === root || p.startsWith(root + path.sep);
   const server = http.createServer((req, res) => {
     let p;
     try { p = path.join(root, decodeURIComponent(new URL(req.url, 'http://x').pathname)); }
     catch { res.writeHead(400).end(); return; }   // a malformed %-escape used to crash the test server
+    if (p.includes('\0')) { res.writeHead(400).end(); return; }
     // inside root only: '/srv/dist-old' starts with '/srv/dist' but is not in it
-    if (p !== root && !p.startsWith(root + path.sep)) { res.writeHead(403).end(); return; }
-    if (fs.existsSync(p) && fs.statSync(p).isDirectory()) p = path.join(p, 'index.html');
-    if (!fs.existsSync(p)) { res.writeHead(404).end(); return; }
-    res.writeHead(200, { 'content-type': TYPES[path.extname(p)] || 'application/octet-stream' });
-    fs.createReadStream(p).pipe(res);
+    if (!inside(p)) { res.writeHead(403).end(); return; }
+    // ...and after symlinks are followed: a link inside the folder that points out of it (dist/x -> ~/.ssh) is not
+    // served. The name check above cannot see it; the file that would be read is what counts.
+    let real;
+    try { real = fs.realpathSync(p); if (fs.statSync(real).isDirectory()) real = fs.realpathSync(path.join(real, 'index.html')); }
+    catch { res.writeHead(404).end(); return; }
+    if (!inside(real)) { res.writeHead(403).end(); return; }
+    if (!fs.statSync(real).isFile()) { res.writeHead(404).end(); return; }
+    res.writeHead(200, { 'content-type': TYPES[path.extname(real)] || 'application/octet-stream', 'x-content-type-options': 'nosniff' });
+    fs.createReadStream(real).on('error', () => res.destroy()).pipe(res);
   });
   return new Promise((r) => server.listen(port, '127.0.0.1', () => r({ url: `http://127.0.0.1:${server.address().port}/`, close: () => server.close() })));
 }

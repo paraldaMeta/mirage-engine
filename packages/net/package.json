@@ -15,11 +15,10 @@
   "type": "module",
   "main": "./src/index.js",
   "exports": {
-    ".": {
-      "types": "./src/index.d.ts",
-      "default": "./src/index.js"
-    },
-    "./*": "./src/*.js",
+    ".": { "types": "./src/index.d.ts", "default": "./src/index.js" },
+    "./kit": "./src/kit.js",
+    "./server": "./src/server.js",
+    "./ws": "./src/ws.js",
     "./package.json": "./package.json"
   },
   "bin": {

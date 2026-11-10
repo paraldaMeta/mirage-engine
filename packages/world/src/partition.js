@@ -68,7 +68,7 @@ export function createPartition(world, opts) {
       let src = c.inScene ? c.root : null, own = null;
       if (!src) {
         own = src = new THREE.Group();
-        const ctx = { ...world.ctx, world, plan, shared, name: c.name, root: own, scene: own, onUpdate() {}, log() {}, proxy: true };
+        const ctx = { ...world.ctx, world, plan, shared, name: c.name, root: own, scene: own, onUpdate() { return () => {}; }, log() {}, proxy: true };
         await build(c, ctx);
       }
       src.updateMatrixWorld(true);

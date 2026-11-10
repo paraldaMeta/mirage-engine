@@ -1,6 +1,6 @@
 // Mirage original code. Node checks of postfx.js: the parts that need no GPU (the GPU paths: packages/tools/src/postfx-check.mjs).
 // usage: node postfx.check.mjs
-import assert from 'node:assert/strict';
+import assert from '../../scripts/soft-assert.mjs';
 import { FX_DEFAULTS, halton, apertureRadius, parseCube, makeLut, lutTexture, postFromQuery } from './src/postfx.js';
 import { DEFAULT_POST } from './src/post.js';
 

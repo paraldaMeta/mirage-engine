@@ -11,7 +11,6 @@
 // The world calls in at four places: fitSun (each sub-frame's shadow fit), frame (before a frame's sub-frames),
 // envCaptured (after the image-based light was recaptured: time of day moved) and dispose.
 // ---------------------------------------------------------------------------
-import * as THREE from 'three';
 import { createInjector } from './inject.js';
 import { csmConfig, createCsm } from './csm.js';
 import { giConfig, createGi } from './gi.js';
@@ -29,7 +28,7 @@ export function createLighting(w, config) {
   const inj = createInjector();
   const cfg = config === true ? {} : config;
   const features = {};
-  let frames = 0, adopted = 0;
+  let frames = 0;
 
   const ccfg = csmConfig(cfg.csm);
   const csm = ccfg ? createCsm(sun, ccfg, { tile: Math.max(512, sun.shadow.mapSize.x >> 1), soft: w.soft }) : null;
@@ -57,7 +56,7 @@ export function createLighting(w, config) {
     /** true while baked light is still being brought up to date (the world keeps drawing) */
     get busy() { return hooks.some((h) => h.busy); },
     /** wrap lit materials added since the last call (the world does this in prepare and every half second of frames) */
-    adopt() { const n = inj.adopt(scene); adopted += n; if (screen) screen.mark(scene, inj.materials); return n; },
+    adopt() { const n = inj.adopt(scene); if (screen) screen.mark(scene, inj.materials); return n; },
     get materials() { return inj.materials.size; },
     fitSun(d, camera, center, radius, k) { if (csm) csm.fit(d, capturing ? null : camera, center, radius, k, moving && !capturing); },
     /** before a frame's sub-frames: camera = the view camera */

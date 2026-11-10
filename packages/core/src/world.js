@@ -146,7 +146,7 @@ export function createWorldRenderer(config = {}) {
     } else dr.good = 0;
   }
   const mat = createMaterials(G);
-  const updates = [];
+  let updates = [];   // replaced, never mutated, by subscribe / unsubscribe: a callback may unsubscribe during the frame
   // reduced motion (opt-in; @mirage/play follows prefers-reduced-motion): the wind's strength is scaled while a frame
   // renders (every sway reads uWind.z: no shader changes, so with it off the images are the same), kits read
   // `motion` (the rain kit's fall speed), and the still path's shutter closes
@@ -536,6 +536,7 @@ export function createWorldRenderer(config = {}) {
   /** free what this world made on the GPU: geometries, materials (and their programs), the shadow map, the post and
    *  environment targets; and the renderer if the world created it. Take objects you still need out of the scene first. */
   function dispose() {
+    updates = [];   // a disposed world holds no callback (and what they close over) alive
     pipeline.dispose(); envLight.dispose(); skyLut.dispose(); if (lighting) lighting.dispose();
     const mats = new Set();
     scene.traverse((o) => { o.geometry && o.geometry.dispose(); for (const m of [].concat(o.material || [])) mats.add(m); });
@@ -552,7 +553,12 @@ export function createWorldRenderer(config = {}) {
     if (lighting) lighting.invalidate();
   }
 
-  const ctx = { THREE, renderer, scene, camera, G, keyDir, mat, geom, rng, quality, place, motion, onUpdate: (fn) => updates.push(fn) };
+  const ctx = { THREE, renderer, scene, camera, G, keyDir, mat, geom, rng, quality, place, motion, onUpdate: (fn) => {
+    // returns an unsubscribe function (call it twice, or during a frame: both are safe); it was a count before
+    updates = updates.concat(fn);
+    let on = true;
+    return () => { if (on) { on = false; const i = updates.lastIndexOf(fn); if (i >= 0) updates = updates.filter((_, k) => k !== i); } };
+  } };
   return {
     renderer, scene, camera, sun, sky, stars, pipeline, ctx, G, keyDir, mat, geom, rng, post, device, light2: l2cfg, dynamicRes: dynRes, softShadows: sscfg, lighting,
     /** the moving frames' render scale (1 = the canvas; below 1 only with `dynamicRes`) */

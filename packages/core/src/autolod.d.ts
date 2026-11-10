@@ -20,3 +20,7 @@ export function buildProxy(roots: THREE.Object3D | THREE.Object3D[], options?: P
 export function buildProxyAsync(roots: THREE.Object3D | THREE.Object3D[], options?: ProxyOptions, workers?: SimplifyWorkers): Promise<THREE.Mesh | null>;
 export interface SimplifyWorkers { readonly workers: number; run(mesh: SimplifyMesh, chainOptions?: { ratios?: readonly number[]; error?: number; minGain?: number }): Promise<SimplifiedLevel[]>; dispose(): void }
 export function createSimplifyWorkers(count?: number): SimplifyWorkers;
+/** @internal the simplifier's input for a geometry (float attributes only); shared with the bake tools */
+export function meshInput(geometry: THREE.BufferGeometry, weights?: Record<string, number>): SimplifyMesh & { names: string[] };
+/** @internal a simplified level as a BufferGeometry with the source's bounds */
+export function levelGeometry(level: SimplifiedLevel, names: readonly string[], like: THREE.BufferGeometry): THREE.BufferGeometry;
