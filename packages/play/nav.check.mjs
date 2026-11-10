@@ -265,4 +265,20 @@ let twoFloor;
   const t = performance.now(), f = nav.flowField(nav.nearest([0, 0, 0], { snap: 3 }));
   console.log(`    flow field over the whole 160 x 160 grid: ${(performance.now() - t).toFixed(1)} ms (${f.reached} nodes)`);
 }
+// review: a caller that moves its shape array before unblock (a moving door) frees the old cells and never blocks
+// the new ones; an agent steering by a flow field goes around an obstacle added after the field was made
+{
+  const nx = 64, nz = 64, floors = new Float32Array(nx * nz * MAXL * 2), count = new Uint8Array(nx * nz);
+  for (let k = 0; k < nx * nz; k++) { floors[k * MAXL * 2] = 0; floors[k * MAXL * 2 + 1] = 1e9; count[k] = 1; }
+  const nav = createNavGrid(makeGrid({ nx, nz, x0: 0, z0: 0, cell: 0.125, floors, count }), {});
+  const box = [3.5, -1, 3.5, 4.5, 3, 4.5], id = nav.block({ box });
+  ok(nav.fits(4, 0, 4) === false, 'a moving door: blocked');
+  box[0] += 2; box[3] += 2; nav.unblock(id);
+  ok(nav.fits(4, 0, 4) && nav.fits(6, 0, 4), 'unblock frees exactly what block filled, whatever the caller did to its array');
+  const field = nav.flowField([7, 0, 4]), a = createNavAgent(nav, { pos: [1, 0, 4] });
+  a.setGoal(field);
+  nav.block({ box: [3.9, -1, 0, 4.1, 3, 6] });   // a wall across the way, a gap beyond z 6
+  for (let i = 0; i < 1200 && !a.arrived; i++) a.update(1 / 60);
+  ok(a.arrived && field.refreshed() === field.refreshed(), 'a field agent follows block (the rebuilt field is shared)');
+}
 console.log('nav check: ok');

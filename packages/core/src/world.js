@@ -397,6 +397,7 @@ export function createWorldRenderer(config = {}) {
     for (const m of hidden) m.visible = false;
     const w = pipeline.w, h = pipeline.h, rt = new THREE.WebGLRenderTarget(w, h, { depthBuffer: false });
     const data = new Uint8Array(w * h * 4), K = 1;
+    const clear = renderer.getClearColor(new THREE.Color()), clearAlpha = renderer.getClearAlpha();   // the white pass leaves white
     try {
       calm(() => {
         pipeline.clearColor = 0;
@@ -409,6 +410,7 @@ export function createWorldRenderer(config = {}) {
       renderer.readRenderTargetPixels(rt, 0, 0, w, h, data);
     } finally {
       pipeline.clearColor = null;
+      renderer.setClearColor(clear, clearAlpha);
       for (const m of hidden) m.visible = true;
       rt.dispose();
       softShadowsIdle();

@@ -250,6 +250,9 @@ been measured on a headset. Evidence images: `docs/media/xr/`.
 
 ## Limits
 
+- `offer` is on by default. On Quest Browser a page that also shows the Enter VR button keeps its offered session
+  pending while the button calls `requestSession`; how the browser resolves the two is not modelled by iwer and has
+  not been tried on a headset. Pass `offer: false` if a page only wants the buttons.
 - Not tried on a real headset yet: everything above ran in the emulator, and the native-host mode is an emulation
   of webxr-to-native's limits read from its source, not a run inside it. Hit testing was not exercised (iwer needs
   its synthetic-environment module for it; the floor fallback was), nor real controller layouts beyond Quest Touch,

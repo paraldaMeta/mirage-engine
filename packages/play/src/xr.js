@@ -558,7 +558,8 @@ export function createXR(play, opts = {}) {
   const _p = new THREE.Vector3(), _d = new THREE.Vector3(), _vel = new THREE.Vector3(), sup = [0, 0];
   // grid.support without its array: the highest floor at most `step` above y and its ceiling, in sup
   function support2(grid, x, z, y, step) {
-    if (!grid.floors || !grid.count || !grid.idx) { const s = grid.support(x, z, y, step); if (!s) return false; sup[0] = s[0]; sup[1] = s[1]; return true; }
+    // the arrays directly only on a plain grid: a view made over one (nav.grid with obstacles: Object.create(grid)) is asked through its supportAt
+    if (!grid.floors || !grid.count || !grid.idx || Object.getPrototypeOf(grid) !== Object.prototype) { const s = grid.support(x, z, y, step); if (!s) return false; sup[0] = s[0]; sup[1] = s[1]; return true; }
     const k = grid.idx(x, z);
     if (k < 0) return false;
     for (let l = grid.count[k] - 1; l >= 0; l--) {

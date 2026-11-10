@@ -277,9 +277,11 @@ function mountPlay(world, opts, life) {
       const p = opts.simulation?.viewPosition ?? walker.pos;
       if (game && want.lengthSq() > 1e-4) { let d = Math.atan2(want.z, want.x) - yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); yaw += d * Math.min(1, dt * 10); pitch = 0; }
       const target = p[1] + B.eye;
-      eyeY += (target - eyeY) * Math.min(1, dt * (Math.abs(target - eyeY) > 0.5 ? 30 : 14));   // eased over steps
-      if (calmEye) eyeY += (target - eyeY) * Math.min(1, dt * 7);   // reduced motion: a softer rise and fall
-      else if (!walker.onGround) eyeY = target;
+      if (calmEye) eyeY += (target - eyeY) * Math.min(1, dt * 7);   // reduced motion: one softer ease, jumps too
+      else {
+        eyeY += (target - eyeY) * Math.min(1, dt * (Math.abs(target - eyeY) > 0.5 ? 30 : 14));   // eased over steps
+        if (!walker.onGround) eyeY = target;
+      }
       if (game) {
         const k = Math.min(1, dt * 6);
         gameTarget.x += (p[0] - gameTarget.x) * k; gameTarget.y += (p[1] + 0.9 - gameTarget.y) * k; gameTarget.z += (p[2] - gameTarget.z) * k;
@@ -441,15 +443,16 @@ function mountPlay(world, opts, life) {
     if (!hidden && running) { last = performance.now(); keys.clear(); wake(); schedule(); }
   });
 
-  // reduced motion: 'auto' turns the world's on and off with the system setting (off only if play turned it on, so a
-  // world created with reducedMotion keeps it); an explicit value always applies. dispose() gives the world back.
+  // reduced motion: 'auto' follows the system setting: on -> reduced (the world's own settings if it was created
+  // with some), off -> the world's own setting back; an explicit value always applies. dispose() gives the world back.
   const worldMotion = world.reducedMotion ?? null;
-  let calmEye = false, ours = false, motionOption = opts.reducedMotion, stopMotion = () => {};
+  let calmEye = false, motionOption = opts.reducedMotion, stopMotion = () => {};
   const applyMotion = (v) => {
     if (life.disposed) return;
     const auto = motionOption === undefined || motionOption === null || motionOption === 'auto';
-    if (v || !auto || ours) { if (world.setReducedMotion) world.setReducedMotion(v); ours = !!v && auto; }
-    calmEye = !!(world.reducedMotion ?? v);
+    const want = auto ? (v ? worldMotion || v : worldMotion) : v;
+    if (world.setReducedMotion) world.setReducedMotion(want);
+    calmEye = !!(world.setReducedMotion ? world.reducedMotion : want);
     changed = true; wake();
   };
   const followMotion = (o) => { stopMotion(); motionOption = o; stopMotion = followReducedMotion(o, typeof window === 'undefined' ? null : window, applyMotion); };

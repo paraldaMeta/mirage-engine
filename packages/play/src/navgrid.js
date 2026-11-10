@@ -130,7 +130,7 @@ export function createNavGrid(grid, opts = {}) {
 
   // the connected pieces of fit nodes inside block b (a move either way joins two nodes: union-find over the
   // block's node slots), each a coarse node with a representative near the block centre
-  const uf = new Int16Array(C * C * MAXL), ufLabel = new Int8Array(C * C * MAXL), ufBest = new Float64Array(MAXC);
+  const uf = new Int32Array(C * C * MAXL), ufLabel = new Int8Array(C * C * MAXL), ufBest = new Float64Array(MAXC);
   const find = (q) => { while (uf[q] !== q) q = uf[q] = uf[uf[q]]; return q; };
   function clusterBlock(P, b) {
     const bi = b % bx, bj = (b - bi) / bx, i0 = bi * C, j0 = bj * C, i1 = Math.min(nx, i0 + C), j1 = Math.min(nz, j0 + C);
@@ -465,11 +465,13 @@ export function createNavGrid(grid, opts = {}) {
         return l > 1e-6 ? [dx / l, dz / l] : [0, 0];
       };
       field.stale = () => field.version !== nav.version;
+      // the same goal after block / unblock: rebuilt once and shared by every agent that steers by this field
+      field.refreshed = () => (field.stale() ? (field.next && !field.next.stale() ? field.next : (field.next = nav.flowField(field.goal, { radius: field.radius, maxCost, snap }))) : field);
       field.ms = +(performance.now() - t1).toFixed(2);
       return field;
     },
     /** a dynamic obstacle (box [x0, y0, z0, x1, y1, z1] or cylinder [x, z, r, y0, y1]): paths and nav.grid avoid it */
-    block(shape) { const o = { ...shape, id: ++obstacleId }; edit(o, 1); obstacles.set(o.id, o); return o.id; },
+    block(shape) { const o = { ...shape, box: shape.box && [...shape.box], cylinder: shape.cylinder && [...shape.cylinder], id: ++obstacleId, nodes: [] }; edit(o, 1); obstacles.set(o.id, o); return o.id; },
     /** remove an obstacle made by block() */
     unblock(id) { const o = obstacles.get(id); if (!o) return false; obstacles.delete(id); edit(o, -1); return true; },
     obstacles: () => [...obstacles.values()],
@@ -490,9 +492,11 @@ export function createNavGrid(grid, opts = {}) {
     for (let j = Math.max(0, j0); j <= Math.min(nz - 1, j1); j++) for (let i = Math.max(0, i0); i <= Math.min(nx - 1, i1); i++) {
       if (!inside(x0 + (i + 0.5) * cell, z0 + (j + 0.5) * cell)) continue;
       const k = j * nx + i;
-      for (let v = base[k]; v < base[k + 1]; v++) if (lo < cy[v] && hi > fy[v]) { blk[v] += sign; any = true; }
+      for (let v = base[k]; v < base[k + 1]; v++) if (lo < cy[v] && hi > fy[v]) { if (sign > 0) { blk[v]++; o.nodes.push(v); } any = true; }
     }
-    if (!any) { const k = cellIdx((X0 + X1) / 2, (Z0 + Z1) / 2); if (k >= 0) for (let v = base[k]; v < base[k + 1]; v++) if (lo < cy[v] && hi > fy[v]) blk[v] += sign; }
+    if (!any && sign > 0) { const k = cellIdx((X0 + X1) / 2, (Z0 + Z1) / 2); if (k >= 0) for (let v = base[k]; v < base[k + 1]; v++) if (lo < cy[v] && hi > fy[v]) { blk[v]++; o.nodes.push(v); } }
+    // removing: exactly the nodes this obstacle filled (the shape arrays are our own copies, but a count never wraps)
+    if (sign < 0) for (const v of o.nodes) if (blk[v] > 0) blk[v]--;
     // fit bits and coarse pieces around it, per cached radius
     for (const P of profiles.values()) {
       const r = Math.ceil(P.radius / cell) + 2;
@@ -556,6 +560,7 @@ export function createNavAgent(nav, opts = {}) {
         else if (d > 1e-6) { dx = (w[0] - x) / d; dz = (w[2] - z) / d; slow = Math.min(1, d / (speed * Math.max(dt, 1e-3))); }   // lands on it
       }
     } else if (field && !a.arrived) {
+      if (field.stale()) field = field.refreshed();
       if (field.distance(x, y, z) < arrive && Math.hypot(field.goal[0] - x, field.goal[2] - z) < arrive) a.arrived = true;
       else { const d = field.direction(x, y, z); if (d) { dx = d[0]; dz = d[1]; } }
     }
