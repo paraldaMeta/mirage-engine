@@ -131,11 +131,14 @@ ok(out.modules.walls.r === rng('t/walls').float(), 'per-module rng');
   ok(WET.uRain.value === 0.6, 'intensity sets the rain level');
   setRain(before);
   const u = r1.material.userData.hooks.uniforms, rd = { getRenderTarget: () => ({ height: 900 }) };
-  r1.onBeforeRender(rd, null, new THREE.PerspectiveCamera(90, 1, 0.1, 100));
-  ok(u.uRainHide.value === 1, 'hidden from a cube capture (90°, square)');
+  ok(r1.userData.mgNoCapture === true, 'hidden from the environment capture (world.captureEnv skips mgNoCapture)');
+  // the scene clock wraps to 64 s on the CPU: float32 stays exact after hours
+  const rG = createEnv({}).G, r3 = addRain({ root: new THREE.Group(), mat: createMaterials(rG), G: rG }, { count: 1 });
+  rG.uTime.value = 36000 + 5.25; r3.onBeforeRender(rd, null, new THREE.PerspectiveCamera(48, 1.6, 0.1, 100));
+  ok(Math.abs(r3.material.userData.hooks.uniforms.uRainT.value - 37.25) < 1e-9, 'rain time wrapped to the 64 s period');
   const cam = new THREE.PerspectiveCamera(48, 1.6, 0.1, 100); cam.position.set(1, 2, 3); cam.updateMatrixWorld();
   r1.onBeforeRender(rd, null, cam);
-  ok(u.uRainHide.value === 0 && u.uRainView.value.x === 1 && Math.abs(u.uRainView.value.w - 2 / (cam.projectionMatrix.elements[5] * 900)) < 1e-12, 'follows the camera; pixel size per metre');
+  ok(u.uRainMinA.value === 0 && u.uRainView.value.x === 1 && Math.abs(u.uRainView.value.w - 2 / (cam.projectionMatrix.elements[5] * 900)) < 1e-12, 'follows the camera; pixel size per metre');
   let threw = 0;
   for (const o of [{ count: 0 }, { box: [1, 2] }, { speed: NaN }]) try { addRain(rctx(), o); } catch (e) { threw += e instanceof RangeError; }
   ok(threw === 3, 'bad rain options throw RangeError');

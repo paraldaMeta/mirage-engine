@@ -9,6 +9,7 @@ import { Pipeline, DEFAULT_POST } from './post.js';
 import { installLight2, light2Config } from './light2.js';
 import { installSoftShadows, softShadowConfig, softShadowUniforms, softShadowsIdle } from './softshadow.js';
 import { createMaterials } from './materials.js';
+import { wetVersion } from './wet.js';
 import { createEnvLight } from './envlight.js';
 import { deviceProfile } from './device.js';
 import * as geom from './geom.js';
@@ -135,7 +136,7 @@ export function createWorldRenderer(config = {}) {
   // temporal AA state (moving camera): history validity, previous view-projection, jitter index.
   // ponytail: TAA rather than supersampling while moving: 4 sub-frames cost 4x (~3.4 ms each at 1440x900) and
   // still crawl on thin edges; TAA is one extra full-screen pass. Still views keep the exact sub-frame average.
-  let taaValid = false, taaK = 0, lastMoving = 0;
+  let taaValid = false, taaK = 0, lastMoving = 0, seenWet = wetVersion();
   const prevVP = new THREE.Matrix4(), curVP = new THREE.Matrix4(), invVP = new THREE.Matrix4();
 
   const setLampGain = () => { G.uLampGain.value = light.lamp * Math.pow(exposure, -0.9); };
@@ -172,6 +173,14 @@ export function createWorldRenderer(config = {}) {
   /** Advance eased exposure and the environment cross-fade by dt seconds. Returns true while anything changes. */
   function tick(dt) {
     let busy = false;
+    // setWetness / setRain (page-global): a wetness change recaptures the environment from scratch (the capture
+    // carries its previous self as the bounce, so a fresh one makes setWetness(0) give the dry image exactly); any
+    // change asks the caller to draw again
+    const wv = wetVersion();
+    if (wv.wet !== seenWet.wet || wv.rain !== seenWet.rain) {
+      if (wv.wet !== seenWet.wet && light) { scene.environment = null; envState = 'instant'; }
+      seenWet = wv; busy = true;
+    }
     if (light && Math.abs(Math.log(expTarget / exposure)) > 1e-4) {
       exposure = Math.exp(Math.log(exposure) + Math.log(expTarget / exposure) * Math.min(1, dt * 3));
       setLampGain(); busy = true;
@@ -216,11 +225,15 @@ export function createWorldRenderer(config = {}) {
     writeFog();
     fitShadow(shadow.center, shadow.radius, null);
     stars.visible = false; skyU.uCapture.value = 1;
+    // objects marked userData.mgNoCapture (the rain kit's streaks) stay out of the image-based light
+    const hidden = [];
+    scene.traverse((o) => { if (o.userData.mgNoCapture && o.visible) { o.visible = false; hidden.push(o); } });
     for (let pass = 0; pass < (instant ? 2 : 1); pass++) {
       envLight.capture(scene, envProbe, { instant });
       scene.environment = envLight.texture;
     }
     stars.visible = true; skyU.uCapture.value = 0;
+    for (const o of hidden) o.visible = true;
     softShadowsIdle();
     lastCap.dir.copy(keyDir); lastCap.lamp = light.lamp; lastCap.sky = light.skyLight;
     envState = null;

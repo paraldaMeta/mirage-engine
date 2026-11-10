@@ -39,6 +39,11 @@ export const WET = {
   uRain: { value: 0 },    // 0 no rain .. 1 heavy: ripples on standing water (and addRain's streaks)
 };
 const clamp01 = (v) => Math.max(0, Math.min(1, +v || 0));
+// changes since load: worlds watch these in tick() (a wetness change refreshes the environment capture, any change
+// asks for a redraw). Set the levels through setWetness / setRain: writing WET.*.value directly skips both.
+const VERSION = { wet: 0, rain: 0 };
+/** { wet, rain }: how many times the wetness / rain level changed (createWorldRenderer's tick() watches them). */
+export const wetVersion = () => ({ ...VERSION });
 // the opted-in materials (weakly held): MG_WET follows the wetness
 const wetMats = new Set();
 function syncWet(m) {
@@ -51,14 +56,22 @@ function syncWet(m) {
 /** 0 = dry (off: the wet code is not compiled), 1 = soaked with full puddles. Crossing 0 recompiles the wet materials.
  *  Returns the clamped level. */
 export function setWetness(level = 1) {
-  WET.uWet.value = clamp01(level);
-  for (const r of wetMats) { const m = r.deref(); if (m) syncWet(m); else wetMats.delete(r); }
-  return WET.uWet.value;
+  const v = clamp01(level);
+  if (v !== WET.uWet.value) VERSION.wet++;
+  WET.uWet.value = v;
+  pruneSync(true);
+  return v;
 }
+function pruneSync(sync) { for (const r of wetMats) { const m = r.deref(); if (!m) wetMats.delete(r); else if (sync) syncWet(m); } }
 /** 0 = no rain, 1 = heavy rain (ripple density; the rain kit's streak density). Returns the clamped level. */
-export function setRain(intensity = 1) { return (WET.uRain.value = clamp01(intensity)); }
+export function setRain(intensity = 1) {
+  const v = clamp01(intensity);
+  if (v !== WET.uRain.value) VERSION.rain++;
+  return (WET.uRain.value = v);
+}
 
-// all of it inside MG_WET (defined only while wet): with it undefined the preprocessor leaves the dry program
+// all of it inside MG_WET (defined only while wet): with it undefined the preprocessor leaves the dry program.
+// Internal to withWet (which sets MG_WET through setWetness): pasted on its own it compiles to nothing.
 export const WET_GLSL = /* glsl */ `
 #ifdef MG_WET
 #ifndef MG_WET_GLSL
@@ -66,6 +79,16 @@ export const WET_GLSL = /* glsl */ `
 uniform float uWet;
 uniform float uRain;
 uniform vec4 mgWetP;            // porosity, ground y (m), damp band height (m), puddles
+// the normal of the face being seen: mgWorldNormal is the geometry's, never flipped for back faces
+vec3 mgWetFaceN(vec3 n){
+#if defined( DOUBLE_SIDED )
+  return gl_FrontFacing ? n : -n;
+#elif defined( FLIP_SIDED )
+  return -n;
+#else
+  return n;
+#endif
+}
 float mgWetS = 0.0;             // 0 dry .. 1 damp .. 2 soaked .. 3 standing water
 float mgWetPond = 0.0;          // standing water 0..1
 float mgWetRip = 0.0;           // how much of the rain rings the pixel can hold (footprint fade)
@@ -183,7 +206,9 @@ function groundY(g) {
  *  more: fuller), height (a GLSL float 0..1 of the material, e.g. 'mgS.h'; low parts fill first), heightMid (its
  *  mean, e.g. the set's hMean; 0.5), heightScale (m of bed height per unit of it; 0.012). The per-material numbers
  *  are one uniform (mgWetP): materials that differ only in them share a program. */
-export function withWet(h = {}, { porosity = 0.6, ground = 0, band = 0.3, puddles = 1, height = null, heightMid = 0.5, heightScale = 0.012 } = {}) {
+export function withWet(hIn = {}, { porosity = 0.6, ground = 0, band = 0.3, puddles = 1, height = null, heightMid = 0.5, heightScale = 0.012 } = {}) {
+  // already wet (re-applied to change the options): wrap the dry hooks again instead of stacking a second wet layer
+  const h = hIn.__wetBase || hIn;
   const P = new THREE.Vector4(clamp01(porosity), groundY(ground), Math.max(0.01, +band || 0), Math.max(0, +puddles || 0));
   if (![P.x, P.y, P.z, P.w, heightScale, heightMid].every(Number.isFinite)) throw new RangeError('withWet: options must be finite numbers');
   const hb = height ? `${glf(heightScale)} * ((${height}) - ${glf(heightMid)})` : '0.0';
@@ -192,15 +217,17 @@ export function withWet(h = {}, { porosity = 0.6, ground = 0, band = 0.3, puddle
   // wet code adds); a material that had none gets it only while wet (#if defined(MG_WET))
   const had = h.specAA ?? FRAG_KEYS.some((k) => typeof h[k] === 'string' && h[k].includes('roughnessFactor'));
   const specAA = had === true ? true : had === false ? (h.specAA === false ? false : 'defined(MG_WET)') : `(${had}) || defined(MG_WET)`;
-  return {
+  const out = {
     ...h,
     specAA,
     fragmentDecl: WET_GLSL + (h.fragmentDecl || ''),
-    metalness: add(h.metalness, `if (uWet > 0.0) mgWetApply(mgWorldPos, normalize(mgWorldNormal), ${hb}, diffuseColor.rgb, roughnessFactor, metalnessFactor);`),
+    metalness: add(h.metalness, `if (uWet > 0.0) mgWetApply(mgWorldPos, mgWetFaceN(normalize(mgWorldNormal)), ${hb}, diffuseColor.rgb, roughnessFactor, metalnessFactor);`),
     normal: add(h.normal, 'if (mgWetS > 1.0) mgWetNormal(normal, nonPerturbedNormal, mgWorldPos);'),
     output: add(h.output, WET_SSR),
     uniforms: { ...(h.uniforms || {}), ...WET, mgWetP: { value: P } },
     // patch() hands over the material: MG_WET follows setWetness from now on
-    attach: (m) => { wetMats.add(new WeakRef(m)); syncWet(m); if (h.attach) h.attach(m); },
+    attach: (m) => { pruneSync(false); wetMats.add(new WeakRef(m)); syncWet(m); if (h.attach) h.attach(m); },
   };
+  Object.defineProperty(out, '__wetBase', { value: h, enumerable: false });   // not in JSON: the program key ignores it
+  return out;
 }

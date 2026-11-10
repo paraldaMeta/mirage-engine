@@ -13,14 +13,21 @@ attribute vec4 aRain;
 uniform vec3 uRainBox;
 uniform vec4 uRainView;     // centre (xyz), metres per pixel per metre away (w > 0; perspective) or per pixel (w < 0)
 uniform vec4 uRainShape;    // fall speed (m/s), streak time (s), width (m), density
-uniform float uRainHide;
+uniform float uRainT;       // the scene time wrapped to RAIN_PERIOD on the CPU (float32 stays exact for hours)
+uniform float uRainMinA;    // the least alpha a sub-pixel streak keeps (orthographic views)
 varying float vRainA;
 varying vec2 vRainQ;
 `;
 const VS_WORLD = /* glsl */ `{
+  // each streak falls a whole number of box heights per RAIN_PERIOD, so the wrapped time loops seamlessly
   float sp = uRainShape.x * (0.85 + 0.3 * fract(aRain.w * 97.13));
-  vec3 vel = vec3(uWind.x, 0.0, uWind.y) * uWind.z * 1.2 - vec3(0.0, sp, 0.0);
-  vec3 rel = mod(aRain.xyz * uRainBox + vel * uTime - uRainView.xyz + 0.5 * uRainBox, uRainBox) - 0.5 * uRainBox;
+  sp = max(1.0, floor(sp * RAIN_PERIOD / uRainBox.y + 0.5)) * uRainBox.y / RAIN_PERIOD;
+  vec3 wv = vec3(uWind.x, 0.0, uWind.y) * uWind.z * 1.2, vel = wv - vec3(0.0, sp, 0.0);
+  // a world-anchored column per streak; the wind drifts it only for the time since it left the column's top, so a
+  // change of wind moves the rain by at most one fall's worth (not wind x scene time)
+  float yw = mod(aRain.y * uRainBox.y - sp * uRainT, uRainBox.y);
+  vec3 pw = vec3(aRain.x * uRainBox.x, yw, aRain.z * uRainBox.z) + wv * ((uRainBox.y - yw) / sp);
+  vec3 rel = mod(pw - uRainView.xyz + 0.5 * uRainBox, uRainBox) - 0.5 * uRainBox;
   vec3 head = uRainView.xyz + rel, dir = normalize(vel), toCam = cameraPosition - head;
   float dist = max(length(toCam), 1e-3);
   vec3 side = cross(dir, toCam / dist);
@@ -28,9 +35,9 @@ const VS_WORLD = /* glsl */ `{
   float px = uRainView.w > 0.0 ? uRainView.w * dist : -uRainView.w;
   float wd = max(uRainShape.z, px);
   vec3 b = abs(rel) / (0.5 * uRainBox);
-  float on = step(aRain.w, uRain * uRainShape.w) * (1.0 - uRainHide);
+  float on = step(aRain.w, uRain * uRainShape.w);
   // faded toward the box's rim (the wrap never pops) and right at the eye
-  vRainA = on * (1.0 - smoothstep(0.65, 1.0, max(max(b.x, b.y), b.z))) * smoothstep(0.4, 1.2, dist) * uRainShape.z / wd;
+  vRainA = on * (1.0 - smoothstep(0.65, 1.0, max(max(b.x, b.y), b.z))) * smoothstep(0.4, 1.2, dist) * max(uRainShape.z / wd, uRainMinA);
   vRainQ = position.xy;
   mgWorld = head + on * (side * (0.5 * wd * position.x) - vel * (uRainShape.y * position.y));
 }`;
@@ -46,11 +53,15 @@ const FS_OUT = /* glsl */ `{
 
 /** Rain streaks around the camera. options: count (6000), box [x, y, z] metres (22, 14, 22), speed m/s (8.5), streak
  *  seconds of travel per streak (0.035), width m (0.0012), density 0..1 of the count at rain 1 (1), gain (1),
- *  intensity (if given: setRain(intensity)), seed. Returns the mesh (added to ctx.root). */
-export function addRain(ctx, { count = 6000, box = [22, 14, 22], speed = 8.5, streak = 0.035, width = 0.0012, density = 1, gain = 1, intensity, seed = 'rain' } = {}) {
+ *  intensity (if given: setRain(intensity)), seed, ground (orthographic views: the height the box is centred on; 0),
+ *  minAlpha (orthographic views: the least alpha of a sub-pixel streak; 0.25). Returns the mesh (added to ctx.root);
+ *  remove it with mesh.removeFromParent(), mesh.geometry.dispose(), mesh.material.dispose(). */
+const RAIN_PERIOD = 64;   // s
+
+export function addRain(ctx, { count = 6000, box = [22, 14, 22], speed = 8.5, streak = 0.035, width = 0.0012, density = 1, gain = 1, intensity, seed = 'rain', ground = 0, minAlpha = 0.25 } = {}) {
   if (!(Number.isInteger(count) && count > 0)) throw new RangeError('rain.count must be a positive integer');
   if (!Array.isArray(box) || box.length !== 3 || !box.every((v) => Number.isFinite(v) && v > 0)) throw new RangeError('rain.box must be [x, y, z] > 0');
-  if (![speed, streak, width, density, gain].every(Number.isFinite)) throw new RangeError('rain options must be finite numbers');
+  if (![speed, streak, width, density, gain, ground, minAlpha].every(Number.isFinite)) throw new RangeError('rain options must be finite numbers');
   if (intensity !== undefined) setRain(intensity);
   const R = rng(seed), seeds = new Float32Array(count * 4);
   for (let i = 0; i < seeds.length; i++) seeds[i] = R.next();
@@ -62,29 +73,32 @@ export function addRain(ctx, { count = 6000, box = [22, 14, 22], speed = 8.5, st
   geometry.instanceCount = count;
   const U = {
     uRainBox: { value: new THREE.Vector3(...box) }, uRainView: { value: new THREE.Vector4() },
-    uRainShape: { value: new THREE.Vector4(speed, streak, width, density) }, uRainHide: { value: 0 },
+    uRainShape: { value: new THREE.Vector4(speed, streak, width, density) }, uRainT: { value: 0 }, uRainMinA: { value: 0 },
     uRainGain: { value: gain }, uRain: WET.uRain,
   };
   // additive: order-free, so the two-sided quads go in one pass (one draw call)
   const material = ctx.mat.patch(new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false, side: THREE.DoubleSide, forceSinglePass: true }), {
-    vertexDecl: VS_DECL + 'uniform float uRain;', vertexWorld: VS_WORLD, fragmentDecl: FS_DECL, output: FS_OUT, uniforms: U,
+    vertexDecl: `#define RAIN_PERIOD ${RAIN_PERIOD}.0\n` + VS_DECL + 'uniform float uRain;', vertexWorld: VS_WORLD, fragmentDecl: FS_DECL, output: FS_OUT, uniforms: U,
   });
   const mesh = new THREE.Mesh(geometry, material);
   mesh.name = 'rain'; mesh.frustumCulled = false; mesh.castShadow = mesh.receiveShadow = false;
-  mesh.userData.collide = false; mesh.renderOrder = 10;
+  mesh.userData.collide = false; mesh.userData.mgNoCapture = true; mesh.renderOrder = 10;
   const v2 = new THREE.Vector2(), c = new THREE.Vector3(), d = new THREE.Vector3();
   mesh.onBeforeRender = (renderer, scene, camera) => {
-    // the environment capture's cube faces (90°, square) do not see the rain
-    U.uRainHide.value = camera.isPerspectiveCamera && camera.fov === 90 && camera.aspect === 1 ? 1 : 0;
+    const T = ctx.G && ctx.G.uTime ? ctx.G.uTime.value : 0;   // the world's clock (world.ctx carries G)
+    U.uRainT.value = ((T % RAIN_PERIOD) + RAIN_PERIOD) % RAIN_PERIOD;   // in double precision, then to the GPU
     const rt = renderer.getRenderTarget(), h = rt ? rt.height : renderer.getDrawingBufferSize(v2).y;
     camera.getWorldPosition(c);
     if (camera.isOrthographicCamera) {
-      // centred where the view axis meets the ground (y = 0), not on the far-away eye
+      // centred where the view axis meets the ground (y = `ground`), not on the far-away eye; a streak thinner than
+      // a pixel keeps at least minAlpha (at a few cm per pixel the width ratio alone left the rain invisible)
       camera.getWorldDirection(d);
-      if (d.y < -0.05) c.addScaledVector(d, -c.y / d.y);
+      if (d.y < -0.05) c.addScaledVector(d, (ground - c.y) / d.y);
+      U.uRainMinA.value = minAlpha;
       U.uRainView.value.set(c.x, c.y, c.z, -(camera.top - camera.bottom) / camera.zoom / h);
     } else {
       U.uRainView.value.set(c.x, c.y, c.z, 2 / (camera.projectionMatrix.elements[5] * h));
+      U.uRainMinA.value = 0;
     }
   };
   ctx.root.add(mesh);

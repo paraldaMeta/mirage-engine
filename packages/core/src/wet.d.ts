@@ -6,6 +6,8 @@ export const WET: { uWet: THREE.IUniform<number>; uRain: THREE.IUniform<number> 
 export function setWetness(level?: number): number;
 /** 0 = no rain, 1 = heavy: ripples on standing water and the rain kit's streak density. Returns the clamped level. */
 export function setRain(intensity?: number): number;
+/** How many times the wetness / rain level changed (createWorldRenderer's tick() watches them). */
+export function wetVersion(): { wet: number; rain: number };
 /** The wet GLSL (mgWetApply, mgWetNormal, mgWetRipples, mgWetH, …). */
 export const WET_GLSL: string;
 export interface WetOptions {

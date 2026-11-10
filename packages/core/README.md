@@ -297,6 +297,14 @@ addRain(ctx);                     // falling streaks around the camera (a world 
   only them) while the level is above 0 and recompiles them when it crosses 0, like `setAmbientVolumes`; moving
   between levels above 0 recompiles nothing. At `setWetness(0)` the program is the dry one: hello-courtyard's frames
   are bit-identical with `?wet=0` (5 views, 0 px). The two uniforms (`WET`) are page-global, not in the world's `G`.
+- **Changing it live**: `world.tick(dt)` notices `setWetness` / `setRain` (and returns true, so @mirage/play draws
+  again); a wetness change recaptures the image-based light from scratch, so `setWetness(0)` after a wet spell
+  gives the dry image exactly and wet puddles reflect a wet world. Without tick(), call `world.captureEnv(true)`
+  after clearing `scene.environment`, and draw. Set the levels only through `setWetness` / `setRain`: writing
+  `WET.uWet.value` directly skips the define and the change counter. Crossing 0 recompiles the wet materials on
+  the next frame (a hitch). `WET_GLSL` is withWet's internal code (inside `#ifdef MG_WET`), not usable alone.
+- **Faces**: DoubleSide and BackSide materials get wet on the face being seen (the underside of a two-sided slab
+  stays dry). Re-applying `withWet` to hooks it returned re-wraps the dry hooks (new options, no second layer).
 - **Cost** (hello-courtyard, 1440×900, Apple M4 Pro shared with other jobs, walking from the spawn, 1 sub-frame +
   TAA, dry / wet / wet + rain interleaved in one page): wet 0.8 +0.15…0.57 ms median (+2…5 %), rain streaks
   +0.0…0.25 ms more and one draw call. TAA shimmer on an orbit over the paving: flicker / motion unchanged (1.40 dry,

@@ -20,6 +20,10 @@ export interface RainOptions {
   intensity?: number;
   /** rng stream name ('rain'). */
   seed?: string;
+  /** Orthographic views: the height the box is centred on, where the view axis meets it (0). */
+  ground?: number;
+  /** Orthographic views: the least alpha a sub-pixel streak keeps (0.25), so rain still reads at a few cm per pixel. */
+  minAlpha?: number;
 }
 /** Camera-following rain streaks (one instanced draw call, deterministic in G.uTime); density follows setRain(). */
-export function addRain(ctx: { root: THREE.Object3D; mat: Pick<MaterialKit, 'patch'> }, options?: RainOptions): THREE.Mesh<THREE.InstancedBufferGeometry, THREE.MeshBasicMaterial>;
+export function addRain(ctx: { root: THREE.Object3D; mat: Pick<MaterialKit, 'patch'>; G?: { uTime: { value: number } } }, options?: RainOptions): THREE.Mesh<THREE.InstancedBufferGeometry, THREE.MeshBasicMaterial>;

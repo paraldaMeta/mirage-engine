@@ -99,4 +99,9 @@ rain along and a still frame is the same on every run. A streak spans `streak` s
 `speed` 8.5 m/s), is at least one pixel wide (a thinner one gets less alpha), faint, and lit by the sky and, looking
 toward it, the key light (lamps add a little at night). Its density follows core's `setRain(level)`, which also
 drives the rain rings on puddles; wet ground itself is core's `withWet` / `setWetness` (core README, "Wet surfaces
-and rain"). In an orthographic view the box is centred where the view axis meets y = 0. No splashes.
+and rain"). In an orthographic view the box is centred where the view axis meets y = `ground` (0), and a streak
+thinner than a pixel keeps at least `minAlpha` (0.25). The fall runs on the scene clock wrapped to 64 s on the CPU
+(each streak falls a whole number of box heights per period), so it stays smooth after hours; the wind drifts a
+streak only since it left the top of its column, so a change of wind does not throw the rain across the sky.
+Limits: no splashes, and no shelter: streaks fall inside arcades and rooms wherever the box reaches (hide the mesh
+indoors). Remove it with `mesh.removeFromParent()` and dispose its geometry and material.
