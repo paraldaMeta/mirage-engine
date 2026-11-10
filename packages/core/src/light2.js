@@ -47,8 +47,9 @@ export const LIGHT2_DEFAULTS = {
   ssr: { on: true, maxDist: 30, gain: 1.0, thick: 0.35 },
   // sun / lamps: gains; dustOut: outdoor dust at the floor (1/m), height its scale height (m), golden: more dust toward
   // a low sun, dustIn: inside ambient volumes; lampDust / haloR: smoke round a flame; noise: drifting density;
-  // g: the key light's phase; maxDist: key-light march (m); nearRoom: march the key light when this close to a volume
-  vol: { on: true, sun: 1.0, lamps: 2.0, dustOut: 0.003, golden: 4.0, height: 6.0, dustIn: 0.006, lampDust: 0.05, haloR: 1.1, noise: 0.5, g: 0.65, maxDist: 60, nearRoom: 2 },
+  // g: the key light's phase; maxDist: key-light march (m); nearRoom: march the key light when this close to a volume;
+  // lampReach: a lamp's in-scatter is marched within this radius (m) of its flame (nearly all of it is: 1/d^2)
+  vol: { on: true, sun: 1.0, lamps: 2.0, dustOut: 0.003, golden: 4.0, height: 6.0, dustIn: 0.006, lampDust: 0.05, haloR: 1.1, noise: 0.5, g: 0.65, maxDist: 60, nearRoom: 2, lampReach: 5 },
   // share of the blurred image by day and at night (by the lamp level)
   bloom: { on: true, day: 0.07, night: 0.18 },
 };

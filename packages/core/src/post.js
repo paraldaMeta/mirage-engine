@@ -250,7 +250,7 @@ export class Pipeline {
       uniform float uJ, uMaxDist, uTime;
       uniform vec4 uMed;      // x outdoor dust at the floor (1/m), y its scale height (m), z indoor dust (1/m), w floor y
       uniform vec4 uMed2;     // x lamp gain, y key gain, z noise, w key phase g
-      uniform vec4 uMed3;     // x dust round a flame, y 1 / its radius^2
+      uniform vec4 uMed3;     // x dust round a flame, y 1 / its radius^2, z the lamps' march radius (m)
       uniform vec4 uLp[${NL}];   // lamp xyz, range
       uniform vec4 uLc[${NL}];   // lamp colour x intensity, slot + 1 (0: none)
       uniform sampler2DShadow tLs; uniform vec4 uLsPos[${LS_N}]; uniform vec4 uLsInfo; uniform vec4 uLsNear;
@@ -332,7 +332,7 @@ export class Pipeline {
         }
         if (uMed2.x > 0.0) {
           for (int j = 0; j < ${NL}; j++){
-            vec4 Lp = uLp[j];
+            vec4 Lp = uLp[j];   // w: the march radius (min of the lamp's range and uMed3.z)
             if (Lp.w <= 0.0) continue;
             vec3 oc = uCamPos - Lp.xyz;
             float b = dot(oc, dir), c = dot(oc, oc) - Lp.w * Lp.w;
@@ -344,14 +344,15 @@ export class Pipeline {
             const int M = 8;
             float dt = (t1 - t0) / float(M);
             int slot = int(uLc[j].w + 0.5) - 1;
-            float indL = indoor(uCamPos + dir * (0.5 * (t0 + t1)));
-            float sl = 0.0;
+            // indoor-ness and the drifting noise once per lamp (at the segment's middle), the layer per step
+            vec3 pm = uCamPos + dir * (0.5 * (t0 + t1));
+            float indL = indoor(pm), nkL = noiseK(pm), sl = 0.0;
             for (int i = 0; i < M; i++){
               vec3 p = uCamPos + dir * (t0 + (float(i) + jit) * dt);
               vec3 v = p - Lp.xyz; float d2 = dot(v, v);
               float win = 1.0 - d2 / (Lp.w * Lp.w); win *= win;
               float vis = slot >= 0 ? lsVis(slot, p) : 1.0;
-              sl += (dens(p, indL) + uMed3.x * exp(-d2 * uMed3.y)) * win * vis / (d2 + 0.04) * dt;
+              sl += ((dustOut(p) + uMed.z * indL) * nkL + uMed3.x * exp(-d2 * uMed3.y)) * win * vis / (d2 + 0.04) * dt;
             }
             acc += uLc[j].rgb * sl * 0.0796 * uMed2.x;
           }
@@ -391,10 +392,10 @@ export class Pipeline {
     u.uJ.value = jk; u.uTime.value = G.uTime.value; u.uMaxDist.value = V.maxDist;
     u.uMed.value.set(V.dustOut * (1 + V.golden * low), V.height, V.dustIn, cp.y - 1.6);
     u.uMed2.value.set(V.lamps, keyOn ? V.sun : 0, V.noise, V.g);
-    u.uMed3.value.set(V.lampDust, 1 / (V.haloR * V.haloR), 0, 0);
+    u.uMed3.value.set(V.lampDust, 1 / (V.haloR * V.haloR), V.lampReach, 0);
     for (let j = 0; j < VOL_LAMPS; j++) {
       const q = top[j];
-      if (q) { u.uLp.value[j].set(q.x, q.y, q.z, q.range); u.uLc.value[j].set(q.col[0], q.col[1], q.col[2], (q.slotIdx ?? -1) + 1); }
+      if (q) { u.uLp.value[j].set(q.x, q.y, q.z, Math.min(q.range, V.lampReach)); u.uLc.value[j].set(q.col[0], q.col[1], q.col[2], (q.slotIdx ?? -1) + 1); }
       else u.uLp.value[j].set(0, -1e4, 0, 0);
     }
     u.tLs.value = LS_SHARED.atlas;
