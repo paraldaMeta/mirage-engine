@@ -32,6 +32,7 @@ const built = await buildWorld(world, { plan, modules: modules({ broken: Q.has('
 const { camera } = world;
 camera.aspect = W / H; camera.fov = 55; camera.near = 0.1; camera.far = 3000; camera.updateProjectionMatrix();
 await tex.ready();
+if (Q.get('perf')) window.__big = (await import('@mirage/core/bigworld')).applyBigWorld(world, world.scene, Q.get('perf'));   // ?perf=chunk,lod,occ (docs/big-worlds.md)
 await world.prepare();
 const spp = +Q.get('spp') || 6, mode = Q.get('mode') || 'walk';
 let npc = null;   // ?npc=N: made below, stepped with the player

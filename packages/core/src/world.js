@@ -228,14 +228,16 @@ export function createWorldRenderer(config = {}) {
     scene.fog.density = fogCfg.density;
   }
 
+  const _sd = new THREE.Vector3(), _sr = new THREE.Vector3(), _su = new THREE.Vector3(), _sc = new THREE.Vector3(), _X = new THREE.Vector3(1, 0, 0), _Y = new THREE.Vector3(0, 1, 0);   // per-frame scratch
+  const _pm = new Array(16).fill(0), _pos = new THREE.Vector3(), _lens = new THREE.Vector3();
   function fitShadow(center, radius, jitter, k = 0) {
-    const d = keyDir.clone();
+    const d = _sd.copy(keyDir);
     if (jitter) {
-      const right = new THREE.Vector3().crossVectors(d, Math.abs(d.y) > 0.99 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0)).normalize();
-      const up = new THREE.Vector3().crossVectors(right, d);
+      const right = _sr.crossVectors(d, Math.abs(d.y) > 0.99 ? _X : _Y).normalize();
+      const up = _su.crossVectors(right, d);
       d.addScaledVector(right, jitter[0]).addScaledVector(up, jitter[1]).normalize();
     }
-    const c = new THREE.Vector3().fromArray(center), D = radius * 3;
+    const c = _sc.fromArray(center), D = radius * 3;
     sun.position.copy(c).addScaledVector(d, D);
     sun.target.position.copy(c);
     sun.target.updateMatrixWorld();
@@ -363,7 +365,8 @@ export function createWorldRenderer(config = {}) {
       for (const fn of updates) fn(tk);
       const cam = opts.getCamera ? opts.getCamera(tk) : opts.camera || camera;
       cam.updateMatrixWorld();
-      const pm = cam.projectionMatrix.elements, saved = pm.slice(), savedPos = cam.position.clone();
+      const pm = cam.projectionMatrix.elements, saved = _pm, savedPos = _pos.copy(cam.position);
+      for (let i = 0; i < 16; i++) saved[i] = pm[i];
       if (taa) curVP.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);   // unjittered, for reprojection
       const o = cam.isOrthographicCamera ? 12 : 8;
       if (spp > 1 || taa) {
@@ -375,7 +378,7 @@ export function createWorldRenderer(config = {}) {
         // thin lens: move the eye over the aperture (Vogel spiral) and shear the frustum so the focus plane stays
         const r = Math.sqrt((k + 0.5) / spp) * P.dof, th = k * 2.39996323 + 1.1;
         const dx = r * Math.cos(th), dy = r * Math.sin(th);
-        cam.position.add(new THREE.Vector3(dx, dy, 0).applyQuaternion(cam.quaternion));
+        cam.position.add(_lens.set(dx, dy, 0).applyQuaternion(cam.quaternion));
         cam.updateMatrixWorld();
         pm[8] -= (pm[0] * dx) / P.focus; pm[9] -= (pm[5] * dy) / P.focus;
       }
@@ -389,7 +392,7 @@ export function createWorldRenderer(config = {}) {
         pipeline.taa(invVP.copy(curVP).invert(), prevVP, taaValid ? (typeof opts.taa === 'number' ? opts.taa : 0.12) : 1);
         prevVP.copy(curVP); taaValid = true;
       }
-      cam.projectionMatrix.elements.splice(0, 16, ...saved);
+      for (let i = 0; i < 16; i++) pm[i] = saved[i];
       cam.projectionMatrixInverse.copy(cam.projectionMatrix).invert();
       if (!cam.position.equals(savedPos)) { cam.position.copy(savedPos); cam.updateMatrixWorld(); }
       if (cv) {

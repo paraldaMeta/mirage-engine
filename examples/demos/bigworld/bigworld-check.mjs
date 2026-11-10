@@ -57,6 +57,8 @@ const stat = (xs) => { const m = xs.reduce((a, b) => a + b, 0) / xs.length; retu
 
 async function measure(query, o) {
   const p = await open(query, o), out = {};
+  // steady state: every HLOD proxy baked first (while they bake, each frame also pays for a slice of a cell build: --baking measures that)
+  if (!args.includes('--baking')) out.proxies = await p.page.evaluate(async () => { const t = performance.now(), s = await window.__mirage.part.ready(); return { waitedMs: Math.round(performance.now() - t), proxies: s.proxies, proxyMs: Math.round(s.proxyMs), triangles: s.proxyTriangles, sourceTriangles: s.proxySourceTriangles }; });
   for (const [name, a, b] of SEGMENTS) { await p.page.evaluate((a) => window.__mirage.still(a, 1), a); out[name] = await p.page.evaluate((f, a, b) => window.__mirage.run(f, a, b), FRAMES, a, b); }
   out.timing = await p.page.evaluate(() => window.__mirage.timing);
   await p.close();
@@ -69,6 +71,7 @@ async function compare(variants, o) {
     const m = await measure(query, o);
     for (const [seg] of SEGMENTS) for (const k of ['calls', 'triangles', 'cpuMs', 'frameMs']) ((acc[name] ??= {})[seg + '.' + k] ??= []).push(m[seg][k].mean);
     for (const [seg] of SEGMENTS) ((acc[name])[seg + '.frameP95'] ??= []).push(m[seg].frameMs.p95);
+    if (m.proxies?.proxies) (acc[name].proxies ??= []).push(m.proxies.waitedMs), console.log('    proxies ' + JSON.stringify(m.proxies));
     console.log(`  run ${r + 1} ${name}: ` + SEGMENTS.map(([seg]) => `${seg} ${m[seg].calls.mean} calls ${(m[seg].triangles.mean / 1e6).toFixed(2)} M tris cpu ${m[seg].cpuMs.mean} ms frame ${m[seg].frameMs.mean} ms`).join(' | '));
   }
   const out = {};
@@ -94,7 +97,7 @@ if (ONLY.includes('stills')) {
   const places = [0.012, 0.03, 0.07, 0.33];
   const take = async (q) => { const p = await open(q), out = []; for (const u of places) { const s = await p.page.evaluate((u) => window.__mirage.still(u), u); out.push({ px: await grab(p.page), s }); } await p.close(); return out; };
   // the reference: everything loaded at full detail except what each row switches on
-  const variants = { full: 'base=1&part=1&hlod=1&inst=1&load=700', occ: 'base=1&part=1&hlod=1&inst=1&load=700&occ=1', lod: 'base=1&part=1&hlod=1&inst=1&load=700&lod=1', imp: 'base=1&part=1&hlod=1&inst=1&load=700&imp=1', chunk: 'base=1&part=1&hlod=1&inst=1&load=700&chunk=1', full2: 'base=1&part=1&hlod=1&inst=1&load=700' };
+  const variants = { full: 'base=1&part=1&hlod=1&inst=1&load=700', occ: 'base=1&part=1&hlod=1&inst=1&load=700&chunk=1&occ=1', lod: 'base=1&part=1&hlod=1&inst=1&load=700&lod=1', imp: 'base=1&part=1&hlod=1&inst=1&load=700&imp=1', chunk: 'base=1&part=1&hlod=1&inst=1&load=700&chunk=1', full2: 'base=1&part=1&hlod=1&inst=1&load=700' };
   const got = {};
   for (const k in variants) got[k] = await take(variants[k]);
   places.forEach((u, i) => {
