@@ -106,7 +106,8 @@ const IN_PAGE_2 = async () => {
   {
     const v = window.__mirage.vfx; window.__mirage.start('all'); await new Promise((r) => setTimeout(r, 3500));
     for (let i = 0; i < 3; i++) window.__mirage.vfx.beam({ from: [0, 8, 0], to: [i, 0, 0], jitter: 0.5, branches: 2, life: 2 }), window.__mirage.vfx.decal({ position: [i, 0, 2], size: 1, pattern: 'scorch', life: 5 });
-    await new Promise((r) => setTimeout(r, 600));
+    // frames come when the machine lets them: wait for a count of them, not for a time
+    for (let t = 0; t < 100 && (v.depth.copies | 0) <= 12; t++) await new Promise((r) => setTimeout(r, 200));
     R.world = { depthCopies: v.depth.copies | 0, depthFailed: !!v.depth.failed, particles: v.stats.particles, alive: v.countAlive(), pools: v.stats.pools, glError: world.renderer.getContext().getError(), gain: +(1.5 * Math.pow(world.exposure, -0.9)).toFixed(3) };
   }
   return { R };

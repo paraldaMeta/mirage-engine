@@ -11,6 +11,18 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
 
 **New**
 
+- @mirage/core: visual effects (`createVfx`, `VFX_LIBRARY`, `defineEffect`; experimental, opt-in, `docs/vfx.md`).
+  GPU particles for WebGL2 described as JSON: state in float textures advanced by one fragment pass per fixed
+  60 Hz step, instanced draw; shapes (point, sphere, box, cone, ring, edge, mesh surface), gravity, drag, wind,
+  curl-noise turbulence, attractors, vector fields, curves and gradients over life; soft, lit (sun, shadow, sky,
+  fog), stretched, mesh and flipbook particles, three blends, GPU distance sort; collision with the depth buffer,
+  planes and the walk grid (bounce, kill, stick); sub-emitters on birth, death, collision; trails, beams and
+  lightning, depth-projected decals; per-effect and global caps, distance LOD, culling, pooled one-shots. The
+  state hash is the same on two loads and at 30 updates a second. Measured (M4 Pro, 1280 x 720, a yard that
+  itself costs 1.9 ms): 1 000 000 unlit additive sprites cost 0.70 ms a step and 6.3 ms to draw, 9.7 ms a frame
+  in all; 60 fps holds to about 1.7 million and 120 fps to about 830 000 at pixel ratio 1, 440 000 at 60 fps at
+  pixel ratio 2; lit soft particles 690 000 / 350 000 at pixel ratio 1. Gallery: `examples/demos/vfx`. Two
+  examples build to byte-identical bundles with and without this change.
 - @mirage/play: NPC navigation on the walk grid (`createNavGrid`, `createNavAgent`, `createNavCrowd`; experimental,
   opt-in). No navmesh: per-radius fit bits from the walker's own disc / step / head-room test (equal to the walker
   on every floor of the node checks' grids and on 20 000 of 20 000 random floors of walled-garden), coarse A* (4 x 4
