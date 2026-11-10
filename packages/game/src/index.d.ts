@@ -1,6 +1,12 @@
 // Mirage original code.
 export { startGame } from './start.js';
 export { createPhysics, loadRapier } from './physics.js';
+export { createPhysicsKit, PHYSICS_MATERIALS } from './physics-kit.js';
+export { createJoints } from './physics-joints.js';
+export { createForces } from './physics-forces.js';
+export { createVehicle } from './vehicle.js';
+export { createRagdoll, RAGDOLL_HUMANOID } from './ragdoll.js';
+export { createPhysicsDebug } from './physics-debug.js';
 export { createGame } from './game.js';
 export { createInput, DEFAULT_BINDINGS, ACTIONS, PAD } from './input.js';
 export { createAudio, SURFACES } from './audio.js';
@@ -20,6 +26,13 @@ export { createKitUI } from './ui-menu.js';
 
 export type { GameSession, GameSetup, StartGameOptions, PlayerSnapshot } from './start.js';
 export type { Physics, PhysicsBody, PhysicsCharacter, DynamicProp, PropState, Hinge, RayHit } from './physics.js';
+export type { PhysicsSnapshot, PhysicsExt } from './physics.js';
+export type { PhysicsKit, KitBody, RigidOptions, ColliderSpec, PhysicsMaterial, QueryFilter, QueryHit, QueryShape, Sensor, SensorEvent, ContactEvent, KitStats } from './physics-kit.js';
+export type { Joints, Joint, JointOptions, JointMotor } from './physics-joints.js';
+export type { Forces, WaterVolume, Platform, ExplosionHit } from './physics-forces.js';
+export type { Vehicle, VehicleOptions, Wheel, WheelSpec } from './vehicle.js';
+export type { Ragdoll, RagdollOptions, RagdollPart, RagdollPartSpec } from './ragdoll.js';
+export type { PhysicsDebug } from './physics-debug.js';
 export type { Game, GameOptions, Entity, InteractableEntity, Interaction, InventoryItem, Zone, ActiveZone, ZoneShape,
   Snapshot, ExtendedSnapshot, LoadedSave, SaveSlot, SlotInfo, Migrations, GameEvents, EventData, System } from './game.js';
 export type { Action, Bindings, Input } from './input.js';

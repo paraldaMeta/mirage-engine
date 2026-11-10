@@ -9,6 +9,9 @@
 //   phys.step(dt)               one Rapier step; true while anything moved (props awake, a door turning)
 //   phys.settle(maxSteps?)      step until every dynamic prop sleeps (a hand-placed pile at rest before the first frame)
 //   phys.ray(from, dir, max)    -> { point, distance, surface, object } | null
+//   phys.snapshot() / phys.restore(snap)   the whole state (Rapier's own bytes, doors, characters and what the
+//                               physics kit keeps); restore swaps in a new Rapier world, so read `phys.world` and
+//                               `prop.body` afresh afterwards. More in docs/physics.md and physics-kit.js.
 // Surfaces (footsteps): `userData.surface` on the mesh or its material, else 'default'.
 // startGame drives the character and step() together at 60 Hz. Low-level callers may still step explicitly.
 // ---------------------------------------------------------------------------
@@ -38,7 +41,11 @@ const surfaceOf = (o) => o.userData.surface || [].concat(o.material)[0]?.userDat
 
 export async function createPhysics(scene, { gravity = 9.81 } = {}) {
   const R = await loadRapier();
-  const world = new R.World({ x: 0, y: -gravity, z: 0 });
+  let world = new R.World({ x: 0, y: -gravity, z: 0 });
+  // what createPhysicsKit and its modules hang on this world (all empty without them, and step() is then as before):
+  // an event queue for world.step, functions run before and after each step, and their part of a snapshot
+  const ext = { queue: undefined, pre: [], post: [], save: {}, load: {}, rebind: [] };
+  const chars = [];              // { save, load, rebind } per character, for snapshot / restore
   const info = new Map();        // collider handle -> { surface, object }
   const moving = [];             // { body, obj } synced every step
   const hinges = [];
@@ -94,13 +101,14 @@ export async function createPhysics(scene, { gravity = 9.81 } = {}) {
     const desc = shape === 'ball' ? R.ColliderDesc.ball(Math.max(size.x, size.y, size.z) / 2) : R.ColliderDesc.cuboid(size.x / 2, size.y / 2, size.z / 2);
     const col = world.createCollider(desc.setTranslation(off.x, off.y, off.z).setMass(mass).setFriction(friction).setRestitution(restitution), b);
     info.set(col.handle, { surface: surfaceOf(obj), object: obj });
-    moving.push({ body: b, obj });
+    const entry = { body: b, obj };   // restore() puts the new world's body here
+    moving.push(entry);
     return {
-      body: b, obj,
-      get pos() { const t = b.translation(); return [t.x, t.y, t.z]; },
+      get body() { return entry.body; }, obj,
+      get pos() { const t = entry.body.translation(); return [t.x, t.y, t.z]; },
       /** for save / load */
-      get state() { const t = b.translation(), r = b.rotation(); return { p: [t.x, t.y, t.z], q: [r.x, r.y, r.z, r.w] }; },
-      set state(s) { b.setTranslation({ x: s.p[0], y: s.p[1], z: s.p[2] }, true); b.setRotation({ x: s.q[0], y: s.q[1], z: s.q[2], w: s.q[3] }, true); b.setLinvel({ x: 0, y: 0, z: 0 }, true); b.setAngvel({ x: 0, y: 0, z: 0 }, true); sync(b, obj); },
+      get state() { const t = entry.body.translation(), r = entry.body.rotation(); return { p: [t.x, t.y, t.z], q: [r.x, r.y, r.z, r.w] }; },
+      set state(s) { const b = entry.body; b.setTranslation({ x: s.p[0], y: s.p[1], z: s.p[2] }, true); b.setRotation({ x: s.q[0], y: s.q[1], z: s.q[2], w: s.q[3] }, true); b.setLinvel({ x: 0, y: 0, z: 0 }, true); b.setAngvel({ x: 0, y: 0, z: 0 }, true); sync(b, obj); },
     };
   }
 
@@ -148,9 +156,11 @@ export async function createPhysics(scene, { gravity = 9.81 } = {}) {
       apply(h, false); moved = true;
     }
     world.timestep = Math.min(Math.max(dt, 1 / 240), 1 / 30);
-    world.step();
+    for (let i = 0; i < ext.pre.length; i++) ext.pre[i](world.timestep);
+    world.step(ext.queue);
     for (const h of hinges) h.obj.quaternion.copy(h.body.rotation());
     for (const { body: b, obj } of moving) if (!b.isSleeping()) { sync(b, obj); moved = true; }
+    for (let i = 0; i < ext.post.length; i++) if (ext.post[i](world.timestep)) moved = true;
     return moved;
   }
 
@@ -177,17 +187,21 @@ export async function createPhysics(scene, { gravity = 9.81 } = {}) {
     // a cylinder like the walk grid's body: a capsule's round bottom climbs 0.18 m risers at a third of the walking
     // speed under Rapier's autostep (measured), a flat bottom at ~92 %
     const lift = B.head / 2, OFF = 0.02;
-    const rb = world.createRigidBody(R.RigidBodyDesc.kinematicPositionBased().setTranslation(pos[0], pos[1] + lift, pos[2]));
-    const col = world.createCollider(R.ColliderDesc.cylinder(lift, B.radius), rb);
+    let rb = world.createRigidBody(R.RigidBodyDesc.kinematicPositionBased().setTranslation(pos[0], pos[1] + lift, pos[2]));
+    let col = world.createCollider(R.ColliderDesc.cylinder(lift, B.radius), rb);
     characters.add(col.handle);
-    const kcc = world.createCharacterController(OFF);
-    kcc.setUp({ x: 0, y: 1, z: 0 });
-    kcc.enableAutostep(B.step, 0.15, false);      // the walk grid's step: 0.4 m risers, treads >= 0.15 m
-    kcc.enableSnapToGround(0.3);
-    kcc.setMaxSlopeClimbAngle((46 * Math.PI) / 180);
-    kcc.setMinSlopeSlideAngle((40 * Math.PI) / 180);
-    kcc.setApplyImpulsesToDynamicBodies(true);
-    kcc.setCharacterMass(70);
+    const controller = () => {
+      const kcc = world.createCharacterController(OFF);
+      kcc.setUp({ x: 0, y: 1, z: 0 });
+      kcc.enableAutostep(B.step, 0.15, false);      // the walk grid's step: 0.4 m risers, treads >= 0.15 m
+      kcc.enableSnapToGround(0.3);
+      kcc.setMaxSlopeClimbAngle((46 * Math.PI) / 180);
+      kcc.setMinSlopeSlideAngle((40 * Math.PI) / 180);
+      kcc.setApplyImpulsesToDynamicBodies(true);
+      kcc.setCharacterMass(70);
+      return kcc;
+    };
+    let kcc = controller();
     // sensors are left out by the flag; the predicate must not call back into Rapier (c.isSensor() here left the
     // collider set marked as borrowed for good, and world.free() then threw)
     const notMe = (c) => c.handle !== col.handle;
@@ -267,7 +281,38 @@ export async function createPhysics(scene, { gravity = 9.81 } = {}) {
       return w;
     };
     w.place(pos);
+    chars.push({
+      save: () => ({ pos: w.pos.slice(), vy: w.vy, onGround: w.onGround, blocked: w.blocked, walked: w.walked, surface: w.surface, acc, carry: carry && { ...carry } }),
+      load: (s) => { w.pos = s.pos.slice(); w.vy = s.vy; w.onGround = s.onGround; w.blocked = s.blocked; w.walked = s.walked; w.surface = s.surface; acc = s.acc; carry = s.carry && { ...s.carry }; },
+      // handles survive a restore, the objects do not; a controller belongs to its world and is made again
+      rebind: () => { rb = world.getRigidBody(rb.handle); col = world.getCollider(col.handle); kcc = controller(); w.collider = col; w.controller = kcc; },
+    });
     return w;
+  }
+
+  /** The whole state as data: Rapier's snapshot bytes plus what lives outside Rapier (door targets, character
+   *  state, the kit's records). A world read back from bytes does not continue bit for bit like the one the
+   *  bytes were taken from (measured: 60 stacked boxes differ after 17 steps), but two worlds read from the same
+   *  bytes do. So `canonical` (the default) also replaces the live world by its own snapshot: from then on
+   *  "carry on" and "restore, then carry on" are the same computation. Pass false to only read the state. */
+  function snapshot({ canonical = true } = {}) {
+    const snap = { bytes: world.takeSnapshot(), hinges: hinges.map((h) => [h.angle, h.target]), chars: chars.map((c) => c.save()), ext: {} };
+    for (const k in ext.save) snap.ext[k] = ext.save[k]();
+    if (canonical) restore(snap);
+    return snap;
+  }
+  /** Back to a snapshot of this physics (same bodies, joints and characters: what was created since is dropped
+   *  from Rapier, what was removed since comes back without its three.js side). */
+  function restore(snap) {
+    const next = R.World.restoreSnapshot(snap.bytes);
+    if (!next) throw new Error('mirage physics: not a snapshot of this Rapier version');
+    world.free();
+    world = next;
+    for (const m of moving) { m.body = world.getRigidBody(m.body.handle); if (m.body) sync(m.body, m.obj); }
+    hinges.forEach((h, i) => { h.body = world.getRigidBody(h.body.handle); if (snap.hinges[i]) [h.angle, h.target] = snap.hinges[i]; h.obj.quaternion.copy(h.body.rotation()); });
+    chars.forEach((c, i) => { c.rebind(); if (snap.chars[i]) c.load(snap.chars[i]); });
+    for (const f of ext.rebind) f();
+    for (const k in ext.load) if (snap.ext[k] !== undefined) ext.load[k](snap.ext[k]);
   }
 
   let disposed = false;
@@ -277,5 +322,5 @@ export async function createPhysics(scene, { gravity = 9.81 } = {}) {
     info.clear(); characters.clear(); moving.length = hinges.length = 0;
     world.free();
   }
-  return { dispose, R, world, stats, info, addStatic, body, hinge, character, step, settle, ray, hinges };
+  return { dispose, R, get world() { return world; }, stats, info, addStatic, body, hinge, character, step, settle, ray, hinges, snapshot, restore, ext };
 }

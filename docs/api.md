@@ -232,6 +232,14 @@ Gaussian splats, `@mirage/world/kits/splat` (opt-in subpath, world README "Gauss
 | `createUI(opts)` | experimental | the HTML overlay (HUD, menus, touch controls) |
 | `PAD` | experimental | default gamepad buttons per action |
 | `loadRapier()` | experimental | load the Rapier WASM ahead of `createPhysics` |
+| `createPhysicsKit(phys, { hz, maxSteps, interpolate, layers, profile })` | experimental | the physics kit (docs/physics.md): rigid bodies with box / ball / capsule / hull / mesh / compound colliders, materials, layers, CCD, sensors, contact events with impulse, ray / shape casts and overlaps, fixed step with interpolation, state hash; opt-in, `createPhysics` unchanged |
+| `PHYSICS_MATERIALS` | experimental | the built-in materials (default, wood, stone, metal, rubber, ice) |
+| `createJoints(kit)` | experimental | fixed, ball, cone, hinge, slider, spring, rope and six-axis joints with limits, motors and a break force |
+| `createForces(kit)` | experimental | water volumes (buoyancy), explosions, kinematic platforms that carry bodies and the character |
+| `createVehicle(kit, object, { half, mass, wheels, engine, brake, topSpeed, maxSteer, grip })` | experimental | a ray-cast wheel vehicle on a kit body |
+| `createRagdoll(kit, model, { parts, mass, layer, settle, hitboxes })` | experimental | a ragdoll for a skinned rig: animated, ragdoll, partial, active, and the blend back |
+| `RAGDOLL_HUMANOID` | experimental | the default part list (14 parts) for humanoid bone names |
+| `createPhysicsDebug(kit, scene, { colliders, joints, contacts, stats })` | experimental | debug draw of colliders, joints and contacts, and a stats line |
 | `createAudioEngine({ audio, voices, buses, snapshots, ducks, zones, occlusion, cues })` | experimental | the audio engine (docs/audio.md): files and streams, voices with a cap and virtual voices, 3D placement, reverb zones, occlusion, cues; opt-in, keeps `createAudio` working |
 | `createMixer(ctx)` | experimental | bus tree with effect chains, sends, snapshots, ducking and meters on any (offline) audio context |
 | `EFFECT_TYPES` | experimental | the effect names a bus takes: eq, filters, compressor, limiter, delay, reverb, drive, pan, gain |

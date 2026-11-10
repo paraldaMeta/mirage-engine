@@ -1,6 +1,12 @@
 // Mirage original code.
 export { startGame } from './start.js';
 export { createPhysics, loadRapier } from './physics.js';
+export { createPhysicsKit, PHYSICS_MATERIALS } from './physics-kit.js';
+export { createJoints } from './physics-joints.js';
+export { createForces } from './physics-forces.js';
+export { createVehicle } from './vehicle.js';
+export { createRagdoll, RAGDOLL_HUMANOID } from './ragdoll.js';
+export { createPhysicsDebug } from './physics-debug.js';
 export { createGame } from './game.js';
 export { createInput, DEFAULT_BINDINGS, ACTIONS, PAD } from './input.js';
 export { createAudio, SURFACES } from './audio.js';
