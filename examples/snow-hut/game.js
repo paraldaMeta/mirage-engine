@@ -8,6 +8,7 @@ export function setupGame({ game, audio, root, anchors }, { built }) {
   const snow = ground && ground.snow;
   const fireLight = new THREE.PointLight(0xff7a30, 0, 5, 1.8);
   let t = 0;
+  game.on('place', () => { t = 0; if (snow) snow.value = 0; });   // the snow's clock restarts with the scene clock
   game.system((dt) => {                            // snow falls and the fire breathes: the scene moves every frame
     t += dt;
     if (snow) { snow.value = t; dirty(); }

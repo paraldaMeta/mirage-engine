@@ -21,6 +21,11 @@ and write the choice down (do not ask unless the choice changes the whole world)
 | scale | metres across, how long a walk takes | `bounds`, path lengths (walking speed 1.5 m/s, run 4.2) |
 | target | walk / game / stills; device; size budget | modes, `@mirage/game` or not, budgets |
 
+Adjectives are where the default look lives: "cosy, atmospheric, natural" gets the same generated world every time.
+Turn each one into numbers (sun elevation 6°, fog density 0.004, wall 2.4 m, a palette of four named colours) and
+keep the template's **BANNED** line: the defaults this world must not fall back on. After the first sheet, name every
+default it shows anyway, add it to the line, and fix it before anything else.
+
 ## 2. Plan → `plan.js`
 
 Start from `references/plan-template.js`. Work on paper first: draw the bounds, then the regions, then the

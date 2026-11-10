@@ -36,6 +36,8 @@ export interface Physics {
   character(options?: { pos?: XYZ; body?: Partial<PhysicsBody>; onPlace?: () => void }): PhysicsCharacter;
   /** Explicit low-level step, not a fixed-clock accumulator. startGame supplies the 60 Hz clock. */
   step(dt: number): boolean;
+  /** Step until every dynamic prop sleeps (at most maxSteps of 1/60 s); returns the steps taken. */
+  settle(maxSteps?: number): number;
   ray(from: XYZ, direction: XYZ, max?: number, exclude?: Collider): RayHit | null;
 }
 export function createPhysics(scene: THREE.Object3D, options?: { gravity?: number }): Promise<Physics>;

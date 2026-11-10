@@ -34,6 +34,10 @@ export class Pipeline {
   /** Turn on light2's passes (createWorldRenderer does this for `light2`). */
   useLight2(settings: Light2Settings, context: { sun: THREE.DirectionalLight; G: Record<string, THREE.IUniform> }): void;
   taa(inverseViewProjection: THREE.Matrix4, previousViewProjection: THREE.Matrix4, alpha: number): void;
+  /** Adaptive stills: mean change (display levels) of the accumulation / wsum since the last call; null when first. */
+  converge(wsum: number, exposure: number, first: boolean): number | null;
+  /** Adaptive stills: scale the accumulation (1 / the weight sum drawn) before end(). */
+  scaleAccumulation(s: number): void;
   /** options (auto exposure): dt = seconds since the last moving frame (the exposure eases); still = meter this frame
    *  on its own (history-free). Without dt the frame counts as still. */
   end(post: PostSettings, frameIndex?: number, target?: THREE.WebGLRenderTarget | null, options?: { dt?: number; still?: boolean }, setOnly?: boolean): void;

@@ -22,15 +22,64 @@ let chrome;
 /** the Chrome the tools launch (found on first use, so importing this file never throws) */
 export const chromePath = () => (chrome ??= findChrome());
 
+// Headless capture flags on top of puppeteer's own defaults, which already carry --force-color-profile=srgb,
+// --disable-renderer-backgrounding, --disable-background-timer-throttling, --disable-backgrounding-occluded-windows,
+// --disable-extensions, --disable-sync, --mute-audio, --no-first-run (unit.mjs checks they still do). Added here: a
+// page that is not in front keeps its timers and media (a leased browser holds several pages), no component updates
+// or pings in the middle of a measurement. None of them changes a pixel (snap before / after: bit-identical).
+export const CAPTURE_ARGS = ['--disable-background-media-suspend', '--disable-component-update', '--disable-domain-reliability', '--no-pings',
+  '--disable-features=IntensiveWakeUpThrottling,BackForwardCache'];
+/** the full Chrome command line launch() uses (without puppeteer's defaults) */
+export const launchArgs = ({ w = 1440, h = 900, args = [] } = {}) =>
+  // --disable-audio-output: Web Audio runs against a null sink, so the host's sound device cannot fail a test
+  ['--enable-gpu', '--ignore-gpu-blocklist', '--disable-gpu-watchdog', '--disable-audio-output', ...CAPTURE_ARGS, `--window-size=${w},${h}`, ...args];
+
 export function launch({ w = 1440, h = 900, args = [] } = {}) {
   const other = process.env.MIRAGE_BROWSER;
   if (other) return launchPlaywright(other, { w, h });
-  return puppeteer.launch({
-    executablePath: chromePath(), headless: true, defaultViewport: { width: w, height: h, deviceScaleFactor: 1 }, protocolTimeout: 900000,
-    // --disable-audio-output: Web Audio runs against a null sink, so the host's sound device cannot fail a test
-    args: ['--enable-gpu', '--ignore-gpu-blocklist', '--disable-gpu-watchdog', '--disable-audio-output', `--window-size=${w},${h}`, ...args],
-  });
+  if (process.env.MIRAGE_POOL === '1') return lease({ w, h, args });
+  return launchChrome({ w, h, args });
 }
+const launchChrome = ({ w, h, args }) => puppeteer.launch({
+  executablePath: chromePath(), headless: true, defaultViewport: { width: w, height: h, deviceScaleFactor: 1 }, protocolTimeout: 900000,
+  args: launchArgs({ w, h, args }),
+});
+
+// ---- the lease pool: one Chrome per command line for the whole tool run. lease() hands out a browser whose close()
+// only gives it back; the next lease with the same size and arguments gets the same Chrome (a launch costs ~0.3-1 s
+// and the GPU process' warm-up). Each lease still opens its own pages, and closes them on release, so a page never
+// sees another's state. The browser closes POOL_IDLE_MS after its last release (or at drain()), so a tool exits.
+// launch() leases when MIRAGE_POOL=1; tools that loop over many pages can call lease() directly.
+const pool = new Map();   // key -> { browser: Promise, refs, timer }
+export const POOL_IDLE_MS = 1500;
+export async function lease({ w = 1440, h = 900, args = [] } = {}) {
+  const key = JSON.stringify([w, h, args]);
+  let e = pool.get(key);
+  if (!e) pool.set(key, (e = { browser: launchChrome({ w, h, args }), refs: 0, timer: null }));
+  e.refs++;
+  clearTimeout(e.timer); e.timer = null;
+  let browser;
+  try { browser = await e.browser; } catch (err) { pool.delete(key); throw err; }
+  const pages = new Set();
+  let released = false;
+  return {
+    pooled: true, browser, target: () => browser.target(), version: () => browser.version(),
+    async newPage() { const p = await browser.newPage(); pages.add(p); p.once('close', () => pages.delete(p)); return p; },
+    async close() {
+      if (released) return; released = true;
+      await Promise.all([...pages].map((p) => p.close().catch(() => {})));
+      if (--e.refs > 0) return;
+      e.timer = setTimeout(() => { if (e.refs === 0 && pool.get(key) === e) { pool.delete(key); browser.close().catch(() => {}); } }, POOL_IDLE_MS);
+    },
+  };
+}
+/** close every pooled browser now */
+export async function drain() {
+  const all = [...pool.values()]; pool.clear();
+  await Promise.all(all.map(async (e) => { clearTimeout(e.timer); (await e.browser.catch(() => null))?.close().catch(() => {}); }));
+}
+/** how many browsers the pool holds (for the checks) */
+export const poolSize = () => pool.size;
 
 // MIRAGE_BROWSER=webkit | firefox (Safari's and Firefox's engines through Playwright, not a dependency here:
 // MIRAGE_PLAYWRIGHT=/path/to/node_modules/playwright/index.js). Pages get the few puppeteer calls the tools use.

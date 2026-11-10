@@ -10,6 +10,15 @@
 | scale | bounds in metres; the main walk in metres and seconds (1.5 m/s walking) |
 | target | walk / game / stills · desktop / phone · single file ≤ 5 MB · frame ≤ 8 ms (M-series walk) |
 
+Every adjective as numbers: <"warm dusk" = sun elevation 4°, azimuth 255, exposure 0.45; "narrow lane" = 2.2 m
+between walls 5 m high; "worn" = 3 stone tints ±8 % and 1 in 5 blocks chipped>. An adjective left as a word is
+a gap the default look fills.
+
+BANNED (defaults this world does not use unless the user's references do; the list grows after every review):
+an empty plain to the horizon around a small built patch; noon sun straight down; uniform grey fog as mood; bloom
+or glowing orbs as decoration; one material on every wall; objects in a grid or all centred on the axes; floating
+props; every tree the same size and turn; <yours, from the first sheet>.
+
 Decisions made without asking: <list, one line each, so the user can overrule them>.
 
 ## Route

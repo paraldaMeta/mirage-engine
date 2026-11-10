@@ -8,6 +8,8 @@
 // game.zone({ id, box: [[x,y,z], [x,y,z]] | sphere: [[x,y,z], r], enter?(game, z), exit?(game, z), once? })   fires as
 //   game.player (the character's feet) crosses it, then emits 'zone' { id, inside }; saves keep who is inside
 // game.on('flag' | 'inventory' | 'interact' | 'zone' | 'spawn' | 'remove' | 'pause' | 'load' | <your own>, fn); game.emit(type, data)
+// ('place': startGame emits it when play.place() jumps the view; a system animating scenery on its own clock resets it
+// there, so a still of a view is the same however it was reached)
 // game.set(flag, value); game.flags; game.inventory.add({ id, name }) / has(id) / remove(id)
 // game.save(slot, extra) / load(slot) / slots() / exportJSON(extra) / importJSON(text)
 //

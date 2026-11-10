@@ -47,7 +47,12 @@ export interface RenderFrameOptions {
   camera?: RenderCamera; getCamera?: (seconds: number) => RenderCamera; spp?: number; dt?: number;
   shutter?: number; frameIndex?: number; target?: THREE.WebGLRenderTarget | null;
   shadow?: ShadowRegion; taa?: boolean | number;
+  /** Adaptive still (spp >= 8, not with taa): stop once the mean change between estimates every spp / 4 sub-frames
+   *  is <= this many display levels (0..255; true = 0.25). renderFrame then returns what it drew. */
+  converge?: boolean | number;
 }
+/** What an adaptive still (renderFrame with `converge`) drew: sub-frames used of `of`, and the mean changes measured. */
+export interface ConvergeResult { spp: number; of: number; diffs: number[] }
 export interface WorldContext {
   THREE: typeof THREE; renderer: THREE.WebGLRenderer; scene: THREE.Scene; camera: THREE.PerspectiveCamera;
   G: EnvironmentUniforms; keyDir: THREE.Vector3; mat: MaterialKit; geom: typeof geom; rng: typeof rng;
@@ -80,7 +85,7 @@ export interface WorldRenderer {
   /** Compile materials and capture lighting after building the scene. Requires WebGL.
    *  { warm: true } (opt-in): also draw one discarded frame and wait for the GPU, so the first visible frame pays no upload or driver work. */
   prepare(options?: { warm?: boolean }): Promise<void | { warmMs: number }>;
-  renderFrame(seconds?: number, options?: RenderFrameOptions): void;
+  renderFrame(seconds?: number, options?: RenderFrameOptions): ConvergeResult | void;
   /** A still with a transparent sky: rendered over black and over white (sky and stars hidden), straight alpha recovered
    *  per pixel. Still-path options (spp, frameIndex, camera, shadow, shutter); no bloom, no auto exposure. */
   renderTransparent(seconds?: number, options?: Omit<RenderFrameOptions, 'taa' | 'target'>): TransparentStill;

@@ -590,6 +590,60 @@ export class Pipeline {
     this._draw(this.copyMat, this.accRT);
   }
 
+  /** [converge] An adaptive still (renderFrame's `converge`) asks after some sub-frames how far the frame still
+   *  moves: the accumulation so far, normalised by its weight sum `wsum`, against the estimate at the last call, in
+   *  display levels (0..255 after exposure and a plain tone curve: close to what the grade will show). Returns the
+   *  mean over the frame, or null on the first call of a frame (first = true: nothing to compare with yet). Blocks
+   *  of 8 x 8 px are averaged on the GPU; only a small float target is read back. */
+  converge(wsum, exposure, first) {
+    const w = this.rw, h = this.rh, bw = Math.ceil(w / 8), bh = Math.ceil(h / 8);
+    if (!this.cv || this.cv.prev.width !== w || this.cv.prev.height !== h) {
+      if (this.cv) { this.cv.prev.dispose(); this.cv.stats.dispose(); }
+      this.cv = {
+        prev: new THREE.WebGLRenderTarget(w, h, { type: THREE.HalfFloatType, depthBuffer: false }),
+        stats: new THREE.WebGLRenderTarget(bw, bh, { type: THREE.FloatType, depthBuffer: false, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter }),
+        buf: new Float32Array(bw * bh * 4),
+      };
+      this.cvDiff ??= quadMat(/* glsl */ `
+        varying vec2 vUv; uniform sampler2D tCur, tPrev; uniform vec2 uTexel; uniform float uN, uExp;
+        vec3 disp(vec3 c){ c = max(c, 0.0) * uExp; return 255.0 * pow(c / (1.0 + c), vec3(1.0 / 2.2)); }
+        void main(){
+          vec2 o = floor(vUv / (uTexel * 8.0)) * uTexel * 8.0 + 0.5 * uTexel;
+          float s = 0.0;
+          for (int y = 0; y < 8; y++) for (int x = 0; x < 8; x++) {
+            vec2 uv = o + vec2(float(x), float(y)) * uTexel;
+            vec3 d = abs(disp(texture2D(tCur, uv).rgb * uN) - disp(texture2D(tPrev, uv).rgb));
+            s += max(d.r, max(d.g, d.b));
+          }
+          gl_FragColor = vec4(s / 64.0, 0.0, 0.0, 1.0);
+        }`, { tCur: { value: null }, tPrev: { value: null }, uTexel: { value: new THREE.Vector2() }, uN: { value: 1 }, uExp: { value: 1 } });
+      this.cvScale ??= quadMat('varying vec2 vUv; uniform sampler2D tColor; uniform float uS; void main(){ gl_FragColor = texture2D(tColor, vUv) * uS; }', { tColor: { value: null }, uS: { value: 1 } });
+    }
+    const cv = this.cv;
+    let mean = null;
+    if (!first) {
+      const u = this.cvDiff.uniforms;
+      u.tCur.value = this.accRT.texture; u.tPrev.value = cv.prev.texture; u.uTexel.value.set(1 / w, 1 / h); u.uN.value = 1 / wsum; u.uExp.value = exposure;
+      this._draw(this.cvDiff, cv.stats);
+      this.r.readRenderTargetPixels(cv.stats, 0, 0, bw, bh, cv.buf);
+      let s = 0;
+      for (let i = 0; i < bw * bh; i++) s += cv.buf[4 * i];
+      mean = s / (bw * bh);
+    }
+    this.cvScale.uniforms.tColor.value = this.accRT.texture; this.cvScale.uniforms.uS.value = 1 / wsum;
+    this._draw(this.cvScale, cv.prev);
+    return mean;
+  }
+
+  /** [converge] Stop early: scale the accumulation by s (1 / the weight sum of the sub-frames drawn), so end() grades
+   *  a whole frame. The scratch is histB (a still frame has just invalidated the temporal-AA history anyway). */
+  scaleAccumulation(s) {
+    this.cvScale.uniforms.tColor.value = this.accRT.texture; this.cvScale.uniforms.uS.value = s;
+    this._draw(this.cvScale, this.histB);
+    this.copyMat.uniforms.tColor.value = this.histB.texture;
+    this._draw(this.copyMat, this.accRT);
+  }
+
   /** Forget the adapted exposure: the next frame is metered on its own (a cut, a teleport). */
   resetExposure() { this.aeValid = false; }
 
@@ -687,6 +741,7 @@ export class Pipeline {
     for (const t of [this.sceneRT, this.aoRT, this.accRT, this.histA, this.histB, this.ssrRT, this.volRT, this.meterRT, this.aeA, this.aeB]) t && t.dispose();
     if (this.l2) { this.l2.lamps.dispose(); this.l2.ssrMat.dispose(); this.l2.volMat.dispose(); }
     this.bloomPass.dispose(); this.quad.dispose();
-    for (const m of [this.ao, this.acc, this.grade, this.gradeClear, this.taaMat, this.copyMat, this.blendMat, this.meterMat, this.adaptMat]) m && m.dispose();
+    for (const m of [this.ao, this.acc, this.grade, this.gradeClear, this.taaMat, this.copyMat, this.blendMat, this.meterMat, this.adaptMat, this.cvDiff, this.cvScale]) m && m.dispose();
+    if (this.cv) { this.cv.prev.dispose(); this.cv.stats.dispose(); this.cv = null; }
   }
 }
