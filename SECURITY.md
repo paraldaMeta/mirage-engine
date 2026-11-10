@@ -3,7 +3,8 @@
 ## Reporting
 
 Report a vulnerability privately: on GitHub, **Security → Report a vulnerability** on
-`paraldaMeta/mirage-engine` (private vulnerability reporting). Please do not open a public issue for it. Say what
+`paraldaMeta/mirage-engine` (private vulnerability reporting; the owner has to switch it on in the repository
+settings, and at the time of writing it is off: until then, ask for a private contact in an issue without details). Please do not open a public issue for it. Say what
 you ran, what you expected and what happened; a failing check or a small page is the best report. There is no
 bounty and no promised response time: this is a small project, reports are read by the owner.
 
@@ -34,5 +35,5 @@ pages.
 - `package-lock.json` is committed; CI installs with `npm ci`. Tests install nothing at run time.
 - GitHub Actions are pinned to full commit SHAs and the workflow token is read-only
   (`scripts/checks/workflows.check.mjs` fails otherwise).
-- Releases are published with npm provenance from CI, never from a laptop: [docs/releasing.md](docs/releasing.md).
+- Nothing is published on npm yet. The plan is to publish with npm provenance from CI, never from a laptop: [docs/releasing.md](docs/releasing.md).
 - No install scripts: no package here has `preinstall` / `install` / `postinstall`.

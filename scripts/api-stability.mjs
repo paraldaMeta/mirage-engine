@@ -14,7 +14,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const PKGS = ['core', 'world', 'play', 'game', 'net'];
+const PKGS = ['core', 'world', 'play', 'game', 'net', 'editor'];
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /** docs/api.md as { '@mirage/core': [{ head, level, text }] }: the table rows that carry a stability cell. */

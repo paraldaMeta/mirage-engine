@@ -57,10 +57,11 @@ try {
   await Promise.all(pages.map(joined));
   check(entry.room.players.size === CLIENTS, `${CLIENTS} players in the server's room (${entry.room.players.size})`);
   const t0 = Date.now(), before = await Promise.all(pages.map(view));
-  await sleep(SECONDS * 1000);
+  // path length, sampled: the bots turn every second or two, so net displacement can be near zero after a long walk
+  const walked = before.map(() => 0); let last = before;
+  while (Date.now() - t0 < SECONDS * 1000) { await sleep(250); const now = await Promise.all(pages.map(view)); now.forEach((v, i) => { walked[i] += Math.hypot(v.pos[0] - last[i].pos[0], v.pos[2] - last[i].pos[2]); }); last = now; }
   await pages[0].evaluate(() => window.__mirage.net.client.rpc('chat', { text: 'hello from Ada' }));
   const moving = await Promise.all(pages.map(view)), dt = (Date.now() - t0) / 1000;
-  const walked = moving.map((v, i) => Math.hypot(v.pos[0] - before[i].pos[0], v.pos[2] - before[i].pos[2]));
   check(moving.every((v) => v.players.length === CLIENTS), `every page sees ${CLIENTS} players (${moving.map((v) => v.players.length)})`);
   check(moving.every((v) => v.labels.length === CLIENTS - 1 && v.labels.every((l) => names.some((n) => l.startsWith(n)))), `name labels over the others (${moving[0].labels.join(' | ')})`);
   check(moving.every((v) => v.stats.snapshots > SECONDS * game.tickRate * 0.6), `snapshots arrive (${moving.map((v) => v.stats.snapshots)})`);
@@ -83,12 +84,20 @@ try {
   }
   check(own < 0.005, `after stopping, each page's own position is the server's: worst ${(own * 1000).toFixed(2)} mm (limit 5)`);
   check(others < 0.02, `after stopping, every page's picture of the others is the server's: worst ${(others * 1000).toFixed(2)} mm (limit 20)`);
-  check(Math.min(...walked) > 1, `the bots really walked (${walked.map((d) => d.toFixed(1))} m from where they began)`);
+  check(Math.min(...walked) > 1, `the bots really walked (${walked.map((d) => d.toFixed(1))} m of path)`);
   check(still.every((v) => v.chat.some((c) => c.text === 'hello from Ada')), 'the chat line reached every page');
-  const taken = [...entry.room.entities.values()].filter((e) => e.type.name === 'pickup').map((e) => [e.id, !!e.state.taken]);
-  check(taken.length === game.pickups.length && still.every((v) => taken.every(([id, t]) => v.pickups.find((p) => p.id === id)?.taken === t)), `all ${taken.length} lanterns in the same state on every page as on the server (${taken.filter((t) => t[1]).length} taken now)`);
-  const scores = [...entry.room.players.values()].map((p) => [p.id, p.ent.state.score]);
-  check(still.every((v) => scores.every(([id, s]) => v.players.find((p) => p.id === id)?.score === s)), `scores agree (${scores.map((s) => s[1])}; ${still[0].took} pickups announced)`);
+  // a lantern respawns 8 s after it is taken and a page hears of it one latency and one interpolation delay later: poll until they agree
+  let taken, scores, seen, same = false, score = false;
+  for (let n = 0; n < 20 && !(same && score); n++) {
+    if (n) await sleep(150);
+    taken = [...entry.room.entities.values()].filter((e) => e.type.name === 'pickup').map((e) => [e.id, !!e.state.taken]);
+    scores = [...entry.room.players.values()].map((p) => [p.id, p.ent.state.score]);
+    seen = await Promise.all(pages.map(view));
+    same = seen.every((v) => taken.every(([id, t]) => v.pickups.find((p) => p.id === id)?.taken === t));
+    score = seen.every((v) => scores.every(([id, sc]) => v.players.find((p) => p.id === id)?.score === sc));
+  }
+  check(taken.length === game.pickups.length && same, `all ${taken.length} lanterns in the same state on every page as on the server (${taken.filter((t) => t[1]).length} taken now)`);
+  check(score, `scores agree (${scores.map((s) => s[1])}; ${seen[0].took} pickups announced)`);
   check(pages.every((p) => !p.errors.length), `no page errors${pages.flatMap((p) => p.errors).slice(0, 3).map((e) => '\n         ' + e).join('')}`);
   await Promise.all(pages.map((p) => p.quit()));
 

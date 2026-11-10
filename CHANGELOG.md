@@ -77,7 +77,7 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
   `npm test` (`packages/game/physics.check.mjs`) and `node examples/demos/physics/physics-check.mjs`, 23 of 23 in
   headless Chrome. Not there: cloth, soft bodies, fracture, fluids, GPU or multi-threaded physics, break torque,
   cross-platform determinism.
-- Engineering: hosted CI draws frames. A `software-gl` job runs Chrome on SwiftShader (`MIRAGE_GL=software`) and
+- Engineering: a job for hosted CI that draws frames. A `software-gl` job runs Chrome on SwiftShader (`MIRAGE_GL=software`) and
   plays two examples, redraws two views of each bit-identically and compares five stills with committed baselines
   by region SSIM (`npm run test:software-gl`, `docs/ci.md`; locally on macOS: four parts in about 230 s; not yet
   run on a hosted runner). Timing is printed, not gated, under software GL. Every action in both workflows is
@@ -93,8 +93,8 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
   measured 25 to 33 in an unlit room with `factor: 0.35`, 55 to 76 with a lamp). MG102 for a list under
   `plan.points` now says the two real ways out. `docs/diagnostics.md`.
 - Docs: `docs/making-a-world.md` (a first world by hand, built and playtested as written; pitfalls; escape hatches
-  to plain three.js), `docs/README.md` (the index), `docs/STABILITY.md` (37 of 212 exports are stable; the
-  promotion policy; the Node checks run 51.8 % of 24 487 source lines), `docs/ci.md`, `docs/releasing.md` (checklist, npm provenance:
+  to plain three.js), `docs/README.md` (the index), `docs/STABILITY.md` (37 of 286 exports are stable; the
+  promotion policy; the Node checks run 52.8 % of 32 347 source lines), `docs/ci.md`, `docs/releasing.md` (checklist, npm provenance:
   documented, not run), `SECURITY.md`. `npm run coverage` and `npm run stability` produce the numbers.
 
 - @mirage/editor (new package, experimental, opt-in, `docs/editor.md`): a visual editor in the browser against a

@@ -13,7 +13,7 @@ The historic first-release notes are in [RELEASE.md](RELEASE.md).
       at the contact sheets, not only the report.
 - [ ] `npm run coverage` and `npm run stability -- --write`: update the numbers in [STABILITY.md](STABILITY.md) if
       they moved. A name that left *stable*, or a subpath that left an `exports` map, makes this a major release.
-- [ ] One version everywhere (`npm run test:pack` checks the root, the six packages and their peer ranges).
+- [ ] One version everywhere (`npm run test:pack` checks the root, the seven packages and their peer ranges).
 - [ ] CHANGELOG: the top section has the version and the date, with **New**, **Changes in behaviour**, **Fixes**.
 - [ ] `npm audit --omit=dev` is clean, or every finding is written down with why it does not apply.
 - [ ] No secrets and nothing local: `git grep -i -E 'token|secret|api[_-]?key'`, and no evals, results or research
@@ -24,7 +24,7 @@ The historic first-release notes are in [RELEASE.md](RELEASE.md).
 `npm run test:pack` checks, per package, the files `npm pack` would put in the tarball and fails when a file an
 export map points at is missing. To look at a tarball's contents without publishing:
 `npm pack -w packages/core --dry-run`. Publishing order follows the peer dependencies: core, world, play, game,
-net, tools.
+net, editor, tools.
 
 ## 3. Publish with provenance
 

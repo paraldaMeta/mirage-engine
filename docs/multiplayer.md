@@ -135,6 +135,11 @@ overruns. After the bots stop, every page's own position equals the server's (0.
 others is within 1.66 mm (the wire's step is 3.9 mm). Host mode in the same run: both members reached the host
 over WebRTC, and after the host's browser was closed one member took over with ids kept.
 
+The numbers above are from one run. The check itself was flaky before this round (2 of 6 and 3 of 7 runs failed):
+it measured the bots' net displacement, which is near zero when a loop closes, and compared lanterns and scores
+in a single sample taken while a pickup could still be in flight. It now measures path length and polls until the
+server and every page agree; 8 of 8 runs passed after that change. Replication itself was not changed.
+
 Not measured: real networks, real WebRTC across NATs, browsers other than Chrome, CPU of a hosting page.
 
 ## Limits and what is left out

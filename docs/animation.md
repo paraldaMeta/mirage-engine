@@ -141,5 +141,5 @@ the default controller.
 ## Not here
 
 Animation compression, morph-target tracks (the animator blends node transforms only),
-full-body or CCD / FABRIK chains, ragdolls, motion matching, a graph editor, curve editing in the timeline, and
+full-body or CCD / FABRIK chains, motion matching, a graph editor, curve editing in the timeline, and
 inertial blending (cross-fades are linear).
