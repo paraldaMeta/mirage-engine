@@ -15,6 +15,10 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
   (PointLights or `addLampSource` tables) through one octahedral depth atlas, half-resolution screen-space
   reflections on smooth surfaces, volumetric light (key light through its shadow map, lamps through the atlas),
   bloom mixed instead of added. Off by default; frames without it are bit-identical. hello-courtyard: `?light2=1`.
+- @mirage/core: optional contact-hardening soft sun shadows (`createWorldRenderer({ softShadows: true })`,
+  `softshadow.js`): a per-pixel blocker search and PCF over the sun's own shadow map (PCSS), so walking (TAA) frames
+  get the penumbrae still frames had from the sun-disc jitter, and both look alike. +0.55–0.85 ms at 1440 x 900.
+  Off by default; frames without it are bit-identical. hello-courtyard: `?soft=1` (`&sunAngle=` degrees).
 - @mirage/core: optional close-range relief (`relief.js`): one parallax step and the relief's own shadow on the
   photo sets (`tex.material(name, { relief, render })`, `tex.hooks(names, h, { relief: true })`,
   `mgTex{Tri,Wall,Ground}Relief`), a hand-applied render's undulation and trowel swipes (`PROC.plaster(base,
