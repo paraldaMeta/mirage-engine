@@ -25,6 +25,12 @@ export interface ProceduralSurfaces {
   stone(base?: string, options?: { course?: number; block?: number }): MaterialHooks;
   wood(base?: string, axis?: 'x' | 'y' | 'z'): MaterialHooks;
   terracotta(base?: string): MaterialHooks;
+  /** Brushed metal (use on a metalness-1 material): streaks and hairlines along `axis`. */
+  brushed(base?: string, options?: { axis?: 'x' | 'y' | 'z'; scale?: number; wear?: number }): MaterialHooks;
+  /** Hammered / beaten metal: dimples `size` m across (0.035), polished ridges. */
+  hammered(base?: string, options?: { size?: number; depth?: number }): MaterialHooks;
+  /** Verdigris on copper / bronze: `amount` 0..1 turned green, rough and not metallic. */
+  patina(base?: string, options?: { amount?: number; verdigris?: string }): MaterialHooks;
 }
 export interface MaterialKit {
   patch<M extends THREE.Material>(material: M, hooks: MaterialHooks): M;

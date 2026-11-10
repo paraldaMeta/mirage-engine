@@ -86,6 +86,7 @@ export function addRain(ctx, { count = 6000, box = [22, 14, 22], speed = 8.5, st
   const v2 = new THREE.Vector2(), c = new THREE.Vector3(), d = new THREE.Vector3();
   mesh.onBeforeRender = (renderer, scene, camera) => {
     const T = ctx.G && ctx.G.uTime ? ctx.G.uTime.value : 0;   // the world's clock (world.ctx carries G)
+    U.uRainShape.value.x = speed * (ctx.motion ? ctx.motion.rain : 1);   // reduced motion (world.setReducedMotion): slower, shorter streaks
     U.uRainT.value = ((T % RAIN_PERIOD) + RAIN_PERIOD) % RAIN_PERIOD;   // in double precision, then to the GPU
     const rt = renderer.getRenderTarget(), h = rt ? rt.height : renderer.getDrawingBufferSize(v2).y;
     camera.getWorldPosition(c);

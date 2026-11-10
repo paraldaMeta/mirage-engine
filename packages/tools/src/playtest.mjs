@@ -33,7 +33,18 @@
 //       a module's root carries the module's name) is the nearest surface. A list means "> 0.001" each. A failed
 //       check says why: out of frame, hidden (and by what) or too small. Transparent surfaces do not hide.
 //   A screenshot that is black (98 % of pixels near black) or clipped (35 % near white) is listed as a warning.
+//   "contrast": true | { "root": ".mg-ui" }   WCAG contrast of the page's visible text (prompts, HUD, dialogs) over
+//       the scene at the end of the step, measured behind the glyphs: values contrast (the worst ratio) and
+//       contrastFails; any text under 4.5:1 (3:1 large) fails the step with MG710
 //   "shot": false  (default true)
+//   walkTo also writes NN-<step>-route.png (after the walk, so the walk's timing is unchanged): the walk grid from
+//   above, the planned route, the path taken, the stuck point; "onion": true adds the game entities that moved
+//   meanwhile (sampled every 5th poll: a page call each, so it is not the default)
+// scenario level: "baseline": "<dir>" (or --baseline dir): each step whose view the scenario fixed (the spawn, place or
+//   viewpoint, and no walkTo / keys / tap since; "baseline": true on a step forces it, false skips it) is drawn once more on the deterministic
+//   still path (grain 0, frameIndex 1, 16 spp) and compared with <dir>/<shot> by region SSIM ("ssim": [0.92, 0.85,
+//   0.75] = mean, 5th percentile, worst 4 x 4 cell); a miss is MG460 with the boxed diff image; a missing file is
+//   written (the first run makes the baseline). "phone": true (or --phone): 375 x 812, the sheet one phone wide per tile.
 //   "checks": false (scenario level) skips the load-time world checks (spawn / viewpoints in solids, floating objects,
 //   coplanar surfaces, what each viewpoint shows); they run by default and their errors fail the run.
 // Every problem found is also listed as a diagnostic { code, severity, target, message, fix, at? } in report.json
@@ -45,6 +56,11 @@ import { pathToFileURL } from 'node:url';
 import { launch, serve, open } from './chrome.mjs';
 import { seeInPage, frameStatsInPage, seeWhy, DARK_SHARE, CLIPPED_SHARE } from './see.mjs';
 import { worldChecks, probe } from './world-checks.mjs';
+import { sheetInPage, PHONE } from './sheet.mjs';
+import { contrastAudit } from './contrast.mjs';
+import { routeMapInPage } from './route.mjs';
+import { unknownFields } from './scenario-fields.mjs';
+import { readPNG, encodePNG, regionSSIM, ssimVerdict, boxed, sideBySide } from './imgcmp.mjs';
 import { diag, sortDiagnostics, markdownDiagnostics, fromBuildReport, fromConsole, fromStep, fromWorldChecks, lintPlan, budgetAtLoad, heaviest, lightFix, stuckWords, throughWords, axisVerdict, parseExpect, formatDiagnostic } from './diagnostics.mjs';
 
 function check(expr, v) {
@@ -64,7 +80,10 @@ const LOAD_FAILED = Symbol('load failed');
 export async function playtest(sc, target, { out = 'out/playtest', scenarioFile = '(scenario)', log = console.log } = {}) {
 const OUT = path.resolve(out);
 fs.mkdirSync(OUT, { recursive: true });
-const W = sc.w || 1440, H = sc.h || 900;
+const W = sc.phone ? PHONE.w : sc.w || 1440, H = sc.phone ? PHONE.h : sc.h || 900;
+const BASE = sc.baseline ? path.resolve(path.dirname(path.resolve(scenarioFile)), sc.baseline) : null;
+if (BASE) fs.mkdirSync(BASE, { recursive: true });
+const T = Array.isArray(sc.ssim) ? { mean: sc.ssim[0], p05: sc.ssim[1], cell: sc.ssim[2] } : sc.ssim || {};
 const isUrl = /^https?:\/\//.test(target), isFile = !isUrl && target.endsWith('.html');
 const srv = isFile || isUrl ? null : await serve(target);
 const base = isUrl ? target : isFile ? pathToFileURL(path.resolve(target)).href : srv.url;
@@ -74,6 +93,9 @@ const results = [], wait = (ms) => new Promise((r) => setTimeout(r, ms));
 // a step name in a file name: 'gate / prompt' or 'a:b' (Windows) made the screenshot throw and lost the report
 const fileName = (s) => String(s).replace(/[^\w.-]+/g, '-');
 const report = { title: sc.title || path.basename(scenarioFile), url, scenario: path.resolve(scenarioFile), at: new Date().toISOString(), w: W, h: H };
+// a field the runner does not read (a typo, a field from a newer skill) does nothing: say so, do not fail
+const unknown = unknownFields(sc);
+if (unknown.length) { report.unknownFields = unknown; log('scenario fields playtest does not know (ignored): ' + unknown.join(', ')); }
 let failed = 0, loadError = null, plan = null, light = null;
 const diagnostics = [];
 try {
@@ -102,6 +124,7 @@ try {
   if (diagnostics.some((d) => d.severity === 'error' && !d.code.startsWith('MG2'))) failed++;
   const heavy = heaviest(report.build), lightWords = lightFix(light), loadDiags = diagnostics.slice();
   let moved = false;   // every step so far started where the spawn put the walker
+  let fixedView = true;   // the view is where the scenario put it (spawn, place, viewpoint), not where walking left it
   const state = () => page.evaluate(() => {
     const m = window.__mirage, s = m.play.state(), g = m.g;
     if (g) Object.assign(s, { near: g.near ? g.near.id : null, prompt: g.near ? g.game.label(g.near) : null, flags: { ...g.game.flags }, inventory: g.game.inventory.items.map((i) => i.id), paused: g.game.paused });
@@ -122,14 +145,22 @@ try {
       const track = async (until, each) => { while (Date.now() < until) { await wait(40); const st = await state(); maxY = Math.max(maxY, st.pos[1]); if (each && (await each(st))) return true; } return false; };
       if (s.walkTo) {
         let run = !!s.run;
+        // the route map's path comes from the polls the walk makes anyway; entity trails ("onion": true) cost a page
+        // call every 5th poll, which changes the walk's timing, so they are asked for, not default
+        const route = { name: `${idx} ${s.name ?? ''}`, plan: [[start.pos[0], start.pos[2]], ...s.walkTo], path: [start.pos], ents: {} };
+        const entsAt = () => page.evaluate(() => { const g = window.__mirage.g; if (!g) return {}; const o = {}; for (const [id, e] of g.game.entities) { const p = g.game.where(e); if (p) o[id] = [+p[0].toFixed(3), +p[2].toFixed(3)]; } return o; }).catch(() => ({}));
+        const ent0 = s.onion ? await entsAt() : null; let polls = 0;
+        const sample = async (st) => { route.path.push(st.pos); if (ent0 && ++polls % 5 === 0) for (const [id, p] of Object.entries(await entsAt())) (route.ents[id] ??= [ent0[id] || p]).push(p); };
         await keysDown(run ? ['KeyW', 'ShiftLeft'] : ['KeyW']);
         try {
           for (const [k, [x, z]] of s.walkTo.entries()) {
             const last = k === s.walkTo.length - 1, tol = last ? s.tol || 0.35 : Math.max(s.tol || 0.35, 0.8);   // corners can be cut
             let mark = [start.pos, Date.now()];   // no progress for 2.5 s = stuck
             const ok = await track(Date.now() + (s.timeout || 30000), async (st) => {
+              await sample(st);
               if (Math.hypot(st.pos[0] - mark[0][0], st.pos[2] - mark[0][2]) > 0.1) mark = [st.pos, Date.now()];
-              else if (Date.now() - mark[1] > 2500) throw new Error(`walkTo: stuck at ${st.pos.join(', ')} on the way to ${x}, ${z} (no progress for 2.5 s)`);
+              else if (Date.now() - mark[1] > 2500) route.stuck = [st.pos[0], st.pos[2]];
+              if (route.stuck) throw new Error(`walkTo: stuck at ${st.pos.join(', ')} on the way to ${x}, ${z} (no progress for 2.5 s)`);
               await page.evaluate((x, z) => { const { play } = window.__mirage; play.lookAt([x, play.state().eye[1], z]); }, x, z);
               const d = Math.hypot(st.pos[0] - x, st.pos[2] - z);
               if (d < 1.2 && run && last) { await page.keyboard.up('ShiftLeft'); run = false; }
@@ -137,7 +168,13 @@ try {
             });
             if (!ok) throw new Error(`walkTo: timed out at ${(await state()).pos.join(', ')} on the way to ${x}, ${z} (moving; try "run": true or a longer "timeout")`);
           }
-        } finally { await keysUp(['KeyW', 'ShiftLeft']); }
+        } finally {
+          await keysUp(['KeyW', 'ShiftLeft']);
+          // the route map: only entities that moved more than 2 cm stay in the onion skin
+          for (const [id, t] of Object.entries(route.ents)) if (!t.some((p) => Math.hypot(p[0] - t[0][0], p[1] - t[0][1]) > 0.02)) delete route.ents[id];
+          const rf = `${String(idx).padStart(2, '0')}-${fileName(s.name ?? idx)}-route.png`;
+          await page.evaluate(routeMapInPage, route).then((png) => { fs.writeFileSync(path.join(OUT, rf), Buffer.from(png.split(',')[1], 'base64')); metrics.route = rf; }).catch((e) => log('route map failed: ' + (e.message || e)));
+        }
         await wait(250);
       }
       if (s.lookAt) {
@@ -242,6 +279,36 @@ try {
       if (seen.error) { err = seen.error; seen = null; }
       else Object.assign(metrics, Object.fromEntries(Object.entries(seen.names).map(([n, v]) => ['see.' + n, v.share])));
     }
+    // the text over the scene: WCAG contrast behind the glyphs (after the shot and the ID pass: it repaints the overlay)
+    let contrast = null;
+    if (s.contrast && !err) {
+      contrast = await contrastAudit(page, typeof s.contrast === 'object' ? s.contrast : {}).catch((e) => ({ error: e }));
+      if (contrast.error) { err = 'contrast: ' + (contrast.error.message || contrast.error); contrast = null; }
+      else Object.assign(metrics, { contrast: contrast.items.length ? Math.min(...contrast.items.map((i) => i.ratio)) : null, contrastFails: contrast.items.filter((i) => !i.pass).length });
+    }
+    // the baseline: the same view on the deterministic still path, against <baseline>/<shot>
+    // only a view the scenario fixed (place / viewpoint, no walking or held keys since) is the same picture every run:
+    // a walk ends anywhere within its tolerance. "baseline": true on a step compares it anyway.
+    if (s.place || s.viewpoint !== undefined) fixedView = true;
+    if (s.walkTo || s.keys || s.tap) fixedView = false;
+    let still = null;
+    if (BASE && shot && !err && (fixedView || s.baseline === true) && s.baseline !== false) {
+      still = await page.evaluate(async () => {
+        const { play } = window.__mirage, w = play.world, grain = w.post.grain;
+        // was the loop running? (frames advance within three animation frames, even at the power saver's 30 fps)
+        const f0 = play.stats.frames;
+        for (let k = 0; k < 3; k++) await new Promise((r) => requestAnimationFrame(r));
+        const running = play.stats.frames > f0;
+        play.stop(); w.post.grain = 0;
+        try { play.render({ moving: false, spp: 16, frameIndex: 1 }); return document.querySelector('canvas').toDataURL('image/png'); }
+        finally {
+          w.post.grain = grain;
+          // the canvas now holds this grain-free still: setMode(mode) restarts the still counter, so the loop draws
+          // and refines the view again before a later screenshot; a loop the page had stopped stays stopped
+          if (running) { play.setMode(play.mode); play.start(); }
+        }
+      }).catch((e) => { log('baseline still failed: ' + (e.message || e)); return null; });
+    }
     const frame = shot ? await page.evaluate(frameStatsInPage, 'data:image/png;base64,' + fs.readFileSync(path.join(OUT, shot)).toString('base64')) : {};
     const warn = [];
     if (frame.dark > DARK_SHARE) warn.push(`black frame: ${(100 * frame.dark).toFixed(0)} % of the pixels are near black`);
@@ -250,14 +317,31 @@ try {
       dist: start ? Math.hypot(st.pos[0] - start.pos[0], st.pos[2] - start.pos[2]) : NaN, ...frame, ...metrics, see: seen ? Object.fromEntries(Object.entries(seen.names).map(([n, v]) => [n, v.share])) : undefined };
     const get = (k) => k.split('.').reduce((o, p) => (o == null ? undefined : o[p]), vals);
     const checks = Object.entries(s.expect || {}).map(([k, e]) => { const v = get(k); return { k, e, v: typeof v === 'number' ? +v.toFixed(3) : v, ok: check(e, v) }; });
+    if (contrast) for (const it of contrast.items.filter((i) => !i.pass)) checks.push({ k: 'contrast', e: `>= ${it.need}`, v: it.ratio, ok: false, why: `"${it.text}" (${it.selector}, ${it.size} px, ${it.color} over ~${it.backdrop})` });
+    let baseRow = null;
+    if (still) {
+      const bf = path.join(BASE, shot), img = readPNG(still);
+      if (!fs.existsSync(bf)) { fs.writeFileSync(bf, encodePNG(img)); baseRow = { file: shot, new: true }; }
+      else {
+        const b0 = readPNG(fs.readFileSync(bf));
+        if (b0.w !== img.w || b0.h !== img.h) baseRow = { file: shot, pass: false, fails: [`size ${b0.w} x ${b0.h} vs ${img.w} x ${img.h}`] };
+        else {
+          const sc2 = regionSSIM(b0, img), v = ssimVerdict(sc2, T);
+          baseRow = { file: shot, mean: sc2.mean, p05: sc2.p05, cell: sc2.cell, worst: sc2.worst, pass: v.pass, fails: v.fails };
+          if (!v.pass) { baseRow.diff = shot.replace(/\.png$/, '-baseline-diff.png'); fs.writeFileSync(path.join(OUT, baseRow.diff), encodePNG(sideBySide(boxed(b0, sc2.worst.roi), boxed(img, sc2.worst.roi)))); }
+        }
+      }
+      metrics.baseline = baseRow.new ? 'new' : baseRow.mean;
+    }
     if (seen) for (const [n, e] of Object.entries(seeSpec)) {
       const r = seen.names[n], ok = check(e, r.share), need = +String(e).trim().split(/\s+/)[1];
       checks.push({ k: 'see.' + n, e, v: r.share, ok, ...(ok ? {} : { why: seeWhy(r, need) }) });
     }
-    const pass = !err && checks.every((c) => c.ok);
+    const pass = !err && checks.every((c) => c.ok) && !(baseRow && baseRow.pass === false);
     if (!pass) failed++;
     const row = { step: s.name, pass, ...(err ? { err } : {}), from: start && start.pos, to: st.pos, maxY: +maxY.toFixed(3), fps: vals.fps, metrics, checks, shot,
-      ...(shot ? { frame } : {}), ...(seen ? { see: seen.names, seeMs: seen.ms } : {}), ...(warn.length ? { warn } : {}) };
+      ...(shot ? { frame } : {}), ...(seen ? { see: seen.names, seeMs: seen.ms } : {}), ...(warn.length ? { warn } : {}),
+      ...(contrast ? { contrast: contrast.items } : {}), ...(baseRow ? { baseline: baseRow } : {}) };
     // why it failed: probes in the page (the view and the walker are as the checks saw them)
     const probes = {};
     if (!pass) {
@@ -275,7 +359,15 @@ try {
       } catch (e) { log('probe failed: ' + (e.message || e)); }
     }
     moved = moved || !!s.place || s.viewpoint !== undefined;
-    const stepDiags = fromStep(row, { idx, step: moved ? s : { ...s, atSpawn: true }, plan, probe: probes, heavy, lightFix: lightWords, loadDiags });
+    const stepDiags = fromStep({ ...row, checks: checks.filter((c) => c.k !== 'contrast') }, { idx, step: moved ? s : { ...s, atSpawn: true }, plan, probe: probes, heavy, lightFix: lightWords, loadDiags });
+    const tgt = `step ${idx + 1} "${s.name ?? idx}"`;
+    if (contrast) for (const it of contrast.items.filter((i) => !i.pass)) {
+      stepDiags.push(diag('MG710', { target: tgt, message: `"${it.text}" (${it.selector}, ${it.size} px${it.bold ? ' bold' : ''}, colour ${it.color}) reads at ${it.ratio}:1 over a backdrop of ~${it.backdrop} (median ${it.median}:1); WCAG AA needs ${it.need}:1${it.shadow ? '; its text-shadow is not counted' : ''}` }));
+    }
+    if (baseRow && baseRow.pass === false) {
+      const r = baseRow.worst ? baseRow.worst.roi : null;
+      stepDiags.push(diag('MG460', { target: tgt, message: `${shot} differs from ${path.join(BASE, shot)}: ${baseRow.fails.join(', ')}` + (r ? `; worst cell ${baseRow.worst.i} (x ${r[0]}-${r[2]}, y ${r[1]}-${r[3]} px) SSIM ${baseRow.worst.ssim}; see ${baseRow.diff} (baseline | now)` : '') }));
+    }
     if (stepDiags.length) row.diagnostics = stepDiags.map((d) => d.code);
     diagnostics.push(...stepDiags);
     results.push(row);
@@ -288,20 +380,7 @@ try {
   // the contact sheet: every step's screenshot with its name and verdict
   const items = results.filter((r) => r.shot).map((r) => ({ label: `${r.step}  ${r.pass ? 'pass' : 'FAIL'}`, ok: r.pass, data: 'data:image/png;base64,' + fs.readFileSync(path.join(OUT, r.shot)).toString('base64') }));
   if (items.length) {
-    const sheet = await page.evaluate(async (items) => {
-      const cols = Math.min(4, items.length), tw = 400, th = Math.round((tw * innerHeight) / innerWidth), pad = 8, lab = 22;
-      const c = document.createElement('canvas');
-      c.width = cols * (tw + pad) + pad; c.height = Math.ceil(items.length / cols) * (th + lab + pad) + pad;
-      const g = c.getContext('2d');
-      g.fillStyle = '#16130f'; g.fillRect(0, 0, c.width, c.height);
-      for (const [k, it] of items.entries()) {
-        const img = new Image(); img.src = it.data; await img.decode();
-        const x = pad + (k % cols) * (tw + pad), y = pad + Math.floor(k / cols) * (th + lab + pad);
-        g.drawImage(img, x, y, tw, th);
-        g.fillStyle = it.ok ? '#bfe3a8' : '#ff7a6a'; g.font = '13px system-ui, sans-serif'; g.fillText(`${k + 1}  ${it.label}`, x + 2, y + th + 16);
-      }
-      return c.toDataURL('image/png');
-    }, items);
+    const sheet = await page.evaluate(sheetInPage, items.map((it) => ({ ...it, color: it.ok ? '#bfe3a8' : '#ff7a6a' })), { cols: Math.min(4, items.length), tw: sc.phone ? PHONE.w : 400 });
     fs.writeFileSync(path.join(OUT, 'sheet.png'), Buffer.from(sheet.split(',')[1], 'base64'));
   }
 } catch (e) {
@@ -325,9 +404,11 @@ const self = (() => { try { return fs.realpathSync(process.argv[1] || '') === fs
 /** The command line: mirage-playtest <scenario.json> <target> [--out dir]; exits 1 on failure. */
 export async function main(args = process.argv.slice(2)) {
   const flag = (k, d) => { const i = args.indexOf('--' + k); return i >= 0 ? args[i + 1] : d; };
-  const [scenarioFile, target] = args.filter((a, i) => !a.startsWith('--') && !(i > 0 && args[i - 1].startsWith('--')));
-  if (!scenarioFile || !target) { console.error('usage: mirage-playtest <scenario.json> <dist dir | page.html | http(s) url> [--out dir]'); process.exit(2); }
+  const [scenarioFile, target] = args.filter((a, i) => !a.startsWith('--') && !(i > 0 && args[i - 1].startsWith('--') && args[i - 1] !== '--phone'));
+  if (!scenarioFile || !target) { console.error('usage: mirage-playtest <scenario.json> <dist dir | page.html | http(s) url> [--out dir] [--baseline dir] [--phone]'); process.exit(2); }
   const sc = JSON.parse(fs.readFileSync(scenarioFile, 'utf8'));
+  if (flag('baseline')) sc.baseline = path.resolve(flag('baseline'));   // absolute: not relative to the scenario
+  if (args.includes('--phone')) sc.phone = true;
   const out = path.resolve(flag('out', 'out/playtest'));
   const report = await playtest(sc, target, { out, scenarioFile });
   for (const d of report.diagnostics.filter((d) => d.severity !== "info")) console.log(formatDiagnostic(d));

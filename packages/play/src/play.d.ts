@@ -1,6 +1,7 @@
 import type * as THREE from 'three';
 import type { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import type { WorldRenderer, Quality } from '@mirage/core';
+import type { WorldRenderer, Quality, ConvergeResult } from '@mirage/core';
+import type { ReducedMotionSettings } from '@mirage/core/world';
 import type { PlanInput, ViewMode, Viewpoint, XYZ } from '@mirage/world';
 import type { GridWalker, WalkerLike, MotionInput } from './walker.js';
 import type { WalkGrid } from './walkgrid.js';
@@ -17,14 +18,23 @@ export interface PlayOptions<W extends WalkerLike = GridWalker> {
   input?: (dt: number) => MotionInput; simulation?: SimulationDriver; onStep?: (dt: number) => boolean | void;
   fit?: boolean; idle?: number; maxFps?: number; hud?: boolean; quality?: Quality;
   onPowerSaver?: (on: boolean) => void; onVisibility?: (shown: boolean) => void;
+  /** called at the end of place() / viewpoint(): restart scene clocks of your own (startGame emits game "place") */
+  onPlace?: (eye: XYZ, look: XYZ, mode: ViewMode) => void;
   /** The HUD's quality menu. The choice is saved either way; default: reload the page to apply it. */
   onQuality?: (quality: Quality) => void;
+  /** 'auto' (default): follow prefers-reduced-motion (live); true / false / { sway, rain } override it. On: the world's
+   *  wind sway and rain slow down, still frames get no motion blur (world.setReducedMotion), the eye eases over steps
+   *  and jumps. Without the system setting, 'auto' changes nothing. */
+  reducedMotion?: ReducedMotionOption;
 }
+export type ReducedMotionOption = 'auto' | boolean | Partial<ReducedMotionSettings>;
 export interface Play<W extends WalkerLike = GridWalker> {
   world: WorldRenderer; grid: WalkGrid; walker: W; keys: Set<string>; figure: THREE.Group; avatar: Character;
   gameCam: THREE.OrthographicCamera; controls: OrbitControls;
   stats: { frames: number; moving: number; refined: number; lastMs: number; draws: number };
-  render(options?: { moving?: boolean; spp?: number; frameIndex?: number; target?: THREE.WebGLRenderTarget | null }): void;
+  render(options?: { moving?: boolean; spp?: number; frameIndex?: number; target?: THREE.WebGLRenderTarget | null; converge?: boolean | number }): ConvergeResult | void;
+  /** A still of the current view with a transparent sky (world.renderTransparent); nothing is drawn to the canvas. */
+  render(options: { transparent: true; spp?: number; frameIndex?: number }): import('@mirage/core/world').TransparentStill;
   place(eye: XYZ, look: XYZ, mode?: ViewMode): void;
   viewpoint(index: number): void; setMode(mode: ViewMode): void;
   turn(dx: number, dy: number, scale: number): void; syncWalkerView(): void; lookAt(position: XYZ): void;
@@ -40,6 +50,9 @@ export interface Play<W extends WalkerLike = GridWalker> {
   /** Pauses automatic frames. start() resumes and step() still works. */
   stop(): void;
   start(): void; wake(): void;
+  /** Reads true while reduced motion is on; set 'auto', true, false or { sway, rain }. */
+  get reducedMotion(): boolean;
+  set reducedMotion(option: ReducedMotionOption);
 }
 /** Creates DOM controls and immediately starts the animation loop. */
 // Two signatures: with a walker of its own the play keeps that walker's type; without one it is the grid walker.

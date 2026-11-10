@@ -11,6 +11,158 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
 
 **New**
 
+- @mirage/play: NPC navigation on the walk grid (`createNavGrid`, `createNavAgent`, `createNavCrowd`; experimental,
+  opt-in). No navmesh: per-radius fit bits from the walker's own disc / step / head-room test (equal to the walker
+  on every floor of the node checks' grids and on 20 000 of 20 000 random floors of walled-garden), coarse A* (4 x 4
+  cell blocks split into connected pieces) then cell A* in that corridor (octile, one binary heap, typed arrays
+  reused across queries), string pulling along a height-following cell walk, flow fields (one Dijkstra per goal),
+  dynamic obstacles (`block` box / cylinder, `unblock`: only the region around it is redone), agents that are
+  walkers of their own radius (dog 0.2, cart 0.5) and crowd separation. walled-garden (481 280 cells, 495 314 floors):
+  create + fit bake 84 ms (the GPU walk-grid bake is 280-340 ms); gate to pavilion interior, 71.5 m up both stairs,
+  1.5-1.6 ms per query, an agent walks it in 47 s and arrives; a whole-garden flow field 40 ms; shutting the
+  pavilion door 0.8-1.1 ms. Node, 160 x 160 cells with pillars and walls: 0.28 ms per query (plain cell A* 0.74 ms);
+  80 x 80 m: 1.5 ms (10 ms). 7.5 KB gzip with the walker (recast-navigation-js: ~211 KB gzip by the figure in the brief,
+  not measured here). walled-garden `?npc=N` shows N travellers (the bundle +7.4 KB gzip; stills unchanged, and
+  examples that do not use it build byte-identical). `node packages/tools/nav-check.mjs` checks it in Chrome.
+- @mirage/play `createXR` for native WebXR hosts and hands (`docs/xr.md`, experimental). Where
+  `navigator.xr.offerSession` exists the session is offered (`offer`, default on; `autoEnter` to start at once), so a
+  host without a DOM (Srile/webxr-to-native on Quest: no layout, no `Intl`, a Canvas 2D whose `fillText` draws
+  nothing) starts VR with no button. Labels draw with a built-in 5 x 9 glyph font into a DataTexture where Canvas 2D
+  draws no text (`text: 'auto' | 'canvas' | 'glyphs'`; `packages/play/src/glyphs.js`, drawn for Mirage). Hand
+  tracking (`hands`, default on, inert without tracked hands): pinch is the trigger, point then pinch teleports
+  along the index finger's ray (`xr-hands.js`, thresholds measured on iwer's captured poses). The XR frame's own
+  garbage: createXR's code 1988-2085 -> 163-195 bytes per frame (heap sample over 300 frames after a 10 s warm-up,
+  hello-courtyard and garden-quest, two interleaved runs each); the whole frame is still 76-108 KB per frame
+  (three.js, the walker, the emulator) and the GC count did not change measurably (14-31 minor per 300 frames,
+  before and after). `mirage-xr-check --native` (no layout, no text in Canvas 2D, offerSession, glyph labels with a
+  pixel check in the eye image, iwer's emulated hands), `--native-control` (the negative control) and `--alloc`.
+  Desktop stills unchanged (mirage-snap: hello-courtyard 6/6, garden-quest 9/9 views pixel-identical). No multiview
+  (three 0.186's WebGLRenderer has none): a known limit.
+- @mirage/world: shell fur, short grass and moss (`@mirage/world/kits/fur`, `addFur`, opt-in): a patch (a rect on
+  the ground or any mesh) drawn `shells` times in one instanced draw call, `gl_InstanceID` lifting each shell along the
+  normal; strands from a jittered 3D lattice (no projection seams), tapering, shaded root to tip with round-strand
+  normals, wind from `mgWind`, alpha-tested with depth writes (no sorting), a patched Standard material (shadows
+  received, fog, TAA, extra hooks); far strands merge into a solid shell instead of shimmering; optional cast shadows
+  and grazing-view fins. On walled-garden's lower east lawn (321 m², `?lawn=tufts | fur | fur-fins`, 1440x900 TAA,
+  shared GPU): tufts at 30 per m² +144,435 triangles, +1 draw, +0.3–0.7 ms; fur +32 triangles, +1 draw, ~+0.1 ms
+  (within the noise); fins +2,236 triangles, +2 draws. From walking height the fur reads as an even felt where the
+  tufts keep blades (world README, "Fur").
+- @mirage/core: metal PROCs `PROC.brushed` (streaks and hairlines stretched along an axis, in the roughness and the
+  normal: highlights smear across the brushing), `PROC.hammered` (dimples from a 3D cell noise, polished ridges) and
+  `PROC.patina` (verdigris on copper / bronze: rough, not metallic, on top faces and in run-off streaks). Stills on
+  spheres and panels from `node packages/tools/looks.check.mjs`. Cost not measured.
+- Reduced motion (opt-in in core, automatic in play): `world.setReducedMotion(true | { sway, rain })` scales the
+  wind's strength while a frame renders (x 0.25), slows the rain kit (x 0.4: 8.5 -> 3.4 m/s) and closes the still
+  path's shutter (no motion blur); @mirage/play's `reducedMotion` option (`'auto'` default: follows
+  `prefers-reduced-motion` live; `true` / `false` / `{ sway, rain }` override; `play.reducedMotion`) also eases the
+  eye over steps and jumps. No shader changes: off, the stills are bit-identical (hello-courtyard, walled-garden,
+  woodland-path, river-ford: 23 views, 0 px). A fur lawn in a 1.5 x wind changes 3.9 -> 1.5 /255 per channel between T 0 and 1.7 s.
+- Transparent stills (opt-in): `world.renderTransparent(T, opts)` renders the still over black and over white (sky hidden)
+  and recovers straight alpha from the two linear HDR sums (the grade's `CLEAR` variant, after illos.dev);
+  `mirage-snap --alpha` writes every viewpoint as an RGBA PNG (`src/png.mjs`, exact), `play.render({ transparent:
+  true })`. On a test object: background alpha 0, partial alpha only within 2 px of an edge, opaque pixels within
+  0.01/255 of the still over black, edges within 0.7 % in linear light; the object's own bloom kept. Cost: about two
+  stills plus a read-back.
+- @mirage/tools: `looks.check.mjs`, a browser check of the four (serves `check/looks.html` from the repository root,
+  no build).
+- @mirage/world: Gaussian splats, `@mirage/world/kits/splat` (opt-in, experimental; world README "Gaussian splats").
+  Loaders for `.splat`, uncompressed 3DGS `.ply` (SH0) and SOG v1-3 (meta.json + webp); one instanced draw with one
+  ShaderMaterial in the world's light and aerial perspective; a counting sort on view depth (histogram-spread
+  buckets, still cameras skipped, nothing behind the eye) in a Blob worker with a transferable index buffer, so
+  single-file pages work without SharedArrayBuffer / COOP-COEP; culls tiny and off-screen splats before the eigen
+  decomposition; AA opacity compensation; effect hooks (centre, rotation / scale, colour) with `reveal` and
+  `dissolve`; an optional depth pass for SSAO / TAA. 9.1 KB min + gzip (three external) vs Spark 2.4's 979 KB and
+  GaussianSplats3D 0.4.7's 106 KB. Measured (Apple M4 Pro, headless Chrome, 1280x720, TAA, GPU shared with other
+  jobs): 1M splats 30 ms a moving frame (p10-p90 21-51; the world alone 2.5 ms; + depth pass 53 ms), worker sort
+  10.4 ms mean (max 20), first main-thread sort 16 ms; 1M sort in Node 9 ms. `examples/demos/splats`: a procedural
+  hill, rock and tree (`hill.js`, any count), `make-fixtures.mjs` (saves it as .splat, .ply and SOG with a small
+  own lossless-webp encoder), `splat-check.mjs` (loaders, `see`, worker sort vs a CPU reference, GPU order, effects,
+  1M timing, kit size). No example uses it; their builds are unchanged.
+- Seamless loading (all opt-in; with every option off the stills of hello-courtyard and walled-garden are
+  byte-identical to before and the walk grids hash the same on three examples). Measured by
+  `node examples/demos/streaming/streaming-check.mjs` (headless Chrome, Apple M4 Pro via ANGLE/Metal, a cold browser
+  per page, A/B interleaved, medians of 3; other agents shared the GPU, spread in brackets where it mattered):
+  - `createTextures({ decode: 'bitmap' })`: images decoded off the main thread (`createImageBitmap`, no colour
+    conversion), same pixels (still diff 0); Safari < 17 and Firefox < 98 keep the `<img>` path. hello-courtyard's five sets: `prepare()` 231 -> 162 ms, main-thread long tasks to ready
+    298 -> 239 ms in total, the longest 143 -> 90 ms.
+  - `createUploadBudget(renderer, { bytes })`: texture uploads spread over frames (`renderer.initTexture`). Six new
+    1024 px textures: one 30 ms frame (29-32) -> six frames of at most 5.7 ms (5.7-5.9) at 8 MB a frame. A texture
+    that never gets an image (`maxWaitMs`, 10 s) or is disposed leaves the queue, so `whenDone` always resolves.
+  - `world.prepare({ warm: true })`: one discarded still frame + a 1-px readback after the compiles, the canvas
+    cleared and the TAA / exposure / dynamic-resolution histories put back. First visible frame (CPU + GPU, to a
+    1-px readback): courtyard 11.1 -> 4.7 ms (CPU 10.0 -> 2.1), garden 12.7 -> 6.4 ms (CPU 11.1 -> 2.2); it costs
+    13-14 ms inside `prepare()`. Stills identical.
+  - @mirage/world `buildWorld(..., { slice: true | { budgetMs, yield } })`: yields to the frame between modules
+    after a time budget (8 ms), `report.slices` with the longest unyielded stretch, modules over 50 ms and the long
+    tasks (PerformanceObserver). walled-garden's six modules built into a side scene while the page draws: the
+    longest frame interval 50 ms (50-67) -> 16.8 ms (no frame missed), the build 73 -> 70 ms.
+  - @mirage/play `bakeWalkGridAsync(world, opts)`: the walk grid over frames, slabs read through pixel-pack buffers
+    polled with fences (no stall), 4 ms of main thread a frame, tiles; `{ region, into }` (sync or async) re-bakes a
+    region of an earlier grid in place; async bakes into one grid run in turn, a tile restarts when the scene changes
+    under it (`restarts`, 3), `signal` aborts, at least one read a frame whatever `budgetMs`. Floors and count arrays bit-identical to the sync bake on hello-courtyard and
+    walled-garden, whole, in tiles of 128 cells, and for a region re-bake into a scribbled copy. Courtyard: sync
+    45 ms blocking -> async 183 ms over 11 frames, longest slice 2.6 ms; garden (481k cells) sync 289 ms blocking -> async 807 ms over 48 frames, longest slice
+    5.9 ms. Small tiles cost draws (each tile draws the whole scene once per slab): garden in 30 tiles of 128 cells
+    7.0 s, so the default tile is 1024. The bake's override material is now kept for the page (its program stays
+    linked; a re-bake while walking compiled it again, ~35 ms).
+  - @mirage/world `createStreamer(world, { plan, modules, ... })`: modules streamed in and out by distance: a
+    priority queue (nearest first), build in a task of its own, `compileAsync` against the world's scene and the
+    pipeline's target, uploads through the budget, then one add; out of range they stay in an LRU byte budget (walking
+    back is instant), evictions free what nothing else samples; `onChange` hands the region to a walk-grid re-bake.
+    Core pieces exported on their own: `createJobQueue`, `createLRU`, `textureBytes`, `objectBytes`, `texturesOf`,
+    `disposeObject`, `watchLongTasks`, `nextFrame`. Walking out of hello-courtyard's gate to a kiosk (8 new programs,
+    two 1024 px textures; `examples/demos/streaming/kiosk.js`, shaders salted new to the driver each run) and back,
+    twice, 9 runs a mode: loaded in the frame it comes in range, every run missed 4-5 frames, the longest frame
+    58-750 ms (a cold compile of the 8 programs up to 750 ms); streamed (build 21-33 ms in its own task, compile
+    28-29 ms off-frame, uploads over frames, shown ~5 frames later), 6 of 9 runs missed no frame (longest interval
+    16.8 ms, longest callback 13-20 ms); the other 3 ran slow from start to end (mean 8.9-12.9 ms against 3.8-5.3,
+    while other agents loaded the GPU) with intervals up to 50-83 ms. The p95 (MG502) does not see a one-frame hitch
+    in 800 frames: 6.8-10.5 ms loaded at once, 7.6-10 ms streamed (clean runs).
+  - KTX2 / Basis: manifest files ending in `.ktx2` load through `createKTX2Loader` from the subpath
+    `@mirage/core/ktx2` (three's KTX2Loader, imported dynamically; transcoder from `three/examples/jsm/libs/basis`).
+    hello-courtyard's sets as ETC1S (`basisu -ktx2 -mipmap -y_flip`, the check makes them when basisu is installed;
+    transcoded to ETC2 here): GPU memory 55.9 -> 7.0 MB, `prepare()` 233 -> 131 ms (no decode), textures ready
+    2 -> 67 ms (transcoding in workers), files 1.02 MB WebP -> 1.45 MB, still vs WebP mean difference 0.94 / 255. No example bundle contains KTX2Loader or the transcoder (a first try that exported it from the
+    index made Vite emit a 60 KB chunk in every example: fixed by keeping it a subpath).
+  - Bundle cost of the opt-in code that rides along when unused: +1.3 to +1.8 KB gzip per example (+0.5 %), e.g.
+    hello-courtyard 280,130 -> 281,920 B, river-ford 266,908 -> 268,286 B.
+- @mirage/tools, checking a world against itself (all opt-in; plain `snap` / `playtest` output unchanged, bit-identical
+  before / after on hello-courtyard and walled-garden, sheets included):
+  - **Regression baselines**: `mirage-snap --baseline dir` and a scenario's `"baseline"` compare each still with a
+    saved one by region SSIM in plain JS (`src/imgcmp.mjs`: 8 × 8 windows, 4 × 4 cells; fails under mean 0.92, 5th
+    percentile 0.85 or worst cell 0.75, `--ssim` to change), on the deterministic still path (grain 0, frameIndex 1).
+    A miss is the new **MG460** with the worst cell, its view and `baseline | now` with the cell boxed. The same build
+    scores 1.0; `?nodetail` (the wall relief off) is caught on the pergola view (5th percentile 0.83).
+  - **Determinism**: `mirage-snap --determinism` draws every view again after another view and after a reload and
+    requires bit-identical pixels (**MG461**); `npm run test:determinism` runs it over the seven examples: all pass.
+    It found and this fixes: snow-hut's snow and garden-quest's key ran on their own clocks through view jumps (now
+    `createPlay({ onPlace })`, which `startGame` turns into a game `'place'` event and a fresh simulation step);
+    garden-quest's crate pile settled while the first views were drawn (new `physics.settle()`, called at setup) and
+    its ball sat on the "axis" viewpoint, where standing kicked it away (moved 1.8 m). Chrome draws the first page it
+    loads ≤ 1 level apart from later loads in < 0.1 % of pixels (through the SSAO pass; not the HTTP cache, storage,
+    the program cache, the quality pick, MSAA or a warm-up context): the check loads the page once first.
+  - **Variant grids**: `mirage-snap --variants "time=dusk;post.bloom=0.2;quality=low"`: one labelled grid per view,
+    up to 16 variants, 4 columns.
+  - **Phone review**: `--phone` on snap and playtest: 375 × 812, sheets one phone wide per tile.
+  - **Text contrast**: a playtest step's `"contrast": true` measures every visible prompt / HUD line against the
+    pixels behind its glyphs (WCAG AA 4.5:1, large 3:1; **MG710**). garden-quest passes: prompt 15.5:1, the lowest
+    line is the power-saver button at 5.3:1 (phone) / 5.5:1 (desktop).
+  - **Route maps**: every `walkTo` writes `NN-<step>-route.png` after the walk (its timing unchanged): the walk grid
+    from above, planned route, path taken, stuck point; `"onion": true` adds the game entities that moved.
+  - **Adaptive stills**: `renderFrame(T, { spp, converge })` (and `play.render`, `mirage-snap --adaptive`) compares
+    the estimate every spp / 4 sub-frames and stops once the mean change is ≤ 0.25 display levels. spp 16, the sum
+    of medians over 5 interleaved pairs per view: snow-hut 191 vs 324 ms (−41 %, stops at 8), walled-garden 304 vs
+    320 ms (−5 %), hello-courtyard 225 vs 208 ms (+8 %: never converges, pays two probes). Against the full still the
+    mean difference is ≤ 0.25 levels (< 1/255), the largest single pixel 25 levels (walled-garden) and 144 (snow-hut's
+    flakes sit at other shutter times). Off by default: exact.
+  - **Chrome**: capture flags beyond puppeteer's defaults (which already force sRGB and keep background pages
+    running; a unit check keeps them) and a lease pool, `lease()` / `MIRAGE_POOL=1`: one Chrome per tool run, a
+    browser context per lease; open + ready + one still, median 611 → 317 ms per page on woodland-path.
+  - **Skill drift**: `agent/check.mjs` fails a skill that names an MG code, a tool flag or a scenario field the tools
+    do not have (the vocabulary is `src/scenario-fields.mjs`; playtest lists unknown fields it was given).
+- Skills: mirage-playtest gains a review pass (a stranger's sentence per view, `where · problem → fix` notes ranked
+  P0 / P1 / P2, a fresh-eyes sub-agent given only BRIEF.md and the sheet, REVIEW.md at delivery);
+  mirage-brief-to-plan turns adjectives into numbers and keeps a BANNED-defaults line in the brief.
 - @mirage/tools: one diagnostic shape everywhere, `{ code, severity, target, message, fix, at? }`, with stable codes
   (MG1xx plan, MG2xx modules, MG3xx walking, MG4xx frame, MG5xx budgets, MG6xx console, MG7xx game state;
   `docs/diagnostics.md`). The playtest writes them to `report.json` `diagnostics` and the top of `report.md`;

@@ -10,6 +10,12 @@ assert.equal(findChrome({ env: { LOCALAPPDATA: 'C:\\U\\Local' }, platform: 'win3
 // nothing found: the message says what to set and where it looked
 assert.throws(() => findChrome({ env: {}, platform: 'linux', exists: () => false }), /set CHROME=.*\/usr\/bin\/google-chrome/);
 assert.throws(() => findChrome({ env: {}, platform: 'aix', exists: () => true }), /nothing for aix/);
+// the PNG encoder / decoder (transparent stills): RGBA round trip, exact
+{
+  const { encodePNG, decodePNG } = await import('./src/png.mjs');
+  const px = new Uint8Array(5 * 3 * 4).map((_, i) => (i * 37) & 255), im = decodePNG(encodePNG(5, 3, px));
+  assert.ok(im.width === 5 && im.height === 3 && im.data.every((v, i) => v === px[i]), 'PNG round trip is exact');
+}
 console.log('tools unit: ok');
 
 // an output folder is emptied only when it is clearly the tool's own (mirage-deploy --out . once deleted the cwd)

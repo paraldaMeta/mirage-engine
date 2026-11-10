@@ -25,6 +25,7 @@ Where they appear:
   its codes in `row.diagnostics`.
 - `mirage-check <dist | page.html | url> [--json]` (packages/tools/src/check-world.mjs): the world check, no scenario
   needed. Loads the world once and lists everything below that needs no walking. Exit 1 on any error.
+- `mirage-snap --baseline dir` (MG460) and `--determinism` (MG461): in `snap.json` `diagnostics` and on the terminal.
 - `mirage-validate-plan <plan> [--json]`: the plan rules (MG1xx) without a browser. The text output still starts with
   definePlan's message.
 
@@ -99,6 +100,8 @@ Module failures fail a playtest through the console errors they log (allowed wit
 | MG450 | warning | coplanar upward surfaces (z-fighting) | raise the upper one 1 cm (the value to use) |
 | MG451 | error | flicker over the expectation | the worst frame's diff image and position |
 | MG452 | info | a flicker spike: one frame > 4 x the mean and > 15 | look at the worst frame |
+| MG460 | error | a still differs from its baseline: region SSIM (8 x 8 windows, 4 x 4 cells) under mean 0.92, 5th percentile 0.85 or worst cell 0.75 (`mirage-snap --baseline`, playtest `baseline`) | the view, the worst cell (pixels and SSIM) and the diff image with it boxed |
+| MG461 | error | a still is not reproducible: the same view drew different pixels after another view, or after a reload (`mirage-snap --determinism`) | how many pixels differ and by how much; where to look for the state that leaks |
 
 ### MG5xx: performance budgets (`plan.budget`)
 
@@ -127,6 +130,7 @@ Module failures fail a playtest through the console errors they log (allowed wit
 | MG703 | error | a game flag not set | the interaction ran, the handler sets it |
 | MG704 | error | an inventory item missing | the pick-up ran |
 | MG705 | error | `lookAt` an entity that does not exist | an id the game defines |
+| MG710 | error | prompt / HUD text over the scene below WCAG AA contrast (4.5:1, large text 3:1), measured behind the glyphs (playtest step `"contrast"`) | the text, its colour, the backdrop measured, the ratio needed |
 
 ## The checks beyond expectations
 

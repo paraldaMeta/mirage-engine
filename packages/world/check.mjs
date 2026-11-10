@@ -143,4 +143,138 @@ ok(out.modules.walls.r === rng('t/walls').float(), 'per-module rng');
   for (const o of [{ count: 0 }, { box: [1, 2] }, { speed: NaN }]) try { addRain(rctx(), o); } catch (e) { threw += e instanceof RangeError; }
   ok(threw === 3, 'bad rain options throw RangeError');
 }
+// rain under reduced motion (world.setReducedMotion writes ctx.motion): slower streaks; without it, the speed as given
+{
+  const { addRain } = await import('./src/kits/rain.js'), { createMaterials, createEnv } = await import('@mirage/core');
+  const rG = createEnv({}).G, motion = { rain: 1 }, rd = { getRenderTarget: () => ({ height: 900 }) }, cam = new THREE.PerspectiveCamera(48, 1.6, 0.1, 100);
+  const r = addRain({ root: new THREE.Group(), mat: createMaterials(rG), G: rG, motion }, { count: 4, speed: 8.5 });
+  const sp = () => { r.onBeforeRender(rd, null, cam); return r.material.userData.hooks.uniforms.uRainShape.value.x; };
+  ok(sp() === 8.5, 'rain speed as given at full motion');
+  motion.rain = 0.4;
+  ok(Math.abs(sp() - 3.4) < 1e-12, 'reduced motion slows the rain');
+}
+// fur kit: one mesh (instanced shells), options checked, seeded, fins on request
+{
+  const { addFur } = await import('./src/kits/fur.js'), { createMaterials, createEnv } = await import('@mirage/core');
+  const fctx = (seed = 'f') => ({ root: new THREE.Group(), mat: createMaterials(createEnv({}).G), rng: (n) => rng(seed + '/' + n) });
+  const c = fctx(), f = addFur(c, { rect: [0, 0, 4, 2], shells: 12, segments: [4, 2], heightAt: (x) => x * 0.1 });
+  ok(c.root.children.length === 1 && f.fins === null && f.shells.geometry.isInstancedBufferGeometry && f.shells.geometry.instanceCount === 12, 'fur: one mesh, the shells as instances');
+  ok(f.shells.userData.collide === false && !f.shells.castShadow && f.shells.receiveShadow, 'fur: no collision, receives shadows, casts none by default');
+  ok(f.shells.geometry.index.count === 4 * 2 * 6, 'fur: the patch grid (segments) drawn once per shell');
+  const p = f.shells.geometry.attributes.position;
+  ok(Math.abs(p.getY(p.count - 1) - p.getX(p.count - 1) * 0.1) < 1e-6, 'fur: rect follows heightAt');
+  const U = f.shells.material.userData.hooks.uniforms;
+  ok(U.uFur.value.x === 12 && U.uFur.value.z === 1 && Math.abs(U.uFurBlade.value.x - 30) < 1e-9, 'fur: shells, no base layer, strands per metre');
+  const seedOf = (s) => addFur(fctx(s), { rect: [0, 0, 4, 2] }).shells.material.userData.hooks.uniforms.uFurBlade.value.z;
+  ok(seedOf('f') === seedOf('f') && seedOf('f') !== seedOf('g'), 'fur: strand layout seeded');
+  const shadowed = addFur(fctx(), { rect: [0, 0, 1, 1], shadows: true, fins: 0.25 });
+  ok(shadowed.shells.castShadow && shadowed.shells.customDepthMaterial.isMeshDepthMaterial && !!shadowed.fins.geometry.attributes.aFin, 'fur: shadows use a depth material with the same lift; fins');
+  const rock = new THREE.IcosahedronGeometry(1, 1), moss = addFur(fctx(), { geometry: rock, hooks: { lighting: 'reflectedLight.indirectDiffuse *= 1.0;', uniforms: { uX: { value: 1 } } } });
+  ok(moss.shells.geometry.attributes.position === rock.attributes.position, 'fur on a mesh shares its attributes');
+  const H = moss.shells.material.userData.hooks;
+  ok(H.lighting.includes('indirectDiffuse') && !!H.uniforms.uX && !!H.uniforms.uFur && H.albedo.includes('mgFurClip'), "fur: the caller's hooks after its own");
+  let bad = 0;
+  for (const o of [{}, { rect: [0, 0, 1, 1], geometry: rock }, { rect: [1, 0, 0, 1] }, { rect: [0, 0, 1, 1], shells: 1 }, { rect: [0, 0, 1, 1], length: 0 }, { geometry: new THREE.BufferGeometry() }]) try { addFur(fctx(), o); } catch (e) { bad += e instanceof RangeError; }
+  ok(bad === 6, 'fur: bad options throw RangeError');
+}
+
+// opt-in time slicing: the same modules, the same report, plus yields between modules once the budget ran out
+{
+  const busy = (ms) => { const t = performance.now(); while (performance.now() - t < ms); };
+  const mods = ['a', 'b', 'c', 'd'].map((name) => ({ name, build: (ctx) => { busy(3); ctx.root.add(new THREE.Mesh(new THREE.BoxGeometry())); } }));
+  const plain = await buildWorld({ scene: new THREE.Scene(), ctx: { THREE, onUpdate() {} } }, { plan: { name: 's', bounds: [0, 0, 1, 1] }, modules: mods, log: { log() {}, error() {} } });
+  let yields = 0;
+  const sliced = await buildWorld({ scene: new THREE.Scene(), ctx: { THREE, onUpdate() {} } }, { plan: { name: 's', bounds: [0, 0, 1, 1] }, modules: mods, log: { log() {}, error() {} },
+    slice: { budgetMs: 5, yield: async () => { yields++; } } });
+  ok(!plain.report.slices && sliced.report.slices, 'slices reported only when slicing');
+  ok(JSON.stringify(plain.report.modules.map((r) => [r.name, r.ok, r.tris])) === JSON.stringify(sliced.report.modules.map((r) => [r.name, r.ok, r.tris])), 'the same build sliced');
+  ok(yields === sliced.report.slices.yields && yields >= 1 && yields <= 4, 'yields once 5 ms of building ran: ' + yields);
+  ok(sliced.report.slices.longestMs < 12 && sliced.report.slices.longModules.length === 0, 'no stretch much over the budget');
+}
+// streamer: in range -> built, compiled, uploaded, added; out of range -> removed and cached; back -> instant
+{
+  const { createStreamer, regionOf } = await import('./src/index.js');
+  const scene = new THREE.Scene(), calls = [];
+  const renderer = { initTexture() {}, compileAsync: async () => {}, getRenderTarget: () => null, setRenderTarget() {} };
+  const w = { scene, renderer, camera: new THREE.PerspectiveCamera(), ctx: { THREE, onUpdate() {} } };
+  const st = createStreamer(w, { plan: { name: 'st', bounds: [-50, -50, 50, 50] }, log: { log() {}, error() {} },
+    modules: [{ name: 'hall', center: [20, 0], radius: 10, build: (ctx) => { ctx.root.add(new THREE.Mesh(new THREE.BoxGeometry(4, 3, 4)).translateX(20)); } }],
+    onChange: (n, inScene, region) => calls.push([n, inScene, region && region.map(Math.round)]) });
+  const settle = async () => { for (let i = 0; i < 20; i++) { st.update(pos); await new Promise((r) => setTimeout(r, 5)); } };
+  let pos = [0, 0, 0];
+  await settle();
+  ok(st.state().hall === 'out' && scene.children.length === 0, 'far: out');
+  pos = [15, 0, 0]; await settle();
+  ok(st.state().hall === 'in' && scene.getObjectByName('hall'), 'near: in the scene');
+  ok(JSON.stringify(calls[0]) === JSON.stringify(['hall', true, [18, -2, 22, 2]]), 'onChange with its region: ' + JSON.stringify(calls[0]));
+  pos = [21 - 10 * 1.2, 0, 0]; await settle();
+  ok(st.state().hall === 'in', 'hysteresis: still in just past the radius');
+  pos = [0, 0, 0]; await settle();
+  ok(st.state().hall === 'cached' && !scene.getObjectByName('hall') && st.cache.has('hall'), 'far again: out of the scene, cached');
+  pos = [15, 0, 0]; st.update(pos);
+  ok(st.state().hall === 'in' && st.stats.builds.length === 1, 'back: shown at once from the cache, not rebuilt');
+  ok(regionOf(new THREE.Group()) === null, 'an empty object has no region');
+  st.dispose();
+  ok(!scene.children.length && st.state().hall === 'out', 'dispose');
+}
+// streamer review fixes: a full cache, onUpdate registrations, dispose mid-load, shared textures of cached modules
+{
+  const { createStreamer } = await import('./src/index.js');
+  const tick = () => new Promise((r) => setTimeout(r, 3));
+  const mkWorld = () => {
+    const regs = [];
+    return { regs, scene: new THREE.Scene(), camera: new THREE.PerspectiveCamera(),
+      renderer: { initTexture() {}, compileAsync: async () => {}, getRenderTarget: () => null, setRenderTarget() {} },
+      ctx: { THREE, onUpdate: (f) => regs.push(f) } };
+  };
+  const errors = [], logger = { log() {}, error: (m) => errors.push(m) };
+  const shared = new THREE.DataTexture(new Uint8Array(4 * 64 * 64), 64, 64); shared.needsUpdate = true;
+  let sharedDisposed = 0; shared.addEventListener('dispose', () => sharedDisposed++);
+  const box = (x, ticks) => ({ name: 'm' + x, center: [x, 0], radius: 10, build: (ctx) => {
+    ctx.root.add(new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2, 8, 8, 8), new THREE.MeshBasicMaterial({ map: shared })).translateX(x));
+    ctx.onUpdate(() => ticks.n++);
+  } });
+  // 1: budget far below one module: two modules in the scene at once, neither evicted while shown
+  const w = mkWorld(), ticks = { n: 0 }, regions = [];
+  const st = createStreamer(w, { plan: { name: 'b', bounds: [-50, -50, 50, 50] }, budget: 1000, log: logger,
+    modules: [box(0, ticks), box(4, ticks)], onChange: (n, inScene, r) => regions.push([n, inScene, r]) });
+  const run = async (p, n = 20) => { for (let i = 0; i < n; i++) { st.update(p); await tick(); } };
+  await run([2, 0, 0]);
+  ok(st.state().m0 === 'in' && st.state().m4 === 'in' && w.scene.children.length === 2 && !errors.length, 'over budget, both shown: ' + JSON.stringify(st.state()) + errors.join());
+  ok(w.regs.length === 1, 'one world onUpdate for every streamed module, whatever is built');
+  w.regs[0](0);
+  ok(ticks.n === 2, 'module callbacks run while shown');
+  await run([60, 0, 0]);
+  ok(st.state().m0 === 'out' && st.state().m4 === 'out' && !w.scene.children.length && !errors.length, 'leaving over budget: evicted cleanly');
+  ok(regions.filter((r) => !r[1]).every((r) => Array.isArray(r[2])), 'the region is taken before the unpin can free it');
+  ok(sharedDisposed === 1, 'the shared texture went with the last module that sampled it');
+  w.regs[0](0); ok(ticks.n === 2, 'freed modules run no callbacks');
+  await run([2, 0, 0]); await run([60, 0, 0]);
+  ok(w.regs.length === 1 && st.stats.builds.length === 4, 'rebuilt after eviction, still one registration');
+  // 13: evicting one cached module keeps a texture another cached module still samples
+  {
+    const w2 = mkWorld(), t = { n: 0 }, tex2 = new THREE.DataTexture(new Uint8Array(4 * 16 * 16), 16, 16); tex2.needsUpdate = true;
+    let gone = 0; tex2.addEventListener('dispose', () => gone++);
+    const mod = (x) => ({ name: 'n' + x, center: [x, 0], radius: 10, build: (ctx) => { ctx.root.add(new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial({ map: tex2 }))); } });
+    const s2 = createStreamer(w2, { plan: { name: 'c', bounds: [-50, -50, 50, 50] }, log: logger, budget: 1e9, modules: [mod(0), mod(4)] });
+    for (let i = 0; i < 20; i++) { s2.update([2, 0, 0]); await tick(); }
+    for (let i = 0; i < 3; i++) { s2.update([60, 0, 0]); await tick(); }
+    ok(s2.state().n0 === 'cached' && s2.state().n4 === 'cached', 'both cached');
+    s2.cache.trim(s2.cache.bytes - 1);   // evict one
+    ok(s2.stats.evictions === 1 && gone === 0, 'the cached module left keeps the shared texture');
+    s2.cache.trim(0);
+    ok(s2.stats.evictions === 2 && gone === 1, 'then it goes with the last one');
+  }
+  // 12 + 2: dispose while a load waits for a texture that never arrives: the job stops, idle() resolves
+  {
+    const w3 = mkWorld(), never = new THREE.Texture();
+    const st4 = createStreamer(w3, { plan: { name: 'd', bounds: [-50, -50, 50, 50] }, log: logger,
+      modules: [{ name: 'k', center: [0, 0], radius: 10, build: (ctx) => { ctx.root.add(new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial({ map: never }))); } }] });
+    for (let i = 0; i < 10; i++) { st4.update([0, 0, 0]); await tick(); }
+    ok(st4.state().k === 'loading', 'waiting for its texture');
+    st4.dispose();
+    const r = await Promise.race([st4.idle().then(() => 'idle'), new Promise((res) => setTimeout(() => res('hung'), 500))]);
+    ok(r === 'idle' && st4.state().k === 'out' && !w3.scene.children.length && !errors.length, 'dispose mid-load: ' + r + ' ' + st4.state().k + errors.join());
+  }
+}
 console.log('world check: ok');

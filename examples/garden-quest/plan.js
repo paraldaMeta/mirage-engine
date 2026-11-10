@@ -11,6 +11,6 @@ export default {
     keySeat: [-22, 17.95],                                       // the bench (a `seats` anchor) nearest to this
     stands: [[cx - 2.6, front + 0.5], [cx + 2.6, front + 0.5]].map(([x, z]) => [x, y0, z]),   // two lantern stands either side of the front steps
     crates: [[4.2, 0, 29.5, 0.2], [4.9, 0, 30.6, 0.7], [4.5, 0.75, 30.0, 0.4]],   // x, y, z, rotY: a little pile by the axis
-    ball: [2.5, 0.3, 33],
+    ball: [3.4, 0.3, 31.6],   // not at the "axis" viewpoint (2.2, 33): standing there kicked it away (mirage-snap --determinism)
   },
 };

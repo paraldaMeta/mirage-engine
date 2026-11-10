@@ -25,6 +25,8 @@
     "./kits/terrain": "./src/kits/terrain.js",
     "./kits/water": "./src/kits/water.js",
     "./kits/rain": "./src/kits/rain.js",
+    "./kits/fur": "./src/kits/fur.js",
+    "./kits/splat": "./src/kits/splat.js",
     "./*": "./src/*.js",
     "./package.json": "./package.json"
   },
@@ -44,7 +46,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "node check.mjs && node vegetation.check.mjs && node landscape.check.mjs"
+    "test": "node check.mjs && node vegetation.check.mjs && node landscape.check.mjs && node splat.check.mjs"
   },
   "author": "灰叔 Racso"
 }

@@ -6,4 +6,6 @@ import pavilion from './pavilion.js';
 import vegetation from './vegetation.js';
 import props from './props.js';
 import broken from './broken.js';
-export default (opts = {}) => [terraces, walls, ...(opts.broken ? [broken] : []), paths, pavilion, vegetation, props];
+import lawn from './lawn.js';
+// opts.lawn ('fur' | 'fur-fins' | 'tufts'): turf on one lawn panel (lawn.js), only when asked for
+export default (opts = {}) => [terraces, walls, ...(opts.broken ? [broken] : []), paths, pavilion, vegetation, ...(opts.lawn ? [lawn(opts.lawn)] : []), props];

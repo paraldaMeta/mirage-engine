@@ -108,8 +108,42 @@ for what they cannot see:
 | `see.<name>` fails: hidden by … | the named objects stand in front | move the view, or the object; check it is not inside another mesh |
 | black / white surfaces in shots | NaN normals, `emissive` too strong, wrong side | check the material hook, `side: DoubleSide` only for cards |
 
+`walkTo` also writes `NN-<step>-route.png`: the walk grid from above, the planned route (dashed), the path taken,
+the stuck point (red cross); `"onion": true` adds the game entities that moved. Open it first when a walk fails.
+
 Loop: fix → rebuild → rerun the same scenario. Add a step for every bug you fix so it stays fixed. After five
 rounds without progress, stop and report what fails, with the report and the screenshot.
+
+## Regressions, determinism, variants, phone, text
+
+- **Baseline** (before a refactor): `snap.mjs dist --baseline baseline/` writes the stills the first time and
+  compares later runs by region SSIM (4 × 4 cells; mean 0.92, 5th percentile 0.85, worst cell 0.75; `--ssim`
+  to change). A miss is MG460 with `baseline-diff-*.png` (baseline | now, worst cell boxed). In a scenario:
+  `"baseline": "baseline/"` compares every step whose view `place` / `viewpoint` fixed (a walk ends anywhere
+  within `tol`; `"baseline": true` on a step forces it).
+- **Determinism**: `snap.mjs dist --determinism` draws every view again after another view and after a reload;
+  any pixel off is MG461. A clock of your own (a game system's `t += dt`) must restart on `game.on('place')`;
+  a pile of physics props must `physics.settle()` at setup.
+- **Variants**: `snap.mjs dist --views 0 --variants "time=dusk;time=noon;post.bloom=0.2;quality=low"` → one
+  labelled grid per view (≤ 16, 4 columns). `time` and dotted `world` settings change in place; other keys reload
+  the page with that query.
+- **Phone**: `--phone` on snap or playtest shoots 375 × 812 and lays the sheet out one phone wide per tile.
+- **Text over the scene**: `"contrast": true` on a step measures every visible prompt / HUD line against what is
+  behind its glyphs; under WCAG AA (4.5:1, large 3:1) is MG710.
+
+## Review (before you call it done)
+
+1. **A stranger's sentence**: for each key view on the sheet, write one sentence as someone who never read the
+   brief would, naming every object. A thing you would have to explain ("that box is a well") is a **P0**.
+2. **Against the brief**: compare each view with BRIEF.md's numbers and its BANNED line; every default you see
+   (from the line or new) goes on the line and is fixed first.
+3. **Notes**: one line each, `where · problem → concrete fix` (`view "gate" · arch reads as a tunnel → lower
+   it to 3.2 m, add the 0.4 m keystone`), ranked **P0** (wrong, broken, unreadable), **P1** (weakens it), **P2**
+   (polish). Fix every P0 and the P1s worth it, rerun only what changed. Never score the world out of 10.
+4. **Fresh eyes**: if you can start a sub-agent, give it only BRIEF.md and `sheet.png` (and the phone sheet), ask
+   for P0 / P1 lines in that format, and keep the editing to yourself.
+5. **REVIEW.md** at delivery, its short form in your reply: the calls you made and what you left out; what was
+   measured and what was only looked at; the weakest view and what you would change; warnings kept on purpose.
 
 Other tools: `packages/tools/src/perf.mjs <dist>` (frame cost of walk / game / fly / stills), `walktest.mjs` (an
 alias of playtest kept for older scripts).

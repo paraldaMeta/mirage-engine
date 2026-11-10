@@ -255,3 +255,130 @@ console.log('core check: ok');
   assert.equal(SS.SS_SHARED.a[0], 0, 'a world without soft shadows writes off');
   console.log('softshadow check: ok');
 }
+
+// metal PROCs (brushed, hammered, patina) and reduced motion's settings
+{
+  const { PROC: PM, createMaterials: CM, createEnv: CE } = await import('./src/index.js');
+  const { reducedMotionConfig } = await import('./src/world.js');
+  for (const name of ['brushed', 'hammered', 'patina']) {
+    const h = PM[name]();
+    assert.ok(h.fragmentDecl.includes('float mgH;') && h.albedo.includes('mgH =') && h.normal.includes('mgBump'), name + ': a PROC like the others (mgH, a bump)');
+    assert.ok(h.roughness.includes('roughnessFactor'), name + ': the pattern reaches the roughness');
+    assert.equal(JSON.stringify(PM[name]()), JSON.stringify(h), name + ': the same hooks every call (one program)');
+    const m = CM(CE().G).std({ metalness: 1 }, h);
+    assert.equal(m.userData.hooks, h, name + ': patches a standard material');
+  }
+  assert.ok(PM.brushed(undefined, { axis: 'y' }).albedo.includes('vec3(160.000, 0.900, 160.000)'), 'brushed: stretched along its axis');
+  assert.throws(() => PM.brushed(undefined, { axis: 'w' }), /axis/);
+  assert.ok(PM.patina().metalness.includes('metalnessFactor') && PM.patina(undefined, { amount: 9 }).albedo === PM.patina(undefined, { amount: 1 }).albedo, 'patina: verdigris is not metal; amount clamped');
+  assert.equal(reducedMotionConfig(false), null);
+  assert.deepEqual(reducedMotionConfig(true), { sway: 0.25, rain: 0.4 });
+  assert.deepEqual(reducedMotionConfig({ sway: 2, rain: -1 }), { sway: 1, rain: 0 }, 'clamped to 0..1');
+  assert.deepEqual(reducedMotionConfig({ sway: NaN }), { sway: 0.25, rain: 0.4 });
+  console.log('metals, reduced-motion config: ok');
+}
+
+// streaming helpers (stream.js): the job queue's priority order and concurrency, the LRU's byte budget with pins,
+// the upload budget's per-frame split, byte estimates
+{
+  const S = await import('./src/stream.js');
+  const order = [], dist = { a: 5, b: 1, c: 3, d: 2 };
+  let live = 0, peak = 0;
+  const q = S.createJobQueue({ concurrency: 2, priority: (j) => dist[j.key] });
+  const tick = () => new Promise((r) => setTimeout(r, 1));
+  const job = (k) => async () => { live++; peak = Math.max(peak, live); order.push(k); await tick(); live--; return k; };
+  // a and b start at once (two slots); then d (2) before c (3): the lowest priority first, not the order added
+  let ps = ['a', 'b', 'c', 'd'].map((k) => q.add(k, job(k)));
+  assert.equal(q.add('c', job('c')), ps[2], 'a key already queued returns its promise');
+  await Promise.all(ps);
+  assert.deepEqual(order, ['a', 'b', 'd', 'c'], 'the first two run at once, then the lowest priority first');
+  order.length = 0;
+  ps = ['a', 'b', 'c', 'd'].map((k) => q.add(k, job(k)));
+  dist.d = 9;   // read at every pick, not when added: d moved away
+  await Promise.all(ps);
+  assert.deepEqual(order, ['a', 'b', 'c', 'd'], 'the priority follows the viewer');
+  assert.equal(peak, 2, 'at most `concurrency` at once');
+  const q2 = S.createJobQueue({ concurrency: 1 });
+  q2.add('x', tick); const cancelled = q2.add('y', tick).catch((e) => e.cancelled);
+  assert.ok(q2.cancel('y') && (await cancelled) === true, 'a waiting job can be cancelled');
+  await q2.idle();
+  assert.ok(!q2.waiting && !q2.running, 'idle');
+
+  const out = [];
+  const lru = S.createLRU({ budget: 100, evict: (k) => out.push(k) });
+  lru.set('a', 1, 40); lru.set('b', 2, 40); lru.pin('a'); lru.get('b');
+  lru.set('c', 3, 40);   // 120 > 100: a is pinned, b is the oldest unpinned
+  assert.deepEqual(out, ['b'], 'the least recently used unpinned entry goes first');
+  lru.unpin('a'); lru.set('d', 4, 40);
+  assert.deepEqual(out, ['b', 'a'], 'unpinned, a goes next');
+  assert.equal(lru.bytes, 80, 'bytes after eviction');
+
+  const tex = (w) => { const t = new THREE.Texture({ width: w, height: w }); t.needsUpdate = true; return t; };
+  const up = [], fake = { initTexture: (t) => up.push(t) };
+  const ub = S.createUploadBudget(fake, { bytes: 5 * 1024 * 1024 });
+  const big = tex(1024), small = [tex(512), tex(512)], late = new THREE.Texture();
+  ub.add(big, small, late);
+  assert.equal(S.textureBytes(big), Math.round(1024 * 1024 * 4 * 4 / 3), 'RGBA8 with mipmaps');
+  const done = ub.whenDone([big, ...small]);
+  const s1 = ub.step();
+  assert.ok(s1.textures === 1 && s1.bytes === S.textureBytes(big) && up[0] === big && ub.pending === 3, 'frame 1: the big one alone (5.6 MB > 5 MB still goes: one at least)');
+  ub.step();
+  assert.equal(up.length, 3, 'frame 2: both small ones (2.8 MB)');
+  await done;
+  assert.equal(ub.pending, 1, 'a texture without its image waits');
+  late.image = { width: 4, height: 4 }; late.needsUpdate = true; ub.step();
+  assert.ok(ub.uploaded(late) && !ub.pending, 'then goes');
+
+  const g = new THREE.BoxGeometry(1, 1, 1), m = new THREE.MeshBasicMaterial({ map: big }), root = new THREE.Group();
+  root.add(new THREE.Mesh(g, m), new THREE.Mesh(g, m));
+  const geoBytes = Object.values(g.attributes).reduce((s, a) => s + a.array.byteLength, 0) + g.index.array.byteLength;
+  assert.equal(S.objectBytes(root), geoBytes + S.textureBytes(big), 'shared geometry and textures are counted once');
+  const lt = S.watchLongTasks(); assert.equal(lt.stop().count, 0, 'no long tasks in Node (no observer, no rAF)');
+  // review fixes: a set() into a full cache never evicts the entry it inserts; pinned inserts stay
+  {
+    const ev = [], c = S.createLRU({ budget: 100, evict: (k) => ev.push(k) });
+    c.set('a', 1, 80, { pin: true });
+    c.set('b', 2, 80, { pin: true });
+    assert.ok(c.has('b') && !ev.length, 'a pinned insert over budget stays (and so does the pinned one before it)');
+    c.set('c', 3, 80);
+    assert.ok(c.has('c') && !ev.length, 'an unpinned insert is not evicted by its own set()');
+    c.unpin('a');
+    assert.deepEqual(ev, ['a', 'c'], 'unpinned later: evicted then, oldest first, until it fits');
+  }
+  // review fixes: textures that cannot upload never stall whenDone
+  {
+    const ups = [], ub2 = S.createUploadBudget({ initTexture: (t) => ups.push(t) }, { maxWaitMs: 20 });
+    const never = new THREE.Texture();           // a 404: no image, version 0, for ever
+    const disposed = new THREE.Texture();        // a KTX2 placeholder replaced and disposed
+    const cube = new THREE.CubeTexture(Array.from({ length: 6 }, () => ({ width: 4, height: 4 }))); cube.needsUpdate = true;
+    ub2.add(never, disposed, cube);
+    const all = ub2.whenDone([never, disposed, cube]);
+    disposed.dispose();
+    ub2.step();
+    assert.ok(ub2.uploaded(cube), 'a cube texture with its six faces uploads');
+    await new Promise((r) => setTimeout(r, 30)); ub2.step();
+    await all;
+    assert.ok(!ub2.pending && !ub2.uploaded(never) && !ub2.uploaded(disposed), 'the 404 left after maxWaitMs, the disposed one at once; whenDone resolved');
+    cube.dispose();
+    assert.ok(!ub2.uploaded(cube), 'disposed after its upload: forgotten');
+    ub2.add(cube); ub2.step();
+    assert.ok(ub2.uploaded(cube) && ups.filter((t) => t === cube).length === 2, 'added again: uploaded again');
+  }
+  // the bitmap decode only where imageOrientation / colorSpaceConversion are honoured
+  {
+    const { bitmapDecodeOK } = await import('./src/textures.js');
+    globalThis.createImageBitmap ??= () => {}; globalThis.fetch ??= () => {};
+    const UA = {
+      chrome: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+      safari16: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Safari/605.1.15',
+      safari17: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15',
+      ios16chrome: 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/120.0 Mobile/15E148 Safari/604.1',
+      firefox97: 'Mozilla/5.0 (X11; Linux x86_64; rv:97.0) Gecko/20100101 Firefox/97.0',
+      firefox120: 'Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0',
+      android: 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36',
+    };
+    const got = Object.fromEntries(Object.entries(UA).map(([k, ua]) => [k, bitmapDecodeOK(ua)]));
+    assert.deepEqual(got, { chrome: true, safari16: false, safari17: true, ios16chrome: false, firefox97: false, firefox120: true, android: true }, JSON.stringify(got));
+  }
+  console.log('stream check: ok');
+}

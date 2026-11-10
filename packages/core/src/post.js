@@ -39,6 +39,22 @@ export const DEFAULT_POST = {
   dof: 0, focus: 8,    // depth of field: lens radius (m, 0 = off) and focus distance (m); needs spp > 1
 };
 
+// the grade's CLEAR variant: alpha from the black / white sums before the sharpening (weighted by alpha: no bright
+// rims), the colour un-premultiplied, alpha written out
+function CLEAR(fs) {
+  const swap = (a, b) => { if (!fs.includes(a)) throw new Error('post: grade text changed, CLEAR cannot patch it'); fs = fs.replace(a, b); };
+  swap('uniform sampler2D tAE; uniform float uUseAE;', 'uniform sampler2D tAE; uniform float uUseAE; uniform sampler2D tWhite, tBloom; uniform float uClearK;');
+  swap('c = max(c + uSharp *', [
+    'vec4 wh = texture2D(tWhite, vUv);',   // .a: the sum of the sub-frame weights (1 up to half-float rounding)
+    'float a = clamp(1.0 - dot(wh.rgb - c, vec3(1.0 / 3.0)) / (uClearK * max(wh.a, 1e-3)), 0.0, 1.0);',
+    'a = a < 0.5 / 255.0 ? 0.0 : a > 1.0 - 0.5 / 255.0 ? 1.0 : a;',
+    'vec3 bl = texture2D(tBloom, vUv).rgb - c;',   // the bloom the object gives itself (bloomed black sum - black sum)
+    'c = max(c + uSharp * a * a *'].join('\n        '));
+  swap('c *= uExposure * uWB;', 'c = a > 0.0 ? c / a + bl : vec3(0.0);\n        c *= uExposure * uWB;');
+  swap('gl_FragColor = vec4(o, 1.0);', 'gl_FragColor = vec4(o, a);');
+  return fs;
+}
+
 const VS = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }';
 const quadMat = (fs, uniforms, extra) => new THREE.ShaderMaterial({ vertexShader: VS, fragmentShader: fs, uniforms, depthTest: false, depthWrite: false, ...extra });
 
@@ -118,7 +134,7 @@ export class Pipeline {
       }`, { tColor: { value: null }, tAO: { value: null }, tDepth: { value: null }, uInvProj: { value: new THREE.Matrix4() }, uAOTexel: { value: new THREE.Vector2() }, uW: { value: 1 }, uAO: { value: 0 }, uSky: { value: 1 }, uAOLit: { value: 0 }, uAOExp: { value: 1 },
       tSSR: { value: null }, tVol: { value: null }, uUseSSR: { value: 0 }, uUseVol: { value: 0 }, uVolTexel: { value: new THREE.Vector2() } },
     { blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor, transparent: true });
-    this.grade = quadMat(/* glsl */ `
+    const gradeFS = /* glsl */ `
       varying vec2 vUv; uniform sampler2D tColor; uniform vec2 uTexel;
       uniform float uExposure, uSat, uCon, uLift, uVig, uSharp, uGrain, uFrame, uTM; uniform vec3 uWB;
       uniform sampler2D tAE; uniform float uUseAE;
@@ -142,8 +158,16 @@ export class Pipeline {
         float g = h3(vec3(gl_FragCoord.xy, uFrame)) + h3(vec3(gl_FragCoord.yx * 0.5, uFrame + 7.0)) - 1.0;
         o += g * uGrain * (1.0 - 0.6 * o) + (h3(vec3(gl_FragCoord.xy, uFrame + 13.0)) - 0.5) / 255.0;
         gl_FragColor = vec4(o, 1.0);
-      }`, { tColor: { value: null }, uTexel: { value: new THREE.Vector2() }, uExposure: { value: 1 }, uSat: { value: 1 }, uCon: { value: 1 }, uLift: { value: 0 }, uVig: { value: 0 }, uSharp: { value: 0 }, uGrain: { value: 0 }, uFrame: { value: 0 }, uTM: { value: 0 }, uWB: { value: new THREE.Vector3(1, 1, 1) },
+      }`;
+    const gradeU = () => ({ tColor: { value: null }, uTexel: { value: new THREE.Vector2() }, uExposure: { value: 1 }, uSat: { value: 1 }, uCon: { value: 1 }, uLift: { value: 0 }, uVig: { value: 0 }, uSharp: { value: 0 }, uGrain: { value: 0 }, uFrame: { value: 0 }, uTM: { value: 0 }, uWB: { value: new THREE.Vector3(1, 1, 1) },
       tAE: { value: null }, uUseAE: { value: 0 } });
+    this.grade = quadMat(gradeFS, gradeU());
+    // the transparent still (endClear; illos.dev's CLEAR variant of the grade): tColor holds the frame summed over a
+    // black background, tWhite over white (uClearK in linear HDR); both sums are linear in the background, so
+    // alpha = 1 - (white - black) / K and the straight colour = black / alpha, graded as usual. Built from the grade's
+    // own text (the default grade program is untouched); compiled on first use.
+    this._gradeClear = () => this.gradeClear || (this.gradeClear = quadMat(CLEAR(gradeFS), { ...gradeU(), tWhite: { value: null }, tBloom: { value: null }, uClearK: { value: 1 } }, { defines: { CLEAR: '' } }));
+
     // auto exposure (opt-in, P.autoExposure): meter the frame into a 32 x 18 grid of centre-weighted log luminances,
     // reduce it to one EV and adapt toward it (all on the GPU: no read-back). A still frame is metered on its own
     // (no history), so it stays bit-identical; while moving the EV eases in log space, slower when brightening.
@@ -497,6 +521,27 @@ export class Pipeline {
     this.r.autoClear = ac;
   }
 
+  /** renderTransparent: keep the frame summed so far (over black) in histB, bloom it and keep that in histA (scratch:
+   *  the TAA history, which a still frame invalidates anyway) */
+  keepBlack(P) {
+    this.copyMat.uniforms.tColor.value = this.accRT.texture;
+    this._draw(this.copyMat, this.histB);
+    this._clearExpK = this._bloom(P);
+    this.copyMat.uniforms.tColor.value = this.accRT.texture;
+    this._draw(this.copyMat, this.histA);
+  }
+
+  /** renderTransparent: grade the black sum (keepBlack) and the white one (accRT, background K) into `target` with
+   *  straight alpha: alpha from the sums before the bloom, the object's own bloom added to its colour. No auto exposure. */
+  endClear(P, frameIndex, target, K = 1) {
+    const m = this._gradeClear(), u = m.uniforms, g = this.grade.uniforms;
+    this.end({ ...P, bloom: 0, autoExposure: 0 }, frameIndex, null, {}, true);   // set the grade's uniforms, draw nothing
+    for (const k of Object.keys(g)) if (u[k]) u[k].value = g[k].value;
+    u.uExposure.value = P.exposure * (this._clearExpK ?? 1);
+    u.tColor.value = this.histB.texture; u.tBloom.value = this.histA.texture; u.tWhite.value = this.accRT.texture; u.uClearK.value = K;
+    this._draw(m, target);
+  }
+
   begin() {
     this.r.setRenderTarget(this.accRT);
     this.r.setClearColor(0x000000, 0);
@@ -509,7 +554,8 @@ export class Pipeline {
     if (l2) l2.lamps.update(scene, camera, { k, still });
     else lampShadowsIdle();   // another world may have published its lamps into the page-global uniforms
     r.setRenderTarget(this.sceneRT);
-    r.setClearColor(0x000000, 1);
+    if (this.clearColor == null) r.setClearColor(0x000000, 1);
+    else r.setClearColor((this._cc || (this._cc = new THREE.Color())).setRGB(this.clearColor, this.clearColor, this.clearColor), 1);   // renderTransparent
     r.clear(true, true, false);
     r.render(scene, camera);
     if (l2) l2.lamps.done();
@@ -544,6 +590,60 @@ export class Pipeline {
     this._draw(this.copyMat, this.accRT);
   }
 
+  /** [converge] An adaptive still (renderFrame's `converge`) asks after some sub-frames how far the frame still
+   *  moves: the accumulation so far, normalised by its weight sum `wsum`, against the estimate at the last call, in
+   *  display levels (0..255 after exposure and a plain tone curve: close to what the grade will show). Returns the
+   *  mean over the frame, or null on the first call of a frame (first = true: nothing to compare with yet). Blocks
+   *  of 8 x 8 px are averaged on the GPU; only a small float target is read back. */
+  converge(wsum, exposure, first) {
+    const w = this.rw, h = this.rh, bw = Math.ceil(w / 8), bh = Math.ceil(h / 8);
+    if (!this.cv || this.cv.prev.width !== w || this.cv.prev.height !== h) {
+      if (this.cv) { this.cv.prev.dispose(); this.cv.stats.dispose(); }
+      this.cv = {
+        prev: new THREE.WebGLRenderTarget(w, h, { type: THREE.HalfFloatType, depthBuffer: false }),
+        stats: new THREE.WebGLRenderTarget(bw, bh, { type: THREE.FloatType, depthBuffer: false, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter }),
+        buf: new Float32Array(bw * bh * 4),
+      };
+      this.cvDiff ??= quadMat(/* glsl */ `
+        varying vec2 vUv; uniform sampler2D tCur, tPrev; uniform vec2 uTexel; uniform float uN, uExp;
+        vec3 disp(vec3 c){ c = max(c, 0.0) * uExp; return 255.0 * pow(c / (1.0 + c), vec3(1.0 / 2.2)); }
+        void main(){
+          vec2 o = floor(vUv / (uTexel * 8.0)) * uTexel * 8.0 + 0.5 * uTexel;
+          float s = 0.0;
+          for (int y = 0; y < 8; y++) for (int x = 0; x < 8; x++) {
+            vec2 uv = o + vec2(float(x), float(y)) * uTexel;
+            vec3 d = abs(disp(texture2D(tCur, uv).rgb * uN) - disp(texture2D(tPrev, uv).rgb));
+            s += max(d.r, max(d.g, d.b));
+          }
+          gl_FragColor = vec4(s / 64.0, 0.0, 0.0, 1.0);
+        }`, { tCur: { value: null }, tPrev: { value: null }, uTexel: { value: new THREE.Vector2() }, uN: { value: 1 }, uExp: { value: 1 } });
+      this.cvScale ??= quadMat('varying vec2 vUv; uniform sampler2D tColor; uniform float uS; void main(){ gl_FragColor = texture2D(tColor, vUv) * uS; }', { tColor: { value: null }, uS: { value: 1 } });
+    }
+    const cv = this.cv;
+    let mean = null;
+    if (!first) {
+      const u = this.cvDiff.uniforms;
+      u.tCur.value = this.accRT.texture; u.tPrev.value = cv.prev.texture; u.uTexel.value.set(1 / w, 1 / h); u.uN.value = 1 / wsum; u.uExp.value = exposure;
+      this._draw(this.cvDiff, cv.stats);
+      this.r.readRenderTargetPixels(cv.stats, 0, 0, bw, bh, cv.buf);
+      let s = 0;
+      for (let i = 0; i < bw * bh; i++) s += cv.buf[4 * i];
+      mean = s / (bw * bh);
+    }
+    this.cvScale.uniforms.tColor.value = this.accRT.texture; this.cvScale.uniforms.uS.value = 1 / wsum;
+    this._draw(this.cvScale, cv.prev);
+    return mean;
+  }
+
+  /** [converge] Stop early: scale the accumulation by s (1 / the weight sum of the sub-frames drawn), so end() grades
+   *  a whole frame. The scratch is histB (a still frame has just invalidated the temporal-AA history anyway). */
+  scaleAccumulation(s) {
+    this.cvScale.uniforms.tColor.value = this.accRT.texture; this.cvScale.uniforms.uS.value = s;
+    this._draw(this.cvScale, this.histB);
+    this.copyMat.uniforms.tColor.value = this.histB.texture;
+    this._draw(this.copyMat, this.accRT);
+  }
+
   /** Forget the adapted exposure: the next frame is metered on its own (a cut, a teleport). */
   resetExposure() { this.aeValid = false; }
 
@@ -565,13 +665,8 @@ export class Pipeline {
     this.aeValid = true;   // a still frame's EV is its own (reset above); the next moving frame eases on from it
   }
 
-  /** Bloom and grade the accumulated frame into `target` (null = the canvas). opts: { dt, still } for auto exposure:
-   *  dt = the seconds since the last moving frame (the exposure eases), still = meter this frame on its own (stays
-   *  bit-identical). Without dt the frame counts as still. */
-  end(P, frameIndex = 0, target = null, opts = {}) {
-    const useAE = P.autoExposure > 0;
-    if (useAE) this._meter(P, P.exposure, opts);
-    else this.aeValid = false;
+  // bloom into accRT in place; returns the exposure factor the grade applies (light2's mixed bloom raises it)
+  _bloom(P) {
     const b = this.bloomPass;
     // the mid-range factor of three's bloom composite (3 x the radius-mixed mip weights): the lift an additive
     // bloom of strength 1 gives a flat image
@@ -597,6 +692,17 @@ export class Pipeline {
       b.strength = P.bloom; b.radius = P.bloomRadius; b.threshold = 0;
       b.render(this.r, null, this.accRT, 0, false);
     }
+    return expK;
+  }
+
+  /** Bloom and grade the accumulated frame into `target` (null = the canvas). opts: { dt, still } for auto exposure:
+   *  dt = the seconds since the last moving frame (the exposure eases), still = meter this frame on its own (stays
+   *  bit-identical). Without dt the frame counts as still. */
+  end(P, frameIndex = 0, target = null, opts = {}, setOnly = false) {
+    const useAE = P.autoExposure > 0;
+    if (useAE) this._meter(P, P.exposure, opts);
+    else this.aeValid = false;
+    const expK = this._bloom(P);
     const u = this.grade.uniforms;
     u.tColor.value = this.accRT.texture; u.uTexel.value.set(1 / this.rw, 1 / this.rh);
     u.uExposure.value = P.exposure * expK; u.uSat.value = P.saturation; u.uCon.value = P.contrast; u.uLift.value = P.lift;
@@ -605,7 +711,7 @@ export class Pipeline {
     u.uUseAE.value = useAE ? 1 : 0; u.tAE.value = this.aeA.texture;
     const t = P.temperature;   // -1 cool .. +1 warm, a simple channel tilt
     u.uWB.value.set(1 + 0.1 * t, 1, 1 - 0.12 * t);
-    this._draw(this.grade, target);
+    if (!setOnly) this._draw(this.grade, target);
   }
 
   /** Show mix(a, b, t) of two finished frames (render targets that end() drew into) on `target` (null = the canvas). */
@@ -635,6 +741,7 @@ export class Pipeline {
     for (const t of [this.sceneRT, this.aoRT, this.accRT, this.histA, this.histB, this.ssrRT, this.volRT, this.meterRT, this.aeA, this.aeB]) t && t.dispose();
     if (this.l2) { this.l2.lamps.dispose(); this.l2.ssrMat.dispose(); this.l2.volMat.dispose(); }
     this.bloomPass.dispose(); this.quad.dispose();
-    for (const m of [this.ao, this.acc, this.grade, this.taaMat, this.copyMat, this.blendMat, this.meterMat, this.adaptMat]) m.dispose();
+    for (const m of [this.ao, this.acc, this.grade, this.gradeClear, this.taaMat, this.copyMat, this.blendMat, this.meterMat, this.adaptMat, this.cvDiff, this.cvScale]) m && m.dispose();
+    if (this.cv) { this.cv.prev.dispose(); this.cv.stats.dispose(); this.cv = null; }
   }
 }

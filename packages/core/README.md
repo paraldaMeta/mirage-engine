@@ -49,10 +49,13 @@ requestAnimationFrame(loop);
 | `dynamicRes` | off | `true` or `{ target: 60 fps, min: 0.6, step: 0.1 }`: moving frames render smaller when they run over budget (see below) |
 | `light2` | off | `true` or `{ ls, ssr, vol, bloom }` overriding `LIGHT2_DEFAULTS` (each part `false` to drop it): lamp shadows, screen-space reflections, volumetric light, mixed bloom (see below) |
 | `softShadows` | off | `true` or fields overriding `SOFTSHADOW_DEFAULTS`: contact-hardening soft sun shadows, per pixel, in still and walking frames alike (see below) |
+| `reducedMotion` | off | `true` or `{ sway: 0.25, rain: 0.4 }`: reduced motion from the start (see "Reduced motion"); @mirage/play sets it from `prefers-reduced-motion` |
 
 Returns `{ renderer, scene, camera, sun, sky, stars, pipeline, ctx, G, keyDir, mat, geom, rng, post, device, light2, softShadows,
 light, state, exposure, setTime(time, { ease }), tick(dt), prepare(), renderFrame(T, opts), resize(w, h), dispose(), captureEnv(),
-setAmbientVolumes(list) }`.
+setAmbientVolumes(list), setReducedMotion(option), reducedMotion, renderTransparent(T, opts) }`.
+light, state, exposure, setTime(time, { ease }), tick(dt), prepare({ warm }), renderFrame(T, opts), resize(w, h), dispose(), captureEnv(),
+setAmbientVolumes(list) }`. `prepare({ warm: true })` (opt-in) also draws one discarded frame: see Seamless loading below.
 
 - `renderFrame(T, { camera, getCamera(t), spp, dt, shutter, frameIndex, target, shadow, taa })` renders the frame
   at time `T` seconds as `spp` sub-frames. `getCamera(t)` gives motion blur (it is called at each sub-frame's
@@ -183,14 +186,69 @@ a world renders bit-identical to before.
 
 `mat.std(params, hooks)`, `mat.phys(params, hooks)`, `mat.patch(material, hooks)`, `mat.depth(hooks)` (a shadow
 depth material with the same vertex hooks), `mat.glow(rgb, intensity)` (an emissive lamp that follows day/night).
-`PROC.plaster | stone | wood | terracotta` return hook sets. Hooks (GLSL strings): `vertexDecl`, `vertexWorld`
+`PROC.plaster | stone | wood | terracotta | brushed | hammered | patina` return hook sets (the metals: below). Hooks (GLSL strings): `vertexDecl`, `vertexWorld`
 (edit `vec3 mgWorld`), `fragmentDecl`, `albedo` (`diffuseColor`), `roughness`, `metalness`, `normal` (view
 space; `normal = mgBump(normal, height, strength)`), `emissive`, `lighting` (`reflectedLight`), `output`
 (`outgoingLight`), plus `uniforms` and `defines`. In scope: `mgWorldPos`, `mgWorldNormal`, the `G` uniforms
 (`uTime, uWind, uKeyDir, uKeyColor, uLamp, uLampGain, uSkyLight, uNight, uUser, uFrame`) and the noise
 library (`mgHash, mgHash3, mgValue2/3, mgGrad2/3, mgFbm2/3, mgRidge3, mgCell2/3, mgTriWeights, mgLuma`).
 
+### Metals: `PROC.brushed`, `PROC.hammered`, `PROC.patina`
+
+```js
+const steel = world.mat.std({ metalness: 1, roughness: 0.3 }, PROC.brushed());                 // axis 'x', scale 1, wear 1
+const pan = world.mat.std({ metalness: 1, roughness: 0.22 }, PROC.hammered('vec3(0.78, 0.45, 0.3)')); // size 0.035 m
+const roof = world.mat.std({ metalness: 1, roughness: 0.3 }, PROC.patina(undefined, { amount: 0.5 })); // copper
+```
+
+Procedural like the others (world-space noise, one `mgH` for the bump, at most one PROC per material); put them on a
+material with `metalness: 1`, `base` is the metal's reflectance (linear). Under Mirage's captured sky a metal is
+mostly its reflection, so the pattern lives in the roughness and the normal more than in the colour.
+
+- **brushed** (`axis` 'x' | 'y' | 'z', `scale`, `wear`): streaks (millimetres apart) and hairlines stretched along
+  the axis; the streaks tilt the normal across the brushing only, so highlights smear across it (an anisotropic look
+  without tangents); hairlines fade before they alias; `wear` adds smudges (rougher, a little darker).
+- **hammered** (`size` 0.035 m, `depth` 1): overlapping dimples from a 3D cell noise, polished ridges where two meet,
+  hollows a little rougher and darker.
+- **patina** (`amount` 0..1, `verdigris` colour): verdigris on copper (bronze: `'vec3(0.55, 0.38, 0.2)'`) gathering
+  on top faces and running down walls; where it is, the surface is rough (0.88) and not metallic; the bare metal is
+  oxidised darker.
+
+Stills of each on a sphere and a panel (plain, brushed, hammered copper, patina: [metals.jpg](../../docs/media/looks/metals.jpg)):
+`node packages/tools/looks.check.mjs` (`metals.png`). Cost: not measured
+(one to three fbm / cell lookups per pixel, like `stone`).
+
+## Reduced motion (opt-in): `world.setReducedMotion`
+
+`world.setReducedMotion(true | { sway, rain } | false)` (or the `reducedMotion` option): while a frame renders the
+wind's strength is scaled by `sway` (0.25; every `mgWind` and `uWind` sway reads it), the rain kit falls at `rain`
+x its speed (0.4: slower, shorter streaks; kits read `world.ctx.motion`), and the still path's default shutter is
+0 (no motion blur across the sub-frames; an explicit `shutter` still wins). `world.reducedMotion` is the settings in
+use or null. No shader changes: with it off the frames are bit-identical (hello-courtyard,
+walled-garden, woodland-path, river-ford: 23 views, 0 px). @mirage/play follows the user's `prefers-reduced-motion` (its `reducedMotion` option). Measured in
+`looks.check.mjs` (a fur lawn in a 1.5 x wind): the image change between T = 0 and 1.7 s drops from 3.9 to 1.5 /255
+per channel; rain 8.5 -> 3.4 m/s.
+
+## Transparent stills: `world.renderTransparent(T, opts)`
+
+A still with a transparent sky: the frame is rendered twice, sky and stars hidden, over a black and over a white
+background (`pipeline.clearColor`), both summed in linear HDR over the same sub-frames, so each pixel's sum is linear
+in the background: alpha = 1 - (white - black) / K (normalised by the sub-frames' weight sum) and the straight colour
+= black / alpha, graded as usual (the grade's `CLEAR` variant, illos.dev's trick; the default grade program is left
+untouched). Returns `{ width, height, data }`: RGBA8, straight alpha, top row first. Options: renderFrame's still
+path (`spp`, `frameIndex`, `camera`, `shadow`, `shutter`). The object's own bloom is kept (added after the
+un-premultiply, so it does not flare at thin edges); the sky's glow over it is not; no auto exposure. Terrain and
+anything else drawn stays opaque; additive effects over the sky (rain) and clouds vanish. `mirage-snap --alpha` saves
+every viewpoint this way, `play.render({ transparent: true })` renders the current view.
+
+Checked on a torus knot and a sphere in empty air ([alpha.png](../../docs/media/looks/alpha.png)) (`looks.check.mjs`, 960x540, spp 16): background alpha 0 (the
+corners and 77 % of the frame), the object 255, the 6,887 partial pixels all within 2 px of an edge; opaque pixels
+match the normal still over black to 0.01/255, edge pixels composited over black to 0.7 % in linear light (not
+exactly: the tone map is not linear). Cost: two stills plus a read-back (walled-garden 1440x900, spp 16: 436 / 650 ms
+against 304 / 70 ms for the normal still, on a shared GPU).
+
 ## Textures (optional): `createTextures(world, { manifest, url })`
+## Textures (optional): `createTextures(world, { manifest, url, decode, ktx2 })`
 
 World-space sampling of photo-scanned PBR sets from patch() hooks; the project ships the files and the manifest
 (`packages/tools/tex/pack.py` fetches CC0 sets from Poly Haven and packs them; see `examples/hello-courtyard/tex`).
@@ -313,6 +371,37 @@ addRain(ctx);                     // falling streaks around the camera (a world 
   such materials their own `withWet` options or none); no splashes, drips or wet-darkened foliage; the ripples are
   normals only (no refraction of the bed); `ground` is read once (an Object3D moved later needs the material
   re-made, or `hooks.uniforms.mgWetP.value.y` set). ponytail: the uniforms are shared by every world on a page.
+
+## Seamless loading (opt-in): decode, upload, warm-up, streaming helpers
+
+For worlds that load more while they run (a street, then an interior, no loading screen). Nothing here is on by
+default; with every option off the engine draws exactly what it did (stills compared byte for byte). Measured by
+`node examples/demos/streaming/streaming-check.mjs` (A/B, interleaved, a cold browser per page): numbers in the
+changelog (1.0.0, **New**).
+
+```js
+const tex = createTextures(world, { manifest, url, decode: 'bitmap' });   // decode off the main thread
+await world.prepare({ warm: true });                                     // one discarded frame + 1-px readback
+const up = createUploadBudget(world.renderer, { bytes: 8 << 20 }).add(tex.textures());   // or: upload over frames
+// per frame, before the draw: up.step();
+```
+
+- `createTextures({ decode: 'bitmap' })`: `fetch` + `createImageBitmap` (three's `ImageBitmapLoader`) decode the
+  images off the main thread; the `<img>` path decodes each one on the main thread when three first uploads it.
+  Same pixels: flipped while decoding (`imageOrientation: 'flipY'`), straight alpha, no colour conversion, as three
+  uploads these `<img>` textures. Falls back to the image loader where `createImageBitmap` is missing or fails.
+- `createTextures({ ktx2 })`: manifest files ending in `.ktx2` (ETC1S / UASTC, made with `basisu -ktx2 -mipmap -y_flip`,
+  normal maps `-linear -normal_map`) load through three's KTX2Loader from `@mirage/core/ktx2`
+  (`createKTX2Loader(renderer, { transcoderPath })`); serve `three/examples/jsm/libs/basis/basis_transcoder.{js,wasm}`.
+  A subpath on purpose: a bundle that never imports it has no KTX2Loader and no transcoder.
+- `world.prepare({ warm: true })`: `compileAsync` links the programs, but the first frame still pays texture
+  uploads (and `<img>` decodes), the shadow map's allocation and the first draw of each program. The warm-up draws
+  one still frame (one sub-frame) to the canvas, waits for the GPU with a 1-px readback, clears the canvas and puts
+  back every per-frame history (TAA, auto exposure, dynamic resolution), so the next frame is the same as without it.
+- `createUploadBudget(renderer, { bytes, count })`: `renderer.initTexture` spread over frames (at least one a frame).
+- `createJobQueue`, `createLRU`, `objectBytes`, `texturesOf`, `disposeObject`: the parts of `@mirage/world`'s
+  `createStreamer` (modules streamed in and out by distance), usable on their own.
+- `watchLongTasks()`: long tasks (PerformanceObserver) from now until `stop()`.
 
 ## Rules learnt the hard way
 
