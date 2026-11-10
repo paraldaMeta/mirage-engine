@@ -51,7 +51,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "node check.mjs"
+    "test": "node check.mjs && node audio-check.mjs"
   },
   "author": "灰叔 Racso",
   "types": "./src/index.d.ts"
