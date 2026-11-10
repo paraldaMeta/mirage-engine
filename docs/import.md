@@ -2,8 +2,9 @@
 
 Mirage worlds are built in code, and nothing here changes that. `@mirage/core/assets` (experimental, opt-in) is for
 the things code is a poor tool for: a scanned statue, a rigged character, a prop from a modelling tool. It is a
-subpath, not in the index: a project that imports no models ships none of it (builds of the existing examples are
-byte-identical with and without this module in the repository).
+subpath, not in the index: a project that imports no models ships none of it (the three example bundles compared, hello-courtyard,
+garden-quest and walled-garden, grew by 27 bytes each on this branch, which is `createPlay`'s `character` option, and their stills did not change: see
+[animation.md](animation.md)).
 
 ```js
 import { createAssets } from '@mirage/core/assets';
@@ -50,7 +51,8 @@ material (`ctx.mat.std(...)`) instead. ShaderMaterials are left alone.
 
 The engine has one rule, and imports follow it: a visible, opaque, depth-writing mesh on layer 0 is solid, both in
 the walk grid (`bakeWalkGrid`, baked from the scene) and in Rapier (`@mirage/game` builds static colliders from the
-same meshes). `collide` says what a model contributes:
+same meshes; the walk-grid side is checked in the demo, the Rapier side follows from the shared rule and was
+not run here). `collide` says what a model contributes:
 
 | `collide` | walk grid and physics see | use for |
 |---|---|---|

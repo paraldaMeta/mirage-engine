@@ -117,7 +117,9 @@ const play = createPlay(world, { plan, canvas, mode: 'game',
 hero.ground = (x, z, y) => play.grid.groundAt(x, z, y, 0.4);   // foot placement on
 ```
 
-`character` is the opt-in: without it `createPlay` builds the procedural traveller exactly as before. The rig
+`character` is the opt-in: without it `createPlay` builds the procedural traveller exactly as before
+(hello-courtyard and garden-quest, two viewpoints and the game view each at 960 x 540, 8 spp: the six PNGs are
+byte-identical before and after this work). The rig
 needs clips named `idle`, `walk`, `run` and optionally `jump` (`clipNames` maps other names); `layers` replaces
 the default controller.
 
@@ -138,6 +140,6 @@ the default controller.
 
 ## Not here
 
-Animation compression, morph-target tracks in the animator (three plays them; the layers do not blend them),
+Animation compression, morph-target tracks (the animator blends node transforms only),
 full-body or CCD / FABRIK chains, ragdolls, motion matching, a graph editor, curve editing in the timeline, and
 inertial blending (cross-fades are linear).
