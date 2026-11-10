@@ -35,7 +35,7 @@ import { OCT_DECODE } from './inject.js';
 export const LIGHTS_DEFAULTS = {
   max: 256,          // lights (texture rows are sized for it)
   cluster: true,     // false: every pixel loops over every light (the comparison path)
-  perCell: 48,       // most lights shaded in one cell
+  perCell: 64,       // most lights shaded in one cell (info.clipped counts what a frame dropped)
   atlas: 2048,       // px of the shadow atlas
   tileMax: 512, tileMin: 64,
   perFrame: 2,       // shadow tiles redrawn per frame
@@ -162,6 +162,8 @@ export function createLights(w, cfg) {
   const depth = new THREE.DepthTexture(cfg.atlas, cfg.atlas, THREE.UnsignedShortType);
   depth.compareFunction = THREE.LessEqualCompare; depth.minFilter = depth.magFilter = THREE.LinearFilter;
   const atlas = new THREE.WebGLRenderTarget(cfg.atlas, cfg.atlas, { depthTexture: depth, depthBuffer: true, generateMipmaps: false });
+  // made and cleared now: a compare sampler bound to a texture that was never a target stops every draw of the program
+  { const saved = renderer.getRenderTarget(); renderer.setRenderTarget(atlas); renderer.clear(false, true, false); renderer.setRenderTarget(saved); }
   const U = {
     mgLT: { value: tex }, mgLS: { value: depth },
     mgLA: { value: new THREE.Vector4(0, 0, 1 / cfg.atlas, cfg.bias) }, mgLB: { value: new THREE.Vector4(1, 1, 0.1, 1) },
@@ -178,7 +180,7 @@ ${OCT_DECODE}
 void main() { gl_FragDepth = clamp( textureLod( tCube, mgOctDec( vUv ), 0.0 ).r / uFar, 0.0, 1.0 ); gl_FragColor = vec4( 0.0 ); }`,
   });
   const quad = new FullScreenQuad(foldMat);
-  const info = { lights: 0, shadowed: 0, redraws: 0, redrawsLastFrame: 0, binMs: 0, indices: 0, mode: 0 };
+  const info = { lights: 0, shadowed: 0, redraws: 0, redrawsLastFrame: 0, binMs: 0, indices: 0, clipped: 0, mode: 0 };
   const _v = new THREE.Vector3(), _d = new THREE.Vector3(), _t = new THREE.Vector3(), _c = new THREE.Color(), _vp = new THREE.Vector4();
   let viewCam = null, camKey = '', dirtyTex = true, allDirty = false;
   const dyn = new Map();   // dynamic root -> { e: Float32Array(16), c: Vector3, r }
@@ -224,7 +226,7 @@ void main() { gl_FragDepth = clamp( textureLod( tCube, mgOctDec( vUv ), 0.0 ).r 
       if (L.tile) rec.set([L.tile.xy[0], L.tile.xy[1], L.tile.s, 0], 16);
       let same = true, moved = false;
       for (let k = 0; k < rec.length; k++) if (rec[k] !== L.last[k]) { same = false; if (k < 4 || (k >= 8 && k < 13)) moved = true; }
-      if (!same) { L.last.set(rec); data.set(rec, i * REC * 4); changed = true; if (moved) L.dirty = true; }
+      if (!same || L.row !== i) { L.last.set(rec); data.set(rec, i * REC * 4); L.row = i; changed = true; if (moved) L.dirty = true; }   // row: a removal shifts the lights after it
       L.range = range; L.pos.copy(_v);
     }
     return changed;
@@ -240,18 +242,18 @@ void main() { gl_FragDepth = clamp( textureLod( tCube, mgOctDec( vUv ), 0.0 ).r 
       const L = lights[i];
       _t.copy(L.pos).applyMatrix4(cam.matrixWorldInverse);
       const z = -_t.z, r = L.range * 1.02 + 0.02;
-      if (L.last[4] + L.last[5] + L.last[6] <= 0 || z + r < near || z - r > far) { spans.push(null); continue; }
+      if (L.last[4] + L.last[5] + L.last[6] <= 0 || z + r < near) { spans.push(null); continue; }   // past `far` it lands in the last slice, as its pixels do
       const sx = sphereSpan(_t.x, z, r, px), sy = sphereSpan(_t.y, z, r, py);
       const s = [Math.floor((sx[0] * 0.5 + 0.5) * CLUSTER.x * 0.99999), Math.floor((sx[1] * 0.5 + 0.5) * CLUSTER.x * 0.99999), Math.floor((sy[0] * 0.5 + 0.5) * CLUSTER.y * 0.99999), Math.floor((sy[1] * 0.5 + 0.5) * CLUSTER.y * 0.99999), clusterSlice(z - r, near, far), clusterSlice(z + r, near, far)];
       spans.push(s);
       for (let cz = s[4]; cz <= s[5]; cz++) for (let cy = s[2]; cy <= s[3]; cy++) for (let cx = s[0]; cx <= s[1]; cx++) counts[cx + CLUSTER.x * (cy + CLUSTER.y * cz)]++;
     }
-    let off = 0;
+    let off = 0, clipped = 0;
     const base = rows.cells * TW * 4, ib = rows.index * TW * 4;
     for (let c = 0; c < CELLS; c++) {
       const n = Math.min(counts[c], cfg.perCell, IDX_CAP - off);
       data[base + c * 4] = off; data[base + c * 4 + 1] = 0; data[base + c * 4 + 2] = n;   // z: capacity while filling
-      off += n;
+      off += n; clipped += counts[c] - n;
     }
     for (let i = 0; i < spans.length; i++) {
       const s = spans[i];
@@ -262,7 +264,7 @@ void main() { gl_FragDepth = clamp( textureLod( tCube, mgOctDec( vUv ), 0.0 ).r 
       }
     }
     U.mgLB.value.z = near; U.mgLB.value.w = CLUSTER.z / Math.log(far / near);
-    info.indices = off; info.binMs = +(performance.now() - t0).toFixed(3);
+    info.indices = off; info.clipped = clipped; info.binMs = +(performance.now() - t0).toFixed(3);
   }
 
   function cubeFor(face) {
