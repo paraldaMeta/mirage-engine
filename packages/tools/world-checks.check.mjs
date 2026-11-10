@@ -1,5 +1,5 @@
 // The load-time world checks stay quiet on the examples (the local headless Chrome; build them first:
-// `npm run build -w <example>` or `npx vite build` in each). They fire on broken worlds in `node evals/check.mjs`.
+// `npm run build -w <example>` or `npx vite build` in each). diagnostics.check.mjs covers the broken cases.
 // usage: node packages/tools/world-checks.check.mjs [example ...]
 import fs from 'node:fs';
 import os from 'node:os';

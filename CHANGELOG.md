@@ -19,9 +19,6 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
   gate, the collider box to add, the free spot next to a spawn inside a crate, the look point for an object out of
   frame. New load-time checks: the spawn and viewpoints inside solids, floating objects, coplanar surfaces, what each
   viewpoint shows, the triangle budget. Quiet on all seven examples.
-- `evals/`: a repair-rate eval. Eleven copies of a small world with one defect each, a machine check per task
-  (`node evals/check.mjs` proves every broken start fails and every reference fix passes), and a runner that hands
-  an agent CLI the task with or without the diagnostics, one turn or several (`node evals/run.mjs --cmd ...`).
 - @mirage/tools: playtest `see` — a step can require named objects to be in the final view
   (`"see": { "rail": ">= 0.005" }`). An ID pass measures each object's share of the frame and, on a failure, says
   whether it is out of frame, hidden (and by which objects) or too small. Screenshots also report `luma`, `dark`

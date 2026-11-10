@@ -131,7 +131,7 @@ Module failures fail a playtest through the console errors they log (allowed wit
 ## The checks beyond expectations
 
 These run at load in every playtest (scenario `"checks": false` turns them off) and in `mirage-check`. They are
-deliberately conservative: each is tested to fire on a broken world (`node evals/check.mjs`) and to stay quiet on all
+deliberately conservative: each is tested to fire on broken cases (`packages/tools/diagnostics.check.mjs`) and to stay quiet on all
 seven examples (`node packages/tools/world-checks.check.mjs`).
 
 - **Eyes in solids (MG310 / MG311 / MG312)**: the spawn and every plan viewpoint against the walk grid
@@ -148,30 +148,3 @@ seven examples (`node packages/tools/world-checks.check.mjs`).
   five ray samples, lies within 3 mm of another solid's upward face. Materials with `polygonOffset` are skipped.
 - **What each viewpoint shows (MG410 / MG411 / MG412)**: one ID pass per view (320 px, a flat colour per mesh).
 - **Budget at load (MG504)**: module triangles from the build report against `plan.budget.triangles`.
-
-## Repair-rate eval (`evals/`)
-
-Do the diagnostics let an agent fix the problem? `evals/` measures it, the way google/three-live's eval suite measures
-one-turn self-repair, but on whole worlds and with the browser in the loop.
-
-- `evals/base/`: a small world (a walled yard with a gate, a crate, a railing, lamps) that loads the packages from
-  source through an import map (no build step). Worlds are materialised outside the repository (`<tmp>/mirage-evals`,
-  or `MIRAGE_EVAL_WORK`), next to symlinks to `packages/` and `node_modules/`, so an agent editing one does not find
-  the reference fixes beside it.
-- `evals/tasks/<id>/`: `task.json` (title, the symptom as a user would report it, `expect`: the codes the broken
-  world must show, `forbid`: codes that fail the check even as warnings), `scenario.json` (the machine check),
-  `start/` (files that break the base) and `fix/` (the reference fix, applied over start).
-- Two sets of tasks. The single-fault ones (11) break one thing in one file. The `hard-*` ones (6) are what one turn
-  rarely fixes: several faults in different files (`hard-three-faults`), a fault hidden behind another
-  (`hard-masked-hole`: nothing builds until the shared materials are fixed, then the north wall has a hole), a cause
-  in another module than the symptom (`hard-glass-crate`: a shared material made transparent), a wrong collision proxy
-  where "add a collider" is not enough (`hard-turned-proxy`), a budget fix that must keep the object
-  (`hard-heavy-crate`), and a larger world with a new module (`hard-hut-door`: a lintel in the doorway and a door too
-  low). Their scenarios also re-run the base checks, so a fix that breaks something else fails.
-- The machine check: the task's own scenario (never the copy an agent can edit) passes, with no error diagnostics and
-  none of `forbid`.
-- `node evals/check.mjs`: no model calls; proves the base passes quietly, every broken start fails and shows its
-  `expect` codes, every reference fix passes without them.
-- `node evals/run.mjs`: gives an agent CLI each task and lets it edit a copy of the world, then re-checks. See the
-  header of `evals/run.mjs` for the flags (`--cmd`, `--mode one|multi`, `--turns`, `--arms diag,raw`, `--dry`,
-  `--oracle`).
