@@ -9,6 +9,7 @@ import { createPlay, createXR, xrSupport } from '@mirage/play';
 import manifest from '../hello-courtyard/tex/manifest.json';
 import plan from './plan.js';
 import modules from './modules/index.js';
+import { npcDemo } from './npc.js';   // ?npc=N only (static: a dynamic import would split the bundle in two)
 
 const Q = new URLSearchParams(location.search);
 const W = +Q.get('w') || innerWidth, H = +Q.get('h') || innerHeight;
@@ -32,11 +33,11 @@ camera.aspect = W / H; camera.fov = 55; camera.near = 0.1; camera.far = 3000; ca
 await tex.ready();
 await world.prepare();
 const spp = +Q.get('spp') || 6, mode = Q.get('mode') || 'walk';
-let npc = null;   // ?npc=N: loaded below, stepped with the player
+let npc = null;   // ?npc=N: made below, stepped with the player
 const play = createPlay(world, { plan: built.plan, canvas, mode, spp, ui: Q.get('ui') !== '0', shadowRadius: 26, fit: !Q.get('w'), quality, hud, onStep: (dt) => npc?.step(dt) });
 const v = plan.viewpoints.find((p) => p.name === Q.get('view'));
 if (v) play.place(v.eye, v.look, mode);
 const xr = createXR(play, { support: xrs });
-if (Q.has('npc')) npc = (await import('./npc.js')).npcDemo(world, play, plan, Q.get('npc') === '' ? 6 : +Q.get('npc'));
+if (Q.has('npc')) npc = npcDemo(world, play, plan, Q.get('npc') === '' ? 6 : +Q.get('npc'));
 window.__mirage = { world, tex, built, play, xr, npc, render: (o = {}) => world.renderFrame(o.T ?? 0, { spp, frameIndex: 1, ...o }) };
 window.__READY = true;

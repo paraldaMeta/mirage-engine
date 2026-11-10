@@ -1,9 +1,8 @@
 // Mirage original code.
-// ?npc=N (main.js loads this only then): N travellers wander the garden, each walking to a random spot on a
+// ?npc=N (main.js calls this only then): N travellers wander the garden, each walking to a random spot on a
 // terrace, pausing, then picking another. They path on the player's own walk grid (createNavGrid), walk as
 // walkers do (createNavAgent: the same collision, steps and ground following) and keep apart (createNavCrowd).
-import { createCharacter } from '@mirage/play/character';
-import { createNavGrid, createNavAgent, createNavCrowd } from '@mirage/play/navgrid';
+import { createCharacter, createNavGrid, createNavAgent, createNavCrowd } from '@mirage/play';
 
 const PALETTES = [
   { jacket: 0x6d4c3d, scarf: 0x3f6f8f }, { jacket: 0x3d5a6d, scarf: 0xc98a3a }, { jacket: 0x5b6b3d, scarf: 0x8f3f4a },
