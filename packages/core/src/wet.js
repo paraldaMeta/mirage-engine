@@ -8,7 +8,11 @@ import * as THREE from 'three';
 //   import { withWet, setWetness, setRain } from '@mirage/core';
 //   const paving = world.mat.std({ roughness: 0.8 }, withWet(myHooks, { porosity: 0.5, height: 'mgS.h' }));
 //   world.mat.patch(m, withWet(m.userData.hooks, { porosity: 0.85, puddles: 0 }));  // an existing material
-//   setWetness(0.8); setRain(1);           // page-global; 0 = off (the wet code is skipped by one uniform test)
+//   setWetness(0.8); setRain(1);           // page-global
+//
+// Off: a wet material compiles its wet code only while the wetness is above 0 (the define MG_WET; setWetness
+// recompiles the opted-in materials when it crosses 0, like setAmbientVolumes), so at setWetness(0) its program is
+// the dry one and the image is bit-identical. Changes between levels above 0 recompile nothing.
 //
 // One continuous ramp per fragment, s = 0 dry .. 1 damp .. 2 soaked .. 3 standing water:
 //   damp      darker (porous materials more: `porosity`), a little more saturated, roughness 0.42..0.56 (never
@@ -31,18 +35,34 @@ import * as THREE from 'three';
 
 /** The wetness's page-global uniforms (kept by reference in every material that opts in). */
 export const WET = {
-  uWet: { value: 0 },     // 0 dry (wet code skipped) .. 1 puddles at their fullest
+  uWet: { value: 0 },     // 0 dry (wet code not compiled) .. 1 puddles at their fullest
   uRain: { value: 0 },    // 0 no rain .. 1 heavy: ripples on standing water (and addRain's streaks)
 };
 const clamp01 = (v) => Math.max(0, Math.min(1, +v || 0));
-/** 0 = dry (off: one uniform test), 1 = soaked with full puddles. Returns the clamped level. */
-export function setWetness(level = 1) { return (WET.uWet.value = clamp01(level)); }
+// the opted-in materials (weakly held): MG_WET follows the wetness
+const wetMats = new Set();
+function syncWet(m) {
+  const on = WET.uWet.value > 0, has = !!m.defines && 'MG_WET' in m.defines;
+  if (on === has) return;
+  if (on) m.defines = { ...(m.defines || {}), MG_WET: '' };
+  else { const { MG_WET, ...rest } = m.defines; m.defines = rest; }
+  m.needsUpdate = true;
+}
+/** 0 = dry (off: the wet code is not compiled), 1 = soaked with full puddles. Crossing 0 recompiles the wet materials.
+ *  Returns the clamped level. */
+export function setWetness(level = 1) {
+  WET.uWet.value = clamp01(level);
+  for (const r of wetMats) { const m = r.deref(); if (m) syncWet(m); else wetMats.delete(r); }
+  return WET.uWet.value;
+}
 /** 0 = no rain, 1 = heavy rain (ripple density; the rain kit's streak density). Returns the clamped level. */
 export function setRain(intensity = 1) { return (WET.uRain.value = clamp01(intensity)); }
 
+// all of it inside MG_WET (defined only while wet): with it undefined the preprocessor leaves the dry program
 export const WET_GLSL = /* glsl */ `
-#ifndef MG_WET
-#define MG_WET
+#ifdef MG_WET
+#ifndef MG_WET_GLSL
+#define MG_WET_GLSL
 uniform float uWet;
 uniform float uRain;
 uniform vec4 mgWetP;            // porosity, ground y (m), damp band height (m), puddles
@@ -141,11 +161,13 @@ void mgWetNormal(inout vec3 nV, vec3 nFlat, vec3 p){
   nV = n;
 }
 #endif
+#endif
 `;
 
 // The reflection flag (light2): a soaked film is floored at 0.42 (no screen-space mirror); standing water is not.
 // Never above the dry roughness, so a surface that was smooth when dry keeps its flag.
 const WET_SSR = '#ifdef STANDARD\nif (uWet > 0.0) material.roughness = max(material.roughness, min(mgWetR0, 0.42 * (1.0 - mgWetPond)));\n#endif';
+const onlyWet = (glsl) => `#ifdef MG_WET\n${glsl}\n#endif`;
 
 const FRAG_KEYS = ['fragmentDecl', 'albedo', 'roughness', 'metalness', 'normal', 'emissive', 'lighting', 'output'];
 const glf = (v) => { const n = +(+v).toFixed(5); return Number.isInteger(n) ? n.toFixed(1) : String(n); };
@@ -165,11 +187,11 @@ export function withWet(h = {}, { porosity = 0.6, ground = 0, band = 0.3, puddle
   const P = new THREE.Vector4(clamp01(porosity), groundY(ground), Math.max(0.01, +band || 0), Math.max(0, +puddles || 0));
   if (![P.x, P.y, P.z, P.w, heightScale, heightMid].every(Number.isFinite)) throw new RangeError('withWet: options must be finite numbers');
   const hb = height ? `${glf(heightScale)} * ((${height}) - ${glf(heightMid)})` : '0.0';
-  const add = (a, b) => (a ? a + '\n' : '') + b;
+  const add = (a, b) => (a ? a + '\n' : '') + onlyWet(b);
   // patch()'s specular AA as the dry material had it (it follows a mention of roughnessFactor in the hooks, which the
-  // wet code adds); a material that had none gets it only while wet, so at setWetness(0) the image is the dry one
+  // wet code adds); a material that had none gets it only while wet (#if defined(MG_WET))
   const had = h.specAA ?? FRAG_KEYS.some((k) => typeof h[k] === 'string' && h[k].includes('roughnessFactor'));
-  const specAA = had === true ? true : had === false ? (h.specAA === false ? false : 'uWet > 0.0') : `(${had}) || uWet > 0.0`;
+  const specAA = had === true ? true : had === false ? (h.specAA === false ? false : 'defined(MG_WET)') : `(${had}) || defined(MG_WET)`;
   return {
     ...h,
     specAA,
@@ -178,5 +200,7 @@ export function withWet(h = {}, { porosity = 0.6, ground = 0, band = 0.3, puddle
     normal: add(h.normal, 'if (mgWetS > 1.0) mgWetNormal(normal, nonPerturbedNormal, mgWorldPos);'),
     output: add(h.output, WET_SSR),
     uniforms: { ...(h.uniforms || {}), ...WET, mgWetP: { value: P } },
+    // patch() hands over the material: MG_WET follows setWetness from now on
+    attach: (m) => { wetMats.add(new WeakRef(m)); syncWet(m); if (h.attach) h.attach(m); },
   };
 }

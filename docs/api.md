@@ -43,7 +43,7 @@ The entry points `@mirage/<pkg>` are the API. Every file under `src/` can also b
 | `renderHeight(name, und, swipe)` | experimental | GLSL declaring a hand-applied render's height (m), faded with distance |
 | `renderShade(name)` | experimental | `output` hook snippet: shade the render's hollows |
 | `withWet(hooks, options)` | experimental | wet surfaces on a hooks object: damp → soaked → standing water (puddles), run-off streaks, a damp band at the ground, rain rings; options `porosity`, `ground`, `band`, `puddles`, `height`, `heightMid`, `heightScale` |
-| `setWetness(level)` | experimental | wetness 0 (off: the wet code skipped by one uniform test) .. 1 (full puddles); page-global |
+| `setWetness(level)` | experimental | wetness 0 (off: the wet code not compiled; crossing 0 recompiles the opted-in materials) .. 1 (full puddles); page-global |
 | `setRain(intensity)` | experimental | rain 0 .. 1: ripples on standing water and the rain kit's streak density; page-global |
 | `WET` | experimental | the wetness's page-global uniforms (`uWet`, `uRain`) |
 | `WET_GLSL` | experimental | the wet GLSL (`mgWetApply`, `mgWetNormal`, `mgWetRipples`, `mgWetH`) |

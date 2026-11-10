@@ -39,7 +39,7 @@ const tex = createTextures(world, { manifest, url: (f) => urls['./tex/' + f] });
 const wet = Q.has('wet') || Q.has('rain');
 if (wet) { setWetness(+(Q.get('wet') ?? 0)); setRain(+(Q.get('rain') ?? 0)); }
 const built = await buildWorld(world, { plan, modules: modules({ broken: Q.has('broken') }), shared: { tex, detail: !Q.has('nodetail'), ...(wet ? { wet: true } : {}) } });
-if (Q.has('rain')) addRain({ ...world.ctx, root: world.scene });
+const rain = Q.has('rain') ? addRain({ ...world.ctx, root: world.scene }) : null;
 
 const { camera } = world;
 camera.aspect = W / H; camera.fov = 48; camera.near = 0.1; camera.far = 3000; camera.updateProjectionMatrix();
@@ -59,5 +59,5 @@ if (rate && date) (function clock(now) {
   world.setTime(date, { ease: true });
   requestAnimationFrame(clock);
 })(last);
-window.__mirage = { world, tex, built, play, render: (o = {}) => world.renderFrame(o.T ?? 0, { spp, frameIndex: 1, ...o }) };
+window.__mirage = { world, tex, built, play, render: (o = {}) => world.renderFrame(o.T ?? 0, { spp, frameIndex: 1, ...o }), wet: { setWetness, setRain, rain } };
 window.__READY = true;

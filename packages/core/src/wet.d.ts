@@ -2,7 +2,7 @@ import type * as THREE from 'three';
 import type { MaterialHooks } from './materials.js';
 /** The wetness's page-global uniforms: uWet (0 dry / off .. 1) and uRain (0 .. 1). */
 export const WET: { uWet: THREE.IUniform<number>; uRain: THREE.IUniform<number> };
-/** 0 = dry (the wet code is skipped by one uniform test), 1 = soaked with full puddles. Returns the clamped level. */
+/** 0 = dry (off: the wet code is not compiled), 1 = soaked with full puddles. Crossing 0 recompiles the wet materials. Returns the clamped level. */
 export function setWetness(level?: number): number;
 /** 0 = no rain, 1 = heavy: ripples on standing water and the rain kit's streak density. Returns the clamped level. */
 export function setRain(intensity?: number): number;

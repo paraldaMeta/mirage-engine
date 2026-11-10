@@ -123,9 +123,10 @@ assert.ok(!JSON.stringify(h0).includes('Relief') && !('lighting' in h0) && !('uR
 assert.ok(h1.albedo.includes('mgTexWallRelief(') && h1.albedo.includes(', 0.02); diffuse') && h1.lighting.includes('mgRlSh') && 'uRelief' in h1.uniforms, 'relief taps, self-shadow and uniforms');
 
 // ---------------------------------------------------------------------------------------------------------------
-// wet surfaces (wet.js, opt-in). The program of a wet material is the dry one plus the wet block: compiled in, and
-// skipped by one uniform test while setWetness(0) (the image is then bit-identical: checked in the browser,
-// examples/hello-courtyard/NOTES.md). Materials without withWet compile exactly as before.
+// wet surfaces (wet.js, opt-in). Materials without withWet compile exactly as before. A wet material's wet code sits
+// inside #ifdef MG_WET, a define that setWetness keeps on the opted-in materials only while the wetness is above 0:
+// at setWetness(0) its program, once preprocessed, is the dry one (the image bit-identical; in the browser:
+// examples/hello-courtyard/NOTES.md).
 // ---------------------------------------------------------------------------------------------------------------
 {
   const { WET, WET_GLSL, setWetness, setRain, withWet, RELIEF_GLSL: RG, PROC: PR, createMaterials: CM, createEnv: CE } = await import('./src/index.js');
@@ -139,7 +140,6 @@ assert.ok(h1.albedo.includes('mgTexWallRelief(') && h1.albedo.includes(', 0.02);
   for (const k of ['albedo', 'normal', 'output']) assert.ok(wet[k].startsWith(base[k]), `wet keeps the ${k} hook first`);
   assert.ok(wet.fragmentDecl.includes(RG) && wet.fragmentDecl.includes(WET_GLSL) && wet.fragmentDecl.endsWith(base.fragmentDecl), 'relief and wet GLSL together');
   assert.ok('uRelief' in wet.uniforms && wet.uniforms.uWet === WET.uWet && wet.uniforms.uRain === WET.uRain && wet.uniforms.mgWetP.value.w === 0, 'relief and wet uniforms (wet by reference)');
-  assert.ok(/^if \(uWet > 0\.0\) mgWetApply\(/m.test(wet.metalness) && wet.output.includes('if (uWet > 0.0) material.roughness'), 'the wet code is behind one uniform test');
   assert.ok(withWet({}, { height: 'mgS.h', heightMid: 0.55 }).metalness.includes('0.012 * ((mgS.h) - 0.55)'), 'height bias about its mean');
   const plane = new THREE.Object3D(), parent = new THREE.Group();
   parent.position.y = 1; plane.position.y = 0.5; parent.add(plane);
@@ -147,7 +147,7 @@ assert.ok(h1.albedo.includes('mgTexWallRelief(') && h1.albedo.includes(', 0.02);
   assert.equal(withWet({}, { ground: new THREE.Plane(new THREE.Vector3(0, 1, 0), 0.25) }).uniforms.mgWetP.value.y, -0.25, 'ground from a Plane');
   assert.throws(() => withWet({}, { ground: 'floor' }), TypeError);
   assert.throws(() => withWet({}, { heightScale: Infinity }), RangeError);
-  // the patched shader: the dry program's text plus the wet block, each part after the chunk it needs
+  // the patched shader: each wet part after the chunk it needs
   const Gw = CE({}).G, kw = CM(Gw);
   const fragOf = (h) => {
     const m = kw.std({ roughness: 0.8 }, h), sh = { vertexShader: THREE.ShaderLib.standard.vertexShader, fragmentShader: THREE.ShaderLib.physical.fragmentShader, uniforms: {} };
@@ -156,22 +156,41 @@ assert.ok(h1.albedo.includes('mgTexWallRelief(') && h1.albedo.includes(', 0.02);
   const dry = fragOf(base), wt = fragOf(wet), fs = wt.fs;
   const at = (s) => fs.indexOf(s);
   assert.ok(at('#include <metalnessmap_fragment>') < at('mgWetApply(mgWorldPos') && at('#include <normal_fragment_begin>') < at('#include <normal_fragment_maps>') && at('#include <normal_fragment_maps>') < at('mgWetNormal(normal, nonPerturbedNormal'), 'wet hooks follow metalness and the normal maps');
-  assert.ok(at('material.roughness = max(material.roughness') < at('#include <opaque_fragment>') && at('#include <lights_fragment_end>') < at('material.roughness = max(material.roughness'), 'the reflection floor comes after the lighting');
-  // the wet lines all name mgWet* or uWet (the GLSL block, the hooks, the reflection floor in its #ifdef STANDARD)
-  const strip = (s) => s.replace(WET_GLSL, '').replace(/#ifdef STANDARD\n[^\n]*uWet[^\n]*\n#endif/g, '').split('\n').map((l) => l.trim()).filter((l) => l && !/mgWet|uWet/.test(l)).join('\n');
-  assert.ok(!/mgWet|uWet/.test(dry.fs), 'the dry program has no wet line');
-  assert.equal(strip(fs), strip(dry.fs), 'wet program = dry program + the wet block');
-  // patch()'s specular AA as it was: a material that had none (no hook touched roughnessFactor) gets it only while wet
-  assert.ok(!dry.fs.includes('mgSpecAA(roughnessFactor') && fs.includes('if (uWet > 0.0) roughnessFactor = mgSpecAA('), 'no AA dry: AA only while wet');
+  assert.ok(at('#include <lights_fragment_end>') < at('material.roughness = max(material.roughness') && at('material.roughness = max(material.roughness') < at('#include <opaque_fragment>'), 'the reflection floor comes after the lighting');
+  // a tiny preprocessor: drop the #ifdef / #if defined blocks of a macro that is not defined, then compare the code
+  const pre = (src, macro) => {
+    const out = [], stack = [];
+    for (const raw of src.split('\n')) {
+      const l = raw.trim(), off = stack.includes(true);
+      if (/^#if/.test(l)) { stack.push(l === `#ifdef ${macro}` || (l.startsWith('#if ') && l.includes(`defined(${macro})`) && !l.includes('||'))); if (!stack.at(-1) && !off) out.push(l); continue; }
+      if (l === '#endif') { if (!stack.pop() && !stack.includes(true)) out.push(l); continue; }
+      if (!off && l) out.push(l);
+    }
+    return out.join('\n');
+  };
+  assert.ok(!/mgWet|uWet|MG_WET/.test(dry.fs), 'the dry program has no wet line');
+  assert.equal(pre(fs, 'MG_WET'), pre(dry.fs, 'MG_WET'), 'wet program without MG_WET = the dry program');
+  assert.ok(/#if defined\(MG_WET\)\n\s*roughnessFactor = mgSpecAA\(/.test(fs) && !dry.fs.includes('mgSpecAA(roughnessFactor'), 'no AA dry: AA only while wet');
   const stoneH = PR.stone(), stoneDry = fragOf(stoneH).fs, stoneWet = fragOf(withWet(stoneH)).fs;
-  assert.ok(stoneDry.includes('\troughnessFactor = mgSpecAA(') && stoneWet.includes('\troughnessFactor = mgSpecAA(') && !stoneWet.includes('if (uWet > 0.0) roughnessFactor') && strip(stoneWet) === strip(stoneDry), 'AA dry: the same unconditional AA');
+  assert.ok(stoneDry.includes('\troughnessFactor = mgSpecAA(') && !stoneWet.includes('defined(MG_WET)') && pre(stoneWet, 'MG_WET') === pre(stoneDry, 'MG_WET'), 'AA dry: the same unconditional AA');
   assert.equal(fragOf({ albedo: 'roughnessFactor;', specAA: false }).fs.includes('mgSpecAA(roughnessFactor'), false, 'specAA: false');
   assert.ok(wt.u.uWet === WET.uWet && wt.u.mgWetP && !('uWet' in dry.u) && !('uWet' in Gw), 'wet uniforms only in wet materials, never in the shared G');
+  // MG_WET follows the wetness on the materials that opted in, and only on them; crossing 0 asks for a recompile
+  const v0 = wt.m.version, dv = dry.m.version;
+  assert.ok(!('MG_WET' in (wt.m.defines || {})), 'dry: no MG_WET');
+  setWetness(0.6);
+  assert.ok('MG_WET' in wt.m.defines && wt.m.version > v0 && !('MG_WET' in (dry.m.defines || {})) && dry.m.version === dv, 'wet > 0: MG_WET on wet materials only, recompiled');
+  const v1 = wt.m.version; setWetness(0.9);
+  assert.equal(wt.m.version, v1, 'changing the level above 0 recompiles nothing');
+  const late = kw.std({}, withWet({}));
+  assert.ok('MG_WET' in late.defines, 'a material made while wet starts wet');
+  setWetness(0);
+  assert.ok(!('MG_WET' in wt.m.defines) && !('MG_WET' in late.defines) && wt.m.version > v1, 'back to 0: the dry program again');
   // per-material numbers are a uniform: two porosities share one program
   const p1 = kw.std({}, withWet(base, { porosity: 0.2 })), p2 = kw.std({}, withWet(base, { porosity: 0.9, ground: 3, band: 0.1 }));
   assert.equal(p1.customProgramCacheKey(), p2.customProgramCacheKey(), 'porosity / ground / band share a program');
   assert.notEqual(p1.customProgramCacheKey(), dry.m.customProgramCacheKey(), 'a wet material is its own program');
-  // the ripples depend on uTime only (no wall clock, no frame counter), the GLSL is include-guarded
-  assert.ok(WET_GLSL.includes('uTime / P') && !/uFrame|gl_FragCoord/.test(WET_GLSL) && WET_GLSL.trim().startsWith('#ifndef MG_WET'), 'ripples from uTime, guarded');
+  // the ripples depend on uTime only (no wall clock, no frame counter), the GLSL is guarded
+  assert.ok(WET_GLSL.includes('uTime / P') && !/uFrame|gl_FragCoord/.test(WET_GLSL) && WET_GLSL.trim().startsWith('#ifdef MG_WET\n#ifndef MG_WET_GLSL'), 'ripples from uTime, guarded');
 }
 console.log('core check: ok');

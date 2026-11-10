@@ -190,6 +190,54 @@ setRelief(0.7);                          // 0 off (one uniform test), 1 full: fa
   `examples/hello-courtyard/NOTES.md`. ponytail: the uniforms are shared by every world on a page.
 - **Not ported**: the source's automatic rewrite of library calls into relief calls; materials opt in explicitly.
 
+## Wet surfaces and rain (opt-in): `wet.js`
+
+Rain-wet ground and walls, puddles and rain rings on any Standard / Physical material's hooks. Nothing is compiled
+into a material unless it opts in, and an opted-in material compiles its wet code only while the wetness is above 0.
+
+```js
+import { withWet, setWetness, setRain } from '@mirage/core';
+import { addRain } from '@mirage/world/kits/rain';
+const paving = tex.material('paving', { mapping: 'ground' });
+world.mat.patch(paving, withWet(paving.userData.hooks, { porosity: 0.5, height: 'mgS.h', heightMid: tex.info('paving').hMean }));
+const lime = world.mat.std({ roughness: 0.9 }, withWet(PROC.plaster(), { porosity: 0.85, puddles: 0 }));
+setWetness(0.8);                  // 0 dry (off) .. 1 full puddles; page-global
+setRain(1);                       // 0 .. 1: rings on standing water, and the streaks' density
+addRain(ctx);                     // falling streaks around the camera (a world kit, one draw call)
+```
+
+- **One ramp** per fragment, s = 0 dry → 1 damp → 2 soaked → 3 standing water, rising with `setWetness`. Damp:
+  darker and a little more saturated (`porosity` 0..1: porous plaster ~0.85, paving ~0.5, sealed ~0.1; metals only
+  get smoother), roughness 0.42–0.56. Soaked: a water film, roughness 0.1–0.2, the micro relief partly filled.
+  Standing water: level (normal up), roughness ~0.05, the wet bed visible at a shallow rim and murkier with depth
+  (never black).
+- **Where**: up-facing surfaces soak from the low spots up and pool where they are level: a world-space height field
+  (pools ~2 m apart, shorelines at ~40 / 15 / 5 cm) plus an optional height of the material (`height: 'mgS.h'`
+  about `heightMid`, `heightScale` m per unit: the paving's joints fill first). Vertical surfaces get thin run-off
+  streaks, undersides stay dry, a damp band rises `band` m from the ground (`ground`: a height, an Object3D or a
+  horizontal THREE.Plane). `puddles`: 0 none, 1 default, more fuller.
+- **Reflections**: without light2 the puddles reflect the environment map. Under light2 only standing water is
+  flagged for screen-space reflection: the soaked film keeps its low roughness for the image-based light and the
+  sun but is floored at 0.42 for the flag (light2's threshold), so damp ground is a sheen, not a second mirror.
+- **Rain rings**: a sparse cell layer (two scales, ~2 cm waves, a drop per cell per cycle at a hashed spot), a
+  normal perturbation on standing water only, from `uTime` alone (stills are identical on every run). They fade
+  where a pixel covers more than ~1 cm and the pool reads rougher instead.
+- **Stability**: octaves finer than the pixel footprint fade out, shorelines are antialiased by the height's screen
+  derivative, far pools thin to a soaked sheen, and patch()'s specular AA widens the lobe where the normal varies
+  (a material that had none gets it only while wet: `hooks.specAA`).
+- **Off**: the wet code sits inside `#ifdef MG_WET`; `setWetness` sets the define on the opted-in materials (and
+  only them) while the level is above 0 and recompiles them when it crosses 0, like `setAmbientVolumes`; moving
+  between levels above 0 recompiles nothing. At `setWetness(0)` the program is the dry one: hello-courtyard's frames
+  are bit-identical with `?wet=0` (5 views, 0 px). The two uniforms (`WET`) are page-global, not in the world's `G`.
+- **Cost** (hello-courtyard, 1440×900, Apple M4 Pro shared with other jobs, walking from the spawn, 1 sub-frame +
+  TAA, dry / wet / wet + rain interleaved in one page): wet 0.8 +0.15…0.57 ms median (+2…5 %), rain streaks
+  +0.0…0.25 ms more and one draw call. TAA shimmer on an orbit over the paving: flicker / motion unchanged (1.40 dry,
+  1.40 wet). Details in `examples/hello-courtyard/NOTES.md`.
+- **Limits**: no occlusion from above (the ground under a pergola or an arcade gets as wet as the open court; give
+  such materials their own `withWet` options or none); no splashes, drips or wet-darkened foliage; the ripples are
+  normals only (no refraction of the bed); `ground` is read once (an Object3D moved later needs the material
+  re-made, or `hooks.uniforms.mgWetP.value.y` set). ponytail: the uniforms are shared by every world on a page.
+
 ## Rules learnt the hard way
 
 - Every sampling pattern (AA offset, shutter time, sun-disc point, SSAO rotation) depends on the sub-frame index

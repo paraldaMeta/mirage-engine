@@ -65,7 +65,8 @@ export function addRain(ctx, { count = 6000, box = [22, 14, 22], speed = 8.5, st
     uRainShape: { value: new THREE.Vector4(speed, streak, width, density) }, uRainHide: { value: 0 },
     uRainGain: { value: gain }, uRain: WET.uRain,
   };
-  const material = ctx.mat.patch(new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false, side: THREE.DoubleSide }), {
+  // additive: order-free, so the two-sided quads go in one pass (one draw call)
+  const material = ctx.mat.patch(new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false, side: THREE.DoubleSide, forceSinglePass: true }), {
     vertexDecl: VS_DECL + 'uniform float uRain;', vertexWorld: VS_WORLD, fragmentDecl: FS_DECL, output: FS_OUT, uniforms: U,
   });
   const mesh = new THREE.Mesh(geometry, material);
