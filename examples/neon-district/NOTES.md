@@ -1023,3 +1023,21 @@ under a car (the wheels at 0.7 m) the forms are still dark; the stills were judg
 At high quality the batched civilians' materials still need one texture unit more than the GPU has (the old
 machines did too: `THREE.WebGLTextures: Trying to use 17 texture units` at high, none at medium).
 
+**Measured** (`node scripts/measure.mjs --vs <the build before> --only game --rounds 2 --frames 30`, M4 Pro, 1440 x 900,
+both builds in the same rounds, other agents' jobs on the machine; `vs` = before):
+
+| variant | alley | street west | bar inside | plaza | roof vista | calls, triangles (street) |
+|---|---|---|---|---|---|---|
+| vs game, low | 11.4 | 12.1 | 7.9 | 8.8 | 11.2 | 469, 393 k |
+| game, low | 12.1 | 12.9 | 7.9 | 10.9 | 12.1 | 496, 446 k |
+| vs game, medium | 15.8 | 17.5 | 13.1 | 15.3 | 16.7 | 838, 617 k |
+| game, medium | 16.8 | 18.4 | 13.8 | 16.1 | 17.9 | 868, 890 k |
+| vs game, high | 18.7 | 19.9 | 14.9 | 17.0 | 18.8 | 1179, 1013 k |
+| game, high | 20.6 | 21.9 | 15.8 | 19.1 | 21.2 | 1216, 1393 k |
+
+The pass costs 0.7-1.2 ms at medium and 1-2 ms at high, +30 draws and +270 k (medium) / +380 k (high) triangles a frame
+at street west: the near robots (6 k each, three passes), the civilians' near and middle levels (2.6-3.9 k each, no
+shadows) and the cars' wheels (48-segment tyres, no LOD). Not yet won back: medium is over its 16 ms there. The next
+steps would be a fourth, cheaper civilian level for the middle distance, LOD on the car wheels, and dropping the
+robots' metal mesh from the mirror pass.
+
