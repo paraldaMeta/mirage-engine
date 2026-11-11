@@ -182,13 +182,25 @@ street's twelve kinds bake in 40-70 ms from cold (`surfaces-check.mjs`). Memory:
 
 ## Calibration against scanned sets
 
-Recipes were tuned against CC0 scans kept outside this repository: the flat tiles side by side at the scan's texel
+Recipes were tuned against CC0 scans (Poly Haven, ambientCG) kept outside this repository: the flat tiles side by side at the scan's texel
 density, then both on the gallery objects under the same light, and numbers (albedo mean and spread per channel,
 luminance histogram, power by octave of luminance and of height, normal slope distribution, roughness). None of their
 pixels is in the library; the numbers are the targets the recipes were moved toward. Distances: Euclidean over the
 three channels (albedo), over the 16 bins (histogram of sqrt luminance), over the 7 octaves (normalised power).
 
-CALIB_TABLE
+| scan (tile) | recipe | albedo mean scan / recipe | albedo dist | sd dist | histogram dist | lum. octaves dist | height octaves dist | slope p50 scan / recipe | roughness scan / recipe | verdict |
+|---|---|---|---|---|---|---|---|---|---|---|
+| plaster_smooth (1 m) | `render:smooth` | 0.121 0.095 0.063 / 0.123 0.095 0.064 | 0.002 | 0.03 | 0.215 | 0.132 | 0.247 | 0.045 / 0.012 | 0.589 / 0.586 | close (tone, roughness, spectrum; the scan has more trowel relief) |
+| plaster_broken (1.5 m) | `render:roughcast` | 0.318 0.211 0.102 / 0.232 0.155 0.074 | 0.106 | 0.066 | 0.439 | 0.596 | 0.885 | 0.067 / 0.111 | 0.856 / 0.89 | not there yet (no broken-off render islands) |
+| brick_buff (1 m) | `brick:common` | 0.420 0.260 0.136 / 0.346 0.216 0.119 | 0.088 | 0.135 | 0.456 | 0.177 | 0.107 | 0.056 / 0.139 | 0.691 / 0.799 | close at 5 m; at 0.5 m the scan's flaky eroded faces are richer |
+| paving_hex (1.6 m) | `paving:slabs` | 0.402 0.330 0.237 / 0.373 0.300 0.209 | 0.05 | 0.044 | 0.314 | 0.261 | 0.096 | 0.055 / 0.121 | 0.872 / 0.874 | close in tone and grain (hexagons not modelled) |
+| flagstone (1.8 m) | `paving:setts` | 0.124 0.086 0.060 / 0.119 0.083 0.058 | 0.006 | 0.025 | 0.178 | 0.191 | 0.505 | 0.123 / 0.065 | 0.834 / 0.772 | close in tone (irregular flags not modelled: setts) |
+| wood_old (2 m) | `wood:planks` | 0.105 0.079 0.054 / 0.096 0.068 0.044 | 0.018 | 0.011 | 0.306 | 0.192 | 0.647 | 0.051 / 0.006 | 0.674 / 0.666 | close at 5 m; at 0.5 m fewer gouges and grain streaks |
+| wood_teak (0.55 m) | `wood:varnished` | 0.083 0.028 0.007 / 0.071 0.022 0.006 | 0.013 | 0.003 | 0.139 | 0.224 | 0.449 | 0.075 / 0.036 | 0.724 / 0.698 | close in tone and spectrum; less wear |
+| iron_rusty (1 m) | `paintedMetal:sheet` | 0.382 0.271 0.213 / 0.333 0.258 0.217 | 0.051 | 0.098 | 0.369 | 0.251 | 0.144 | 0.03 / 0.037 | 0.59 / 0.729 | close: coverage, colour, streaks; the scan's rust is more fragmented at mm scale |
+| canvas (0.5 m) | `fabric:canvas` | 0.533 0.529 0.517 / 0.479 0.475 0.464 | 0.093 | 0.052 | 0.385 | 0.513 | 0.404 | 0.294 / 0.225 | 0.531 / 0.549 | not there yet (weave relief weak, slubs regular) |
+| gravel (2.48 m) | `roofing:gravel` | 0.257 0.143 0.067 / 0.195 0.107 0.049 | 0.075 | 0.014 | 0.297 | 0.346 | 0.604 | 0.174 / 0.219 | 0.788 / 0.758 | close in tone; stones rounder and more uniform |
+| terracotta (2 m) | `tile:floor` | 0.190 0.113 0.046 / 0.195 0.116 0.052 | 0.008 | 0.026 | 0.055 | 0.258 | 0.577 | 0.02 / 0.006 | 0.686 / 0.698 | tone and histogram matched; the scan's tiles have more relief |
 
 ## Adding a surface
 

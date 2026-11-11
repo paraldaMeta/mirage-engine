@@ -27,11 +27,11 @@ export const PAIRS = [
   { ref: 'brick_buff', s: 'brick:common', opts: { color: [0.5, 0.27, 0.12], roughness: 0.7, mortarColor: [0.46, 0.36, 0.24], brick: [0.2, 0.11], mortar: 0.022, recess: 0.01, age: 1, burnt: 0.05 } },
   { ref: 'paving_hex', s: 'paving:slabs', opts: { color: [0.42, 0.34, 0.24], roughness: 0.87, cell: [0.4, 0.4] } },
   { ref: 'flagstone', s: 'paving:setts', opts: { color: [0.13, 0.09, 0.062], roughness: 0.83, cell: [0.45, 0.3] } },
-  { ref: 'wood_old', s: 'wood:weathered', opts: { color: [0.11, 0.082, 0.056] } },
+  { ref: 'wood_old', s: 'wood:planks', opts: { color: [0.12, 0.09, 0.062], roughness: 0.68, board: [0.25, 2.0], latewood: [0.7, 0.66, 0.62], age: 0.8 } },
   { ref: 'wood_teak', s: 'wood:varnished', opts: { color: [0.09, 0.03, 0.008], roughness: 0.7 } },
   { ref: 'iron_rusty', s: 'paintedMetal:sheet', opts: { color: [0.62, 0.62, 0.6], roughness: 0.5, chips: 0.5, rust: 0.8, streaks: 1 } },
-  { ref: 'canvas', s: 'fabric:canvas', opts: { color: [0.56, 0.555, 0.545], roughness: 0.55, thread: 0.0022 } },
-  { ref: 'gravel', s: 'roofing:gravel', opts: {} },
+  { ref: 'canvas', s: 'fabric:canvas', opts: { color: [0.64, 0.635, 0.62], roughness: 0.55, thread: 0.0022 } },
+  { ref: 'gravel', s: 'roofing:gravel', opts: { color: [0.27, 0.15, 0.07] } },
   { ref: 'terracotta', s: 'tile:floor', opts: { color: [0.2, 0.115, 0.047], altColor: [0.19, 0.11, 0.045], roughness: 0.69, cell: [0.3, 0.3] } },
 ];
 

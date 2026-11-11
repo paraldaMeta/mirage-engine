@@ -985,12 +985,25 @@ MsS ms_wood(vec2 u){
     col *= 1.0 - 0.6 * check; h -= 0.3 * check; ao *= 1.0 - 0.5 * check;
   }
   if (V > 4.5) { h += 0.12 * msFbm2(u, vec2(8.0, 90.0), 3); r = max(r, 0.82); }   // rough-sawn
+  // use and age (msW.x): dents, gouges along the grain, dark mineral streaks, nail holes near the board ends
+  float wear = msW.x;
+  if (wear > 0.0 && !(V > 3.5 && V < 4.5)) {
+    vec4 dn = msCell(u + b.xy * 3.0, 14.0, 1.0);
+    float dent = (1.0 - smoothstep(0.0, 0.3, dn.x + 0.15 * msFbm(u, 80.0, 2))) * step(1.0 - 0.3 * wear, dn.z) * msLod(0.01);
+    float gouge = smoothstep(0.8, 0.86, msFbm2(u + bb.zx * 5.0, vec2(5.0, 160.0), 2) * 0.5 + 0.5) * wear * msLod(0.002);
+    float streak = smoothstep(0.55, 0.9, msFbm2(u + bb.xy * 9.0, vec2(1.2, 30.0), 3) * 0.5 + 0.5) * wear;
+    vec2 nq = vec2(min(fx, bl - fx) - 0.03, min(abs(fy - bw * 0.3), abs(fy - bw * 0.7)));
+    float nail = (1.0 - smoothstep(0.0018, 0.0028 + msFP, length(nq))) * step(0.3, wear) * (V > 0.5 && V < 1.5 ? 0.0 : 1.0);
+    col *= (1.0 - 0.3 * dent) * (1.0 - 0.25 * streak) * (1.0 - 0.45 * gouge) * (1.0 - 0.85 * nail);
+    h -= 0.25 * dent + 0.15 * gouge + 0.4 * nail; ao *= (1.0 - 0.3 * dent) * (1.0 - 0.7 * nail);
+    r += 0.06 * dent;
+  }
   if (V > 3.5 && V < 4.5) { r = msA.a + 0.03 * pores; }                         // varnished: one smooth film
   // gaps between boards and butt joints
   float gap = msB.z * 0.5;
   float joint = 1.0 - smoothstep(gap, gap + msFP + 0.0004, min(min(fy, bw - fy), V > 0.5 && V < 1.5 ? 1.0 : min(fx, bl - fx)));
-  float arris = (1.0 - smoothstep(gap, gap + 0.003, min(fy, bw - fy))) * (1.0 - joint);
-  col *= (1.0 - 0.8 * joint) * (1.0 - 0.12 * arris); h = mix(h - 0.1 * arris, 0.0, joint); ao *= 1.0 - 0.7 * joint;
+  float arris = (1.0 - smoothstep(gap, gap + 0.003 + 0.009 * msW.x * (0.6 + 0.4 * (msFbm(u, 20.0, 2) * 0.5 + 0.5)), min(fy, bw - fy))) * (1.0 - joint);
+  col *= (1.0 - 0.8 * joint) * (1.0 - 0.18 * arris); h = mix(h - 0.35 * arris * arris, 0.0, joint); ao *= 1.0 - 0.7 * joint;
   if (V > 1.5 && V < 2.5) {
     // painted: the film cracks along the grain and flakes, grey wood underneath
     float pn = msFbm2(u + 7.0, vec2(3.0, 18.0), 4) * 0.6 + late * 0.25 + arris * 0.4;
@@ -1111,8 +1124,8 @@ MsS ms_roofing(vec2 u){
   } else {
     vec4 pb = msCell(u, 40.0, 1.0);
     float dome = sqrt(max(1.0 - pb.x * pb.x * 2.6, 0.0)), k = msLod(0.03);
-    col = mix(vec3(0.3, 0.29, 0.27), vec3(0.55, 0.52, 0.48), pb.z) * mix(vec3(1.0), vec3(0.75, 0.68, 0.6), step(0.8, pb.w));
-    col = mix(msA.rgb * 3.0 * 0.5, col, k);
+    col = msA.rgb * mix(0.6, 1.5, pb.z) * mix(vec3(1.0), vec3(0.75, 0.68, 0.6), step(0.8, pb.w)) * (0.9 + 0.2 * msFbm(u + pb.zw * 9.0, 60.0, 2));
+    col = mix(msA.rgb, col, k);
     h = mix(0.5, 0.1 + 0.85 * dome, k); r = 0.82 - 0.1 * dome * k; ao = mix(1.0, 0.5 + 0.5 * dome, k);
   }
   col *= 1.0 - 0.4 * lap; h -= 0.2 * lap;

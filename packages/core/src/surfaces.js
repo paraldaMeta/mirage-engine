@@ -278,7 +278,7 @@ const KINDS = {
     micro: [0.002, 0.08, 0.25, 0.05], family: 'ground', variants: ['felt', 'epdm', 'gravel'], tile: 2.0, depth: 0.006, size: 1024, porosity: 0.3,
     refs: { albedo: [0.03, 0.4], rough: [0.6, 0.95], metal: 0, note: 'bitumen 0.04-0.06; mineral granules 0.10-0.20; ballast gravel 0.25-0.45' },
     defaults: { color: [0.11, 0.11, 0.11], roughness: 0.88, roll: 1.0, granule: 0.0018 },
-    variantDefaults: { epdm: { color: [0.05, 0.05, 0.052], roughness: 0.72 } },
+    variantDefaults: { epdm: { color: [0.05, 0.05, 0.052], roughness: 0.72 }, gravel: { color: [0.36, 0.34, 0.31], roughness: 0.82 } },
     pack: (o) => ({ A: [...o.color, o.roughness], B: [o.roll, o.granule, 0, 0], C: [0, 0, 0, 0], D: [0, 0, 0, 0] }),
     quantum: (o, T) => [0, snap(T, o.roll)],
     edge: () => ({ rgb: [1.1, 1.1, 1.1], rough: 0.95, metal: 0, mode: 1, chip: 0.02 }),
