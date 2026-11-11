@@ -9,6 +9,7 @@
 //      look tuning: ?env= (image-based light, 1) ?exp= (0.6) ?sat= ?con= ?temp= ?clouds=   ?maxfps=N (walk: no 60 fps cap)
 //      ?gi=1 [&gispacing=4]  Mirage's probe GI (bounce light), for the comparison with Nizwa's irradiance volume
 //      ?wet=0..1 &rain=0..1 are accepted but only Mirage-made materials get wet (REPORT.md)
+//      ?godrays=1 &flare=1  the sun's light shafts and lens flare (Nizwa's own two; @miragekit/core postfx.js), off by default
 import * as THREE from 'three';
 import { createWorldRenderer, placeDate, setWetness, setRain } from '@miragekit/core';
 import { buildWorld } from '@miragekit/world';
@@ -41,6 +42,13 @@ const world = createWorldRenderer({
     ...(Q.has('exp') ? { exposure: +Q.get('exp') } : {}), ...(Q.has('sat') ? { saturation: +Q.get('sat') } : {}), ...(Q.has('con') ? { contrast: +Q.get('con') } : {}), ...(Q.has('temp') ? { temperature: +Q.get('temp') } : {}) },
 });
 world.setTime(time);
+
+// ---- lens (opt-in, not part of the look pack): screen-space god rays and the sun's lens flare, as Nizwa's post.js
+// has them. With light2's volumetric light on (the look pack) the god rays weigh themselves down (post.godraysVol).
+if (Q.has('godrays')) world.post.godrays = +Q.get('godrays') || 0;
+if (Q.has('flare')) world.post.flare = +Q.get('flare') || 0;
+// ---- end lens
+
 if (Q.has('wet') || Q.has('rain')) { setWetness(+(Q.get('wet') ?? 0)); setRain(+(Q.get('rain') ?? 0)); }
 
 let play = null;
