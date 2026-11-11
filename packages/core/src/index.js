@@ -8,7 +8,7 @@ export { skyState, lightAt, gradeConfig, gradeAt, GRADE_PRESETS } from './daynig
 export { skyAt, placeDate, placeClock, dirFromAltAz } from './sky-time.js';
 export { createStars } from './stars.js';
 export { Pipeline, DEFAULT_POST } from './post.js';
-export { PostFX, FX_DEFAULTS, postFromQuery, parseCube, makeLut, lutTexture, apertureRadius, halton } from './postfx.js';
+export { PostFX, FX_DEFAULTS, postFromQuery, parseCube, makeLut, lutTexture, apertureRadius, halton, lensDirtMask } from './postfx.js';
 export { LIGHT2_DEFAULTS, light2Config, installLight2, addLampSource, LampShadows } from './light2.js';
 export { SOFTSHADOW_DEFAULTS, softShadowConfig, installSoftShadows } from './softshadow.js';
 export { createLighting, CSM_DEFAULTS, GI_DEFAULTS, BOUNCE_DEFAULTS, LIGHTS_DEFAULTS, PROBE_DEFAULTS, SCREEN_DEFAULTS, SCREEN_POST } from './lighting.js';

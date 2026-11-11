@@ -861,6 +861,8 @@ export class Pipeline {
     this._bloomMip = null;
     if (!setOnly && P.godrays > 0) this._fx().godrays(P, this._cam, this._jk, this._volKey, live);   // the sun's shafts, bloomed with the rest
     const expK = P.bloomPyramid > 0 && P.bloom > 0 ? this._fx().bloom(P) : this._bloom(P);
+    if (!setOnly && P.lensDirt > 0) this._fx().lensDirt(P, P.exposure * expK);   // a dirty lens lit by the bright light, after the bloom
+    if (!setOnly && P.streak > 0) this._fx().streak(P, P.exposure * expK);   // anamorphic streaks, after the bloom
     if (!setOnly && P.flare > 0) this._fx().flare(P, this._cam, live);   // the sun's lens flare, after the bloom
     if (P.grade && !this.graded) this.useGrade();
     const gm = (!setOnly && (P.lut || P.chroma > 0) && this._fx().grade(P)) || this.grade;

@@ -4,7 +4,10 @@ import type { Pipeline, PostSettings } from './post.js';
 
 /** The post settings postfx.js adds to DEFAULT_POST: everything off. */
 export const FX_DEFAULTS: Pick<PostSettings, 'taa2' | 'upscale' | 'motionBlur' | 'motionBlurMax' | 'bokeh' | 'bokehMax' | 'bloomPyramid' | 'lut' | 'lutStrength' | 'chroma' | 'rcas'
-  | 'godrays' | 'godraysDecay' | 'godraysThreshold' | 'godraysVol' | 'flare'>;
+  | 'godrays' | 'godraysDecay' | 'godraysThreshold' | 'godraysVol' | 'flare' | 'lensDirt' | 'lensDirtThreshold' | 'streak' | 'streakThreshold' | 'streakLength' | 'streakTint'>;
+/** post.lensDirt's mask as plain data: one byte per texel (row 0 at the bottom), made in code from the seed: a mottle,
+ *  soft blotches, dried drops, wiped streaks, specks. The same seed gives the same bytes. */
+export function lensDirtMask(options?: { width?: number; height?: number; seed?: number }): Uint8Array;
 /** Element i >= 1 of the Halton sequence in `base` (0..1). */
 export function halton(i: number, base: number): number;
 /** The lens radius (m) of a focal length (mm) at an f-number: post.dof for a real lens. */
@@ -17,7 +20,8 @@ export function parseCube(text: string): LutData;
 export function makeLut(fn: (rgb: [number, number, number]) => [number, number, number], size?: number): LutData;
 /** The table as a texture for post.lut (linear filtered, half float). */
 export function lutTexture(lut: LutData): THREE.Data3DTexture;
-/** Post settings from URL flags: taa2, upscale, mb, bokeh, lens, focus, bloom, bloom2, chroma, rcas, godrays, flare, lut=warm|cool|bleach; ssr, ssrrough, ssgi, girange, girays, contact (lighting.screen). */
+/** Post settings from URL flags: taa2, upscale, mb, bokeh, lens, focus, bloom, bloom2, chroma, rcas, godrays, flare, dirt (lensDirt), streak,
+ *  streakthr, streaklen, lut=warm|cool|bleach; ssr, ssrrough, ssgi, girange, girays, contact (lighting.screen). */
 export function postFromQuery(query: URLSearchParams): Partial<PostSettings>;
 /** The passes behind those settings; the Pipeline makes one on first use (pipeline.fx). */
 export class PostFX {
@@ -39,5 +43,10 @@ export class PostFX {
   godrays(post: PostSettings, camera: THREE.Camera, jitter?: number, light2Vol?: boolean, live?: boolean): void;
   /** The sun's lens flare added after the bloom; visibility from 16 depth taps over the sun's disc. */
   flare(post: PostSettings, camera: THREE.Camera, live?: boolean): void;
+  /** post.lensDirt: the dirt mask lit by a wide blur of the frame's light above post.lensDirtThreshold, added after the
+   *  bloom. exposure: the grade's (post.exposure x the bloom's factor; auto exposure is read on the GPU). */
+  lensDirt(post: PostSettings, exposure: number): void;
+  /** post.streak: anamorphic streaks of the light above post.streakThreshold, added after the bloom. */
+  streak(post: PostSettings, exposure: number): void;
   dispose(): void;
 }
