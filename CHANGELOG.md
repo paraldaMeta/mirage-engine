@@ -10,6 +10,13 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
   `@mirage-engine` are taken on npm). Imports change from `@mirage/...` to `@miragekit/...`; nothing else does.
 - `.github/workflows/release.yml` publishes them to npm with provenance after the owner approves (docs/releasing.md).
 
+**New**
+- @miragekit/core: the dusk sky (opt-in, `createWorldRenderer({ sky: { dusk: true } })`, `SKY_DUSK_DEFAULTS`):
+  twilight colours (a warm horizon under the set Sun, Earth's shadow, a blue hour), a hazier horizon by day, airglow
+  toward the horizon and a night dome seen darker than the light it gives, the world's far haze below the horizon
+  instead of black, altocumulus clouds at a fuller default cover. Off, the sky is bit-identical; on, +0.2–0.4 ms with
+  the sky filling a 1440 x 900 frame. nizwa-probe and hello-courtyard: `?sky=dusk`.
+
 **Fixes**
 - `mirage-package` (single-file builds) no longer inlines three's default Draco and Basis decoder files (~2.5 MB),
   which three's DRACOLoader and KTX2Loader name at module top level; Mirage's `createAssets` always sets its own

@@ -10,6 +10,7 @@ import type { Lighting, LightingOption } from './lighting.js';
 import type { SkyTime, SkyState, LightState } from './daynight.js';
 import type { Place } from './sky-time.js';
 import type { Quality, DeviceProfile } from './device.js';
+import type { SkyOption } from './sky.js';
 
 export type XYZ = readonly [number, number, number];
 export type RenderCamera = THREE.PerspectiveCamera | THREE.OrthographicCamera;
@@ -21,6 +22,9 @@ export interface WorldRendererOptions {
   /** Missing fields keep their defaults (lat 0, lon 0, height 0, tzHours 0). */
   place?: Partial<Place>; time?: SkyTime; shadow?: ShadowRegion; envProbe?: XYZ;
   envIntensity?: number; envFade?: number; wind?: NonNullable<Parameters<typeof createEnv>[0]>['wind'];
+  /** Opt-in sky looks (off by default): `{ dusk: true }` twilight colours, a darker night dome, a hazy horizon,
+   *  altocumulus (sky.js). Without it the sky renders exactly as before. */
+  sky?: SkyOption;
   clouds?: number; fog?: Partial<{ density: number; groundDensity: number; height: number; air: number; level: number; color: number; glow: number }>;
   post?: Partial<PostSettings>; preserveDrawingBuffer?: boolean; mobile?: boolean; byteTargets?: boolean; shadowMapSize?: number; spp?: number;
   /** A multisampled, XR-compatible context, so a WebXR session (@miragekit/play/xr) gets MSAA. Pass `(await xrSupport()).vr`. */
