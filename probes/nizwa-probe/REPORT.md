@@ -94,7 +94,7 @@ Nizwa: 55,859 lines in `src/` (core 6,039; world 31,230; ten maps 16,297; walk, 
 | `device.js` | `ctx.device` | `device.js` | equivalent |
 | `shots.js`, `main.js` film path | 10 shots, per-shot shadow fit, exclusions, fades | `play/timeline.js`, `renderFrame` | no shot format; **not tested** |
 | `tools/render.mjs` (117 lines) | film to ffmpeg | `mirage-snap --seq --video` | exists; **not tested** with Nizwa's shots |
-| `walk.js` (822 lines) | collision probes, baked `walkgrid.bin` | `@mirage/play` walk grid | works on the fort (section 3) |
+| `walk.js` (822 lines) | collision probes, baked `walkgrid.bin` | `@miragekit/play` walk grid | works on the fort (section 3) |
 | characters (`life-people.js`, `assets/life/*.bin`) | own instanced skinning | `play/crowd.js`, `rig-character.js` | **not tested**; different data format |
 | terrain worker, falaj water, vegetation | own modules | `world/kits/terrain`, `water`, `vegetation` | **not tested**; Nizwa's are far more specific |
 | far-lamp splash sprites (`props.js`) | lamps beyond 16 m | none | **missing**: see section 3 |
@@ -205,7 +205,7 @@ Estimates, from this one module. The unit is one agent working session of the si
 | terrain, vegetation, falaj water | about 9,000 | bridge plus texture arrays, worker, wind, custom depth materials | 3 to 5 | low: not tried |
 | life (people, animals) | about 2,500 + 5 MB data | own skinning; keep as is or move to `play/crowd` | 2 to 4 | low: not tried |
 | ten maps | 16,297 | bridge, plus per-map sky and fixed hours | 4 to 6 | low: not tried |
-| walk, embed, the game's hand-over | 2,185 | replace with `@mirage/play`; the game embeds Nizwa through `embed.js` | 3 to 5 | low |
+| walk, embed, the game's hand-over | 2,185 | replace with `@miragekit/play`; the game embeds Nizwa through `embed.js` | 3 to 5 | low |
 | film (10 shots, `render.mjs`) | 342 | shot format and per-shot post on Mirage (gap 8) | 2 to 3 | low |
 | Mirage gaps 1 to 5 | new engine code | must stay opt-in and keep stills bit-identical | 5 to 8 | medium |
 

@@ -12,9 +12,9 @@
     "bench": "node tools/bench.mjs"
   },
   "dependencies": {
-    "@mirage/core": "1.0.0",
-    "@mirage/play": "1.0.0",
-    "@mirage/world": "1.0.0",
+    "@miragekit/core": "1.0.0",
+    "@miragekit/play": "1.0.0",
+    "@miragekit/world": "1.0.0",
     "three": "0.186.1"
   },
   "devDependencies": {

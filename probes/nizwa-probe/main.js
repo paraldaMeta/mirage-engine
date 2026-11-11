@@ -10,9 +10,9 @@
 //      ?gi=1 [&gispacing=4]  Mirage's probe GI (bounce light), for the comparison with Nizwa's irradiance volume
 //      ?wet=0..1 &rain=0..1 are accepted but only Mirage-made materials get wet (REPORT.md)
 import * as THREE from 'three';
-import { createWorldRenderer, placeDate, setWetness, setRain } from '@mirage/core';
-import { buildWorld } from '@mirage/world';
-import { createPlay } from '@mirage/play';
+import { createWorldRenderer, placeDate, setWetness, setRain } from '@miragekit/core';
+import { buildWorld } from '@miragekit/world';
+import { createPlay } from '@miragekit/play';
 import plan from './plan.js';
 import modules from './modules/index.js';
 import { nizwaContext } from './compat/ctx.js';

@@ -4,7 +4,7 @@
 //   Nizwa    layout (L), geom (Builder), rng (its own generator: the same seeds give the same fort), the material
 //            library and the texture layer (through compat/patch.js), doors
 import * as THREE from 'three';
-import { createLod } from '@mirage/core';
+import { createLod } from '@miragekit/core';
 import * as geom from '@nizwa/core/geom.js';
 import { rng } from '@nizwa/core/rng.js';
 import { materials, patch, std, phys, glow, PROC, depthMaterialFor, setLampLevel } from '@nizwa/core/materials.js';
