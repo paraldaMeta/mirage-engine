@@ -47,8 +47,8 @@ export default {
     // ---- the stairs: flight A climbs north along the west side to a landing at half height, flight B back south
     const mid = RF / 2, xa = [s0, s0 + S.width], xb = [s1 - S.width, s1], landN = S.foot - (S.risers - 1) * S.tread;
     for (let i = 0; i < S.risers - 1; i++) {
-      slab(b, M.steel, [xa[0], S.foot - (i + 1) * S.tread, xa[1], S.foot - i * S.tread], 0, (i + 1) * S.rise);
-      slab(b, M.steel, [xb[0], landN + i * S.tread, xb[1], landN + (i + 1) * S.tread], 0, mid + (i + 1) * S.rise);
+      slab(b, M.concrete, [xa[0], S.foot - (i + 1) * S.tread, xa[1], S.foot - i * S.tread], 0, (i + 1) * S.rise);
+      slab(b, M.concrete, [xb[0], landN + i * S.tread, xb[1], landN + (i + 1) * S.tread], 0, mid + (i + 1) * S.rise);
     }
     slab(b, M.steel, [s0, t0, s1, landN], 0, mid);                                        // the half landing
     slab(b, M.steel, [s0, S.foot, s1, t1], RF - 0.2, RF);                                 // the top landing, over the way in
