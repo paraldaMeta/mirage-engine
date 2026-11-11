@@ -9,6 +9,8 @@
 //   pickLang(Q, saved, navigatorLanguages)   ?lang= first, then the saved choice, then the browser's language
 //   setLang(l)        the table, <html lang>, the CJK font stack; then every onLang listener
 //   LANG_ORDER        the order the switch cycles through; LANG_NAMES what each language calls itself
+// a whole number with thousands separators (the end card's money)
+const num = (v) => String(Math.round(v)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 const EN = {
   title: 'NEON DISTRICT', subtitle: 'Take the relay pass · reach the roof · hold the uplink',
   vitals: 'VITALS', gun: 'K-7 CARBINE', down: 'DOWN', assist: 'ASSIST', uplink: 'UPLINK', uplinkReady: 'UPLINK READY · CLEAR THE ROOF', metres: 'M',
@@ -140,6 +142,16 @@ const EN = {
     heat: 'HEAT', vent: 'OVERHEATED · VENTING', spin: 'SPIN',
   },
   // ---- @miragekit/play's corner (quality, frames a second, power saver)
+  // the destructibles (destruct.js): a civilian felled by the player, the HUD's count, the end card's lines
+  dx: {
+    warn: (n) => `CIVILIAN DOWN  −${n}`,
+    tally: (n, p) => `civ ${n} −${num(p)}`,
+    civRadio: ['That was a civilian. They are the ones not shooting at you.', "Bystander down. I'll leave that out of the report. I won't.", 'That unit was on its way to buy noodles. It is not now.',
+      'Civilian. Aim at the ones with red eyes.', 'Noted. The city will send you the invoice.', "Another one. You know they don't respawn."],
+    props: (v) => `Property damage: ${num(v)} credits`,
+    civ: (n, p) => (n ? `Civilian casualties: ${n} (−${num(p)} points)` : 'Civilian casualties: none'),
+    remarks: ['The district barely noticed you were here.', 'Someone will have to sweep up. It will not be you.', 'The insurers have been informed. They asked for your name.', 'The district has filed a complaint about you specifically.'],
+  },
   corner: { quality: 'Quality (reloads the page)', saver: 'Power saver', idle: 'idle', levels: { low: 'low', medium: 'medium', high: 'high' } },
   // ---- the engine's own overlay (@miragekit/game createUI: the pause menu, its panels, the message button)
   engine: {
@@ -282,6 +294,14 @@ const ZH = {
     locked: '尚未解鎖 · 按 0', unlocked: '火箭筒與加特林已解鎖 · 4 與 5', refilled: '火箭與加特林彈鼓已補滿', wait: (s) => `${s} 秒後可再補充`,
     unlockRadio: '重火力到手了。火箭能直接打碎護盾。加特林要先轉起來，而且會過熱。',
     heat: '熱度', vent: '過熱 · 散熱中', spin: '轉速',
+  },
+  dx: {
+    warn: (n) => `平民倒下  −${n}`,
+    tally: (n, p) => `平民 ${n} −${num(p)}`,
+    civRadio: ['那是平民。不朝你開槍的那種。', '路人倒下。我不會寫進報告。我會。', '那台機器本來要去買麵。現在不用去了。', '平民。瞄準眼睛是紅色的那些。', '記下了。市政府會把帳單寄給你。', '又一個。它們可不會重生。'],
+    props: (v) => `財物損失：${num(v)} 信用點`,
+    civ: (n, p) => (n ? `平民傷亡：${n}（扣 ${num(p)} 分）` : '平民傷亡：無'),
+    remarks: ['這個街區幾乎沒發現你來過。', '總得有人來掃地。不會是你。', '已經通知保險公司了。他們問了你的名字。', '整個街區對你個人提出了申訴。'],
   },
   corner: { quality: '畫質（會重新載入頁面）', saver: '省電模式', idle: '閒置', levels: { low: '低', medium: '中', high: '高' } },
   engine: {
@@ -426,6 +446,14 @@ const JA = {
     locked: 'ロック中 · 0 で解放', unlocked: 'ロケットランチャーとガトリング解放 · 4 と 5', refilled: 'ロケットとガトリングのドラムを補充', wait: (s) => `補充まで ${s}秒`,
     unlockRadio: '重火器が手に入ったな。ロケットはシールドを砕く。ガトリングは回るまで時間がかかるし、熱くなる。',
     heat: '熱', vent: 'オーバーヒート · 冷却中', spin: '回転',
+  },
+  dx: {
+    warn: (n) => `民間人ダウン  −${n}`,
+    tally: (n, p) => `民間人 ${n} −${num(p)}`,
+    civRadio: ['今のは民間人だ。撃ってこない方のな。', '民間人ダウン。報告書には書かないでおく。嘘だ。', 'あの機体はラーメンを買いに行くところだった。もう行かない。', '民間人だ。狙うのは目が赤い方だ。', '記録した。請求書は市から届く。', 'また一体。あいつらは復活しないぞ。'],
+    props: (v) => `器物損壊：${num(v)} クレジット`,
+    civ: (n, p) => (n ? `民間人の被害：${n}（−${num(p)}点）` : '民間人の被害：なし'),
+    remarks: ['街区はお前が来たことにほとんど気づいていない。', '誰かが掃除することになる。お前じゃない。', '保険会社には連絡済みだ。お前の名前を聞かれた。', '街区がお前個人を名指しで苦情を出した。'],
   },
   corner: { quality: '画質（ページを再読み込み）', saver: '省電力', idle: '待機中', levels: { low: '低', medium: '中', high: '高' } },
   engine: {

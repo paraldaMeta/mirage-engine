@@ -123,14 +123,23 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
     if (/glass|window|pane/i.test(hit.object.name + (m.name || ''))) return 'glass';
     return (m.metalness ?? 0) > 0.5 ? 'metal' : 'concrete';
   }
-  /** one ray: the world, then whoever stands in front of it */
-  function cast(d, range) {
-    const o = camera.position.toArray(), dv = d.toArray();
-    const hit = physics.ray(o, dv, range, player.collider());
+  /** one ray: the world, then whoever stands in front of it; with a damage, the props on the way first (destruct.js:
+   *  thin ones let the round through with less, a civilian or a crate stops it): k is what is left for the robot */
+  function cast(d, range, dmg = 0, pellets = 1) {
+    const o = camera.position.toArray(), dv = d.toArray(), P = api.props;
+    const hit = P ? P.worldRay(o, dv, range) : physics.ray(o, dv, range, player.collider());   // (the props' proxies stepped over: the props answer for themselves)
     const wt = hit ? hit.distance : range;
-    const eh = targets.rayHit(o, dv, wt);
-    const t = eh ? eh.t : wt;
-    return { o, d: dv, hit: eh ? null : hit, eh, t, end: [o[0] + dv[0] * t, o[1] + dv[1] * t, o[2] + dv[2] * t] };
+    let eh = targets.rayHit(o, dv, wt), k = 1, impact = null, stop = -1;
+    if (P && dmg > 0) {
+      const pr = P.shoot(o, dv, eh ? eh.t : wt, dmg, pellets, A.id);
+      if (pr.count) {
+        const h = pr.hits[Math.min(pr.count, pr.hits.length) - 1];
+        impact = { cls: h.class, point: h.point.slice(), normal: h.normal.slice(), actor: !!h.item.actor };
+        if (pr.stopped === 'item') { stop = h.t; eh = null; } else k = pr.frac;
+      }
+    }
+    const t = eh ? eh.t : stop >= 0 ? stop : wt;
+    return { o, d: dv, hit: eh || stop >= 0 ? null : hit, eh, t, k, impact, end: [o[0] + dv[0] * t, o[1] + dv[1] * t, o[2] + dv[2] * t] };
   }
   const RANK = { hit: 0, head: 1, shield: 2, kill: 3 };
   function shoot() {
@@ -143,13 +152,13 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
       const sp = spread(), pellets = A.pellets || 1, results = new Map();
       let mark = null, decals = 0;
       for (let k = 0; k < pellets; k++) {
-        const r = cast(aimDir(sp, tmp.clone()), A.range);
+        const r = cast(aimDir(sp, tmp.clone()), A.range, A.damage, pellets);
         if (!A.tracer?.every || n % A.tracer.every === 0) if (k < 4 || R() < 0.4) vfx.beam({ from: mz.toArray(), to: r.end, width: A.tracer.width, color: A.tracer.color, intensity: 4, life: A.tracer.life });
         if (r.eh) {
           const eh = r.eh, fall = A.falloff ? (eh.t < A.falloff[0] ? 1 : eh.t > A.falloff[1] ? A.falloff[2] : 1 - (1 - A.falloff[2]) * (eh.t - A.falloff[0]) / (A.falloff[1] - A.falloff[0])) : 1;
           const info = { ...eh, shieldK: A.shieldK && eh.t < A.shieldRange ? A.shieldK : 1 };
           stats.lastHead = !!eh.head;
-          const killed = eh.owner.damage(eh.e, A.damage * fall, eh.head, eh.point, r.d, info), kind = killed ? 'kill' : eh.part ? 'shield' : eh.head ? 'head' : 'hit';
+          const killed = eh.owner.damage(eh.e, A.damage * fall * r.k, eh.head, eh.point, r.d, info), kind = killed ? 'kill' : eh.part ? 'shield' : eh.head ? 'head' : 'hit';
           stats.hits += pellets > 1 ? 1 / pellets : 1; if (eh.head && pellets === 1) stats.heads++;
           const was = results.get(eh.e);
           if (!was || RANK[kind] > RANK[was.kind]) results.set(eh.e, { kind, point: eh.point, eh });
@@ -161,6 +170,9 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
           if (decals++ < (pellets > 1 ? 3 : 1)) vfx.decal({ position: [r.end[0] + nrm[0] * 0.02, r.end[1] + nrm[1] * 0.02, r.end[2] + nrm[2] * 0.02], normal: nrm, size: (pellets > 1 ? 0.09 : 0.16) + R() * 0.06, depth: 0.2, pattern: 'scorch', life: 25, fade: 4, opacity: 0.85 });
           if (k < 2 && R() < 0.7) say('nd_imp_' + surfaceOf(h), { at: r.end, gain: 0.55, ref: 3, rate: 0.95 + R() * 0.1 });
         }
+        // a prop it went into or through: the impact by what it is made of (its particles are the props' own)
+        if (r.impact && k < 2 && (A.id !== 'gatling' || n % 3 === 0)) say(api.props.impactSound(r.impact.cls), { at: r.impact.point, gain: 0.5, ref: 3, rate: 0.95 + R() * 0.1 });
+        if (r.impact?.actor) mark = mark || 'hit';
       }
       for (const { kind, point } of results.values()) {
         sfx.play(kind === 'kill' ? 'nd_kill' : kind === 'shield' ? 'nd_shieldhit' : kind === 'head' ? 'nd_head' : 'nd_hit', { gain: kind === 'kill' ? 0.8 : 0.55 });
@@ -261,7 +273,9 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
       r.t += dt;
       const s = r.vel.map((v) => v * dt), len = Math.hypot(...s), dir = s.map((v) => v / (len || 1));
       const hit = physics.ray(r.pos, dir, len + 0.05, player.collider()), eh = targets.rayHit(r.pos, dir, hit ? hit.distance : len + 0.05) || near(r.pos);
-      if (eh) { explode(eh.point, dir, eh); r.live = false; }
+      const ph = api.props && r.t > 0.03 ? api.props.touch(r.pos, dir, eh ? eh.t ?? len : hit ? hit.distance : len + 0.05) : null;   // a prop in the way (a car, a machine, a civilian)
+      if (ph) { explode(ph.point, dir, null); r.live = false; }
+      else if (eh) { explode(eh.point, dir, eh); r.live = false; }
       else if (hit) { explode([hit.point[0] + hit.normal[0] * 0.25, hit.point[1] + hit.normal[1] * 0.25, hit.point[2] + hit.normal[2] * 0.25], dir, null, hit.normal); r.live = false; }
       else if (r.t > 4) { explode(r.pos.slice(), dir); r.live = false; }
       else { for (let k = 0; k < 3; k++) r.pos[k] += s[k]; r.o.position.set(...r.pos); }
@@ -298,6 +312,8 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
     // the player is not spared
     const pf = [player.feet[0], player.feet[1] + 1, player.feet[2]], dp = Math.hypot(pf[0] - p[0], pf[1] - p[1], pf[2] - p[2]);
     if (dp < r) { const self = dmg * ARM.rocket.selfK * (1 - dp / r) * (assist ? 0.15 : 1); if (self > 0.5) { player.hurt(self, p); flags('selfDamage', Math.round(self)); } }
+    // the props in reach: the rocket's blast is wider and harder on them than on the robots (it throws, folds, dents)
+    if (api.props) { const res = api.props.blast(p, r, dmg); let br = 0; for (const x of res) if (x.item.broken) br++; if (br) flags('rocketProps', br); }
     if (hits) hud.hit(kills ? 'kill' : 'hit');
     if (kills) feel?.kill();
     const dc = camera.position.distanceTo(tmp.set(...p));
@@ -334,7 +350,8 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
     S.jab = 0.6; S.cool = Math.max(S.cool, 0.45);
     fwd.set(Math.cos(play.pitch) * Math.cos(play.yaw), Math.sin(play.pitch), Math.cos(play.pitch) * Math.sin(play.yaw));
     const o = camera.position.toArray(), d = fwd.toArray(), eh = targets.rayHit(o, d, 2.3);
-    say(eh ? 'nd_imp_armour' : 'nd_impact', { gain: eh ? 0.9 : 0.35, rate: eh ? 0.8 : 0.5 });
+    const pm = !eh && api.props ? api.props.melee(o, d) : null;   // no robot within reach: a prop (a crate, a pane, a can)
+    say(eh ? 'nd_imp_armour' : pm?.count ? api.props.impactSound(pm.hits[0].class) : 'nd_impact', { gain: eh || pm?.count ? 0.9 : 0.35, rate: eh ? 0.8 : 0.5 });
     if (eh) { stats.lastHead = false; stats.meleeNow = true; const killed = eh.owner.damage(eh.e, 85, false, eh.point, d, { ...eh, melee: true }); stats.meleeNow = false; hud.hit(killed ? 'kill' : 'hit'); S.shake += 0.6; feel?.hit(0.5); stats.melee = (stats.melee || 0) + 1; if (killed) feel?.kill(); }
     return true;
   }
@@ -475,6 +492,8 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
   function fill1(id, units) { const a = ARM[id], w = W[id], n = Math.min(a.max - w.reserve, Math.max(1, Math.round(units * a.per))); w.reserve += n; return n; }
   const api = {
     S, holder, models, reload, update, melee, select, cycle, spread, W, ARMS, eject,
+    /** the breakable props (destruct.js, set by index.js): rounds, blasts and the stock go through them */
+    props: null,
     get id() { return cur; }, get arm() { return A; }, get switchingTo() { return S.switching?.to || null; }, get unlocked() { return unlocked; },
     start(p) { play = p; grid = p.grid; S.lastYaw = S.markY = p.yaw; S.lastPitch = S.markP = p.pitch; },
     /** units of ammunition to the gun in hand (or the emptiest that takes them); all: half as much to the others too.
