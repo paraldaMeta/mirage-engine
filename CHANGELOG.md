@@ -22,6 +22,10 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
   it with a full redraw). A static object that moves without `mgDynamic` is now not refreshed by a mover's redraw
   (call `invalidate()`, or `split: false`). neon-district: 160 draws and 262 k triangles a frame less at the street
   view, medium, while its robots walk.
+- @miragekit/core: the lamp pool's per-pixel loop (`lampPool`) reads a lamp's position and range first and skips it
+  when the pixel is out of reach before fetching the rest of its record (three texel fetches became one for most of
+  a cell's list: a cell lists every lamp whose sphere touches it); the wall and the eye fade are tested before the
+  falloff. The same light (the factors are the same, multiplied in another order).
 - @miragekit/tools: lighting-check's shadow-cache assertions run on moving frames (a still lays the atlas out afresh
   since the stills fix, so "no redraw while nothing moves" failed on every still); it checks the split tile too.
 

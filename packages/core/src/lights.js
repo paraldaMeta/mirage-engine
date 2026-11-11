@@ -344,10 +344,12 @@ void main() { gl_FragDepth = clamp( textureLod( tCube, mgOctDec( vUv ), 0.0 ).r 
       L.dirty = false; info.redraws++;
     }
     for (const [o] of movers || []) o.visible = true;
-    // then the moving casters alone, over the static tiles (every other top-level object hidden for the batch)
+    // then the moving casters alone, over the static tiles (every other top-level object hidden for the batch; the
+    // lights stay: a light missing from a render changes three's light state, and every lit material of the next
+    // render looks its program up again)
     if (split.length) {
       const off = [];
-      for (const o of scene.children) if (o.visible && !movers.some(([m]) => m === o)) { o.visible = false; off.push(o); }
+      for (const o of scene.children) if (o.visible && !o.isLight && !movers.some(([m]) => m === o)) { o.visible = false; off.push(o); }
       for (const L of split) fold(L, atlas, foldMin);
       for (const o of off) o.visible = true;
     }

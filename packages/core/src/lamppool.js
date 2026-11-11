@@ -144,13 +144,18 @@ if ( mgPA.y > 0.5 ) {
 		if ( k >= mgCount ) break;
 		int j = mgBase + k;
 		int li = int( mgPF( ${rows.index * TW} + ( j >> 2 ) )[ j & 3 ] );
-		vec4 la = mgPF( li * ${REC} ), lb = mgPF( li * ${REC} + 1 ), lc = mgPF( li * ${REC} + 2 );
+		// (the position and range first: a cell lists every lamp whose sphere touches it, and most pixels of a cell are
+		// out of reach of some of them; those cost one fetch, not three)
+		vec4 la = mgPF( li * ${REC} );
 		vec3 L = la.xyz - mgQ; float dist = length( L );
 		if ( dist >= la.w ) continue;
-		float att = getDistanceAttenuation( dist, la.w, lb.w );
+		float att = 1.0 - smoothstep( mgPA.z, mgPA.w, distance( la.xyz, cameraPosition ) );
 		// the wall the lamp hangs on: nothing behind it
+		vec4 lc = mgPF( li * ${REC} + 2 );
 		if ( lc.x != 0.0 || lc.y != 0.0 || lc.z != 0.0 ) att *= smoothstep( - mgPC.y, 0.0, dot( lc.xyz, mgQ ) + lc.w );
-		att *= 1.0 - smoothstep( mgPA.z, mgPA.w, distance( la.xyz, cameraPosition ) );
+		if ( att <= 0.0 ) continue;
+		vec4 lb = mgPF( li * ${REC} + 1 );
+		att *= getDistanceAttenuation( dist, la.w, lb.w );
 		if ( att <= 0.0 ) continue;
 		L /= dist;
 		#ifdef MG_LS
