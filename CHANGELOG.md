@@ -4,6 +4,14 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
 
 ## Unreleased
 
+**New**
+- @miragekit/core: bounce light (`lighting: { bounce: true | { min, max, spacing, ... } }`; experimental, opt-in,
+  `docs/lighting.md`): one-bounce light from sunlit walls into the shade beside them and the sky occlusion of lanes,
+  as a factor (local / reference) on the image-based diffuse light, gathered from a height field of the built scene
+  (ported from the Nizwa Golden Hour project's irradiance volume). Nizwa Fort: ~10 ms height field + 30-40 ms bake
+  (42,240 probes) where `gi` took 51 s; stills bit-identical when off and between runs; eased re-bakes as the
+  clock runs. `probes/nizwa-probe/?bounce=1`, hello-courtyard `?bounce=1`.
+
 **Changes in behaviour**
 - The packages are named `@miragekit/core`, `@miragekit/world`, `@miragekit/play`, `@miragekit/game`,
   `@miragekit/net`, `@miragekit/editor` and `@miragekit/tools` (were `@mirage/*`, never published: `@mirage` and
@@ -15,6 +23,8 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
   which three's DRACOLoader and KTX2Loader name at module top level; Mirage's `createAssets` always sets its own
   decoder paths. hello-courtyard 5.32 -> 2.79 MB, walled-garden -> 2.83 MB (the site's 5 MB budget had stopped the
   1.0.0 site build). `--keep-three-decoders` keeps them for a page that uses the loaders without a decoder path.
+- `lighting` worlds compile the lit programs WITH the environment in `prepare()` too (the variants the lighting
+  parts act on); they were linked one by one in the first capture: about 25 s of the fort's 51 s `gi=1` start.
 
 ## 1.0.0 — 2026-11-11 (tagged `v1.0.0`; not published to npm)
 

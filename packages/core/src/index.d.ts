@@ -12,7 +12,7 @@ export { PostFX, FX_DEFAULTS, postFromQuery, parseCube, makeLut, lutTexture, ape
 export type { LutData } from './postfx.js';
 export { LIGHT2_DEFAULTS, light2Config, installLight2, addLampSource, LampShadows } from './light2.js';
 export { SOFTSHADOW_DEFAULTS, softShadowConfig, installSoftShadows } from './softshadow.js';
-export { createLighting, CSM_DEFAULTS, GI_DEFAULTS, LIGHTS_DEFAULTS, PROBE_DEFAULTS, SCREEN_DEFAULTS, SCREEN_POST } from './lighting.js';
+export { createLighting, CSM_DEFAULTS, GI_DEFAULTS, BOUNCE_DEFAULTS, LIGHTS_DEFAULTS, PROBE_DEFAULTS, SCREEN_DEFAULTS, SCREEN_POST } from './lighting.js';
 export { patch, createMaterials, PROC } from './materials.js';
 export { NOISE_GLSL } from './noise.js';
 export { rng, hash32, sfc32, valueNoise2, fbm2 } from './rng.js';
@@ -46,7 +46,7 @@ export type { WetOptions } from './wet.js';
 export type { Quality, DeviceProfile } from './device.js';
 export type { SoftShadowSettings, SoftShadowOption } from './softshadow.js';
 export { writeGLB } from './gltf-write.js';
-export type { Lighting, LightingOption, CsmSettings, GiSettings, LightsSettings, ReflectionProbe } from './lighting.js';
+export type { Lighting, LightingOption, CsmSettings, GiSettings, BounceSettings, LightsSettings, ReflectionProbe } from './lighting.js';
 export { createSimplifier, simplify, createChain } from './simplify.js';
 export type { SimplifyMesh, SimplifiedLevel, Simplifier, LodChain } from './simplify.js';
 export { chunkGeometry, chunkObject } from './chunk.js';

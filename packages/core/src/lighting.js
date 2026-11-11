@@ -1,6 +1,6 @@
 // Mirage original code.
 // ---------------------------------------------------------------------------
-// Realtime lighting features, all opt-in: createWorldRenderer({ lighting: { csm, gi, probes, lights } }).
+// Realtime lighting features, all opt-in: createWorldRenderer({ lighting: { csm, gi, bounce, probes, lights, screen } }).
 //
 //   const world = createWorldRenderer({ lighting: { csm: true, gi: { min, max, spacing: 2 } } });
 //   world.lighting.addLight(new THREE.PointLight(0xffaa66, 40, 9), { shadow: true });   // clustered local light
@@ -14,11 +14,13 @@
 import { createInjector } from './inject.js';
 import { csmConfig, createCsm } from './csm.js';
 import { giConfig, createGi } from './gi.js';
+import { bounceConfig, createBounce } from './bounce.js';
 import { lightsConfig, createLights } from './lights.js';
 import { probesConfig, createProbes } from './probes.js';
 import { screenConfig, createScreen } from './screen.js';
 export { CSM_DEFAULTS } from './csm.js';
 export { GI_DEFAULTS } from './gi.js';
+export { BOUNCE_DEFAULTS } from './bounce.js';
 export { LIGHTS_DEFAULTS } from './lights.js';
 export { PROBE_DEFAULTS } from './probes.js';
 export { SCREEN_DEFAULTS, SCREEN_POST } from './screen.js';
@@ -38,6 +40,11 @@ export function createLighting(w, config) {
   const gcfg = giConfig(cfg.gi);
   const gi = gcfg ? createGi({ renderer, scene, capture: (fn) => api.capture(fn), skyVisible: w.skyVisible }, gcfg) : null;
   if (gi) { inj.add(gi.part); features.gi = gi; hooks.push(gi); }
+  // one-bounce light from a height field (bounce.js): a factor on the image-based diffuse light
+  const bcfg = bounceConfig(cfg.bounce);
+  const bounce = bcfg ? createBounce({ renderer, scene, sun, G: w.G, keyDir: w.keyDir, Q: w.Q, envProbe: w.envProbe, shadow: w.shadow, msaa: w.msaa, skyVisible: w.skyVisible }, bcfg) : null;
+  if (bounce) { inj.add(bounce.part); features.bounce = bounce; hooks.push(bounce); }
+  if (bounce && gi) console.warn('[lighting] gi and bounce both act on the image-based diffuse light: use one per area');
   const pcfg = probesConfig(cfg.probes);
   const probes = pcfg ? createProbes({ renderer, scene, capture: (fn) => api.capture(fn) }, pcfg, { size: (w.Q && w.Q.envSize) || 256 }) : null;
   if (probes) { inj.add(probes.part); features.probes = probes; hooks.push(probes); }
@@ -49,7 +56,7 @@ export function createLighting(w, config) {
   const screen = scfg ? createScreen({ renderer, scene, sun }, scfg) : null;
   if (screen) { inj.add(screen.part); features.screen = screen; hooks.push(screen); }
   const api = {
-    injector: inj, csm, gi, probes, lights, screen, features, hooks,
+    injector: inj, csm, gi, bounce, probes, lights, screen, features, hooks,
     /** hand a THREE.PointLight / SpotLight (already in the scene) to the clustered path; { shadow: true } gives it a tile of the shadow atlas */
     addLight(light, o) { if (!lights) { console.warn('[lighting] addLight needs lighting: { lights: true }'); return false; } return lights.add(light, o); },
     removeLight(light) { return !!lights && lights.remove(light); },
