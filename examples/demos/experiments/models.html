@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <link rel="icon" href="data:,">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mirage experiment · staged models on a neutral stage</title>
+  <!-- an experiment page, not a packaged demo: serve the repository root (three from node_modules);
+       @miragekit/core is a two-name shim so the example's car builder can be imported read-only -->
+  <script type="importmap">{ "imports": {
+    "three": "/node_modules/three/build/three.module.js", "three/addons/": "/node_modules/three/examples/jsm/",
+    "@miragekit/core": "./shim-core.js" } }</script>
+  <style>
+    html, body { margin: 0; height: 100%; background: #2a2c2f; overflow: hidden; font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; color: #e8e4dc; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <canvas></canvas>
+  <script type="module" src="./models.js"></script>
+</body>
+</html>
