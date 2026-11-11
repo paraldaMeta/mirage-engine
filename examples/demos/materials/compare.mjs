@@ -33,7 +33,7 @@ export const PAIRS = [
   { ref: 'wood_old', s: 'wood:planks', opts: { color: [0.12, 0.09, 0.062], roughness: 0.68, board: [0.285, 2.0], along: 'v', latewood: [0.7, 0.66, 0.62], age: 0.8 } },
   { ref: 'wood_teak', s: 'wood:varnished', opts: { color: [0.09, 0.03, 0.008], roughness: 0.7 } },
   { ref: 'iron_rusty', s: 'paintedMetal:sheet', opts: { color: [0.62, 0.62, 0.6], roughness: 0.5, chips: 0.5, rust: 0.8, streaks: 1 } },
-  { ref: 'canvas', s: 'fabric:canvas', opts: { color: [0.64, 0.635, 0.62], roughness: 0.55, thread: 0.0022 } },
+  { ref: 'canvas', s: 'fabric:canvas', opts: { color: [0.66, 0.655, 0.64], roughness: 0.55, thread: 0.0035 } },
   { ref: 'gravel', s: 'roofing:gravel', opts: { color: [0.27, 0.15, 0.07] } },
   { ref: 'plaster_weathered', s: 'render:smooth', opts: { color: [0.18, 0.105, 0.045], roughness: 0.9, cracks: 0.35 } },
   // proxy: no scan of concrete in the set; a grey trowelled cement plaster has the same laitance, pits and relief scale

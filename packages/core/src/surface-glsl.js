@@ -1092,21 +1092,32 @@ MsS ms_fabric(vec2 u){
   float k = msLod(p);
   // plain weave: warp threads along v, weft along u, over and under in a checker; each thread a slightly different tone
   float over = mod(c.x + c.y, 2.0);
-  float warp = sin(MS_PI * f.x) * (0.75 + 0.25 * sin(MS_PI * f.y + MS_PI * over));
-  float weft = sin(MS_PI * f.y) * (0.75 + 0.25 * sin(MS_PI * f.x + MS_PI * (1.0 - over)));
-  float wh = over > 0.5 ? max(warp, weft * 0.7) : max(weft, warp * 0.7);
-  float th = mgHash3(vec3(mod(over > 0.5 ? c.x : c.y + 1000.0, msT / p), 2.0, msSeed)).x;
+  // every thread its own thickness along its length (slubs: thick runs 1..4 cm, thin stretches), so the crowns
+  // swell and shrink and the weave reads irregular from a metre away
+  float tW = mgHash3(vec3(mod(c.x, msT / p), 2.0, msSeed)).x, tF = mgHash3(vec3(mod(c.y, msT / p), 5.0, msSeed)).x;
+  float sW = msFbm2(vec2(u.x, u.y) + vec2(tW * 9.0, 0.0), vec2(0.5 / p, 30.0), 2), sF = msFbm2(u + vec2(0.0, tF * 9.0), vec2(30.0, 0.5 / p), 2);
+  float gW = clamp(0.8 + 0.5 * sW + 0.25 * (tW - 0.5), 0.45, 1.3), gF = clamp(0.8 + 0.5 * sF + 0.25 * (tF - 0.5), 0.45, 1.3);
+  float warp = pow(max(sin(MS_PI * f.x), 0.0), 1.0 / gW) * gW * (0.7 + 0.3 * sin(MS_PI * f.y + MS_PI * over));
+  float weft = pow(max(sin(MS_PI * f.y), 0.0), 1.0 / gF) * gF * (0.7 + 0.3 * sin(MS_PI * f.x + MS_PI * (1.0 - over)));
+  float wh = over > 0.5 ? max(warp, weft * 0.65) : max(weft, warp * 0.65);
+  float th = over > 0.5 ? tW : tF;
   float fuzz = msFbm(u, 900.0, 2) * msLod(0.0006) * msC.y;
-  float m1 = msFbm(u, 1.2, 3), slub = msFbm2(u, vec2(2.0, 60.0), 2);
+  float m1 = msFbm(msWarp(u, 2.0, 0.03), 1.2, 4), slub = msFbm2(u, vec2(2.0, 60.0), 2);
   vec3 base = msA.rgb;
   if (msB.a > 0.0) base = mix(msA.rgb, msB.rgb, step(0.5, fract(u.x / (2.0 * msSnap(msB.a)))));
-  float slub2 = msFbm2(u + 5.0, vec2(0.8, 25.0), 3), slub3 = msFbm2(u + 9.0, vec2(25.0, 0.8), 3);
-  vec3 col = base * (0.9 + 0.08 * m1 + 0.1 * slub + 0.08 * slub2 + 0.08 * slub3) * mix(1.0, 0.8 + 0.28 * wh + 0.1 * (th - 0.5), k);
-  // the cloth is never flat: soft creases and puckers at 3..15 cm
-  float crease = msFbm(u + 2.0, 9.0, 4);
-  float h = mix(0.5, 0.25 + 0.55 * wh, k) * 0.7 + 0.25 * (crease * 0.5 + 0.5) + 0.05 * fuzz + 0.04 * slub;
-  float r = msA.a + 0.04 * fuzz;
-  float ao = mix(1.0, 0.75 + 0.25 * wh, k);
+  // tone: thread to thread, along the slubs (thick runs a little paler), a few dark flecks (dirt, seeds), grime in
+  // the creases
+  vec2 fleck = msSpeck(u + 3.0, 60.0, 0.035, 0.25, 1.0);
+  vec3 col = base * (0.97 + 0.1 * m1 + 0.06 * slub) * mix(1.0, (0.88 + 0.6 * (wh - 0.5) + 0.3 * (th - 0.5)) * (1.0 + 0.2 * ((over > 0.5 ? sW : sF))), k);
+  col *= 1.0 - 0.45 * fleck.x * (0.5 + fleck.y);
+  // the cloth is never flat: puckers and crumple at 1..15 cm, a few sharp creases (folded and pressed)
+  float crumple = msFbm(msWarp(u + 2.0, 12.0, 0.01), 9.0, 5);
+  vec4 cr = msCell(msWarp(u + 6.0, 5.0, 0.02), 4.0, 1.0);
+  float crease = msLine((cr.y - cr.x) * msT / msP(4.0) * 0.5, 0.0012) * smoothstep(0.5, 0.8, msFbm(u + 1.0, 2.0, 2) * 0.5 + 0.5);
+  float h = mix(0.5, 0.2 + 0.6 * wh, k) * 0.62 + 0.3 * (crumple * 0.5 + 0.5) + 0.05 * fuzz + 0.04 * slub - 0.2 * crease;
+  col *= (1.0 - 0.18 * crease) * (0.94 + 0.12 * (crumple * 0.5 + 0.5));
+  float r = msA.a + 0.04 * fuzz + 0.06 * (1.0 - wh) * k;
+  float ao = mix(1.0, 0.82 + 0.18 * wh, k) * (1.0 - 0.3 * crease);
   if (V > 0.5 && V < 1.5) {
     // tarpaulin: a PVC coat over a coarse scrim: the grid shows faintly through, glossier
     float sp = msSnap(0.004);
