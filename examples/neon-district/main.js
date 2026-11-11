@@ -10,6 +10,7 @@
 //      ?vol=0|1 (volumetric lamps, light2)  ?taa2=0|1 ?mb=0..1 ?bloom2=0|1 ?lut=0|1 ?chroma=N ?upscale=0.5..1
 //      ?grade=0|1 (the hour's look) ?dusk=0|1 (the dusk sky) ?pool=0|1 (the lamp pool) ?bounce=0|1 ?godrays=0|1 ?flare=0|1
 //      ?time=night | dusk | day | dawn | HH:MM (in the game: T steps through them, the options panel has a slider)
+//      ?detail=0..1 (how much optional dressing: low 0.4, medium 0.8, high 1)   ?skip=module,module (leave modules out)
 //      ?wet=0..1 ?rain=0..1   ?big=chunk,occ,lod (docs/big-worlds.md)   ?lamps=N (N extra lamps: the cluster test)
 import * as THREE from 'three';
 import { createWorldRenderer, pickQuality, setWetness, setRain, addLampSource, makeLut, lutTexture, createVfx } from '@miragekit/core';
@@ -91,8 +92,10 @@ const world = createWorldRenderer({
   },
 });
 
-const shared = { quality: on('shadows') ? quality : 'low', gi: !!lighting.gi };
-const built = await buildWorld(world, { plan, modules, shared });
+// detail: how much optional dressing the modules build (crowds, traffic, balcony life, the far skyline): phones stay light
+const shared = { quality: on('shadows') ? quality : 'low', gi: !!lighting.gi, detail: Q.has('detail') ? +Q.get('detail') : { low: 0.4, medium: 0.8, high: 1 }[quality] ?? 1 };
+const skip = (Q.get('skip') || '').split(',');                                                     // ?skip=aerial,grime: build without those modules (A/B timing)
+const built = await buildWorld(world, { plan, modules: modules.filter((m) => !skip.includes(m.name)), shared });
 for (let i = 0, n = +Q.get('lamps') || 0; i < n; i++) {                                           // ?lamps=N: the clustered-light test
   const l = new THREE.PointLight(new THREE.Color().setHSL((i * 0.618) % 1, 0.8, 0.55), 6 * world.G.uLampGain.value, 7, 2);
   l.position.set(-32 + ((i * 7.3) % 64), 1.2 + (i % 5) * 0.7, 2.5 + ((i * 3.1) % 7)); world.scene.add(l); world.lighting.addLight(l);

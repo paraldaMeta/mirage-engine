@@ -295,8 +295,69 @@ code (Rapier's WASM is 2.2 MB of it); there are no assets.
 
 ---
 
+## The megacity pass (density, advertising, street life, the city overhead)
+
+Learned from the big open-world cyberpunk RPGs set in a Californian megacity: their methods only (vertical density,
+advertising on every surface, people on the street, traffic in the air, yellow-on-black angular graphics). Every
+brand, slogan, logo and motif here is invented for this district; nothing was copied.
+
+- **Surface detail where the player stands** (`kit.js`, `materials.js`, `shopfronts.js`): roller shutters and
+  container walls are corrugated geometry, not boxes; a worn-paint hook (chips to primer and bare steel, rust run down
+  from rows of fixings, tide marks, a wet foot) on shutters, the container, crates, ducts, junction boxes and the
+  ribbed sheet; concrete bleeds rust from some tie holes; the facades get a paint per face, panels repainted at
+  different times and rust runs under the sills (the day look is less grey-green); hazard paint on the barrier tops
+  and on the kerbs at the alley's mouth and the plaza's way in; cast manhole covers.
+- **Shop fronts with depth** (`shopfronts.js`, called by `street.js`): bevelled piers and fascias, open shops lit
+  inside (interior mapping: a box ray-cast behind the glass with shelves of goods, a counter and the keeper's
+  silhouette), shutters part way down, striped awnings, light-box names from one atlas; the street doctor's clinic
+  (`plan.shopfronts.clinic`).
+- **Advertising** (`adverts.js`, `plan.adverts`): six portrait totems on the walls (16 invented ads in one atlas,
+  page changes with a glitch, LED grid and scan lines in the shader), a ticker running round block e's corner, and a
+  30 m jellyfish hologram over the plaza selling a soda, its bell pulsing, tentacles swaying, a ring of text turning.
+- **The city above** (`aerial.js`, `arcology.js`): three lanes of flying cars (instanced hulls, head and tail lights,
+  trails), a corporate transport circling with two searchlight cones; the HOKUTEN arcology (four setbacks to 230 m,
+  a twin, three glazed sky-bridges, external lifts, a 64 m vertical name, red warning lights) built round the two
+  skyline towers north of the relay; a ring of 150 far towers with tiny lit windows in the fog.
+- **Street life and grime** (`streetlife.js`, `grime.js`): people under the awnings, at the cart, the stall and the
+  machines (umbrellas with lit rims, visors, arm strips), five walking a loop east of the fight; a yakitori stall in a
+  shipping container under the gallery; vending rows in the alley and by the plaza; cables and junction boxes across
+  the alley, a duct, dripping pipes, bags, crates, puddles for the planar mirror, striped barricades, wayfinding,
+  district numbers, balcony laundry, dishes and grow-light plants (`facades.js`).
+- **The owner's signs**: `facades.js` keeps every wall sign of the plan (and the LED walls, the ticker, the alley's
+  number) clear of balconies, units, ribs, fins, pipes, cables and fire escapes (`kit.js` `signRects`); the alley's
+  third pipe, bulb string and washing line and the bulb string by the arcade were moved off the five signs.
+- **Density follows quality**: `ctx.shared.detail` (main.js: low 0.4, medium 0.8, high 1, `?detail=` overrides)
+  thins people, traffic, balcony life, bag heaps and the far skyline. `?skip=module,...` builds without modules.
+
+Measured (M4 Pro, 1440 x 900, headless Chrome, `out/` A/B script: both builds as pages of one Chrome, rounds
+interleaved; other agents' GPU jobs were running, so the before numbers are higher than the table above):
+
+| variant | alley | street west | bar inside | plaza | roof vista | calls, triangles (street) |
+|---|---|---|---|---|---|---|
+| before, game, low | 8.6 [8.4-9.1] | 9.6 [9.5-10.4] | 7.3 [7.1-7.9] | 8.1 [8.0-8.6] | 9.2 [8.8-9.6] | 522, 284 k |
+| after, game, low | 11.3 [10.9-13.6] | 12.3 [11.8-15.2] | 7.9 [7.4-8.3] | 9.0 [8.4-10.1] | 11.7 [11.1-13.7] | 626, 331 k |
+| before, game, medium | 16.0 [15.0-18.7] | 17.6 [17.2-20.4] | 12.3 [12.0-15.1] | 14.3 [13.7-17.0] | 16.4 [15.9-19.2] | 1227, 1037 k |
+| after, game, medium | 19.0 [18.5-21.9] | 20.8 [19.8-23.7] | 15.0 [14.9-18.2] | 16.7 [16.6-19.6] | 19.0 [18.4-21.8] | 1376, 1129 k |
+| before, game, high | 18.6 [17.8-20.0] | 20.5 [19.7-22.6] | 15.5 [15.2-16.5] | 17.0 [16.3-21.0] | 19.0 [18.3-23.9] | 1732, 1316 k |
+| after, game, high | 21.9 [21.3-26.5] | 23.7 [23.0-30.7] | 17.5 [16.9-22.9] | 19.1 [18.7-23.9] | 22.1 [22.0-24.8] | 1984, 1480 k |
+
+So the pass costs about 2.5 ms at medium and 2 to 4 ms at high on a loaded machine (rounds 5, 40 moving frames a
+view; the brackets are wide because of the other jobs). Not yet measured on a quiet machine: by the ratio it would
+put medium near 14 to 16.5 ms (street west the worst) and high near 15.5 to 18.5 ms; the playtest's own frame-cost
+step (medium, 1280 x 720, street west) read 15.7 ms. Triangles: the scene's own geometry (meshes x instances, medium)
+went from 196 k to 269 k; drawn per frame at street west (every pass: shadow tiles, the mirror) 1037 k to 1129 k at
+medium, 1316 k to 1480 k at high. Low still rises 0.6 to 2.7 ms: its share is the shaders and lamps, not the
+counts that `detail` thins (`?detail=0.4` at medium saved only 0.1 to 0.3 ms).
+
+What is still rough: people are low-poly silhouettes that read as mannequins up close and by day; walkers slide
+through each other at the loop's ends; the fake interiors are the same box for every shop (only the light and the
+goods change) and show no reflection of the street; the ticker's glyphs are canvas text, so the far half of the ring
+on the jellyfish reads mirrored; flying cars have no lights on the ground and their trails are straight; the
+arcology's lower half is hidden from the plaza by the skyline tower in front, and its faces use the shared window
+shader (no balconies or greebles up there); the searchlights light nothing; the stall's lanterns are flat spheres.
+
 Each module owns one section below; only its owner writes there. Build order: ground, blocks, facades,
-megastructure, street, clutter, bar, relay, plaza, signs.
+megastructure, street, clutter, bar, relay, plaza, adverts, aerial, arcology, streetlife, grime, signs.
 
 ## ground
 
@@ -356,7 +417,8 @@ entrance. Soft and small things are decor; the cart, scooters, bins, gantry post
 Ten lamp posts (a shadowed lamp each, a 0.3 m collider proxy), jersey barriers on the road and planters on the
 plaza (`plan.cover`), three parked cars, shutters / doors / awnings along both pavements, wall plant, four vending
 machines, bollards along the plaza's edge (proxies), the alley's dumpsters, crates, pipes, fence and bulb strings,
-and a sheet wall with barriers at both ends of the street. Reads: `lamps`, `cover`, `cars`, `street`, `alley`.
+and a sheet wall with barriers at both ends of the street. Reads: `lamps`, `cover`, `cars`, `street`, `alley`,
+`shopfronts`. The shop fronts are built by `shopfronts.js` (open shops, shutters, doors, the clinic); they cast no shadows.
 
 | key | pos is | count |
 |---|---|---|
@@ -408,3 +470,37 @@ in the walk grid), two kiosks, four benches, two advertising pylons, light strip
 Consumes `signs` (required), `beacons`, `holos`. A board is a dark box with a glowing face 14.5 cm off the wall; a
 blade sticks out of the wall with a face on both sides; each gets one clustered lamp of its colour (range 5 to 22 m
 by its area; the three largest are also volumetric). Beacons blink on the scene clock.
+
+## adverts
+
+`plan.adverts`: portrait totems on walls (`totems`: [x, z, rotY]), the ticker (`ticker`: y, h, a path round a
+corner), the jellyfish hologram (`jelly`: its bell's centre), `walls` (rectangles that facades.js keeps clear).
+Screens are one shader over a canvas atlas of invented ads (the quad's uv.x carries its index); one pool lamp per
+totem, one per long ticker run, one under the hologram. Decor.
+
+## aerial
+
+`plan.traffic` (lanes: y, two points, craft each way, speed, spacing) and `plan.transport` (an ellipse, period).
+Five instanced meshes for all the cars, moved in onUpdate on the scene clock; the transport is a group with two
+additive searchlight cones. Decor, no shadows, no lamps.
+
+## arcology
+
+`plan.arcology`: rect, height, twin. Swallows the two skyline towers it stands round. Setbacks in the facade
+materials, sky-bridges, lifts (instanced cabins on the clock), the vertical name (a canvas), warning lights
+(instanced, blinking together) and the far ring of towers (instanced boxes, a window shader). Decor.
+
+## streetlife
+
+`plan.streetlife`: people, walkers, vending rows, the stall. People are four instanced meshes (body, legs, accents,
+umbrellas) posed in onUpdate; the stall and the machines are solid (one proxy for the container).
+
+| key | pos is | count |
+|---|---|---|
+| `steam` | the stall's pot | 1 |
+
+## grime
+
+`plan.grime`: cables over the alley, a duct, dripping pipes (drops in the vertex shader), heaps, crates, puddles
+(cut-out glossy films the planar mirror sees), barricades (solid), wayfinding panels, stencilled numbers, floor
+marks (one atlas), manhole covers.

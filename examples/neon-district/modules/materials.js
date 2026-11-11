@@ -4,6 +4,7 @@
 // hooks scaled by the world's lamp gain (uLampGain), so they read the same at any exposure.
 import * as THREE from 'three';
 import { PROC, withWet } from '@miragekit/core';
+import { WORN_DECL } from './kit.js';
 
 // ---- facades: one window grid per style, lit rooms by a hash of the bay and the floor
 const FACADE_DECL = /* glsl */ `
@@ -38,6 +39,10 @@ const facade = (style) => {
       float grime = mgFbm3(p * vec3(0.45, 0.12, 0.45), 4);
       ndH = grime;
       vec3 c = ${S.base} * (0.75 + 0.5 * grime);
+      // paint: each face of a building its own colour (a hash of the face's plane), most of them muted
+      float fk = mgHash(vec3(floor(dot(p, n) + 0.5), floor(n.x * 3.0 + n.z * 7.0 + 0.5), ${S.bay.toFixed(1)}));
+      vec3 paint = fk < 0.2 ? vec3(1.25, 1.1, 0.88) : fk < 0.38 ? vec3(0.82, 1.08, 1.06) : fk < 0.52 ? vec3(1.2, 0.85, 0.72) : fk < 0.66 ? vec3(0.9, 0.95, 1.18) : fk < 0.74 ? vec3(1.15, 1.05, 0.6) : vec3(1.0);
+      c *= mix(vec3(1.0), paint, ${style === 'glass' ? '0.35' : '0.85'});
       c *= 1.0 - 0.3 * smoothstep(0.2, 0.9, mgFbm3(p * vec3(2.1, 0.11, 2.1) + 7.0, 3));          // rain streaks down the wall
       if (abs(n.y) < 0.5) {
         vec2 uv = ndWallUV(p, n), g = uv / vec2(${S.bay.toFixed(2)}, ${S.floor.toFixed(2)}), id = floor(g), f = fract(g);
@@ -47,6 +52,9 @@ const facade = (style) => {
         vec2 j = abs(f - 0.5) * 2.0;
         c *= 1.0 - 0.35 * (1.0 - w) * smoothstep(0.93, 0.99, max(j.x, j.y));
         vec3 room = ndRoom(id, seed, ${S.share.toFixed(2)});
+        c *= 0.9 + 0.2 * mgHash(vec3(id, seed + 9.0));                                                 // panels painted at different times
+        float run = smoothstep(0.72, 0.95, mgValue2(vec2(uv.x * 4.0, id.y * 3.1 + seed))) * (1.0 - smoothstep(0.0, 0.42, ${S.lo.split(',')[1]} - f.y)) * step(f.y, ${S.lo.split(',')[1]}) * step(4.4, p.y);
+        c = mix(c, vec3(0.16, 0.07, 0.03), 0.6 * run * (1.0 - w));                                      // rust run down from the sills
         // inside a lit room: a ceiling strip brighter than the floor, a blind part-way down, a little furniture noise
         float blind = step(fract(mgHash(vec3(id, seed + 3.0)) * 9.1), 0.35) * smoothstep(0.55, 0.6, f.y);
         float inside = (0.35 + 0.65 * smoothstep(0.2, 0.95, f.y)) * (0.7 + 0.3 * mgValue2(uv * vec2(2.3, 5.0))) * (1.0 - 0.6 * blind);
@@ -118,6 +126,9 @@ const CONCRETE = {
     float big = mgFbm3(p * 0.6, 4), fine = mgValue3(p * 22.0);
     ndH = 0.5 * big + 0.2 * fine - 0.6 * seam - 0.8 * hole;
     vec3 c = vec3(0.3, 0.3, 0.31) * (0.72 + 0.45 * big) * (0.9 + 0.2 * fine);
+    vec2 hc = floor(uv / vec2(1.2, 0.6));
+    float bleed = step(0.6, mgHash(hc + 31.0)) * (1.0 - smoothstep(0.006, 0.02, abs(q.x * 1.2) - 0.012 * fine)) * step(q.y * 0.6, 0.0) * (1.0 - smoothstep(0.0, 0.08 + 0.22 * mgHash(hc + 5.0), -q.y * 0.6));
+    c = mix(c, vec3(0.2, 0.08, 0.03), 0.7 * bleed * (1.0 - abs(n.y)));
     c *= 1.0 - 0.4 * seam - 0.6 * hole;
     c *= 1.0 - 0.32 * smoothstep(0.15, 0.85, mgFbm3(p * vec3(2.6, 0.13, 2.6) + 4.0, 3)) * (1.0 - abs(n.y));   // run-off
     c *= mix(0.62, 1.0, smoothstep(0.0, 1.0, p.y + 0.3 * big));                                                // a damp foot
@@ -125,7 +136,7 @@ const CONCRETE = {
   normal: 'normal = mgBump(normal, ndH, 0.01);',
 };
 const RIBBED = (base) => ({
-  fragmentDecl: 'float ndH;',
+  fragmentDecl: 'float ndH;' + WORN_DECL,
   albedo: /* glsl */ `{
     vec3 p = mgWorldPos, n = normalize(mgWorldNormal);
     float u = abs(n.x) > 0.5 ? p.z : p.x;
@@ -134,8 +145,10 @@ const RIBBED = (base) => ({
     float dirt = mgFbm3(p * vec3(1.3, 0.3, 1.3), 4);
     vec3 c = ${base} * (0.7 + 0.45 * dirt) * (0.85 + 0.15 * ndH);
     c = mix(c, vec3(0.16, 0.07, 0.035), 0.55 * smoothstep(0.25, 0.7, mgFbm3(p * vec3(3.0, 0.5, 3.0) + 11.0, 4)) * smoothstep(1.8, 0.0, p.y));
+    c = ndWorn(c, p, n, 0.9, 0.35, 0.55);
     diffuseColor.rgb *= c; }`,
-  normal: 'normal = mgBump(normal, ndH, 0.012);',
+  roughness: 'roughnessFactor = mix(roughnessFactor, 0.9, ndRust);',
+  normal: 'normal = mgBump(normal, ndH + 0.4 * ndWornH, 0.012);',
 });
 
 // ---- screens: scrolling glyph rows, driven by the scene clock
@@ -173,7 +186,11 @@ export function materials(ctx) {
     asphalt: mat.std({ roughness: 0.86 }, wet(ASPHALT, { porosity: 0.35, puddles: 1.5, height: 'ndH', heightMid: 0.5, heightScale: 0.02 })),
     pavement: mat.std({ roughness: 0.82 }, wet(slabs(1.2, 'vec3(0.27, 0.27, 0.275)', 0.035), { porosity: 0.5, puddles: 0.9, height: 'ndH', heightMid: 0.6, heightScale: 0.014 })),
     plaza: mat.std({ roughness: 0.42 }, wet(slabs(0.9, 'vec3(0.12, 0.125, 0.14)', 0.02), { porosity: 0.2, puddles: 1.1, height: 'ndH', heightMid: 0.65, heightScale: 0.012 })),
-    kerb: mat.std({ roughness: 0.8 }, wet(CONCRETE, { porosity: 0.6, puddles: 0 })),
+    kerb: mat.std({ roughness: 0.8 }, wet({ ...CONCRETE, albedo: CONCRETE.albedo.replace('diffuseColor.rgb *= c; }', `
+      float zone = step(abs(p.x - 18.0), 4.4) + step(abs(p.x + 22.0), 2.4) + step(abs(p.x - 7.0), 1.6);
+      float seg = step(0.5, fract((p.x + p.z) / 0.9)), wear = smoothstep(0.25, 0.6, mgFbm3(p * 2.3, 3) * 0.5 + 0.5);
+      c = mix(c, mix(vec3(0.55, 0.4, 0.02), vec3(0.025), seg) * (0.75 + 0.3 * big), min(zone, 1.0) * wear);
+      diffuseColor.rgb *= c; }`) }, { porosity: 0.6, puddles: 0 })),
     concrete: mat.std({ roughness: 0.88 }, wet(CONCRETE, { porosity: 0.8, puddles: 0, band: 0.5 })),
     concreteDry: mat.std({ roughness: 0.9 }, CONCRETE),                                              // indoors
     sheet: mat.std({ roughness: 0.5, metalness: 0.75 }, wet(RIBBED('vec3(0.32, 0.34, 0.38)'), { porosity: 0.1, puddles: 0 })),
@@ -184,7 +201,14 @@ export function materials(ctx) {
     darkMetal: mat.std({ color: rgb(0.035, 0.038, 0.045), metalness: 0.9, roughness: 0.42 }),
     blackMetal: mat.std({ color: rgb(0.012, 0.013, 0.016), metalness: 0.8, roughness: 0.5 }),
     grate: mat.std({ color: rgb(0.02, 0.022, 0.026), metalness: 1, roughness: 0.35 }),
-    yellow: mat.std({ color: rgb(0.55, 0.36, 0.03), roughness: 0.6, metalness: 0.2 }),
+    yellow: mat.std({ roughness: 0.6, metalness: 0.2 }, {
+      fragmentDecl: WORN_DECL,
+      albedo: `{ vec3 p = mgWorldPos, n = normalize(mgWorldNormal); float u = abs(n.y) > 0.5 ? p.x + p.z : (abs(n.x) > 0.5 ? p.z : p.x);
+        float s = step(0.5, fract((u + p.y) / 0.32));
+        diffuseColor.rgb *= ndWorn(mix(vec3(0.6, 0.42, 0.02), vec3(0.02), s), p, n, 0.5, 0.5, 0.4); }`,
+      roughness: 'roughnessFactor = mix(roughnessFactor, 0.9, ndRust);',
+      normal: 'normal = mgBump(normal, ndWornH, 0.004);',
+    }),
     rubber: mat.std({ color: rgb(0.012, 0.012, 0.013), roughness: 0.8 }),
     plastic: mat.std({ color: rgb(0.05, 0.055, 0.07), roughness: 0.45 }),
     crate: mat.std({ color: rgb(0.09, 0.11, 0.1), roughness: 0.6, metalness: 0.5 }),

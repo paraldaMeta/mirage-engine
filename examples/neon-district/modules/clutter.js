@@ -84,7 +84,7 @@ export default {
     for (let x = -31; x < 33; x += R.range(3.5, 6.5)) { const y = R.pick([5.4, 6.8, 8.6, 11.5]), mid = cable([x, y, S[1]], [x + R.range(-2.5, 2.5), y + R.range(-0.6, 0.6), S[3]], R.range(0.4, 1.1), R.pick([0.012, 0.02, 0.03])); if (R.chance(0.3)) fx.add(new THREE.SphereGeometry(0.09, 8, 6), M.sheet, geom.compose(mid)); }
     // ---- washing over the alley: two lines, cloth that hangs a little differently each
     const [ax0, , ax1] = plan.alley.rect;
-    for (const [z, y] of [[18.6, 5.6], [23.6, 6.6], [28.4, 5.2]]) {
+    for (const [z, y] of [[18.6, 5.6], [23.6, 6.6], [28.4, 6.9]]) {
       cable([ax0, y, z], [ax1, y - 0.2, z + 0.5], 0.25, 0.008);
       for (let x = ax0 + 0.5; x < ax1 - 0.4; x += R.range(0.55, 0.85)) {
         const w = R.range(0.35, 0.6), h = R.range(0.45, 0.85), t = (x - ax0) / (ax1 - ax0), sag = 0.25 * 4 * t * (1 - t);
