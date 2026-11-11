@@ -82,6 +82,8 @@ const reset = () => ev(() => { const { d, G, P } = window.__dx; clearInterval(wi
   console.log('registered', JSON.stringify(r.count));
   ok(r.owner.length === 5 && r.owner.every((o) => o[1]), `the owner's five signs registered protected: ${r.owner.map((o) => o[2].slice(0, 12)).join(' | ')}`);
   ok(r.count.total > 600, `props registered: ${r.count.total}`);
+  const cost = await ev(() => window.__dx.P.idleCost(600));
+  ok(cost.step + cost.post < 0.1, `idle (nothing broken): ${(cost.step * 1000).toFixed(1)} us a fixed step, ${(cost.post * 1000).toFixed(1)} us a frame for the civilians`);
 }
 
 // ---- families: rounds of the carbine (22) each takes

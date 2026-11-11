@@ -136,14 +136,14 @@ export function setupDestruct({ ctx, shared, vfx, sfx, player, weapon, enemies, 
   // ---- the dead neon tube: one instanced mesh of dark glass tubes, a slot per broken tube (no draw until one breaks)
   const deadMat = new THREE.MeshStandardMaterial({ color: 0x1a1d22, roughness: 0.25, metalness: 0.1 });
   const dead = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), deadMat, 64);
-  dead.name = 'destruct:dead-tubes'; dead.count = 0; dead.castShadow = false; dead.userData.collide = false; dead.userData.mgNoCapture = true; dead.frustumCulled = false; root.add(dead);
+  dead.name = 'destruct:dead-tubes'; dead.count = 0; dead.visible = false; dead.castShadow = false; dead.userData.collide = false; dead.userData.mgNoCapture = true; dead.frustumCulled = false; root.add(dead);
   const deadFree = [], ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
   let deadUsed = 0;
   const neonHandle = (draw, box) => {
     const hide = vertexSet(draw); let slot = -1, isDark = false;
     const m = new THREE.Matrix4().compose(new THREE.Vector3(...box.center), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), box.yaw || 0), new THREE.Vector3(box.half[0] * 2, box.half[1] * 2, box.half[2] * 2));
     return {
-      dark() { if (isDark) return; isDark = true; hide.apply(null, true); slot = deadFree.length ? deadFree.pop() : deadUsed++; if (slot < 64) { dead.setMatrixAt(slot, m); dead.count = Math.max(dead.count, slot + 1); dead.instanceMatrix.needsUpdate = true; } },
+      dark() { if (isDark) return; isDark = true; hide.apply(null, true); slot = deadFree.length ? deadFree.pop() : deadUsed++; if (slot < 64) { dead.setMatrixAt(slot, m); dead.count = Math.max(dead.count, slot + 1); dead.instanceMatrix.needsUpdate = true; dead.visible = true; } },
       lit() { if (!isDark) return; isDark = false; hide.restore(); if (slot >= 0 && slot < 64) { dead.setMatrixAt(slot, ZERO); dead.instanceMatrix.needsUpdate = true; deadFree.push(slot); } slot = -1; },
     };
   };
@@ -343,7 +343,7 @@ export function setupDestruct({ ctx, shared, vfx, sfx, player, weapon, enemies, 
     cars.set(e.id, car);
     car.body = add(e, { material: 'thinMetal', health: 620, box: e.box, stages: [{ at: 0.01, mark: 'dent' }], broken: null, lamps: [chan(lampsOf(e.lamps))], lampMode: 'flicker',
       behave: { alarm: { radius: 35, duration: 10 }, burn: { duration: 5, then: 'explode', at: 0.55, catch: ['blast', 'fire'] }, explosive: { delay: 0.15, radius: 7, damage: 300, falloff: 'linear' } },
-      onBreak: () => { for (const it of [...car.panes.map((p) => p.it), ...car.tyres]) if (!it.broken) d.break(it, { kind: 'blast', source: car.body }); car.char.set(0.16); burnOn(car, 14); } });
+      onBreak: () => { car.batch = true; for (const it of [...car.panes.map((p) => p.it), ...car.tyres]) if (!it.broken) d.break(it, { kind: 'blast', source: car.body }); car.batch = false; car.reshape(); car.char.set(0.16); burnOn(car, 14); } });
     car.char = glowSet(e.car);
     add({ id: e.id + '-cabin', fam: 'car-cabin' }, { material: 'thinMetal', health: 1e9, value: 0, box: e.cabin, stages: [], countAs: 'car-cabin',
       onHit: (ev) => { if (ev.kind !== 'blast' && !car.body.broken) d.damage(car.body, ev.damage / 0.6, ev.kind, { point: ev.point, dir: ev.dir, source: ev.source }); } });
@@ -351,6 +351,7 @@ export function setupDestruct({ ctx, shared, vfx, sfx, player, weapon, enemies, 
   function carParts(car) {
     const lv = new THREE.Vector3();
     const reshape = () => {
+      if (car.batch) return;   // (a car going off breaks every pane and tyre: one reshape after them)
       const drops = [...car.flat].map((it) => it.entry);
       const sink = (v) => {
         if (!drops.length) return;
@@ -605,6 +606,8 @@ export function setupDestruct({ ctx, shared, vfx, sfx, player, weapon, enemies, 
     /** the rating after the casualties: none -> as earned; any -> never the top, one step down per two more */
     rate(points, top = 3) { if (!score.civilians) return points; return Math.max(0, Math.min(points, top - 1) - Math.floor((score.civilians - 1) / 2)); },
     get dark() { return darkList.length; },
+    /** what the registry costs when nothing is broken: ms per fixed step and per frame's civilian pass (means of n) */
+    idleCost(n = 600) { let t = performance.now(); for (let i = 0; i < n; i++) d.step(); const step = (performance.now() - t) / n; t = performance.now(); for (let i = 0; i < n; i++) post(1 / 60); return { step, post: (performance.now() - t) / n }; },
     /** the tests: the score back to nothing */
     resetScore() { score.bill = 0; score.civilians = 0; score.others = 0; score.charged.clear(); score.billed.clear(); stats.civilians = 0; stats.penalty = 0; },
     /** a robot's round from `from` to `to` (what the tap does with every tracer; the tests call it) */
@@ -614,6 +617,17 @@ export function setupDestruct({ ctx, shared, vfx, sfx, player, weapon, enemies, 
     count: () => ({ ...fams, total: d.items.length }),
     dispose() { offPost?.(); dead.removeFromParent(); dead.geometry.dispose(); deadMat.dispose(); d.dispose(); },
   };
-  d.prewarm();
+  // ---- no hitch at the first break: the programs of what breaking shows (a pane's rim in each glass, a split crate, a
+  // dead tube, the extinguisher's cloud) are made while the game loads: a few hidden instances drawn for 20 frames
+  d.prewarm(); vfx.prewarm?.(d.effects.extinguisher);
+  {
+    const warm = new THREE.Group(), box = new THREE.BoxGeometry(1, 1, 1), tiny = new THREE.Matrix4().makeScale(1e-4, 1e-4, 1e-4);
+    const mk = (mat, shadow) => { const m = new THREE.InstancedMesh(box, mat, 1); m.setMatrixAt(0, tiny); m.frustumCulled = false; m.castShadow = shadow; m.receiveShadow = true; m.userData.collide = false; warm.add(m); };
+    for (const mat of new Set(d.items.filter((x) => x.brokenKind === 'pane' && x.handle.material?.transparent).map((x) => x.handle.material))) mk(mat, false);
+    mk(brokenWood, true); mk(deadMat, false);
+    warm.name = 'destruct:warm'; warm.userData.collide = false; root.add(warm);
+    let n = 0;
+    const off = world.ctx.onUpdate(() => { if (++n < 20) return; warm.removeFromParent(); box.dispose(); off?.(); });
+  }
   return api;
 }
