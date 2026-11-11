@@ -45,6 +45,13 @@ export const CSP = ["default-src 'self'", "script-src 'self' 'wasm-unsafe-eval' 
 
 const slugOf = (s) => String(s).normalize('NFKD').replace(/[^\w\s-]/g, '').trim().toLowerCase().replace(/[\s_]+/g, '-').replace(/-+/g, '-') || 'game';
 const HEX = /^#[0-9a-fA-F]{6}$/;
+// the start page's query string in a wrapper (e.g. 'platform=1'): plain key=value pairs only, so it cannot carry a
+// path, a fragment or another origin into the window's first URL
+function queryOf(q) {
+  const s = String(q ?? '').replace(/^\?/, '');
+  if (s && (!/^[\w.~%-]+(=[\w.~%,-]*)?(&[\w.~%-]+(=[\w.~%,-]*)?)*$/.test(s) || s.length > 200)) throw new Error(`query: key=value pairs joined by '&', like platform=1, got ${JSON.stringify(q)}`);
+  return s;
+}
 
 /** validated settings shared by every target; throws with the reason */
 export function shipConfig(o = {}) {
@@ -63,6 +70,7 @@ export function shipConfig(o = {}) {
   const [maj, min, pat] = version.split('.').map(Number);
   return {
     name, slug, id, version, orientation, theme: theme.toLowerCase(), background: background.toLowerCase(),
+    author: String(o.author || name).replace(/[\r\n]+/g, ' ').slice(0, 100), query: queryOf(o.query),
     shortName: String(o.shortName || name).slice(0, 12), description: String(o.description || `${name}, made with Mirage.`).replace(/[\r\n]+/g, ' '),
     lang: o.lang || 'en', width: 1280, height: 720, minWidth: 640, minHeight: 360, fullscreen: !!o.fullscreen,
     versionCode: maj * 10000 + min * 100 + pat,
@@ -267,15 +275,26 @@ const ELECTRON_README = (cfg) => `# ${cfg.name}: desktop build (Electron)
 
 Made by \`mirage-ship --target desktop-electron\`. The game is in \`www/\`; \`main.cjs\` opens it in one window.
 
-    npm install          # downloads Electron (about 100 MB) and electron-builder: your machine, your choice
+    npm install          # electron-builder, Electron's package, then its binary (about 100 MB, checked against
+                         # Electron's published SHA-256 sums): your machine, your choice. Electron 45 no longer
+                         # fetches the binary on install by itself; the postinstall script here runs install-electron.
     npm start            # run it
     npm run pack         # an unpacked app in dist/ (quick check)
-    npm run dist         # installers: dmg + zip (macOS), NSIS (Windows), AppImage (Linux), for the OS you run it on
+    npm run dist         # installers for the OS you run it on: dmg + zip (macOS), NSIS (Windows), AppImage (Linux)
+    npm run dist:win     # a Windows NSIS installer, also from a Mac or Linux (no Wine needed; it was not run on Windows here)
+
+Check it before you ship it (from the Mirage repository; it launches the app and drives it over the DevTools
+protocol: start, GPU, console, bridge, saves across a restart, window state, navigation, permissions, frame time):
+
+    node packages/tools/src/desktop-check.mjs <this folder> [--exe "dist/mac-arm64/<name>.app/Contents/MacOS/<name>"]
 
 What is set up: the high-performance GPU is asked for, the window comes back where it was (size, place,
 maximized, fullscreen), F11 / Alt+Enter toggle fullscreen, pointer lock and gamepads work as in Chrome, saves
 are files in the user's app-data folder (\`saves/\`), the page has no Node access, a Content-Security-Policy
-with no remote origin, no navigation away from the game.
+with no remote origin, no navigation away from the game, the window keeps the game's name as its title, a
+crashed page is reloaded once (a second crash within a minute quits with a message instead of looping), and the
+packaged app has Electron's fuses set: no ELECTRON_RUN_AS_NODE, no NODE_OPTIONS, no --inspect, code only from
+the app's own archive, checked against its hash.
 
 Before you give it to anyone: replace \`build/icon.*\` if they are the placeholder, and sign it. Signing is
 yours: an Apple Developer ID certificate plus notarization on macOS, a code-signing certificate on Windows.
@@ -295,17 +314,26 @@ const ENTITLEMENTS = `<?xml version="1.0" encoding="UTF-8"?>
 export function electronFiles(cfg, { icons }) {
   const pkg = {
     name: cfg.slug, productName: cfg.name, version: cfg.version, description: cfg.description, private: true, main: 'main.cjs',
-    scripts: { start: 'electron .', pack: 'electron-builder --dir', dist: 'electron-builder' },
+    author: cfg.author, scripts: { postinstall: 'install-electron', start: 'electron .', pack: 'electron-builder --dir', dist: 'electron-builder', 'dist:win': 'electron-builder --win nsis --x64' },
     devDependencies: { electron: VERSIONS.electron, 'electron-builder': VERSIONS['electron-builder'] },
     build: {
       appId: cfg.id, productName: cfg.name, asar: true, files: ['main.cjs', 'preload.cjs', 'www/**/*'], directories: { buildResources: 'build', output: 'dist' },
+      // Electron's fuses, flipped in the binary when it is packaged: the shipped app cannot be turned into a Node
+      // runtime (ELECTRON_RUN_AS_NODE, NODE_OPTIONS, --inspect) and loads code only from its own archive, checked
+      // against the hash written into the executable. The game never needs any of what is switched off.
+      // resetAdHocDarwinSignature: flipping a fuse edits the executable, which breaks its ad-hoc signature, and Apple
+      // Silicon kills an arm64 binary whose signature does not match (measured: the unsigned .app died at once with
+      // SIGKILL without it). It re-signs ad hoc; a real Developer ID signature still replaces that afterwards.
+      electronFuses: { runAsNode: false, enableNodeOptionsEnvironmentVariable: false, enableNodeCliInspectArguments: false,
+        enableEmbeddedAsarIntegrityValidation: true, onlyLoadAppFromAsar: true, enableCookieEncryption: true, grantFileProtocolExtraPrivileges: false,
+        resetAdHocDarwinSignature: true },
       // hardened runtime + the JIT entitlement: what notarization needs for a Chromium app
       mac: { category: 'public.app-category.games', target: ['dmg', 'zip'], hardenedRuntime: true, entitlements: 'build/entitlements.mac.plist', entitlementsInherit: 'build/entitlements.mac.plist' },
       win: { target: ['nsis'] },
       linux: { target: ['AppImage'], category: 'Game' },
     },
   };
-  const config = { name: cfg.name, background: cfg.background, width: cfg.width, height: cfg.height, minWidth: cfg.minWidth, minHeight: cfg.minHeight, fullscreen: cfg.fullscreen, csp: CSP };
+  const config = { name: cfg.name, background: cfg.background, width: cfg.width, height: cfg.height, minWidth: cfg.minWidth, minHeight: cfg.minHeight, fullscreen: cfg.fullscreen, csp: CSP, query: cfg.query };
   return new Map([
     ['package.json', json(pkg)],
     ['main.cjs', tpl('electron-main.cjs', { __CONFIG__: JSON.stringify(config, null, 2) })],

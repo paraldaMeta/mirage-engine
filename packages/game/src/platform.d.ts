@@ -47,7 +47,7 @@ export interface Platform {
 }
 export function createPlatform(options?: {
   canvas?: HTMLCanvasElement | null; play?: { wake?(): void } | null; game?: { paused: boolean; pause(on: boolean): void } | null; audio?: unknown;
-  saves?: { flush?(): Promise<void> } | null; target?: Element; pauseOnHide?: boolean; resumeOnShow?: boolean; wakeLock?: boolean;
+  saves?: { flush?(): Promise<void> } | null; target?: Element; pauseOnHide?: boolean; resumeOnShow?: boolean; pauseOnBlur?: boolean | (() => void); wakeLock?: boolean;
   native?: NativeBridge | null; win?: any; doc?: any; nav?: any;
 }): Platform;
 

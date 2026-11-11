@@ -125,6 +125,18 @@ function page({ native = null, hidden = false } = {}) {
   p.dispose();
   assert.equal(doc.count() + win.count() + orient.count() + ctx.count(), 0, 'dispose removes every listener'); assert.equal('--mirage-safe-top' in root.style.p, false);
 }
+{ // pauseOnBlur: off by default; true pauses on window blur; a function is called instead; never resumed by focus
+  for (const mode of [false, true, 'fn']) {
+    const { doc, win, nav } = page(); let called = 0;
+    const game = { paused: false, pause(on) { this.paused = on; } };
+    const p = createPlatform({ win, doc, nav, game, pauseOnBlur: mode === 'fn' ? () => { called++; game.pause(true); } : mode });
+    const log = []; p.on('pause', (d) => log.push(d.reason));
+    win.fire('blur'); win.fire('focus');
+    assert.equal(game.paused, mode !== false, `blur ${mode}`); assert.deepEqual(log, mode === false ? [] : ['blur']); assert.equal(called, mode === 'fn' ? 1 : 0);
+    win.fire('blur'); assert.equal(log.length, mode === false ? 0 : 1, 'an already paused game is left alone');
+    p.dispose(); win.fire('blur');
+  }
+}
 { // resumeOnShow, pauseOnHide: false, a page with nothing: every call answers instead of throwing
   const a = page(), game = { paused: false, pause(on) { this.paused = on; } };
   const p = createPlatform({ win: a.win, doc: a.doc, nav: a.nav, game, resumeOnShow: true });

@@ -102,10 +102,13 @@ export function inputMode({ nav = globalThis.navigator || {}, win = globalThis.w
 // ---------------------------------------------------------------------------
 // createPlatform. opts: { canvas, play, game, audio, saves, target (the element that goes fullscreen; the canvas'
 // parent by default so DOM overlays stay visible), pauseOnHide = true, resumeOnShow = false (a game that was paused
-// by a phone call stays paused, as store guidelines ask), wakeLock = false (true: held while visible), win, doc, nav }
+// by a phone call stays paused, as store guidelines ask), pauseOnBlur = false (true: pause when the window loses focus
+// while still on screen: Alt+Tab or Cmd+Tab away from a desktop window hides nothing; a function: called instead,
+// e.g. to open the pause menu), wakeLock = false (true: held
+// while visible), win, doc, nav }
 // ---------------------------------------------------------------------------
 export function createPlatform(opts = {}) {
-  const { canvas = null, play = null, game = null, saves = null, pauseOnHide = true, resumeOnShow = false } = opts;
+  const { canvas = null, play = null, game = null, saves = null, pauseOnHide = true, resumeOnShow = false, pauseOnBlur = false } = opts;
   const win = opts.win || globalThis.window, doc = opts.doc || globalThis.document, nav = opts.nav || globalThis.navigator || {};
   const native = opts.native === undefined ? nativeBridge(win) : opts.native;
   let audio = opts.audio || null;
@@ -137,6 +140,13 @@ export function createPlatform(opts = {}) {
     emit('resume', { reason });
   }
   listen(doc, 'visibilitychange', () => (doc.hidden ? hide('visibility') : show('visibility')));
+  // a desktop window behind another one stays visible and keeps running; a game the player switched away from
+  // should not. Paused only, never resumed by focus: the player comes back to the pause menu, not to a fight.
+  if (pauseOnBlur) listen(win, 'blur', () => {
+    if (hidden || !game || game.paused) return;
+    if (typeof pauseOnBlur === 'function') pauseOnBlur(); else game.pause(true);
+    emit('pause', { reason: 'blur' });
+  });
   // pagehide: the last event a mobile browser guarantees before it may kill the page; freeze: Chrome's tab freezing
   listen(win, 'pagehide', () => { saves?.flush?.(); emit('exit', {}); });
   listen(doc, 'freeze', () => hide('freeze'));
