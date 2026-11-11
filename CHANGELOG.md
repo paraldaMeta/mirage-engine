@@ -33,6 +33,23 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
   `examples/demos/ui/ui-check.mjs --only menu`. examples/neon-district: Traditional Chinese, English and Japanese,
   picked from the browser, switchable on the title and in the options (engine menu included), kept in the settings,
   `?lang=en|zh|ja`; its three tables are checked against each other (`examples/neon-district/scripts/i18n-check.mjs`).
+- @miragekit/core: a surface library made in code (`SURFACES`, `SURFACE_KINDS`, `METALS`, `createSurfaces`,
+  `surfaceHooks`, `bakeSurface`, `bakeDecalAtlas`, `noiseTexture`; experimental; `docs/surfaces.md`): 35 kinds
+  (concrete cast / board-formed / painted / precast, asphalt fresh / worn / patched with road paint, paving, brick,
+  render, ceramic tile, corrugated, painted steel with layered chips and rust, stainless, galvanised, cast iron,
+  aluminium, chrome, raw metals by F0, powder coat, car paint with clear coat, glass with Fresnel, plastics, rubber,
+  fabric, paper, wood with growth rings, bamboo, leather, carbon fibre, glazed ceramic, roofing; neon, fluorescent,
+  LED panel, LCD, light box, paper lantern, water, oil sheen), each a tileable GLSL recipe with macro / meso /
+  micro variation and a distance LOD, defaults in measured albedo / F0 and roughness ranges, metalness 0 or 1. Two
+  paths behind one call: per pixel, or baked once on the GPU into a mipmapped, anisotropic texture set (seeded,
+  cached; a street's twelve kinds in 40-70 ms) sampled with a repetition breaker; baked costs 0.3-0.6 ms above a
+  plain material per 1440 x 900 screen against 0.5-4 ms per pixel (`mode: 'auto'` bakes where that pays). A live
+  layer on both: world-space macro variation, dirt by cavity / foot / top, run-off, edge wear from curvature or an
+  `edge` attribute, weathering decals by rule (rills, damp, leaks, stains, soot, cracks). Mappings `tri`, `wall`,
+  `ground`, `grain` (u along any direction projected into each face), `uv`; `space: 'object'`. Materials of a kind
+  that differ by numbers share a program. Checked by `packages/core/surfaces.check.mjs` (in `npm test`) and
+  `packages/tools/src/surfaces-check.mjs` (Chrome: compiles, ranges read back, baked == procedural, determinism,
+  programs, bake budget); demo `examples/demos/materials` with its gallery shooter, bench and calibration tool.
 - @miragekit/core: the wet layer learns where water goes and how it looks in rain (ported from the rainy ship deck
   of the owner's Oman project, `withWet` options, all opt-in): `wear` (a GLSL float: ruts, a trodden path, joints,
   round drains; the water gathers there, `wearDepth` 0.016 m) and `shelter` (a number, a GLSL float or a `{ value }`
