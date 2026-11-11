@@ -1,6 +1,7 @@
 // The surface gallery: every surface (or the ones named) on its test objects under three lightings, dry and wet, from
 // 5 m and from 0.5 m, one contact sheet per surface in out/gallery/ (gitignored).
 // node examples/demos/materials/shoot.mjs [--only concrete,asphalt:worn] [--lights studio,golden,night] [--views far,near,wall,ground]
+//        [--vs out/materials-r1.html --vsName r1 --thisName r2]  side by side with another build
 //        [--wet 0,0.8] [--mode baked|procedural] [--w 960 --h 600] [--spp 8] [--no-package] [--opts '{"rust":0.8}' --name heavy]
 import fs from 'node:fs';
 import path from 'node:path';
@@ -25,6 +26,15 @@ page.on('console', (m) => { if (m.type() === 'error' || /error|warn/i.test(m.tex
 page.on('pageerror', (e) => errors.push(e.message));
 await page.goto(pathToFileURL(html) + `?ui=0&w=${W}&h=${H}&spp=${SPP}&mode=${MODE}`);
 await page.waitForFunction('window.__READY === true', { timeout: 180000, polling: 100 });
+// --vs <html>: the same shots from another build of the demo (an earlier round), side by side (that build | this one)
+const VS = arg('vs', '');
+let pageB = null;
+if (VS) {
+  pageB = await b.newPage();
+  pageB.on('pageerror', (e) => errors.push('vs: ' + e.message));
+  await pageB.goto(pathToFileURL(path.resolve(VS)) + `?ui=0&w=${W}&h=${H}&spp=${SPP}&mode=${MODE}`);
+  await pageB.waitForFunction('window.__READY === true', { timeout: 180000, polling: 100 });
+}
 const all = await page.evaluate(() => Object.entries(window.__mirage.SURFACE_KINDS).flatMap(([k, K]) => K.variants.map((v) => `${k}:${v}`)));
 const only = arg('only', '');
 const list = only ? all.filter((s) => only.split(',').some((o) => s === o || s.split(':')[0] === o)) : all;
@@ -32,12 +42,15 @@ const ONE = process.argv.includes('--one-sheet'), oneItems = [];
 for (const s of list) {
   const items = ONE ? oneItems : [];
   for (const light of LIGHTS) for (const wet of WETS) for (const view of VIEWS) {
-    const data = await page.evaluate((o) => { window.__mirage.show(o); return window.__mirage.still(); }, { s, light, wet, view, mode: MODE, opts: OPTS, matOpts: MOPTS, box: process.argv.includes('--box') });
-    items.push({ label: ONE ? `${s} ${light[0]}${wet ? ' wet' : ''} ${view}` : `${light} ${wet ? 'wet' : 'dry'} ${view}`, data });
+    const o = { s, light, wet, view, mode: MODE, opts: OPTS, matOpts: MOPTS, box: process.argv.includes('--box') };
+    const data = await page.evaluate((o) => { window.__mirage.show(o); return window.__mirage.still(); }, o);
+    const label = ONE ? `${s} ${light[0]}${wet ? ' wet' : ''} ${view}` : `${light} ${wet ? 'wet' : 'dry'} ${view}`;
+    if (pageB) items.push({ label: `${arg('vsName', 'before')} ${label}`, data: await pageB.evaluate((o) => { window.__mirage.show(o); return window.__mirage.still(); }, o) });
+    items.push({ label: pageB ? `${arg('thisName', 'now')} ${label}` : label, data });
   }
   if (ONE) continue;
   const note = await page.evaluate((k) => { const K = window.__mirage.SURFACE_KINDS[k.split(':')[0]], v = k.split(':')[1]; const R = (K.refs.variants || {})[v] || K.refs; return `albedo ${R.albedo.join('-')}, roughness ${R.rough.join('-')}, metal ${R.metal}: ${R.note}`; }, s);
-  const sheet = await page.evaluate(sheetInPage, items, { cols: VIEWS.length, tw: 480, title: `${s} (${MODE}) | ${note}` });
+  const sheet = await page.evaluate(sheetInPage, items, { cols: pageB ? 2 : VIEWS.length, tw: pageB ? 560 : 480, title: `${s} (${MODE}) | ${note}` });
   const file = path.join(outDir, `${s.replace(':', '-')}${NAME ? '-' + NAME : ''}.png`);
   fs.writeFileSync(file, Buffer.from(sheet.split(',')[1], 'base64'));
   console.log(file);

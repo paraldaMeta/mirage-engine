@@ -156,7 +156,7 @@ MsS ms_concrete(vec2 u){
   col *= (1.0 + 0.1 * prim) * (1.0 - 0.5 * pore);
   // relief: the pour's slow waves (the form bowed under the pressure), the sand skin, the voids cut into it
   float bow = msFbm(u + 5.5, 2.0, 3);
-  float h = 0.6 + 0.16 * bow + 0.1 * m2 + 0.035 * sand + 0.04 * agg - 0.45 * pore + 0.03 * prim;
+  float h = 0.6 + 0.3 * bow + 0.2 * m2 + 0.035 * sand + 0.04 * agg - 0.45 * pore + 0.03 * prim;
   float r = msA.a + 0.04 * m1 + 0.04 * sand + 0.06 * pore - 0.05 * blot;
   float ao = 1.0 - 0.6 * pore;
   if (V < 0.5 || V > 2.5) {
@@ -469,7 +469,7 @@ MsS ms_render(vec2 u){
   // the coat undulates (it was laid by hand): slow swells, a fine sand grain, pits (air bubbles, lost grains) with a rim
   vec2 pit = msSpeck(u + 1.0, 14.0, 0.025 + 0.03 * age, 0.12, 0.0), pit2 = msSpeck(u + 4.0, 45.0, 0.012, 0.2, 5.0);
   float pits = max(pit.x, pit2.x * 0.8), rim = msSpeck(u + 1.0, 14.0, 0.025 + 0.03 * age, 0.2, 0.0).x - pit.x;
-  float h = 0.5 + 0.22 * m2 + 0.14 * m3 + 0.05 * fine + 0.04 * stroke - 0.3 * pits + 0.04 * rim;
+  float h = 0.5 + 0.34 * m2 + 0.2 * m3 + 0.05 * fine + 0.04 * stroke - 0.3 * pits + 0.04 * rim;
   col *= (1.0 - 0.55 * pits) * (1.0 + 0.04 * rim) * (0.97 + 0.06 * tc.z);
   float sheen = msFbm(u + 8.0, 1.1, 3);
   float r = msA.a + 0.06 * sheen + 0.03 * fine - 0.04 * (1.0 - stroke) + 0.1 * pits;
@@ -1213,7 +1213,7 @@ MsS ms_wood(vec2 u){
   // relief: weathering wears the soft earlywood, the latewood stands proud (raised grain); fibres; a board cups
   float cup = (fy / bw - 0.5); cup = cup * cup * 4.0;
   float wavy = msFbm2(vec2(u.x, across) + bb.yz * 2.0, vec2(2.0, 22.0), 3);
-  float h = 0.6 + (0.04 + 0.12 * age) * late + 0.05 * fib - 0.3 * cup * (0.3 + age) + 0.08 * knot - 0.12 * streak * age + 0.22 * wavy;
+  float h = 0.6 + (0.04 + 0.12 * age) * late + 0.05 * fib - 0.4 * cup * (0.3 + age) + 0.08 * knot - 0.12 * streak * age + 0.4 * wavy + 0.25 * msFbm(u + bb.xz * 5.0, 5.0, 3);
   float ao = 1.0;
   // checks: cracks along the grain, of random length, opening at the board ends
   vec4 ck = msCell2(vec2(u.x, across) + bb.zy, vec2(0.5, 1.0 / max(bw * 0.25, 0.01)), 1.0);
