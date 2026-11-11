@@ -5,6 +5,14 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
 ## Unreleased
 
 **New**
+- @miragekit/core: a planar reflection for flat wet ground (`lighting: { planar: { y, scale, roughMax, fade, clip,
+  layers, every } }`; experimental, opt-in, `PLANAR_DEFAULTS`, `docs/lighting.md`): the scene drawn once more from the
+  camera mirrored in one horizontal plane (oblique near clip, half size, mipmapped), read by the lit materials for
+  up-facing surfaces near the plane up to `roughMax`, distorted by the normal and blurred with roughness, over
+  screen-space reflections. Puddles now mirror what is off screen. Off: nothing is created and stills are
+  byte-identical; on: stills repeat byte for byte. hello-courtyard `?wet=0.8&planar=1` (+0.4 ms at 1440 x 900, inside
+  the spread at 2880 x 1800), walled-garden `?planar=1` (the pools); `world.lighting.planar.info`. Checked by
+  `packages/tools/src/planar-check.mjs`.
 - @miragekit/core: bounce light (`lighting: { bounce: true | { min, max, spacing, ... } }`; experimental, opt-in,
   `docs/lighting.md`): one-bounce light from sunlit walls into the shade beside them and the sky occlusion of lanes,
   as a factor (local / reference) on the image-based diffuse light, gathered from a height field of the built scene

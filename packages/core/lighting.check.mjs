@@ -9,6 +9,7 @@ import { giConfig, giGrid, giCell, giTile, GI_DEFAULTS } from './src/gi.js';
 import { bounceConfig, bounceGrid, bounceLayerY, BOUNCE_DEFAULTS } from './src/bounce.js';
 import { lightsConfig, clusterSlice, sphereSpan, tileAllocator, CLUSTER, LIGHTS_DEFAULTS } from './src/lights.js';
 import { probesConfig, boxExit, probeWeight, PROBES_MAX } from './src/probes.js';
+import { planarConfig, mirrorMatrix, mirrorCamera, obliqueClip, PLANAR_DEFAULTS } from './src/planar.js';
 import * as core from './src/index.js';
 
 const near = (a, b, e = 1e-6) => Math.abs(a - b) <= e;
@@ -153,6 +154,55 @@ assert.equal(probesConfig([]), null);
   assert.equal(probeWeight([2.5, 0, 0], [-2, -2, -2], [2, 2, 2], 1), 0);
 }
 
+// --- planar reflection: the mirror camera and its oblique near plane
+assert.equal(planarConfig(false), null);
+assert.deepEqual(planarConfig(true), { ...PLANAR_DEFAULTS });
+assert.equal(planarConfig({ scale: 9, every: 0, layers: [0, 40, 3] }).scale, 1, 'scale clamps to 1');
+assert.equal(planarConfig({ every: 0 }).every, 1);
+assert.deepEqual(planarConfig({ layers: [0, 40, 3] }).layers, [0, 3], 'layers outside 0..31 are dropped');
+{
+  const M = mirrorMatrix(0.5), p = new THREE.Vector3(1, 2.25, -3).applyMatrix4(M);
+  assert.ok(near(p.x, 1) && near(p.y, -1.25) && near(p.z, -3), 'a point is reflected in y = 0.5');
+  assert.ok(near(M.determinant(), -1));
+  for (const [h, clip, eye, look] of [[0, 0.02, [2, 1.7, 6], [-1, 0.2, -4]], [1.94, 0.02, [-2.5, 3.22, -4.6], [-10, 1.6, 2.5]], [-3, 0.1, [0, 5, 0], [4, -8, -6]]]) {
+    const cam = new THREE.PerspectiveCamera(50, 16 / 10, 0.1, 500);
+    cam.position.fromArray(eye); cam.lookAt(...look); cam.updateMatrixWorld();
+    const m = mirrorCamera(cam, h, clip, new THREE.PerspectiveCamera());
+    assert.ok(near(m.matrixWorld.determinant(), 1, 1e-6), 'the mirror camera is a proper rotation (three keeps its face culling)');
+    assert.ok(near(m.position.y, 2 * h - eye[1], 1e-9) && near(m.position.x, eye[0], 1e-9) && near(m.position.z, eye[2], 1e-9), 'the eye is mirrored');
+    const vp = new THREE.Matrix4().multiplyMatrices(m.projectionMatrix, m.matrixWorldInverse);
+    const vr = new THREE.Matrix4().multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
+    const clipOf = (V, x) => new THREE.Vector4(x.x, x.y, x.z, 1).applyMatrix4(V);
+    const mirror = (x) => new THREE.Vector3(x.x, 2 * h - x.y, x.z);
+    // points above the plane, in view of the mirror: each lands where the real camera sees its mirror image (x turned)
+    let tested = 0;
+    for (const [u, v, d] of [[0, 0, 6], [0.4, -0.3, 9], [-0.5, 0.6, 3], [0.2, 0.9, 20], [-0.3, -0.8, 4], [0.7, -0.6, 12]]) {
+      const below = new THREE.Vector3(u, v, 0.5).unproject(cam).sub(cam.position).normalize().multiplyScalar(d).add(cam.position);
+      if (below.y >= h - clip - 0.01) continue;   // its mirror image would be under the clip plane: not a point the mirror draws
+      const X = mirror(below);   // above the plane
+      const a = clipOf(vp, X), b = clipOf(vr, below);
+      assert.ok(near(a.x / a.w, -b.x / b.w, 1e-6) && near(a.y / a.w, b.y / b.w, 1e-6), 'a point above the plane maps to its mirror image');
+      assert.ok(a.z / a.w > -1 && a.z / a.w < 1, 'and is inside the depth range');
+      tested++;
+    }
+    assert.ok(tested >= 2, 'enough points tested');
+    // a point under the clip plane, in front of the mirror camera, is cut by the near plane; one just above is kept
+    const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(m.quaternion);
+    const P = m.position.clone().addScaledVector(fwd, 8);
+    for (const [dy, kept] of [[-0.05, false], [-1, false], [0.05, true], [1, true]]) {
+      const Q = new THREE.Vector3(P.x, h + clip + dy, P.z), c = clipOf(vp, Q), z = c.z / c.w;
+      const front = Q.clone().applyMatrix4(m.matrixWorldInverse).z < 0;
+      if (!front) continue;
+      assert.equal(z >= -1 - 1e-9 && z <= 1 + 1e-9 && c.w > 0, kept, `a point ${dy} m from the clip plane is ${kept ? 'kept' : 'clipped'} (z ${z.toFixed(3)})`);
+    }
+    // on the plane itself: z = -1 exactly (the oblique near plane is the clip plane)
+    { const Q = new THREE.Vector3(P.x + 0.3, h + clip, P.z - 0.2), c = clipOf(vp, Q); if (Q.clone().applyMatrix4(m.matrixWorldInverse).z < 0) assert.ok(near(c.z / c.w, -1, 1e-6), 'the near plane is the clip plane'); }
+  }
+  // obliqueClip leaves x, y and w rows alone
+  const P = new THREE.PerspectiveCamera(60, 1.5, 0.1, 100).projectionMatrix.clone(), Q = obliqueClip(P.clone(), new THREE.Vector4(0, 0.8, 0.6, -2));
+  for (const i of [0, 1, 3, 4, 5, 7, 8, 9, 11, 12, 13, 15]) assert.ok(near(P.elements[i], Q.elements[i]), 'only the z row changes');
+}
+
 // --- injector
 {
   const FS = 'uniform float x;\nvoid main() {\n\t#include <lights_fragment_begin>\n\t#include <lights_fragment_maps>\n}';
@@ -180,5 +230,5 @@ assert.equal(probesConfig([]), null);
 }
 
 // --- the package exports
-for (const k of ['createLighting', 'CSM_DEFAULTS', 'GI_DEFAULTS', 'BOUNCE_DEFAULTS', 'LIGHTS_DEFAULTS', 'PROBE_DEFAULTS']) assert.ok(core[k], k + ' is exported');
+for (const k of ['createLighting', 'CSM_DEFAULTS', 'GI_DEFAULTS', 'BOUNCE_DEFAULTS', 'LIGHTS_DEFAULTS', 'PROBE_DEFAULTS', 'PLANAR_DEFAULTS']) assert.ok(core[k], k + ' is exported');
 console.log('lighting check: ok');

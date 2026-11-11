@@ -1,6 +1,6 @@
-# Realtime lighting: cascades, probe GI, bounce light, reflection probes, many lights, screen-space passes
+# Realtime lighting: cascades, probe GI, bounce light, reflection probes, many lights, screen-space passes, planar reflection
 
-Six features, all **experimental** and all **off by default**. They are turned on per world:
+Seven features, all **experimental** and all **off by default**. They are turned on per world:
 
 ```js
 const world = createWorldRenderer({
@@ -11,6 +11,7 @@ const world = createWorldRenderer({
     probes: [{ min: [-4, 3.6, -29], max: [4, 7.4, -21] }],          // box reflection probes (at most 4)
     lights: true,                                                 // clustered local lights + shadow atlas
     screen: true,                                                 // SSR, SSGI, contact shadows (world.post.ssr2 / ssgi / contact)
+    planar: { y: 0 },                                             // a planar reflection of flat (wet) ground at y = 0
   },
 });
 const lamp = new THREE.PointLight(0xffaa66, 40, 9);
@@ -34,6 +35,7 @@ Try them on two examples (each flag alone or together):
 | `&percell=64` | cap the lights per cluster cell (the examples ask for `perCell: 0`, no cap) |
 | `?ssr=1` `?ssgi=1` `?contact=1` | the screen-space passes (below) |
 | `&lshadows=K` | the first K lamps cast shadows from the atlas |
+| `?planar=1` (`&planary=m`, `&planarscale=0.5`, `&planarevery=N`) | the planar reflection: hello-courtyard's floor (with `?wet=0.8`), walled-garden's two pools (their water, 1.94 m) |
 
 `examples/walled-garden/?gi=1&probes=1&csm=1&lights=64&lshadows=4&time=20:30`. On `examples/hello-courtyard/` use `lights=8`: 64 lamps in that small yard over-expose most views (there is no exposure adaptation unless auto exposure is on).
 
@@ -244,6 +246,99 @@ so reflections of moving objects trail for a few frames. The half-size results a
 upsample. Transparent and unlit meshes are not in the G-buffer. With `?light2=1` the older deferred SSR also runs
 (`l2=nossr` turns it off). `ao` and `ssgi` both darken corners: lower one. Not in XR.
 
+## Planar reflection of flat ground (`planar`)
+
+`packages/core/src/planar.js`. Screen-space reflections can only mirror what is on screen: a puddle in the lower half
+of the frame cannot show the lamp above the frame or the sky behind the camera. For one horizontal plane per world
+the scene is drawn once more, from the camera mirrored in the plane, and the lit materials read that image.
+
+```js
+createWorldRenderer({ lighting: { planar: { y: 0 } } });   // PLANAR_DEFAULTS below
+world.lighting.planar.info   // { on, size, calls, ms, renders, kept, skipped }
+world.lighting.planar.cfg.y = 0.1;   // live: y, fade, roughMax, clip, every are read each sub-frame
+```
+
+| setting | default | |
+|---|---|---|
+| `y` | 0 | m: the plane's height |
+| `scale` | 0.5 | the mirror target's size, x the frame (0.1..1) |
+| `roughMax` | 0.35 | surfaces rougher than this keep the probe / sky reflection (the mirror fades in from 0.7 x it) |
+| `fade` | 0.25 | m above / below the plane over which the mirror fades out |
+| `clip` | 0.02 | m: the mirror pass's near plane sits this far above the plane (the ground does not mirror itself) |
+| `layers` | null | three.js layers the mirror pass draws (an array); null = the view camera's |
+| `every` | 1 | moving frames redraw the mirror every Nth frame; stills always redraw it |
+
+How. Before each sub-frame's scene pass (the pipeline calls the planar pass ahead of the screen-space passes):
+
+1. The mirror camera is the view camera's world matrix reflected in the plane, its x axis turned back (a proper
+   rotation, so three's face culling holds; the image is left-right turned, which the lookup does not mind), with the
+   view's own projection (temporal-AA jitter, lens offset) and Lengyel's oblique near plane at `y + clip`: nothing under
+   the plane is drawn, with no change to the shaders.
+2. The scene is drawn with it into a mipmapped half-float target of `scale` x the frame, with the world's own
+   materials, lights, sky and fog, without the post chain, without objects marked `userData.mgNoCapture` (rain
+   streaks, particles), and with the part switched off and its sampler unbound (no recursion, no feedback loop).
+   It is the sub-frame's first render, so it draws the shadow maps (the sun is already fitted to the view); the scene
+   pass then reuses them instead of drawing them again. Shadows are not drawn twice, and a still does not depend on
+   the frame before it.
+3. In the lit materials (an injected part, order 45: after reflection probes and screen-space reflections): a pixel
+   within `fade` of the plane, facing up (world normal y 0.72..0.9 fades it in) and no rougher than `roughMax` projects
+   its world position into the mirror camera; the reflected ray of the shaded normal (normal maps, wet ripples, the
+   cobbles' relief) minus the flat mirror ray, taken 2.5 m out, moves the lookup, so ripples and bumps distort the
+   image. Roughness blurs it: a mip level for the width (alpha x 0.6 of the target's height, in pixels) and four taps
+   stretched 3x along the target's vertical, which smears reflections toward the viewer as on a wet street. The
+   result replaces `iblRadiance` (the probe / sky reflection) by that weight, before three's specular response, so
+   Fresnel and the surface's own tint stay the material's. The target's outer 3 % fades out.
+
+With `withWet` materials the standing water (roughness about 0.05) mirrors sharply, the soaked film (0.1-0.2) gets a
+blurred, stretched image, and damp ground (0.42 and up) keeps its probe / sky reflection.
+
+Moving frames redraw the mirror every `every` frames; a kept mirror is read with the matrix it was drawn with, so it
+stays registered on the ground while the camera moves (what it shows lags). Still sub-frames always redraw it: jitter,
+lens and time change per sub-frame, and the still converges with `spp` like everything else.
+
+**Planar over screen-space reflections.** Where both apply, the plane's mirror wins (it is this frame's, holds what
+is off screen, and has no thickness guess); SSR keeps walls, steps and anything off the plane. Measured: moving
+frames (60 temporal-AA frames after a pan) against their own 64-sample still, hello-courtyard `?wet=0.8`, 960 x 600:
+hero view 33.36 dB with planar over SSR, 33.12 dB with SSR over planar (the part's order switched at run time); a
+view down across the floor 35.57 against 35.02 dB. For comparison: off 33.57 / 35.96, SSR alone 32.99 / 34.76,
+planar alone 33.43 / 35.69. SSR's temporal noise costs more than the mirror does.
+
+Limits, plainly:
+- One plane per world, horizontal. Surfaces more than `fade` off it (steps, a raised kerb, a pool at another level),
+  walls and sloped ground keep the probe / SSR reflection.
+- A pixel at height h above the plane is looked up as if it lay on it: an offset of about h in the mirror (the reason
+  for `fade`). The normal's distortion assumes what is mirrored is 2.5 m away.
+- The scene is drawn a second time: its CPU cost (draw calls: `info.calls`) and GPU cost grow with the scene, not with
+  the wet area. `every: 2` halves it on moving frames.
+- Fog of the mirror pass is counted from the mirrored eye, under the ground: the eye-to-puddle stretch is fogged
+  twice, and the height fog sees an eye a little lower. Small in a court; visible over long wet streets in fog.
+- Per-view hooks (`onView`: LOD, instance culling, occlusion culling) run for the view camera only; the mirror sees
+  what they left. An instanced object culled from the view (above the frame) is missing from the mirror too.
+- The clustered lights take their plain loop in the mirror pass (correct, not culled); the lamp pool bins its
+  lamps for the mirror camera and again for the view (two binnings a frame; its `info.binMs`).
+- Temporal AA (`taa`, `taa2`) reprojects the mirror image by the surface's motion, not the reflection's: a reflection
+  of something far smears a little under a fast pan.
+- Not in XR. Perspective cameras only. A camera at or under the plane gets no mirror (`info.skipped`).
+- `info.ms` is the CPU time to submit the mirror pass; its GPU cost is in the table below.
+
+Measured (Apple M4 Pro shared with other GPU jobs, headless Chrome, ANGLE Metal): hello-courtyard `?wet=0.8`, hero
+view, moving frames (temporal AA, a pan), each frame ended by a 1-px `readPixels`; five pages in one Chrome, 8 rounds
+round-robin over them, 40 frames a round; median of the round medians [lowest-highest], ms per frame. The mirror pass
+draws 34 calls.
+
+| | 1440 x 900 | 2880 x 1800 |
+|---|---|---|
+| off | 3.20 [3.10-3.30] | 10.20 [9.80-10.60] |
+| `planar=1` | 3.60 [3.40-3.90] | 10.10 [9.60-10.40] |
+| `planar=1&planarevery=2` | 3.40 [3.20-3.50] | 9.90 [9.50-11.70] |
+| `ssr=1` | 3.70 [3.60-3.80] | 11.40 [10.90-11.90] |
+| `planar=1&ssr=1` | 4.20 [4.00-4.50] | 12.20 [11.50-12.60] |
+
+Reading it: +0.4 ms at 1440 x 900 (SSR: +0.5). At 2880 x 1800 alone it is inside the spread (an earlier run of 6
+rounds: off 12.2 [10.5-13.0], planar 12.0 [9.9-12.6]); on top of SSR it adds 0.8 ms. Its cost is mostly a second
+draw of a small scene at a quarter of the pixels, so it does not grow with the resolution the way SSR does. Not
+measured: big scenes (where the second draw's CPU side will dominate), other GPUs, phones.
+
 ## Measured
 
 Screen-space passes, hello-courtyard `?wet=0.8`, moving frames with a pan, 5 interleaved rounds of 30 frames, median
@@ -346,6 +441,18 @@ per-frame cost while the clock moves, CSM with `softShadows`, more than one refl
   shading equals the plain loop on three views; a quiet scene redraws no shadow tile and a moved lamp redraws one;
   a new caster darkens the ground after `invalidate()`; a red emitter beside a probe is read back from that side;
   a mirror off the probe's centre shows a marker on the wall where the parallax-corrected ray ends.
+- `node packages/tools/src/planar-check.mjs examples/hello-courtyard/dist --garden=examples/walled-garden/dist
+  [--before=<hello-courtyard dist built before> --garden-before=<walled-garden dist built before>] [--out=dir]` in
+  Chrome: the lit programs carry the planar part (and the pages without it do not); the mirror pass draws; a red
+  emitter put above the frame, out of view, along the ray a wet patch of ground mirrors, turns that patch red with
+  planar on (redness -6 -> 87) and changes nothing with it off (-4.3 -> -4.3); a still with planar is byte-identical
+  when drawn again after another view and moving frames; moving frames with `taa2`, `ssr`, 8 clustered lamps and
+  the lamp pool draw the mirror every frame; no page errors, GL errors or shader warnings; walled-garden's pools change
+  with it. With `--before`: hello-courtyard (hero, gate; dry and `wet=0.8`) and walled-garden (pools, gate, looking
+  back) without `planar` are byte-identical to the build from before it.
+- `node packages/core/lighting.check.mjs` also checks the planar maths: the mirror matrix, the mirror camera (a proper
+  rotation, the eye mirrored), points above the plane landing where the real camera sees their mirror images, points
+  under the clip plane cut by the oblique near plane and points on it at depth -1, only the projection's z row changed.
 - Off = unchanged: stills of both examples without any flag (hello-courtyard hero and corner, walled-garden gate and
   aerial, 1440 x 900), built from the commit before this work and from this branch in the same session: the PNGs
   are byte-identical.

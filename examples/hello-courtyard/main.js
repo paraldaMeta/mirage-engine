@@ -53,8 +53,10 @@ const grade = Q.get('grade') === '1' && (Q.has('gradek') ? { strength: +Q.get('g
 const LF = (k) => Q.get(k) === '1';
 const NL = +Q.get('lights') || 0, stock = LF('stock');
 const SCR = ['ssr', 'ssgi', 'contact'].some((k) => +Q.get(k) > 0);   // ?ssr=1&ssgi=1&contact=1: screen-space lighting (docs/lighting.md)
-const lighting = ['csm', 'gi', 'bounce', 'probes'].some(LF) || (NL && !stock) || SCR ? {
-  screen: SCR,
+// ?planar=1: a planar reflection of the court's floor (with ?wet=0.8; &planary=m &planarscale=0.5 &planarevery=N)
+const PLANAR = LF('planar') && { y: +(Q.get('planary') ?? 0), ...(Q.has('planarscale') ? { scale: +Q.get('planarscale') } : {}), ...(Q.has('planarevery') ? { every: +Q.get('planarevery') } : {}) };
+const lighting = ['csm', 'gi', 'bounce', 'probes'].some(LF) || (NL && !stock) || SCR || PLANAR ? {
+  screen: SCR, planar: PLANAR,
   csm: LF('csm') && { cascades: +Q.get('cascades') || 4, stagger: LF('stagger') },   // &stagger=1: far cascades redrawn less often
   gi: LF('gi') && { min: [-9, 0.15, -9], max: [9, 5.4, 9], spacing: +Q.get('gispacing') || 2 },
   bounce: LF('bounce') && { spacing: +Q.get('bspacing') || 1 },   // the box: the shadow volume (x / z) and the built heights
