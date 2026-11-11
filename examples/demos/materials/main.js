@@ -7,7 +7,7 @@
 // gallery shooter examples/demos/materials/shoot.mjs, the bench and packages/tools/src/surfaces-check.mjs drive it).
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { createWorldRenderer, placeDate, SURFACES, SURFACE_KINDS, createSurfaces, surfaceHooks, bakeSurface, setWetness, setRain } from '@miragekit/core';
+import { createWorldRenderer, placeDate, SURFACES, SURFACE_KINDS, createSurfaces, surfaceHooks, bakeSurface, setWetness, setRain, createTextures } from '@miragekit/core';
 
 const Q = new URLSearchParams(location.search);
 const W = +Q.get('w') || innerWidth, H = +Q.get('h') || innerHeight;
@@ -122,5 +122,32 @@ if (Q.get('ui') !== '0') {
   for (const e of [sel, lights, wets, views, modes]) e.onchange = go;
   go();
 } else still();
-window.__mirage = { world, THREE, lib, show, still, bench, SURFACES, SURFACE_KINDS, surfaceHooks, bakeSurface, setWetness, setRain, GEO, VIEWS };
+// calibration only (examples/demos/materials/compare.mjs): a photographed texture set passed in as data URLs, drawn
+// on the same objects through createTextures; nothing of it is part of the demo
+async function showRef({ c, n, tile, mean = [0.2, 0.2, 0.2], hMean = 0.5, rough = 0.8, roughSlope = 0, light, wet = 0, view = 'far' }) {
+  clear();
+  const tex = createTextures(world, { manifest: { sets: { ref: { tile, mean, hMean, rough, roughSlope, files: { c: 'c', n: 'n' } } } }, url: (f) => (f === 'c' ? c : n) });
+  const mk = (mapping) => { const m = tex.material('ref', { mapping }); mats.push(m); return m; };
+  await tex.ready();
+  const add = (geo, m, x, y, z) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; group.add(o); };
+  add(GEO.ground, mk('ground'), 0, 0.002, -0.1); add(GEO.wall, mk('wall'), 0, 1.0, -1.0); add(GEO.sphere, mk('tri'), -0.6, 0.3, 0.35); add(GEO.cube, mk('tri'), 0.55, 0.3, 0.15);
+  if (light && light !== current?.light) world.setTime(TIMES[light]);
+  const L = light || current?.light || 'studio';
+  lampW.intensity = L === 'night' ? 9 : 0; lampC.intensity = L === 'night' ? 5 : 0;
+  setWetness(wet);
+  const v = VIEWS[view] || VIEWS.far;
+  camera.position.fromArray(v.eye); camera.lookAt(...v.look); camera.updateMatrixWorld();
+  current = { s: 'ref', light: L, wet, view };
+}
+/** a surface's baked tile read back: { w, h, c: RGBA8 (sRGB albedo, roughness in A), n: RGBA8 (normal, height, metal) } */
+function readTile(s, opts = {}, size = 1024) {
+  const [kind, variant] = s.split(':');
+  const b = bakeSurface(renderer, SURFACES[kind]({ ...(variant ? { variant } : {}), ...opts }), { size });
+  const c = new Uint8Array(size * size * 4), n = new Uint8Array(size * size * 4);
+  renderer.readRenderTargetPixels(b.target, 0, 0, size, size, c, undefined, 0);
+  renderer.readRenderTargetPixels(b.target, 0, 0, size, size, n, undefined, 1);
+  b.target.dispose();
+  return { w: size, h: size, c: Array.from(c), n: Array.from(n), ms: b.ms };
+}
+window.__mirage = { world, THREE, lib, show, showRef, readTile, still, bench, createSurfaces, SURFACES, SURFACE_KINDS, surfaceHooks, bakeSurface, setWetness, setRain, GEO, VIEWS };
 window.__READY = true;

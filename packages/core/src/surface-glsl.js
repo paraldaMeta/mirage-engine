@@ -35,7 +35,10 @@ vec3 msH3(vec2 i, vec2 P){ return mgHash3(vec3(mod(i, P), msSeed)); }
 vec3 msCH(vec2 id, float k){ return mgHash3(vec3(id, msSeed * 7.0 + k)); }
 float msP(float f){ return max(1.0, floor(msT * f + 0.5)); }
 // 1 while a feature of wavelength wl (m) spans 3+ footprints, fading to 0 below ~2
-float msLod(float wl){ return clamp(wl / (2.0 * max(msFP, 1e-6)) - 0.8, 0.0, 1.0); }
+// msLodA: 0 below that many footprints per wavelength, 1 from msLodA + 1.5 (a bake keeps 2-texel features: its mips
+// filter them; per pixel 3 is the floor)
+float msLodA = 3.0;
+float msLod(float wl){ return clamp((wl / max(msFP, 1e-6) - msLodA) / 1.5, 0.0, 1.0); }
 float msGradP(vec2 p, vec2 P){
   vec2 i = floor(p), f = p - i, w = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
   float a = dot(msH3(i, P).xy * 2.0 - 1.0, f);
@@ -102,7 +105,7 @@ float msLayers(float n, float amt){
   float th = 1.0 - amt;
   return smoothstep(th - 0.02, th, n) + smoothstep(th + 0.05, th + 0.07, n) + smoothstep(th + 0.12, th + 0.14, n);
 }
-vec3 msRustCol(float n){ n = clamp(n, 0.0, 1.0); return mix(mix(vec3(0.07, 0.03, 0.015), vec3(0.17, 0.065, 0.025), smoothstep(0.0, 0.5, n)), vec3(0.3, 0.12, 0.045), smoothstep(0.55, 1.0, n)); }
+vec3 msRustCol(float n){ n = clamp(n, 0.0, 1.0); return mix(mix(vec3(0.07, 0.03, 0.015), vec3(0.2, 0.08, 0.03), smoothstep(0.0, 0.5, n)), vec3(0.38, 0.16, 0.06), smoothstep(0.55, 1.0, n)); }
 #endif
 `;
 
@@ -298,42 +301,59 @@ MsS ms_paving(vec2 u){
   return MsS(col, clamp(r, 0.04, 1.0), clamp(h, 0.0, 1.0), 0.0, ao);
 }`,
 
-  // A: brick rgb, roughness   B: brick w, course h, mortar w, recess   C: mortar rgb, burnt share   D: paint rgb, paint
+  // A: brick rgb, roughness   B: brick w, course h, mortar w, recess (share of depth)   C: mortar rgb, burnt share   D: paint rgb, paint
   brick: /* glsl */ `
 MsS ms_brick(vec2 u){
   float V = msX.z;
-  vec4 g = msGrid(u, msB.xy, 0.5);
+  float ero = 0.25 + 0.75 * msW.x;                                 // weathering: eroded arrises, a rougher face
+  vec2 wob = vec2(msFbm(u + 1.7, 9.0, 3), msFbm(u + 4.2, 9.0, 3));
+  vec4 g = msGrid(u + wob * 0.004 * ero, msB.xy, 0.5);
   vec2 s = msCellSize, q = g.xy;
-  float de = msEdgeD(g), mw = msB.z * 0.5;
+  float mw = msB.z * 0.5;
+  // the brick's outline: its edge distance broken by erosion (deeper on the corners), so no two bricks are the same box
+  float er = (msFbm(u + 13.0, 8.0, 4) * 0.5 + 0.5) * 0.009 * ero + (msFbm(u + 2.0, 45.0, 2) * 0.5 + 0.5) * 0.003 * ero;
+  float de = msEdgeD(g) - er;
   vec3 b = msCH(g.zw, 3.0), b2 = msCH(g.zw, 8.0);
-  float sand = msFbm(u + 2.0, 140.0, 2), m2 = msFbm(u + b.xy * 3.0, 9.0, 3), m1 = msFbm(u, 0.7, 2);
-  // fired clay varies brick to brick; some are over-burnt (darker, glossier) or under-fired (paler)
-  vec3 tone = mix(vec3(1.0), vec3(0.62, 0.58, 0.6), step(1.0 - msC.a, b.x)) * mix(vec3(1.0), vec3(1.12, 1.1, 1.05), step(0.88, b.y));
-  vec3 col = msA.rgb * tone * (0.82 + 0.3 * b.z) * (0.9 + 0.12 * m2 + 0.07 * sand);
-  if (V > 2.5) {   // stock bricks: dark specks of cinder and darker kiss marks
+  float sand = msFbm(u + 2.0, 160.0, 2), m3 = msFbm(u + b.xy * 3.0, 14.0, 4), m2 = msFbm(u + b.zx * 5.0, 5.0, 3);
+  // fired clay: every brick its own shade and hue (kiln position), some over-burnt, some pale; within a brick a
+  // mottle at 1..5 cm and flashing toward one end
+  vec3 hue = mix(vec3(1.0), mix(vec3(1.18, 0.92, 0.72), vec3(0.88, 1.0, 1.12), b2.y), 0.35 * b2.z);
+  vec3 tone = mix(vec3(1.0), vec3(0.6, 0.55, 0.58), step(1.0 - msC.a, b.x)) * mix(vec3(1.0), vec3(1.15, 1.12, 1.06), step(0.88, b.y));
+  float flash = smoothstep(0.2, 1.0, (q.x / s.x - 0.5) * (b2.x - 0.5) * 4.0);
+  float mh = msFbm(u + b.yx * 9.0, 22.0, 3);
+  vec3 mott = mix(vec3(1.0), mix(vec3(1.2, 0.86, 0.62), vec3(0.86, 1.04, 1.2), mh * 0.5 + 0.5), 0.3 * ero);
+  vec3 col = msA.rgb * hue * tone * mott * (0.8 + 0.32 * b.z) * (0.82 + 0.28 * m3 + 0.1 * m2 + 0.07 * sand) * (1.0 - 0.15 * flash);
+  if (V > 2.5) {   // stock bricks: dark cinder specks and kiss marks
     vec4 sp = msCell(u + 4.1, 110.0, 1.0);
-    col *= 1.0 - 0.55 * (1.0 - smoothstep(0.12, 0.25, sp.x)) * step(0.6, sp.z) * msLod(0.006);
-    col *= 1.0 - 0.18 * smoothstep(0.2, 0.7, msFbm(u + b.zx * 4.0, 5.0, 2));
+    col *= 1.0 - 0.5 * (1.0 - smoothstep(0.1, 0.22, sp.x)) * step(0.65, sp.z) * msLod(0.006);
+    col *= 1.0 - 0.2 * smoothstep(0.2, 0.7, msFbm(u + b.zx * 4.0, 5.0, 2));
   }
-  // pitted face and chipped arrises
-  vec4 pit = msCell(u + 1.1, 70.0, 1.0);
-  float pits = (1.0 - smoothstep(0.1, 0.2, pit.x)) * step(0.72, pit.z) * msLod(0.01);
-  float chipN = msFbm(u + 13.0, 22.0, 3) * 0.5 + 0.5;
-  float chip = smoothstep(0.55, 0.6, chipN + (0.015 - min(de - mw, 0.015)) * 25.0 - 0.32) * step(mw, de);
-  float face = smoothstep(mw, mw + 0.003, de);
-  float h = (0.7 + 0.08 * (b2.x - 0.5) + 0.05 * m2 + 0.03 * sand - 0.25 * pits - 0.22 * chip) * face;
-  col *= 1.0 - 0.12 * chip;
-  float r = msA.a + 0.06 * (b.y - 0.5) - 0.12 * step(1.0 - msC.a, b.x) + 0.04 * sand + 0.05 * chip;
-  float ao = 1.0 - 0.5 * pits;
-  // mortar: recessed, sandy, lighter, with lime bloom
-  float mort = 1.0 - face;
-  vec3 mc = msC.rgb * (0.85 + 0.3 * (msFbm(u + 6.0, 70.0, 2) * 0.5 + 0.5));
-  col = mix(col, mc, mort); r = mix(r, 0.93, mort); h = mix(h, 0.7 - msB.w * 6.0 + 0.05 * sand, mort);
-  ao *= 1.0 - 0.35 * mort * clamp(msB.w * 80.0, 0.0, 1.0);
-  if (V > 1.5 && V < 2.5) {   // painted brick: the film follows every pit, worn off on the arrises
-    float pn = msFbm(u + 3.0, 3.0, 4) * 0.7 + chip * 0.5 + (1.0 - face) * 0.1;
+  // the face: sanded texture, shallow dents of all sizes, fire cracks
+  vec4 dt = msCell(u + 1.1, 12.0, 1.0);
+  float dent = (1.0 - smoothstep(0.0, 0.5, dt.x + 0.25 * msFbm(u, 60.0, 2))) * step(0.72, dt.z) * (0.4 + 0.6 * dt.w);
+  float flake = msFbm(u + b.xy * 7.0, 30.0, 5), ridge = 1.0 - abs(msFbm(u + b.zy * 3.0, 55.0, 3));
+  vec4 fc = msCell(u + 5.5, 7.0, 1.0);
+  float fcrack = msLine((fc.y - fc.x) * msT / msP(7.0) * 0.5, 0.0005) * step(0.8, fc.z) * msLod(0.006) * smoothstep(0.2, 0.6, msFbm(u + 8.0, 9.0, 2));
+  float face = smoothstep(mw, mw + 0.002 + 0.005 * ero, de);
+  float hf = 0.78 + 0.05 * (b2.x - 0.5) + 0.05 * m3 * ero + 0.03 * sand + ero * (0.05 * flake + 0.025 * ridge) - 0.12 * dent * ero - 0.08 * fcrack;
+  float h = mix(0.35, hf, face);
+  col *= (1.0 - 0.08 * dent - 0.12 * fcrack) * (1.0 + 0.12 * ero * flake);
+  col = mix(col * 0.82, col, face);                                  // the rounded arris catches grime
+  float r = msA.a + 0.06 * (b.y - 0.5) - 0.12 * step(1.0 - msC.a, b.x) + 0.04 * sand;
+  float ao = 1.0 - 0.3 * dent * ero;
+  // mortar: recessed (msB.w of the depth), sandy and grainy, lighter, lime blooms
+  float mort = 1.0 - smoothstep(mw - 0.0015, mw + 0.0005, de);
+  vec4 sg = msCell(u + 9.0, 280.0, 1.0);
+  float grit = (1.0 - smoothstep(0.1, 0.45, sg.x)) * msLod(0.003);
+  float mrel = msFbm(u + 3.0, 60.0, 3);
+  vec3 mc = msC.rgb * (0.82 + 0.25 * (msFbm(u + 6.0, 40.0, 3) * 0.5 + 0.5)) * mix(1.0, 0.85 + 0.3 * sg.z, grit);
+  col = mix(col, mc, mort); r = mix(r, 0.93, mort);
+  h = mix(h, 1.0 - msB.w + 0.04 * mrel + 0.03 * grit, mort);
+  ao *= 1.0 - 0.25 * mort - 0.25 * (1.0 - face) * (1.0 - mort);
+  if (V > 1.5 && V < 2.5) {   // painted brick: the film follows every dent, worn off on the arrises first
+    float pn = msFbm(u + 3.0, 3.0, 4) * 0.7 + (1.0 - face) * 0.5;
     float bare = smoothstep(0.75 - 0.5 * msD.a, 0.78 - 0.5 * msD.a, pn * 0.5 + 0.5);
-    col = mix(msD.rgb * (0.95 + 0.06 * m2 + 0.04 * m1), col, bare);
+    col = mix(msD.rgb * (0.94 + 0.06 * m2 + 0.04 * m3) * mix(1.0, 0.9, mort), col, bare);
     r = mix(0.72, r, bare);
   }
   if (V > 0.5 && V < 1.5) r -= 0.12;   // engineering brick: dense, a little glossy
@@ -496,25 +516,34 @@ MsS ms_paintedMetal(vec2 u){
   float lip = clamp(L, 0.0, 1.0) * (1.0 - clamp(L - 1.0, 0.0, 1.0));
   float primer = clamp(L - 1.0, 0.0, 1.0) * (1.0 - clamp(L - 2.0, 0.0, 1.0));
   float bare = clamp(L - 2.0, 0.0, 1.0);
-  // rust: blooms out of bare steel and round fixings, then runs down (gravity: along -v)
-  float rn = msFbm(u + 7.0, 18.0, 3) * 0.5 + 0.5;
-  float rustK = msC.a;
-  float bloom = clamp(bare * 1.4 + near * 0.8 * smoothstep(0.4, 0.7, rn), 0.0, 1.0);
-  float streak = msD.x * smoothstep(0.55, 0.85, msFbm2(u + 4.0, vec2(14.0, 0.7), 3) * 0.5 + 0.5 + 0.3 * bare);
-  float rust = clamp((bloom * smoothstep(0.3, 0.6, rn + 0.2) + drip * 0.9) * rustK, 0.0, 1.0);
+  // rust: it grows out of the bare steel and the fixings into patches of its own (blistering the paint round them),
+  // and what washes off it runs down the sheet (gravity: along -v, from the rust above)
+  float rk = msC.a;
+  // the rust field: patchy at every scale (a 25 cm cluster, 4 cm pits, 1 cm speckle) and drawn out downward
+  float rfine = msFbm(u + 1.0, 90.0, 3);
+  float rf = 0.5 + 0.5 * (0.45 * msFbm(u + 7.0, 3.0, 4) + 0.3 * msFbm(u + 2.0, 16.0, 3) + 0.15 * rfine + 0.2 * msFbm2(u + 5.0, vec2(22.0, 1.6), 3));
+  float rp = smoothstep(0.72 - 0.3 * rk, 0.76 - 0.3 * rk, rf) * step(0.01, rk);
+  float rust = clamp(max(bare * (0.4 + 0.6 * rk) * smoothstep(0.3, 0.6, rf + 0.25), rp) + drip * rk * 0.9 + near * rk * 0.5 * smoothstep(0.4, 0.7, rf), 0.0, 1.0);
+  float blister = smoothstep(0.66 - 0.3 * rk, 0.72 - 0.3 * rk, rf) * (1.0 - rust);
+  float above = max(smoothstep(0.7 - 0.4 * rk, 0.85 - 0.4 * rk, msFbm(u + vec2(7.0, 7.06), 3.0, 3) * 0.5 + 0.5), smoothstep(0.7 - 0.4 * rk, 0.85 - 0.4 * rk, msFbm(u + vec2(7.0, 7.18), 3.0, 3) * 0.5 + 0.5));
+  float runs = smoothstep(0.45, 0.85, msFbm2(u + 4.0, vec2(16.0, 0.9), 3) * 0.5 + 0.5) * above * (0.4 + 0.6 * msD.x) * (1.0 - rust);
+  vec3 rc = msRustCol(0.25 + 0.7 * (msFbm(u + 2.0, 25.0, 3) * 0.5 + 0.5)) * (0.85 + 0.3 * rfine);
   vec3 col = msA.rgb * (0.96 + 0.05 * m1 + 0.03 * m2);
   col = mix(col, col * 1.1, lip);
-  col = mix(col, msB.rgb * (0.92 + 0.1 * m2), primer);
-  col = mix(col, vec3(0.53, 0.53, 0.54) * (0.9 + 0.12 * rn), bare);
-  col *= 1.0 - 0.18 * streak * rustK;
-  col = mix(col, msRustCol(rn), rust);
+  col = mix(col, msB.rgb * (0.92 + 0.1 * m2), primer * (1.0 - smoothstep(0.3, 0.9, rk)));
+  col = mix(col, vec3(0.53, 0.53, 0.54) * (0.9 + 0.12 * rf), bare);
+  col = mix(col, mix(col, msRustCol(0.55), 0.55), runs * rk);
+  float halo = smoothstep(0.5 - 0.3 * rk, 0.72 - 0.3 * rk, rf) * (1.0 - rust) * rk;
+  col = mix(col, col * vec3(0.9, 0.8, 0.7), blister * 0.6);
+  col = mix(col, mix(col, msRustCol(0.7), 0.5), halo * (0.5 + 0.5 * rfine));
+  col = mix(col, rc, rust);
   col = mix(col, msA.rgb * 0.8, bolt * 0.6);
   col *= 1.0 - 0.45 * seam;
   float r = msA.a - 0.2 * msD.y + 0.05 * peel;
-  r = mix(r, 0.7, primer); r = mix(r, 0.42, bare); r = mix(r, 0.9, rust);
+  r = mix(r, 0.7, primer); r = mix(r, 0.42, bare); r = mix(r, 0.6 + 0.2 * runs, runs * rk); r = mix(r, 0.88 + 0.08 * rfine, rust);
   float met = bare * (1.0 - rust);
-  float h = 0.62 + 0.03 * peel + 0.04 * lip - 0.1 * clamp(L - 1.0, 0.0, 1.0) - 0.06 * bare + 0.12 * rust * rn - 0.35 * seam + 0.3 * bolt;
-  float ao = 1.0 - 0.35 * seam;
+  float h = 0.55 + 0.03 * peel + 0.04 * lip - 0.1 * clamp(L - 1.0, 0.0, 1.0) - 0.06 * bare + rust * (0.12 + 0.12 * rfine + 0.1 * rf) + 0.06 * blister - 0.35 * seam + 0.3 * bolt;
+  float ao = 1.0 - 0.35 * seam - 0.15 * rust * (0.5 - 0.5 * rfine);
   return MsS(col, clamp(r, 0.04, 1.0), clamp(h, 0.0, 1.0), met, ao);
 }`,
 
@@ -646,7 +675,8 @@ MsS ms_aluminium(vec2 u){
   }
   // oxide: grey bloom where it has weathered
   float ox = smoothstep(0.6 - 0.4 * msB.y, 0.7 - 0.4 * msB.y, msFbm(u + 5.0, 3.0, 3) * 0.5 + 0.5);
-  col = mix(col, vec3(0.5, 0.5, 0.5), ox * 0.6); r = mix(r, 0.75, ox); met = 1.0 - 0.6 * ox;
+  ox = step(0.5, ox);
+  col = mix(col, vec3(0.5, 0.5, 0.5), ox * 0.6); r = mix(r, 0.75, ox); met = 1.0 - ox;
   return MsS(col, clamp(r, 0.03, 1.0), clamp(h, 0.0, 1.0), met, ao);
 }`,
 
@@ -856,7 +886,9 @@ MsS ms_fabric(vec2 u){
   if (msB.a > 0.0) base = mix(msA.rgb, msB.rgb, step(0.5, fract(u.x / (2.0 * msSnap(msB.a)))));
   float slub2 = msFbm2(u + 5.0, vec2(0.8, 25.0), 3);
   vec3 col = base * (0.92 + 0.07 * m1 + 0.09 * slub + 0.06 * slub2) * mix(1.0, 0.8 + 0.28 * wh + 0.1 * (th - 0.5), k);
-  float h = mix(0.5, 0.25 + 0.65 * wh, k) + 0.05 * fuzz + 0.05 * slub;
+  // the cloth is never flat: soft creases and puckers at 3..15 cm
+  float crease = msFbm(u + 2.0, 9.0, 4);
+  float h = mix(0.5, 0.25 + 0.55 * wh, k) * 0.7 + 0.25 * (crease * 0.5 + 0.5) + 0.05 * fuzz + 0.04 * slub;
   float r = msA.a + 0.04 * fuzz;
   float ao = mix(1.0, 0.75 + 0.25 * wh, k);
   if (V > 0.5 && V < 1.5) {
@@ -1031,7 +1063,9 @@ MsS ms_carbonFibre(vec2 u){
   float fib = msFbm2(over > 0.5 ? u : u.yx, vec2(2.0, 2000.0), 2) * msLod(0.0008);
   float h = mix(0.5, 0.3 + 0.5 * crown + 0.08 * fib, k);
   vec3 col = msA.rgb * mix(1.0, 0.8 + 0.4 * crown + 0.15 * (over - 0.5), k);
-  float r = msA.a + mix(0.0, 0.15 * (1.0 - crown), k);
+  vec3 tw = mgHash3(vec3(mod(c, vec2(msT / w)), msSeed));             // each tow a little apart (resin, tension)
+  col *= 0.94 + 0.12 * tw.x;
+  float r = msA.a + mix(0.0, 0.15 * (1.0 - crown), k) + 0.04 * (tw.y - 0.5);
   return MsS(col, clamp(r, 0.04, 1.0), clamp(h, 0.0, 1.0), 0.0, 1.0);
 }`,
 

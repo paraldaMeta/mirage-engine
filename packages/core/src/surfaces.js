@@ -44,7 +44,7 @@ const STEEL = [0.53, 0.53, 0.54];
 const KINDS = {
   concrete: {
     family: 'masonry', variants: ['cast', 'boardFormed', 'painted', 'precast'], tile: 2.4, depth: 0.006, size: 1024, porosity: 0.8,
-    refs: { albedo: [0.18, 0.42], rough: [0.75, 0.95], metal: 0, note: 'Portland cement concrete 0.20-0.40 (fresh grey ~0.35, weathered 0.20-0.30)' },
+    refs: { albedo: [0.18, 0.42], rough: [0.75, 0.95], metal: 0, note: 'Portland cement concrete 0.20-0.40 (fresh grey ~0.35, weathered 0.20-0.30)', variants: { painted: { albedo: [0.03, 0.85], rough: [0.5, 0.95], metal: 0, note: 'masonry paint as its pigment (white 0.70-0.85), satin 0.55-0.7' } } },
     defaults: { color: [0.33, 0.32, 0.3], roughness: 0.88, panel: [2.4, 1.2], tieSpacing: 0.6, boardHeight: 0.15, paint: [0.62, 0.6, 0.55], peel: 0.35, aggregate: 0.6, pores: 0.6, coldJoint: 0, efflorescence: 0 },
     pack: (o) => ({ A: [...o.color, o.roughness], B: [o.panel[0], o.panel[1], o.tieSpacing, o.boardHeight], C: [...o.paint, o.peel], D: [o.aggregate, o.pores, o.coldJoint, o.efflorescence] }),
     quantum: (o, T, v) => (v === 1 ? [T, snap(T, o.boardHeight)] : [snap(T, o.panel[0]), snap(T, o.panel[1])]),
@@ -52,7 +52,7 @@ const KINDS = {
   },
   asphalt: {
     family: 'ground', variants: ['fresh', 'worn', 'patched'], tile: 1.2, depth: 0.008, size: 1024, porosity: 0.35,
-    refs: { albedo: [0.03, 0.16], rough: [0.6, 0.95], metal: 0, note: 'binder 0.03-0.06; aggregate 0.10-0.30; worn surface overall 0.08-0.14' },
+    refs: { albedo: [0.03, 0.16], rough: [0.3, 0.95], metal: 0, note: 'binder 0.03-0.06; aggregate 0.10-0.30; worn surface overall 0.08-0.14; crack sealant (tar) glossy 0.3-0.4' },
     defaults: { color: [0.042, 0.041, 0.04], roughness: 0.88, stone: [0.2, 0.2, 0.19], stoneSize: 0.011, patch: 1, cracks: 0.5, oil: 0, polish: 0.5 },
     pack: (o) => ({ A: [...o.color, o.roughness], B: [...o.stone, o.stoneSize], C: [o.patch, o.cracks, o.oil, o.polish], D: [0, 0, 0, 0] }),
     quantum: () => [0, 0],
@@ -68,11 +68,11 @@ const KINDS = {
     edge: () => ({ rgb: [1.15, 1.15, 1.12], rough: 0.95, metal: 0, mode: 1, chip: 0.02 }),
   },
   brick: {
-    family: 'masonry', variants: ['common', 'engineering', 'painted', 'stock'], tile: 2.25, depth: 0.012, size: 1024, porosity: 0.7,
-    refs: { albedo: [0.06, 0.45], rough: [0.65, 0.95], metal: 0, note: 'red clay brick R 0.20-0.40; engineering blue 0.05-0.10; London stock ~(0.40, 0.30, 0.17); lime mortar 0.35-0.55' },
-    defaults: { color: [0.32, 0.12, 0.07], roughness: 0.82, brick: [0.225, 0.075], mortar: 0.01, recess: 0.006, mortarColor: [0.44, 0.42, 0.38], burnt: 0.12, paint: [0.7, 0.7, 0.68], peel: 0.3 },
+    family: 'masonry', variants: ['common', 'engineering', 'painted', 'stock'], tile: 2.25, depth: 0.02, size: 1024, porosity: 0.7,
+    refs: { albedo: [0.06, 0.45], rough: [0.5, 0.95], metal: 0, note: 'red clay brick R 0.20-0.40; engineering blue 0.05-0.10 (dense, roughness ~0.6); London stock ~(0.40, 0.30, 0.17); lime mortar 0.35-0.55', variants: { painted: { albedo: [0.03, 0.85], rough: [0.5, 0.95], metal: 0, note: 'masonry paint over brick' } } },
+    defaults: { color: [0.32, 0.12, 0.07], roughness: 0.82, brick: [0.225, 0.075], mortar: 0.01, recess: 0.008, mortarColor: [0.44, 0.42, 0.38], burnt: 0.12, paint: [0.7, 0.7, 0.68], peel: 0.3 },
     variantDefaults: { engineering: { color: [0.075, 0.065, 0.075], mortarColor: [0.25, 0.25, 0.25], burnt: 0.05 }, stock: { color: [0.42, 0.31, 0.17], burnt: 0.18 } },
-    pack: (o) => ({ A: [...o.color, o.roughness], B: [o.brick[0], o.brick[1], o.mortar, o.recess], C: [...o.mortarColor, o.burnt], D: [...o.paint, o.peel] }),
+    pack: (o) => ({ A: [...o.color, o.roughness], B: [o.brick[0], o.brick[1], o.mortar, Math.min(1, o.recess / 0.02)], C: [...o.mortarColor, o.burnt], D: [...o.paint, o.peel] }),
     quantum: (o, T) => [snap(T, o.brick[0]), 2 * snap(T, o.brick[1])],
     edge: () => ({ rgb: [1.1, 1.08, 1.05], rough: 0.95, metal: 0, mode: 1, chip: 0.02 }),
   },
@@ -102,7 +102,7 @@ const KINDS = {
     edge: (o, v) => (v === 1 ? { rgb: [0.6, 0.62, 0.64], rough: 0.45, metal: 1, mode: 0, chip: 0.012 } : { rgb: [0.2, 0.08, 0.03], rough: 0.9, metal: 0, mode: 0, chip: 0.015 }),
   },
   paintedMetal: {
-    family: 'metal', variants: ['sheet', 'panels', 'enamel'], tile: 2.0, depth: 0.004, size: 1024, porosity: 0.1,
+    family: 'metal', variants: ['sheet', 'panels', 'enamel'], tile: 2.0, depth: 0.003, size: 1024, porosity: 0.1,
     refs: { albedo: [0.03, 0.85], rough: [0.15, 0.92], metal: 'paint 0 / bare steel 1 / rust 0', note: 'paint as its pigment (white 0.70-0.85, black 0.03-0.05); bare steel F0 (0.53, 0.53, 0.54); red-oxide primer ~(0.25, 0.08, 0.05)' },
     defaults: { color: [0.3, 0.33, 0.36], roughness: 0.45, primer: [0.24, 0.08, 0.05], chips: 0.35, panel: [1.0, 1.0], boltSpacing: 0.15, rust: 0.5, streaks: 0.5, gloss: 0 },
     variantDefaults: { enamel: { roughness: 0.25, gloss: 0.5 } },
@@ -129,7 +129,7 @@ const KINDS = {
   },
   castIron: {
     family: 'metal', variants: ['manhole', 'plain', 'grate'], tile: 0.8, depth: 0.012, size: 1024, porosity: 0.2,
-    refs: { albedo: [0.006, 0.55], rough: [0.3, 0.95], metal: 'worn tops 1 / rust and grime 0', note: 'cast iron F0 ~(0.45, 0.44, 0.43), darker than wrought; rust 0.10-0.35' },
+    refs: { albedo: [0.006, 0.55], rough: [0.3, 0.95], metal: 'worn tops 1 / rust and grime 0', note: 'cast iron F0 ~(0.45, 0.44, 0.43), darker than wrought; rust 0.10-0.35', variants: { grate: { albedo: [0.0, 0.55], rough: [0.3, 0.95], metal: 'bars 1 / openings 0', note: 'a grate is half openings (near black)' } } },
     defaults: { color: [0.45, 0.44, 0.43], roughness: 0.35, rustColor: [0.2, 0.08, 0.035], rust: 0.5, diameter: 0.7, pitch: 0.035 },
     variantDefaults: { grate: { pitch: 0.04 } },
     pack: (o) => ({ A: [...o.color, o.roughness], B: [...o.rustColor, o.rust], C: [o.diameter, o.pitch, 0, 0], D: [0, 0, 0, 0] }),
@@ -138,7 +138,7 @@ const KINDS = {
   },
   aluminium: {
     family: 'metal', variants: ['anodised', 'extruded', 'tread', 'cast'], tile: 0.6, depth: 0.003, size: 1024, porosity: 0.05,
-    refs: { albedo: [0.4, 0.95], rough: [0.2, 0.8], metal: 1, note: 'aluminium F0 (0.91, 0.92, 0.92); anodised: the dye tints it' },
+    refs: { albedo: [0.4, 0.95], rough: [0.2, 0.8], metal: 'aluminium 1 / a white oxide bloom over it 0', note: 'aluminium F0 (0.91, 0.92, 0.92); anodised: the dye tints it' },
     defaults: { color: [0.91, 0.92, 0.92], roughness: 0.32, treadPitch: 0.03, oxide: 0.1 },
     variantDefaults: { anodised: { color: [0.5, 0.52, 0.56], roughness: 0.35 } },
     pack: (o) => ({ A: [...o.color, o.roughness], B: [o.treadPitch, o.oxide, 0, 0], C: [0, 0, 0, 0], D: [0, 0, 0, 0] }),
@@ -208,7 +208,7 @@ const KINDS = {
     edge: () => ({ rgb: [1.6, 1.6, 1.6], rough: 0.9, metal: 0, mode: 1, chip: 0.01 }),
   },
   fabric: {
-    family: 'textile', variants: ['canvas', 'tarpaulin', 'cotton', 'nylon'], tile: 0.5, depth: 0.0008, size: 1024, porosity: 0.9,
+    family: 'textile', variants: ['canvas', 'tarpaulin', 'cotton', 'nylon'], tile: 0.5, depth: 0.0025, size: 1024, porosity: 0.9,
     refs: { albedo: [0.03, 0.75], rough: [0.45, 0.98], metal: 0, note: 'canvas 0.30-0.60 (a scanned canvas set averages 0.53); cotton 0.85-0.95 rough' },
     defaults: { color: [0.5, 0.06, 0.05], roughness: 0.9, stripe: [0.62, 0.6, 0.52], stripeWidth: 0, thread: 0.0009, fuzz: 1 },
     variantDefaults: { tarpaulin: { roughness: 0.5, color: [0.03, 0.12, 0.3], thread: 0.002 }, cotton: { thread: 0.0006 }, nylon: { roughness: 0.55, thread: 0.0004 } },
@@ -419,28 +419,37 @@ void msAcc(inout MsS o, MsS s, float w){ o.a += s.a * w; o.r += s.r * w; o.h += 
 
 // the runtime layer: macro variation, dirt, streaks, edge wear (both paths)
 const FINISH_GLSL = /* glsl */ `
+// cheap 3D value noise for the runtime layer (its features are large: decimetres to metres)
+float msVN(vec3 p){ return mgValue3(p) * 2.0 - 1.0; }
 void msFinish(inout MsS s, vec3 wp, vec3 wn, float fpw){
-  float v1 = mgFbm3(wp * 0.21 + msX.y, 3), v2 = mgFbm3(wp * 0.9 + 3.1 + msX.y, 2);
-  float var = msW.w;
-  s.a *= max(1.0 + var * (0.2 * v1 + 0.08 * v2), 0.2);
-  s.r = clamp(s.r + var * 0.05 * v1, 0.02, 1.0);
-  float up = clamp(wn.y, 0.0, 1.0), wall = 1.0 - abs(wn.y);
-  float foot = 1.0 - smoothstep(0.0, 0.45 + 0.4 * (v1 * 0.5 + 0.5), wp.y - msG.w);
-  float cav = clamp((0.5 - s.h) * 2.2, 0.0, 1.0);
-  float streak = smoothstep(0.2, 0.85, mgFbm3(wp * vec3(2.4, 0.16, 2.4) + 7.0, 3) * 0.5 + 0.5) * wall;
-  float d = msW.y * clamp(0.6 * cav * (0.7 + 0.3 * v2) + 0.55 * foot + 0.3 * up * smoothstep(-0.2, 0.6, v2), 0.0, 1.0);
-  d = clamp(d + 0.45 * msW.x * msW.y * streak, 0.0, 1.0);
-  s.a = mix(s.a, msG.rgb * (0.85 + 0.3 * (v2 * 0.5 + 0.5)), d * 0.8);
-  s.r = mix(s.r, 0.9, d * 0.75);
-  s.m *= 1.0 - d;
-  if (msF.y >= 0.0 && msW.z > 0.0 && msEdgeK > 0.0) {
+  float v1 = 0.0, v2 = 0.0;
+  if (msW.w > 0.0 || msW.y > 0.0) {
+    v1 = 0.65 * msVN(wp * 0.23 + msX.y) + 0.35 * msVN(wp * 0.61 + 3.7);
+    v2 = msVN(wp * 1.7 + 3.1 + msX.y);
+  }
+  if (msW.w > 0.0) {   // macro variation: hides the tile
+    s.a *= max(1.0 + msW.w * (0.24 * v1 + 0.08 * v2), 0.2);
+    s.r = clamp(s.r + msW.w * 0.05 * v1, 0.02, 1.0);
+  }
+  if (msW.y > 0.0) {   // dirt: in the cavities, at the foot, on top faces; run-off streaks down walls with age
+    float up = clamp(wn.y, 0.0, 1.0), wall = 1.0 - abs(wn.y);
+    float foot = 1.0 - smoothstep(0.0, 0.45 + 0.4 * (v1 * 0.5 + 0.5), wp.y - msG.w);
+    float cav = clamp((0.5 - s.h) * 2.2, 0.0, 1.0);
+    float d = msW.y * clamp(0.6 * cav * (0.7 + 0.3 * v2) + 0.55 * foot + 0.3 * up * smoothstep(-0.2, 0.6, v2), 0.0, 1.0);
+    if (wall > 0.05 && msW.x > 0.0) {
+      float st = 0.6 * msVN(wp * vec3(2.4, 0.16, 2.4) + 7.0) + 0.4 * msVN(wp * vec3(6.1, 0.4, 6.1) + 2.0);
+      d = clamp(d + 0.45 * msW.x * msW.y * smoothstep(-0.1, 0.6, st) * wall, 0.0, 1.0);
+    }
+    s.a = mix(s.a, msG.rgb * (0.85 + 0.3 * (v2 * 0.5 + 0.5)), d * 0.8);
+    s.r = mix(s.r, 0.9, d * 0.75);
+    s.m *= 1.0 - d;
+  }
+  if (msF.y >= 0.0 && msW.z > 0.0 && msEdgeK > 0.02) {   // edge wear, broken into chips
     float cs = msF.z;
-    float cn = mgFbm3(wp / cs, 3) * 0.5 + 0.5;
+    float cn = 0.5 + 0.5 * (0.7 * msVN(wp / cs) + 0.3 * msVN(wp / (cs * 0.4) + 4.0));
     cn = mix(0.5, cn, clamp(cs / (3.0 * fpw) - 0.5, 0.0, 1.0));
-    float cn2 = mix(0.5, mgFbm3(wp / (cs * 0.3) + 4.0, 2) * 0.5 + 0.5, clamp(cs * 0.3 / (3.0 * fpw) - 0.5, 0.0, 1.0));
     float e = clamp(msEdgeK * msW.z * 1.6, 0.0, 1.0);
-    float ex = smoothstep(0.52, 0.56, e * 0.5 + (cn - 0.5) * 1.1 + (cn2 - 0.5) * 0.35 + 0.18);
-    ex *= step(0.02, e);
+    float ex = smoothstep(0.52, 0.56, e * 0.5 + (cn - 0.5) * 1.3 + 0.18);
     if (msF.y < 0.5) { s.a = mix(s.a, msE.rgb, ex); s.m = mix(s.m, msF.x, ex); }
     else s.a = mix(s.a, s.a * msE.rgb, ex);
     s.r = mix(s.r, msE.a, ex);
@@ -523,7 +532,8 @@ const v4 = (a) => new THREE.Vector4(...a);
  * axis as u in 'tri' / 'wall' / 'ground'), space 'world' | 'object', uvScale (m per uv unit), ground (m: the foot),
  * breaker (baked: hide the repeat, true), edges 'curvature' | 'attribute' (vertex attribute `edge` 0..1),
  * decals { rills: { top, length, density }, damp, stains, cracks, soot, leaks }, paint (asphalt: a GLSL float mask),
- * paintColor, debug ('albedo' | 'rough' | 'height' | 'metal').
+ * paintColor, debug ('albedo' | 'rough' | 'height' | 'metal'), lod (footprints per wavelength under which detail is
+ * dropped: 3; 2 matches a bake).
  */
 export function surfaceHooks(spec, options = {}) {
   if (!spec || !spec.isSurface) throw new TypeError('surfaceHooks: pass a spec from SURFACES.<kind>(...)');
@@ -577,7 +587,7 @@ void msTap(vec2 uv, vec2 gx, vec2 gy, out vec4 c, out vec4 n){
       msNW += (msFrameT[${i}] * t.x + msFrameB[${i}] * t.y + msWN * sqrt(max(1.0 - dot(t, t), 0.0))) * msFrameW[${i}]; }`;
   const nTaps = { tri: 3, wall: 2, ground: 1, grain: 1, uv: 1 }[o.mapping];
   let body = /* glsl */ `
-  msT = msX.x; msSeed = msX.y;
+  msT = msX.x; msSeed = msX.y; msLodA = ${fmt(o.lod ?? 3)};
   vec3 msP0 = ${pos}, msWN = ${nrm};
   vec3 msPW = mgWorldPos, msNWorld = normalize(mgWorldNormal);
   float msFPW = max(length(dFdx(mgWorldPos)), length(dFdy(mgWorldPos)));
@@ -667,7 +677,7 @@ ${KIND_GLSL[kind]}
 layout(location = 0) out vec4 o0;
 layout(location = 1) out vec4 o1;
 void main(){
-  msT = msX.x; msSeed = msX.y; msFP = msT / msN;
+  msT = msX.x; msSeed = msX.y; msFP = msT / msN; msLodA = 2.0;
   vec2 u = gl_FragCoord.xy / msN * msT;
   MsS s = ms_${kind}(u);
   o0 = vec4(max(s.a, 0.0), clamp(s.r, 0.02, 1.0));
@@ -688,6 +698,7 @@ void main(){
   o1 = vec4(n.xy * 0.5 + 0.5, b.r, b.g);
 }`;
 
+const BAKERS = new WeakMap();
 /** Render a surface's tile into a texture set: { c: albedo (sRGB, cavity folded in) + roughness (A), n: normal xy +
  *  height + metalness, size, ms (CPU-side time of the bake call; the GPU work is flushed), bytes }. */
 export function bakeSurface(renderer, spec, { size = 0, anisotropy = 8 } = {}) {
@@ -704,21 +715,30 @@ export function bakeSurface(renderer, spec, { size = 0, anisotropy = 8 } = {}) {
     t.name = `surface-${spec.kind}-${i ? 'n' : 'c'}`;
   });
   const U = spec.uniforms;
-  const uni = { msN: { value: N }, uTime: { value: 0 }, cameraPosition: { value: new THREE.Vector3() } };
-  for (const k of ['X', 'W', 'A', 'B', 'C', 'D', 'E', 'F', 'G']) uni['ms' + k] = { value: v4(U[k]) };
-  uni.msY = { value: v4([0, spec.depth, 0, 0]) };
-  const m1 = new THREE.RawShaderMaterial({ glslVersion: THREE.GLSL3, vertexShader: BAKE_VS, fragmentShader: bakeFS1(spec.kind), uniforms: uni });
-  const m2 = new THREE.RawShaderMaterial({ glslVersion: THREE.GLSL3, vertexShader: BAKE_VS, fragmentShader: BAKE_FS2,
-    uniforms: { t0: { value: rt1.textures[0] }, t1: { value: rt1.textures[1] }, msN: uni.msN, msX: uni.msX, msY: uni.msY } });
-  const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), m1); quad.frustumCulled = false;
-  const scene = new THREE.Scene(); scene.add(quad);
-  const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  // the two passes' materials, kept per renderer and kind (a second bake of a kind compiles nothing)
+  let per = BAKERS.get(renderer);
+  if (!per) BAKERS.set(renderer, (per = { quad: new THREE.Mesh(new THREE.PlaneGeometry(2, 2)), cam: new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), kinds: {}, m2: null }));
+  if (!per.kinds[spec.kind]) {
+    const uni = { msN: { value: 0 }, uTime: { value: 0 }, cameraPosition: { value: new THREE.Vector3() } };
+    for (const k of ['X', 'Y', 'W', 'A', 'B', 'C', 'D', 'E', 'F', 'G']) uni['ms' + k] = { value: new THREE.Vector4() };
+    per.kinds[spec.kind] = new THREE.RawShaderMaterial({ glslVersion: THREE.GLSL3, vertexShader: BAKE_VS, fragmentShader: bakeFS1(spec.kind), uniforms: uni });
+  }
+  if (!per.m2) per.m2 = new THREE.RawShaderMaterial({ glslVersion: THREE.GLSL3, vertexShader: BAKE_VS, fragmentShader: BAKE_FS2,
+    uniforms: { t0: { value: null }, t1: { value: null }, msN: { value: 0 }, msX: { value: new THREE.Vector4() }, msY: { value: new THREE.Vector4() } } });
+  const m1 = per.kinds[spec.kind], m2 = per.m2, uni = m1.uniforms;
+  uni.msN.value = N;
+  for (const k of ['X', 'W', 'A', 'B', 'C', 'D', 'E', 'F', 'G']) uni['ms' + k].value.fromArray(U[k]);
+  uni.msY.value.set(0, spec.depth, 0, 0);
+  m2.uniforms.t0.value = rt1.textures[0]; m2.uniforms.t1.value = rt1.textures[1]; m2.uniforms.msN.value = N;
+  m2.uniforms.msX.value.copy(uni.msX.value); m2.uniforms.msY.value.copy(uni.msY.value);
+  const quad = per.quad; quad.material = m1; quad.frustumCulled = false;
+  const cam = per.cam;
   const prev = renderer.getRenderTarget(), prevXR = renderer.xr.enabled, prevAuto = renderer.autoClear;
   renderer.xr.enabled = false; renderer.autoClear = false;
-  renderer.setRenderTarget(rt1); renderer.render(scene, cam);
-  quad.material = m2; renderer.setRenderTarget(rt2); renderer.render(scene, cam);
+  renderer.setRenderTarget(rt1); renderer.render(quad, cam);
+  quad.material = m2; renderer.setRenderTarget(rt2); renderer.render(quad, cam);
   renderer.setRenderTarget(prev); renderer.xr.enabled = prevXR; renderer.autoClear = prevAuto;
-  m1.dispose(); m2.dispose(); quad.geometry.dispose(); rt1.dispose();
+  rt1.dispose();
   const ms = performance.now() - t0;
   return { c: rt2.textures[0], n: rt2.textures[1], target: rt2, size: N, ms, bytes: Math.round(N * N * 8 * 4 / 3) };
 }
