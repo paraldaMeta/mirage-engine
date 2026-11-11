@@ -6,13 +6,16 @@
 //  - runs: on steep panels some drops run down their own column slowly (uTime), leaving a thin wet track above;
 //  - splashes: rings opening on up-facing panels, as many as the rain is heavy (the page's rain level, WET.uRain);
 //  - a wet film darker and glossier at the foot of vertical panels.
+// All of it follows the street's wetness (WET.uWet) and the rain (WET.uRain): wet and raining (night) the beads stand
+// and run; as the street dries the beads go and leave water spots (a faint mineral ring, a little rougher), and on
+// a dry day only the spots are left.
 // Stability: all of it is in metres on the surface; where a cell gets smaller than about a pixel the beads fade into
 // a uniformly wet (lower roughness) surface instead of sparkling, and patch()'s specular AA widens what is left.
 // Options: scale (cell size factor), density (0..1), run (0..1 the share of running drops), film (0..1).
 import { WET } from '@miragekit/core';
 
 const DECL = /* glsl */ `
-vec3 ndBeadW; float ndBeadC; float ndTrack;
+vec3 ndBeadW; float ndBeadC; float ndTrack; float ndSpot;
 vec2 ndH2(vec2 p){ return fract(sin(vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)))) * 43758.5453); }
 float ndH1(vec2 p){ return fract(sin(dot(p, vec2(41.3, 289.1))) * 15731.743); }
 // one layer of beads on the plane (u, v), cell size c (m); returns the lens's slope (in u, v) and coverage in .z
@@ -39,15 +42,18 @@ export function rainBeads(h = {}, { scale = 1, density = 0.62, run = 0.5, film =
     vec2 uv = vec2(dot(p, t), dot(p, b));
     float steep = 1.0 - smoothstep(0.35, 0.85, abs(up));
     float stretch = 1.0 + 0.6 * steep;
-    float wetK = clamp(ndRain * 1.5 + 0.35, 0.0, 1.0);
-    vec3 a = ndBeadLayer(uv, 0.014 * ${S}, ${N} * mix(1.0, 0.55, steep) * wetK, stretch);
-    vec3 c = ndBeadLayer(uv + 3.7, 0.006 * ${S}, ${N} * 0.9 * wetK, stretch);
+    float wetK = clamp(ndWetB * 1.25, 0.0, 1.0), dryK = 1.0 - wetK;
+    vec3 a = ndBeadLayer(uv, 0.014 * ${S}, ${N} * mix(1.0, 0.55, steep), stretch);
+    vec3 c = ndBeadLayer(uv + 3.7, 0.006 * ${S}, ${N} * 0.9, stretch);
     vec3 L = a.z >= c.z ? a : c;
+    // where a bead dried: a ring of what the water left (from the same cells, so the spots are where the beads were)
+    float spot = L.z * (1.0 - L.z) * 4.0 * dryK;
+    L *= wetK;
     // runs: in columns 7 mm wide, a drop slides down its column; the track above it stays wet
     ndTrack = 0.0;
     if (steep > 0.2) {
       float col = floor(uv.x / (0.007 * ${S})), hc = ndH1(vec2(col, 3.1));
-      if (hc < ${RU} * 0.35 * wetK) {
+      if (hc < ${RU} * 0.35 * wetK * step(0.05, ndRain)) {
         float sp = 0.012 + 0.03 * fract(hc * 91.0), y = uv.y + uTime * sp + hc * 40.0;
         float cell = 0.09 + 0.12 * fract(hc * 17.0), fy = fract(y / cell) * cell, fx = fract(uv.x / (0.007 * ${S})) - 0.5;
         vec2 dd = vec2(fx * 0.007 * ${S}, (fy - 0.01) * 0.6) / 0.0032;
@@ -69,19 +75,21 @@ export function rainBeads(h = {}, { scale = 1, density = 0.62, run = 0.5, film =
     ndBeadC = L.z * vis;
     ndBeadW = (t * L.x + b * L.y) * ${K} * vis;
     // the beads darken what is under them a little; a wet film gathers at the foot of a vertical panel
-    float foot = steep * smoothstep(0.75, 0.2, p.y) * ${FI};
+    float foot = steep * smoothstep(0.75, 0.2, p.y) * ${FI} * wetK;
     diffuseColor.rgb *= (1.0 - 0.18 * ndBeadC) * (1.0 - 0.25 * foot);
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.55), 0.06 * spot * vis);
+    ndSpot = spot * vis;
     ndTrack = max(ndTrack * vis, foot * 0.6);
   }`;
-  const roughness = 'roughnessFactor = mix(mix(roughnessFactor, roughnessFactor * 0.55, ndTrack), 0.03, ndBeadC);';
+  const roughness = 'roughnessFactor = mix(mix(roughnessFactor, roughnessFactor * 0.55, ndTrack), 0.03, ndBeadC); roughnessFactor = min(1.0, roughnessFactor + 0.18 * ndSpot);';
   const normal = '{ vec3 nw = normalize(normalize(mgWorldNormal) + ndBeadW * 1.6); vec3 nv = normalize((viewMatrix * vec4(nw, 0.0)).xyz); normal = normalize(mix(normal, nv, clamp(ndBeadC * 1.4, 0.0, 1.0))); }';
   const join = (a, b) => (a ? a + '\n' + b : b);
   return {
     ...h,
-    fragmentDecl: 'uniform float ndRain;\n' + DECL + (h.fragmentDecl || ''),
+    fragmentDecl: 'uniform float ndRain; uniform float ndWetB;\n' + DECL + (h.fragmentDecl || ''),
     albedo: join(h.albedo, albedo),
     roughness: join(h.roughness, roughness),
     normal: join(h.normal, normal),
-    uniforms: { ...(h.uniforms || {}), ndRain: WET.uRain },
+    uniforms: { ...(h.uniforms || {}), ndRain: WET.uRain, ndWetB: WET.uWet },
   };
 }
