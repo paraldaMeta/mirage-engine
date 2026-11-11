@@ -1,6 +1,8 @@
 // props: jars (seeded lathe profiles) in the north-west corner and by the gate; a lantern with a warm point
 // light on every `lamps` anchor any module offers (consumed in finalize); with ctx.shared.detail, soot on the wall
 // above the lamps that hang on a wall (anchors with `wall`: the ring's distance from the face).
+// With the world's lamp pool on (?lamppool=1, @miragekit/core lamppool.js) the lanterns are pool lamps instead of
+// PointLights (the same light, through the pool's loop); ctx.shared.lampReal keeps the PointLights as well.
 import * as THREE from 'three';
 import { materials } from './materials.js';
 
@@ -20,10 +22,13 @@ export default {
   finalize(ctx) {
     const { geom, root, world } = ctx, M = materials(ctx);
     const b = new geom.MeshBatch();
-    for (const { pos: [x, y, z] } of ctx.anchors.lamps || []) {
+    const pool = world.lampPool, colour = new THREE.Color(0xff9a50);
+    for (const { pos: [x, y, z], rotY, wall } of ctx.anchors.lamps || []) {
       b.add(geom.lathe([[0.001, 0.36], [0.13, 0.3], [0.16, 0.26], [0.001, 0.26]], 8), M.iron, geom.compose([x, y - 0.13, z]));
       b.add(geom.lathe([[0.001, 0], [0.1, 0.04], [0.12, 0.13], [0.1, 0.24], [0.001, 0.26]], 8), M.glass, geom.compose([x, y - 0.13, z]));
       b.add(new THREE.TorusGeometry(0.115, 0.01, 4, 8).rotateX(Math.PI / 2), M.iron, geom.compose([x, y, z]));
+      if (pool) pool.add({ pos: [x, y, z], range: 9, power: 2.2, color: [colour.r, colour.g, colour.b], ...(wall > 0 ? { normal: [Math.sin(rotY), 0, Math.cos(rotY)], back: wall + 0.05 } : {}) });
+      if (pool && !ctx.shared.lampReal) continue;
       const l = new THREE.PointLight(0xff9a50, 0, 9, 2);
       l.position.set(x, y, z);
       root.add(l);

@@ -9,6 +9,8 @@
 //      ?soft=1 contact-hardening soft sun shadows (@miragekit/core softshadow.js); &sunAngle=deg (0.53 = the real sun)
 //      ?wet=0..1 wet ground and masonry, puddles (@miragekit/core wet.js)  &rain=0..1 ripples on the puddles and falling
 //      streaks (@miragekit/world/kits/rain); without ?wet / ?rain nothing of either is built
+//      ?lamppool=1 the lanterns are lit by the lamp pool (@miragekit/core lamppool.js) instead of PointLights;
+//      &lampreal=1 keeps the PointLights too (the pool then adds nothing: the A/B of the hand-off)
 //      Enter VR / Enter AR appear in a WebXR browser: docs/xr.md
 import { createWorldRenderer, createTextures, placeDate, pickQuality, setRelief, setWetness, setRain, postFromQuery } from '@miragekit/core';
 import { buildWorld } from '@miragekit/world';
@@ -52,7 +54,7 @@ const lighting = ['csm', 'gi', 'probes'].some(LF) || (NL && !stock) || SCR ? {
   lights: NL > 0 && !stock && { cluster: Q.get('cluster') !== '0', perCell: +Q.get('percell') || 0 },   // exact lists (&percell=64: the capped ones)
 } : undefined;
 const ed = editable(plan, edits);   // with an empty layer: the plan itself, and every ed. call below does nothing
-const world = createWorldRenderer({ quality, byteTargets: Q.get('bytetargets') === '1', xr: xrs.vr || xrs.ar, light2, softShadows, lighting: ed.lighting(lighting), dynamicRes: Q.get('dynres') ? (Q.get('dynres') === '1' || { target: +Q.get('dynres') }) : (caps?.settings.dynamicRes ?? false),
+const world = createWorldRenderer({ quality, byteTargets: Q.get('bytetargets') === '1', xr: xrs.vr || xrs.ar, light2, softShadows, lighting: ed.lighting(lighting), lampPool: Q.get('lamppool') === '1', dynamicRes: Q.get('dynres') ? (Q.get('dynres') === '1' || { target: +Q.get('dynres') }) : (caps?.settings.dynamicRes ?? false),
   canvas, width: W, height: H, place, time: date || 'golden', preserveDrawingBuffer: true,
   shadow: { center: [0, 2, 0], radius: 17 }, envProbe: [0, 2.2, 0],
   fog: { groundDensity: 0.0022, height: 30 },
@@ -65,7 +67,7 @@ const tex = createTextures(world, { manifest, url: (f) => urls['./tex/' + f] });
 // wetness (opt-in): ?wet=0.8 re-patches the ground and masonry materials, ?rain=1 adds the streaks
 const wet = Q.has('wet') || Q.has('rain');
 if (wet) { setWetness(+(Q.get('wet') ?? 0)); setRain(+(Q.get('rain') ?? 0)); }
-const buildOpts = (p) => ({ plan: p, modules: modules({ broken: Q.has('broken') }), shared: { tex, detail: !Q.has('nodetail'), ...(wet ? { wet: true } : {}) } });
+const buildOpts = (p) => ({ plan: p, modules: modules({ broken: Q.has('broken') }), shared: { tex, detail: !Q.has('nodetail'), ...(wet ? { wet: true } : {}), ...(Q.get('lampreal') === '1' ? { lampReal: true } : {}) } });
 const built = await buildWorld(world, buildOpts(ed.plan));
 const rain = Q.has('rain') ? addRain({ ...world.ctx, root: world.scene }) : null;
 
