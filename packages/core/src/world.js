@@ -111,7 +111,7 @@ export function createWorldRenderer(config = {}) {
   sun.shadow.bias = -0.0002; sun.shadow.normalBias = 0.02; sun.shadow.radius = 1;
   scene.add(sun, sun.target);
   // realtime lighting features (opt-in, lighting.js): cascades, probe GI, reflection probes, clustered local lights
-  const lighting = config.lighting ? createLighting({ renderer, scene, sun, G, keyDir, quality, Q, soft: sscfg, envProbe, capture: lightCapture, skyVisible: (v) => { sky.visible = v; } }, config.lighting) : null;
+  const lighting = config.lighting ? createLighting({ renderer, scene, sun, G, keyDir, quality, Q, soft: sscfg, envProbe, shadow, msaa: device.msaa, capture: lightCapture, skyVisible: (v) => { sky.visible = v; } }, config.lighting) : null;
   // the lamp pool (opt-in, lamppool.js): every lamp lights its surroundings, beyond the few real PointLights
   const lpcfg = lampPoolConfig(config.lampPool);
   const lampPool = lpcfg ? createLampPool({ renderer, scene, G, injector: lighting && lighting.injector, light2: l2cfg }, lpcfg) : null;
@@ -339,6 +339,9 @@ export function createWorldRenderer(config = {}) {
     if (lighting) lighting.adopt();
     if (lampPool) lampPool.adopt();
     if (lighting || lampPool) await compile();
+    // the lighting parts act on the image-based light: their programs are the ones WITH the environment (compiled
+    // here in parallel; without this every lit material of a big world was linked one by one in the first capture)
+    if (lighting) { scene.environment = envLight.texture; await compile(); scene.environment = null; }
     captureEnv(true);
     if (warm) return { warmMs: warmUp() };
   }

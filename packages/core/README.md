@@ -284,6 +284,21 @@ reaches.
   within the noise on a street view; `setTime` (the table bake) 0.34 -> 0.36 ms. Load: one more sky program.
 - Techniques (the altocumulus cells, the night cloud look, the below-horizon fill) ported from the author's own
   Nizwa engine; the probe that asked for it: `probes/nizwa-probe` (`?sky=dusk`), hello-courtyard `?sky=dusk`.
+## Bounce light (opt-in, experimental): `lighting: { bounce }`
+
+`createWorldRenderer({ ..., lighting: { bounce: true } })` (the box is the `shadow` volume in x / z and the built
+heights in y) or `{ bounce: { min, max, spacing: 2, layers: 8, curve: 2, strength: 1 } }`. Warm light from sunlit
+walls and ground into the shade beside them, and the sky occlusion of lanes and courts, as a factor on the lit
+materials' image-based diffuse light: local probe light / the light of a probe at `envProbe`, so the world's
+calibrated level stays and only the local variation is added. The probes (2 m apart by default) are gathered on the
+GPU from a height field of the scene, drawn once from above with its own materials (albedo and height), not from a
+cube render per probe: Nizwa Fort (1.6 M triangles, 42,240 probes) prepares in about 10 ms of drawing and 30-40 ms
+of baking, against 51 s for `gi`. Re-baked with every recapture of the image-based light: at once for a still
+(exact, repeatable), over ~30 frames and eased for a running clock. Without `bounce` nothing of it is built and
+stills are bit-identical. Limits: one height per (x, z), so under an arch, a roof or a floor it leaves the light as it
+is (ambient volumes handle rooms); no local lamps; not together with `gi` over the same area.
+`world.lighting.bounce.info` / `.strength` / `.bake()`; settings `BOUNCE_DEFAULTS`; details and measurements in
+[docs/lighting.md](../../docs/lighting.md).
 
 ## Materials: `world.mat`
 

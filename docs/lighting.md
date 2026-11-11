@@ -1,12 +1,13 @@
-# Realtime lighting: cascades, probe GI, reflection probes, many lights, screen-space passes
+# Realtime lighting: cascades, probe GI, bounce light, reflection probes, many lights, screen-space passes
 
-Five features, all **experimental** and all **off by default**. They are turned on per world:
+Six features, all **experimental** and all **off by default**. They are turned on per world:
 
 ```js
 const world = createWorldRenderer({
   lighting: {
     csm: true,                                                    // cascaded sun shadows
     gi: { min: [-4, 3.6, -29], max: [4, 7.4, -21], spacing: 1.2 }, // irradiance probes over one box
+    bounce: true,                                                 // one-bounce light from a height field (or { min, max, spacing })
     probes: [{ min: [-4, 3.6, -29], max: [4, 7.4, -21] }],          // box reflection probes (at most 4)
     lights: true,                                                 // clustered local lights + shadow atlas
     screen: true,                                                 // SSR, SSGI, contact shadows (world.post.ssr2 / ssgi / contact)
@@ -27,6 +28,7 @@ Try them on two examples (each flag alone or together):
 |---|---|
 | `?csm=1` (`&cascades=2..4`, `&stagger=1`) | cascaded sun shadows (`stagger`: far cascades redrawn less often); walled-garden also `&soft=1` for the contact-hardening filter per cascade |
 | `?gi=1` (`&gispacing=m`) | the probe volume: walled-garden's pavilion interior (lit through its doors), hello-courtyard's court |
+| `?bounce=1` (`&bspacing=m`) | hello-courtyard: bounce light over the shadow volume; `probes/nizwa-probe/?bounce=1`: over the fort |
 | `?probes=1` | one box reflection probe (the pavilion room; the court) |
 | `?lights=N` | N lamps on the clustered path (`&cluster=0`: the plain loop over all lights; `&stock=1`: three's own PointLights instead, for comparison) |
 | `&percell=64` | cap the lights per cluster cell (the examples ask for `perCell: 0`, no cap) |
@@ -94,6 +96,84 @@ Limits: one box per world. Static geometry only (`userData.mgDynamic` roots are 
 receive). Local lamps are in the bake but a lamp that moves or switches does not update it until `invalidate()`.
 The sun arrives as its first bounce, not as a disc. Probes see the sky at its capture brightness, not scaled by
 `envIntensity`. Do not also declare `ambientVolumes` for the same room.
+
+What it does to a scene, and why (diagnosed on Nizwa Fort, `probes/nizwa-probe/?gi=1`, and hello-courtyard): the
+volume *replaces* the world's image-based diffuse light with what its probes captured, at the capture's brightness.
+The world's light is calibrated (`envIntensity`, one capture point); the probes are not. In hello-courtyard
+(`envIntensity` 0.5) the court came out about twice as bright (hero shade 80 -> 108 of 255) and the gate's outer wall
+2.4 times (37 -> 88): the wall's outside face lies in the box's fade band and takes the court's probes. On the fort
+(`envIntensity` 1) the probes agree with the image-based light in the open (a white sphere in the forecourt: within
+1 of 255), but at the tower top they see dark, ambient-lit masonry and less sky than the forecourt capture point, so
+the shade drops (crown, shaded wall 57 -> 45). The bridged Nizwa materials are not the cause (their `fragLight` hooks
+touch direct light only; the part's anchors are found in all 71). The fort's 51 s were two things: about 25 s of lit
+programs linked one by one in the first capture (the parallel compile in `prepare()` did not include the variants
+with the environment: fixed, now 2-3 s) and 36-46 s of bake: 3,536 probes x 2 passes x 12 cube faces of the
+1.6 M-triangle scene. That cost grows with probes x triangles; for the town (25.7 M triangles) it is out of reach.
+For sunlit shade next to sunlit walls, use `bounce` below.
+
+## One-bounce light from a height field (`bounce`)
+
+`packages/core/src/bounce.js`, ported from the author's Nizwa Golden Hour project (`src/core/irradiance.js`). Warm
+light from sunlit walls and ground into the shade next to them, and the sky occlusion of lanes and courts, as a
+factor on every lit material's image-based diffuse light. A world of walls, roofs and ground is close to 2.5D, so
+the probes are gathered from a height field of the real scene instead of a cube render per probe:
+
+1. At `prepare()` (and after `invalidate()`): one orthographic draw of the built scene from above, with its own
+   materials under a uniform white sky and every light off (= albedo); its depth is the height. Mipmapped.
+2. Per bake: the key light's shadow height over the map (one march toward the light per texel).
+3. Per bake: every probe (a grid over the box: `spacing` in x and z, `layers` heights, `curve` 2 = dense at the
+   ground) marches 48 fixed directions through the height field: a ray that leaves sees the world's image-based
+   light; a ray that drops onto a top sees albedo / pi x (key x cos x lit + sky); a ray that runs into the side of a
+   column sees a wall (the albedo of its top, its normal against the ray, lit by the shadow height just outside
+   it); `multi` stands in for the further bounces (1 / (1 - multi x albedo)). Stored as L1 spherical harmonics,
+   premultiplied by validity (a probe inside a solid or under a roof is 0). One more probe is gathered at
+   `envProbe`, where the world's image-based light is captured: the reference.
+4. Materials: `iblIrradiance *= E_local(n) / E_reference(n)`, clamped to 0.3..4. The world's light keeps its level
+   and only gains the local variation: the bake's own biases (and `envIntensity`) cancel in the ratio. Outside the
+   grid the factor fades to 1 over `edge` probes.
+
+```js
+createWorldRenderer({ shadow: { center: [0, 2, 0], radius: 17 }, lighting: { bounce: true } });   // the shadow volume
+createWorldRenderer({ lighting: { bounce: { min: [-34, 0.5, -46], max: [92, 33, 62], layers: 12, curve: 1.3 } } });
+world.lighting.bounce.info       // { probes, grid, map, box, prepareMs, bakeMs, bakes }
+world.lighting.bounce.strength = 0.5;
+```
+
+Time of day: a bake follows each recapture of the image-based light. A still (`setTime` without `ease`) bakes at
+once, so stills are exact and repeat bit for bit. A running clock gathers one band of one layer per frame and then
+eases the volume the materials read toward the new one (0.45 s), so nothing steps.
+
+Settings (`BOUNCE_DEFAULTS`): `spacing` 2 m, `layers` 8, `curve` 2, `texel` 0.5 m, `margin` 8 m, `hmax` (rays above
+escape; 0 = box top + 4 m), `strength` 1, `multi` 0.55, `edge` 3, `lo` 0.3, `hi` 4, `bands` 3, `ease` 0.45 s,
+`maxProbes` 400,000 (the spacing grows to fit), `maxMap` 4096 px (the texel grows to fit), `keep(object)`. Objects
+whose root has `userData.mgDynamic`, `mgNoCapture` or `mgNoBounce` are left out, as are points, lines, sprites and
+transparent meshes.
+
+Limits: one height per (x, z). Under an arch, a roof or a floor the probes are invalid and the image-based light
+stays as it is (rooms: ambient volumes); a balcony is a column to the ground; a camera inside a solid that its
+one-sided cap hides from below sees no change (the probe's crown view: its eye, 25.6 m up, is under a surface at
+27.0 m that the height field sees from above and the camera does not see from below). Local lamps are not in it. Do not turn on `gi` over the same area (both act on the
+same term; the world warns).
+
+Measured (Apple M4 Pro, a GPU shared with other jobs, headless Chrome; GPU-synced, 4-5 repeats, range):
+
+| | Nizwa Fort (`probes/nizwa-probe/?bounce=1`) | hello-courtyard (`?bounce=1`) | Nizwa's town grid on the fort |
+|---|---|---|---|
+| grid | 64 x 12 x 55 = 42,240 probes, 2 m; map 284 x 248 | 35 x 8 x 35 = 9,800, 1 m; map 100 x 100 | 168 x 8 x 192 = 258,048, 2 m; map 700 x 796 |
+| height field (one draw of the scene) | 5-11 ms (1.6 M triangles) | 2.7-2.9 ms | 4-7 ms (the same 1.6 M) |
+| bake (shadow height, gather, copy) | 31-41 ms | 4.3-4.7 ms | 45-64 ms |
+| page ready | 2.3-4.5 s, as without (`gi=1`: 49-61 s) | 0.6-0.7 s (without: 0.55-0.6 s) | |
+
+A running clock on the fort (16:30 -> 17:30 over 360 temporal-AA frames, gate view): 5 re-bakes, +0.6 ms median and
++1.4 ms p90 per frame against the same run without, and no step in a shaded pixel beyond the image-based light's own
+cross-fade (largest frame-to-frame change 8 of 255 with, 9 without). The per-pixel cost of the factor (the same
+frames with the strength at 0 and 1, 12 alternating blocks of 40 temporal-AA frames, three spots, two runs) was
+below what this shared GPU resolves: -0.2 to +1.3 ms at 1440 x 900 (median +0.2), with blocks spreading 3-20 ms.
+
+For the town (25.7 M triangles, 956 rooms): the height field is one draw of the town (Nizwa does the same at load),
+the gather is the 258,048-probe row above, and a running clock spreads it over 27 frames (`bands` 3; raise `bands`
+for a smaller per-frame share). Rooms stay with ambient volumes (gap 5 of the probe's report). Not measured here:
+the draw of 25.7 M triangles, other GPUs, phones.
 
 ## Reflection probes (`probes`)
 
@@ -259,7 +339,7 @@ per-frame cost while the clock moves, CSM with `softShadows`, more than one refl
   without a GL error; a still is the same after another view was drawn; 16 sub-frames are closer to the 64-sample
   reference than 4; a moving frame with the passes is closer to it than one without.
 - `node packages/core/lighting.check.mjs` (part of `npm test`): splits, slice spheres, texel snapping, the probe
-  grid and atlas tiles, cluster slices and sphere spans against brute force, the tile allocator, box exits and
+  grid and atlas tiles, the bounce grid (layer heights, the probe and map caps, Nizwa's town grid), cluster slices and sphere spans against brute force, the tile allocator, box exits and
   probe weights, and the injector (no part = stock source and stock program key; `THREE.ShaderChunk` untouched).
 - `node packages/tools/src/lighting-check.mjs examples/walled-garden/dist examples/hello-courtyard/dist` in Chrome
   with everything on: no console errors or missing shader anchors; each part is in the compiled programs; clustered

@@ -48,6 +48,39 @@ export interface GiSettings {
   specular: boolean;
   maxProbes: number;
 }
+export interface BounceSettings {
+  /** The volume (world metres). Without a box: the shadow volume in x / z, the built heights in y. */
+  min?: V3; max?: V3;
+  /** Metres between probes in x and z. */
+  spacing: number;
+  /** Probe heights over the box: layer k at min.y + (max.y - min.y) (k / (layers - 1))^curve. */
+  layers: number;
+  /** 2: dense at the ground (quadratic); 1: even steps. */
+  curve: number;
+  /** Metres per height-field texel. */
+  texel: number;
+  /** Metres of height field around the box. */
+  margin: number;
+  /** Rays above this height escape to the sky; 0 = the box top + 4 m. */
+  hmax: number;
+  /** 0..1 (more extrapolates). */
+  strength: number;
+  /** The further bounces: a surface of albedo a sends 1 / (1 - multi a) of its single bounce. */
+  multi: number;
+  /** Probes outside the grid over which the factor fades to 1. */
+  edge: number;
+  /** Clamp of local / reference light. */
+  lo: number; hi: number;
+  /** An eased re-bake gathers 1 / bands of a layer per frame. */
+  bands: number;
+  /** Seconds: time constant of the blend toward a re-bake. */
+  ease: number;
+  maxProbes: number;
+  /** Pixels per side of the height field at most (the texel grows). */
+  maxMap: number;
+  /** Which objects the height field draws (default: every visible opaque mesh not marked mgDynamic, mgNoCapture or mgNoBounce). */
+  keep?: (object: THREE.Object3D) => boolean;
+}
 export interface LightsSettings {
   /** Most lights (records in the light texture). */
   max: number;
@@ -75,6 +108,8 @@ export interface ReflectionProbe {
 export interface LightingOption {
   csm?: boolean | Partial<CsmSettings>;
   gi?: (Partial<GiSettings> & { min: V3; max: V3 }) | null;
+  /** One-bounce light and sky occlusion from a height field of the built scene (bounce.js); `true` = the shadow volume. */
+  bounce?: boolean | Partial<BounceSettings> | null;
   /** At most 4. */
   probes?: ReflectionProbe[] | null;
   lights?: boolean | Partial<LightsSettings>;
@@ -94,6 +129,8 @@ export interface LightingFeature { cfg?: unknown; info: Record<string, unknown>;
 export interface Lighting {
   screen: LightingFeature | null;
   csm: LightingFeature | null; gi: (LightingFeature & { bake(): void }) | null; probes: LightingFeature | null; lights: LightingFeature | null;
+  /** `bake(true)` now, `bake(false)` over the next frames; `prepare()` draws the height field again; `strength` 0..1. */
+  bounce: (LightingFeature & { bake(now?: boolean): unknown; prepare(): unknown; strength: number; readonly busy: boolean }) | null;
   /** Hand a PointLight / SpotLight already in the scene to the clustered path; `shadow` gives it a tile of the shadow atlas. */
   addLight(light: THREE.PointLight | THREE.SpotLight, options?: { shadow?: boolean }): boolean;
   removeLight(light: THREE.Light): boolean;
@@ -107,6 +144,7 @@ export interface Lighting {
 }
 export const CSM_DEFAULTS: CsmSettings;
 export const GI_DEFAULTS: Omit<GiSettings, 'min' | 'max' | 'counts'>;
+export const BOUNCE_DEFAULTS: Omit<BounceSettings, 'min' | 'max' | 'keep'>;
 export const LIGHTS_DEFAULTS: LightsSettings;
 export const PROBE_DEFAULTS: { fade: number; intensity: number };
 export const SCREEN_DEFAULTS: ScreenSettings;

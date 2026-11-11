@@ -10,6 +10,7 @@
 //      ?grade=1 [&gradek=0..1 &nightadapt=0..1]  Mirage's time-of-day grade (gap 1), off by default
 //      ?gi=1 [&gispacing=4]  Mirage's probe GI (bounce light), for the comparison with Nizwa's irradiance volume
 //      ?sky=dusk [&haze= &night= &airglow= &cover=]  the dusk sky (opt-in; see the block below)
+//      ?bounce=1 [&bstrength=1&bspacing=2&blayers=12&bcurve=1.3]  Mirage's height-field bounce light (Nizwa's irradiance volume, ported)
 //      ?wet=0..1 &rain=0..1 are accepted but only Mirage-made materials get wet (REPORT.md)
 import * as THREE from 'three';
 import { createWorldRenderer, placeDate, setWetness, setRain } from '@miragekit/core';
@@ -60,7 +61,13 @@ const world = createWorldRenderer({
   shadow: { center: [24, 6, 0], radius: 62 }, envProbe: [20, 9, 36], envIntensity: 1,   // Nizwa's ENV.envIntensity (Mirage's default is 0.5)
   shadowMapSize: +Q.get('smap') || 4096,
   // ?gi=1: Mirage's irradiance probe volume over the fort (docs/lighting.md); off by default (not part of the brief)
-  ...(Q.get('gi') === '1' ? { lighting: { gi: { min: [-24, 0.5, -34], max: [78, 31, 34], spacing: +Q.get('gispacing') || 4 } } } : {}),
+  ...(Q.get('gi') === '1' || Q.get('bounce') === '1' ? { lighting: {
+    ...(Q.get('gi') === '1' ? { gi: { min: [-24, 0.5, -34], max: [78, 31, 34], spacing: +Q.get('gispacing') || 4 } } : {}),
+    // ?bounce=1: one-bounce light from a height field (docs/lighting.md), over the plan's bounds; &bstrength= &bspacing=
+    // (12 layers, curve 1.3: about 3.5 m apart from 22 to 33 m, the tower top)
+    ...(Q.get('bounce') === '1' ? { bounce: { min: [-34, 0.5, -46], max: [92, 33, 62], strength: +(Q.get('bstrength') ?? 1), spacing: +Q.get('bspacing') || 2,
+      layers: +Q.get('blayers') || 12, curve: +Q.get('bcurve') || 1.3 } } : {}),
+  } } : {}),
   ...(Q.has('env') ? { envIntensity: +Q.get('env') } : {}), ...(Q.has('clouds') ? { clouds: +Q.get('clouds') } : {}),
   ...(skyDusk ? { sky: skyDusk } : {}),
   post: { ...(off.has('aolit') ? {} : { aoLit: 1 }), ...(off.has('ae') ? {} : { autoExposure: 0.5 }), grain: 0, exposure: 0.6,   // 0.6: the sunlit plaster as bright as in Nizwa's stills (Mirage's default is 0.4)
