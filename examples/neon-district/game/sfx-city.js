@@ -1,11 +1,11 @@
-// The sounds of the city as a weapon, made in code like sfx.js and put into the same buffer table once the mixer
-// exists (the first gesture): the hack's ring and its landing, a power-down and a power-up, an EMP, a car alarm, the
+// The sounds of the city as a weapon, made in code like sfx.js and given to the mixer (audio.add) once it exists
+// (the first gesture): the hack's ring and its landing, a power-down and a power-up, an EMP, a car alarm, the
 // dash, the throw, the overdrive, the robots' radio blip (their voice), and the new jobs' tells: the marksman's
 // charge and shot, the warden's whine, a shield taking a round and breaking, a head shot, an ammo cell.
 const TAU = Math.PI * 2;
 
 export function addCitySounds(audio) {
-  const ctx = audio.ctx, SR = ctx.sampleRate, B = audio.buffers;
+  const ctx = audio.ctx, SR = ctx.sampleRate, B = new Proxy({}, { set: (o, k, v) => { audio.add(k, v); return true; } });
   let seed = 0x6a09e667;
   const rnd = () => ((seed = (seed ^ (seed << 13)) >>> 0, seed = (seed ^ (seed >>> 17)) >>> 0, seed = (seed ^ (seed << 5)) >>> 0) / 4294967296);
   const noise = () => rnd() * 2 - 1;

@@ -33,6 +33,8 @@ const EN = {
       ['Use · jump', 'E · Space', 'X · A', 'hand · ↑'],
       ['Crouch · lean', 'C · Z / X', '', '↓ · L / R'],
       ['Menu · options', 'Esc · O', 'Start', '☰ · gear'],
+      ['Guns · unlock', '1–5 wheel · 0', 'Y · L3+R3', 'strip'],
+      ['Hack · kit', 'G · Alt H B', 'B · d-pad', 'kit'],
     ],
     navKeys: '↑ ↓ choose · ← → change · Enter select', navPad: 'D-pad choose · A select', navTouch: 'Tap to choose',
   },
@@ -62,7 +64,7 @@ const EN = {
     wave: (n) => `Wave ${n} inbound. Watch the stair head and the sky over the plaza.`,
     cleared: 'Wave down. Ammunition and a med pack are back on the roof. Breathe.',
   },
-  opt: { title: 'Options', sens: 'Look sensitivity', fov: 'Field of view', invert: 'Invert vertical look', full: 'Full screen', lang: 'Language', time: 'Time of day', close: 'Close', on: 'On', off: 'Off', hint: 'O opens this · T steps the hour · Z / X lean · C crouches · V strikes · Q aims · R reloads',
+  opt: { title: 'Options', sens: 'Look sensitivity', fov: 'Field of view', invert: 'Invert vertical look', full: 'Full screen', lang: 'Language', time: 'Time of day', close: 'Close', on: 'On', off: 'Off', hint: 'O opens this · T steps the hour · 1–5 or the wheel: guns · Alt dash · H EMP · B overdrive · Z / X lean · C crouches · V strikes · Q aims · R reloads',
     touch: 'TOUCH', tSens: 'Touch look sensitivity', tOpacity: 'Button opacity', tScale: 'Button size', leftFire: 'Left fire button', sprintLock: 'Sprint lock (stick far up)',
     touchHint: 'Drag on the right to look; a finger on fire or aim looks as it drags. Aim and lean: hold, or tap to toggle.' },
 };
@@ -98,6 +100,8 @@ const ZH = {
       ['使用 · 跳躍', 'E · 空白鍵', 'X · A', '手形 · ↑'],
       ['蹲下 · 側身', 'C · Z / X', '', '↓ · L / R'],
       ['選單 · 設定', 'Esc · O', 'Start', '☰ · 齒輪'],
+      ['武器 · 解鎖', '1–5 滾輪 · 0', 'Y · L3+R3', '武器列'],
+      ['駭入 · 技能', 'G · Alt H B', 'B · 十字鍵', '技能鍵'],
     ],
     navKeys: '↑ ↓ 選擇 · ← → 切換 · Enter 確定', navPad: '十字鍵選擇 · A 確定', navTouch: '點選項目',
   },
@@ -127,7 +131,7 @@ const ZH = {
     wave: (n) => `第 ${n} 波來了。盯住樓梯口和廣場上空。`,
     cleared: '這波解決了。屋頂上的彈藥和醫療包已經補上，喘口氣。',
   },
-  opt: { title: '設定', sens: '視角靈敏度', fov: '視野範圍', invert: '反轉垂直視角', full: '全螢幕', lang: '語言', time: '時段', close: '關閉', on: '開', off: '關', hint: 'O 開啟設定 · T 切換時段 · Z / X 側身 · C 蹲下 · V 近戰 · Q 瞄準 · R 換彈',
+  opt: { title: '設定', sens: '視角靈敏度', fov: '視野範圍', invert: '反轉垂直視角', full: '全螢幕', lang: '語言', time: '時段', close: '關閉', on: '開', off: '關', hint: 'O 開啟設定 · T 切換時段 · 1–5 或滾輪：換槍 · Alt 衝刺 · H 電磁 · B 超載 · Z / X 側身 · C 蹲下 · V 近戰 · Q 瞄準 · R 換彈',
     touch: '觸控', tSens: '觸控視角靈敏度', tOpacity: '按鍵透明度', tScale: '按鍵大小', leftFire: '左側開火鍵', sprintLock: '衝刺鎖定（搖桿推到最上）',
     touchHint: '在右半邊拖曳轉視角；按住開火或瞄準鍵時拖曳也能轉。瞄準與側身：按住，或輕點切換。' },
 };
@@ -139,13 +143,14 @@ EN.xt = {
   hack: 'HACK', dash: 'DASH', emp: 'EMP', over: 'OVERDRIVE', ready: 'READY', pips: 'CHARGE',
   kinds: { lights: 'LIGHTS · DARKEN ZONE', sign: 'SIGN · EMP OVERLOAD', vent: 'VENT · STEAM BLIND', car: 'CAR · ALARM LURE', kite: 'KITE · TURN', sentinel: 'SENTINEL · JAM' },
   cost: (n) => `${n} CHARGE${n > 1 ? 'S' : ''}`, noCharge: 'NO CHARGE', front: 'ARMOURED FRONT · GET BEHIND IT', cooling: 'RECOVERING',
-  teach: 'HOLD G (pad B) · HACK THE CITY', overHint: 'OVERDRIVE READY · 3', marked: 'MARKED',
+  teach: 'HOLD G (pad B) · HACK THE CITY', overHint: 'OVERDRIVE READY · B', marked: 'MARKED', noTarget: 'NO TARGET',
+  keys: { dash: 'ALT', grenade: 'H', over: 'B' },
   ammoLow: 'LOW AMMO', ammoHint: 'Out of ammo: melee (V), hack, or follow the marker', ammo: 'AMMO', crate: 'AMMO CRATE', cell: 'CELL', refill: (s) => `REFILL ${s}s`,
   radio: {
     teach: 'Listen. You are outgunned, so stop counting rounds. Hold G and look at a street lamp, a sign, a vent or a kite. The district does what you tell it.',
     dark: 'Lights out. They shoot at shapes in the dark. Be a shape they cannot find.',
     dry: 'You are dry. Use the stock, use the street, follow the amber marker to a crate.',
-    over: 'Overdrive is up. Press 3. Everything gets faster, including your luck.',
+    over: 'Overdrive is up. Press B. Everything gets faster, including your luck.',
   },
   pops: { head: ['KRAK!', 'PTANG!', 'TOK!'], shield: ['SHHRAK!', 'KSSH!'], emp: ['VZZMM!', 'BWOMM!'], overload: ['KZZT!', 'FZZAP!'] },
   // what the robots say: short, deadpan, the same voice for every kind
@@ -188,13 +193,14 @@ ZH.xt = {
   hack: '駭入', dash: '衝刺', emp: '電磁', over: '超載', ready: '就緒', pips: '能量',
   kinds: { lights: '燈光 · 讓這區變暗', sign: '招牌 · 電磁過載', vent: '通風口 · 蒸氣遮蔽', car: '汽車 · 警報引誘', kite: '風箏 · 策反', sentinel: '哨兵 · 卡彈' },
   cost: (n) => `${n} 格能量`, noCharge: '能量不足', front: '正面裝甲 · 繞到它背後', cooling: '冷卻中',
-  teach: '按住 G（手把 B）· 駭進這座城市', overHint: '超載就緒 · 3', marked: '已標記',
+  teach: '按住 G（手把 B）· 駭進這座城市', overHint: '超載就緒 · B', marked: '已標記', noTarget: '沒有目標',
+  keys: { dash: 'ALT', grenade: 'H', over: 'B' },
   ammoLow: '彈藥不足', ammoHint: '沒子彈了：近戰（V）、駭入，或跟著標記走', ammo: '彈藥', crate: '彈藥箱', cell: '彈匣', refill: (s) => `補充 ${s} 秒`,
   radio: {
     teach: '聽好，你火力比不過他們，別再數子彈了。按住 G，看著路燈、招牌、通風口或風箏。這個街區會照你說的做。',
     dark: '燈熄了。他們在黑暗裡只能對著影子開槍。當個他們找不到的影子。',
     dry: '你沒子彈了。用槍托、用這條街，跟著琥珀色標記去找彈藥箱。',
-    over: '超載準備好了，按 3。一切都會變快，包括你的運氣。',
+    over: '超載準備好了，按 B。一切都會變快，包括你的運氣。',
   },
   pops: { head: ['喀嚓！', '鏘！', '咚！'], shield: ['嘩啦！', '碎！'], emp: ['嗡——！', '轟嗡！'], overload: ['滋滋！', '劈啪！'] },
   barks: {
@@ -231,5 +237,24 @@ ZH.xt = {
     epigraph: '「他們一直從樓梯上來。樓梯倒是不介意。」——中繼站維護日誌',
   },
 };
+// ---- the arsenal (arms.js, weapon.js), its feel options and the touch layer's new buttons
+EN.arms = {
+  names: { sidearm: 'P-9 SIDEARM', carbine: 'K-7 CARBINE', shotgun: 'M-12 SHOTGUN', rocket: 'RL-4 ROCKET LAUNCHER', gatling: 'G-6 GATLING' },
+  short: { sidearm: 'SIDEARM', carbine: 'CARBINE', shotgun: 'SHOTGUN', rocket: 'ROCKETS', gatling: 'GATLING' },
+  locked: 'LOCKED · PRESS 0', unlocked: 'Rocket launcher and gatling unlocked · 4 and 5', refilled: 'Rockets and gatling drum refilled', wait: (s) => `Refill in ${s} s`,
+  unlockRadio: 'Heavy kit is in your hands now. Rockets break shields. The gatling needs to spin up, and it gets hot.',
+  heat: 'HEAT', vent: 'OVERHEATED · VENTING', spin: 'SPIN',
+};
+ZH.arms = {
+  names: { sidearm: 'P-9 手槍', carbine: 'K-7 卡賓槍', shotgun: 'M-12 霰彈槍', rocket: 'RL-4 火箭筒', gatling: 'G-6 加特林' },
+  short: { sidearm: '手槍', carbine: '卡賓槍', shotgun: '霰彈槍', rocket: '火箭', gatling: '加特林' },
+  locked: '尚未解鎖 · 按 0', unlocked: '火箭筒與加特林已解鎖 · 4 與 5', refilled: '火箭與加特林彈鼓已補滿', wait: (s) => `${s} 秒後可再補充`,
+  unlockRadio: '重火力到手了。火箭能直接打碎護盾。加特林要先轉起來，而且會過熱。',
+  heat: '熱度', vent: '過熱 · 散熱中', spin: '轉速',
+};
+Object.assign(EN.opt, { feel: 'FEEL', shake: 'Camera shake', vibrate: 'Vibration', hitStop: 'Hit-stop on kills', code: 'Code', codeHint: 'type 0' });
+Object.assign(ZH.opt, { feel: '手感', shake: '畫面震動', vibrate: '震動回饋', hitStop: '擊殺頓格', code: '密碼', codeHint: '輸入 0' });
+Object.assign(EN.touch, { hack: 'Hack: hold on a target', dash: 'Dash', grenade: 'EMP grenade', over: 'Overdrive', guns: 'Guns: tap a slot, or swipe across' });
+Object.assign(ZH.touch, { hack: '駭入：對準目標按住', dash: '衝刺', grenade: '電磁手榴彈', over: '超載', guns: '武器：點選欄位，或左右滑動' });
 export const LANGS = { en: EN, zh: ZH };
 export const pickLang = (Q) => { const q = Q.get('lang'); if (q && LANGS[q]) return q; return /^zh/i.test(globalThis.navigator?.language || '') ? 'zh' : 'en'; };

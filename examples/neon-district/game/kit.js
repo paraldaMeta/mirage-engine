@@ -3,11 +3,11 @@
 // the hacks change it (lamps.js), their sounds (sfx-city.js). index.js calls setupKit once in setup and kit.start(g)
 // once startGame has made the character; everything else happens in the system this file registers.
 //
-// Keys:    G (hold) hack · 1 dash · 2 EMP grenade · 3 overdrive · mouse back / forward buttons: dash / grenade
+// Keys:    G (hold) hack · Alt dash · H EMP grenade · B overdrive · mouse back / forward buttons: dash / grenade
+//          (1-5 are the guns' slots now: weapon.js)
 // Gamepad: B (hold) hack · d-pad left dash · d-pad right grenade · d-pad up overdrive
-// Touch (to be wired by the touch layer): kit.hack.start() / kit.hack.cancel(), kit.hack.target(),
-//   kit.hack.charges / max / progress, kit.abilities.use('dash' | 'grenade' | 'overdrive'), kit.abilities.left(name) /
-//   cooldown(name) / charge / active.
+// Touch (touch.js): HACK (hold), DASH, GRENADE, OVERDRIVE through kit.hack.start() / cancel() / target() / charges /
+//   max / progress and kit.abilities.use(name) / left(name) / cooldown(name) / charge / active.
 import { createLamps } from './lamps.js';
 import { createOverlay } from './overlay.js';
 import { createHack } from './hack.js';
@@ -45,9 +45,9 @@ export function setupKit({ ctx, shared, vfx, Q, T, player, weapon, enemies, dron
   listen(window, 'keydown', (e) => {
     if (e.repeat || !live()) return;
     if (e.code === 'KeyG') hack.start();
-    else if (e.code === 'Digit1') abilities.use('dash');
-    else if (e.code === 'Digit2') abilities.use('grenade');
-    else if (e.code === 'Digit3') abilities.use('overdrive');
+    else if (e.code === 'AltLeft' || e.code === 'AltRight') { e.preventDefault(); abilities.use('dash'); }
+    else if (e.code === 'KeyH') abilities.use('grenade');
+    else if (e.code === 'KeyB') abilities.use('overdrive');
   });
   listen(window, 'keyup', (e) => { if (e.code === 'KeyG') hack.cancel(); });
   listen(window, 'blur', () => hack.cancel());

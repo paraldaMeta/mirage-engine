@@ -64,9 +64,9 @@ export function createOverlay({ camera, onDispose, T, hudRoot }) {
     <div class="ndx-ring"><svg viewBox="0 0 64 64"><circle class="bg" cx="32" cy="32" r="28"/><circle class="fg" cx="32" cy="32" r="28"/></svg></div><div class="ndx-tgt"><span></span><em></em></div>
     <div class="ndx-bar">
       <div class="ndx-pips"><span>${X.pips}</span><div><i><b></b></i><i><b></b></i><i><b></b></i></div><span class="ndx-gk">G</span></div>
-      <div class="ndx-ab" data-a="dash"><svg viewBox="0 0 28 28"><path d="M4 14h13M12 8l6 6-6 6M20 6v16"/></svg><i></i><b></b><u>1</u></div>
-      <div class="ndx-ab" data-a="grenade"><svg viewBox="0 0 28 28"><circle cx="14" cy="15" r="7"/><path d="M14 2v5M6 6l3 3M22 6l-3 3M11 15l2-3 2 4 2-3"/></svg><i></i><b></b><u>2</u></div>
-      <div class="ndx-ult"><svg viewBox="0 0 52 52"><circle class="bg" cx="26" cy="26" r="22"/><circle class="fg" cx="26" cy="26" r="22"/></svg><b>0%</b><u>3</u></div>
+      <div class="ndx-ab" data-a="dash"><svg viewBox="0 0 28 28"><path d="M4 14h13M12 8l6 6-6 6M20 6v16"/></svg><i></i><b></b><u>${X.keys.dash}</u></div>
+      <div class="ndx-ab" data-a="grenade"><svg viewBox="0 0 28 28"><circle cx="14" cy="15" r="7"/><path d="M14 2v5M6 6l3 3M22 6l-3 3M11 15l2-3 2 4 2-3"/></svg><i></i><b></b><u>${X.keys.grenade}</u></div>
+      <div class="ndx-ult"><svg viewBox="0 0 52 52"><circle class="bg" cx="26" cy="26" r="22"/><circle class="fg" cx="26" cy="26" r="22"/></svg><b>0%</b><u>${X.keys.over}</u></div>
     </div>
     <div class="ndx-ctick" hidden></div><div class="ndx-way" hidden></div><div class="ndx-hint" hidden></div><div class="ndx-prompt" hidden></div><div class="ndx-card"></div>`;
   document.body.appendChild(root);
@@ -80,7 +80,7 @@ export function createOverlay({ camera, onDispose, T, hudRoot }) {
   const pool = (cls, n) => Array.from({ length: n }, () => { const d = document.createElement('div'); d.className = cls; d.style.display = 'none'; root.appendChild(d); return d; });
   const holos = pool('ndx-holo', 28), marks = pool('ndx-mark', 20), popEls = pool('ndx-pop', 5), sayEls = pool('ndx-say', 3);
   const pops = [], says = [];
-  let flashT = 0, promptT = 0, cardT = 0, cardOn = false;
+  let flashT = 0, promptT = 0, cardT = 0, cardOn = false, under = () => null;
   /** world point -> { x, y } in CSS px, or null when behind the camera */
   const v = [0, 0, 0];
   function project(p, out = {}) {
@@ -95,6 +95,8 @@ export function createOverlay({ camera, onDispose, T, hudRoot }) {
   const P = {};
   return {
     root, project,
+    /** on touch: (x, y) => the control's rect a point is under, or null (hud.under); markers keep off the buttons */
+    avoid(fn) { under = fn; },
     /** the hack: scanning on/off; the ring's fill 0..1 (null: hidden); the target's line and cost line; bad: refused */
     hack({ scan, progress, label, sub, bad, items }) {
       scanEl.classList.toggle('on', !!scan);
@@ -116,7 +118,7 @@ export function createOverlay({ camera, onDispose, T, hudRoot }) {
     /** robots shown through walls: [{ pos, kind }] */
     marks(list) {
       let n = 0;
-      for (const m of list) { if (n >= marks.length) break; if (!project(m.pos, P)) continue; const el = marks[n++]; place(el, P); const cls = 'ndx-mark k-' + m.kind; if (el.className !== cls) el.className = cls; }
+      for (const m of list) { if (n >= marks.length) break; if (!project(m.pos, P)) continue; const el = marks[n++]; place(el, P); el.style.opacity = under(P.x, P.y, 6) ? '0.2' : ''; const cls = 'ndx-mark k-' + m.kind; if (el.className !== cls) el.className = cls; }
       for (; n < marks.length; n++) marks[n].style.display = 'none';
     },
     /** the bar: pips { n (whole), frac (of the next), max }; dash / grenade { left, cd }; over { charge 0..1, active } */
@@ -144,6 +146,7 @@ export function createOverlay({ camera, onDispose, T, hudRoot }) {
       // on screen: over the source (kept clear of the radio line and the bars); behind: at the side it lies on
       if (p && p.x > 30 && p.x < innerWidth - 30) { x = p.x; y = Math.min(innerHeight - 200, Math.max(70, p.y)); }
       else { const side = Math.sin(Math.atan2(src.dz, src.dx) - yaw) >= 0 ? 1 : -1; x = side > 0 ? innerWidth - 70 : 70; y = innerHeight * 0.45; }
+      const r = under(x, y); if (r) { y = r[2] - 30; if (under(x, y)) way.style.opacity = '0.25'; else way.style.opacity = ''; } else way.style.opacity = '';
       way.style.left = `${x.toFixed(0)}px`; way.style.top = `${y.toFixed(0)}px`;
       way.textContent = `${src.label} ${Math.round(src.dist)} ${T.metres}`;
       // the compass: hud.js slides 3 px a degree under a 300 px window; bearing 0 = north (-Z), clockwise
