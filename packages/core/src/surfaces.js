@@ -34,6 +34,9 @@ const lin = (c, d) => {
 };
 const clamp01 = (v) => Math.max(0, Math.min(1, +v || 0));
 const snap = (T, s) => T / Math.max(1, Math.round(T / s));
+// gravity in the surface's own plane (u, v), snapped to an axis (rotations by quarter turns keep the tile periodic):
+// [0, -1] = down v (a wall under 'wall' mapping); [-1, 0] = down u (a sheet mapped with grain: 'y', u up)
+const fall = (g) => { const [x, y] = Array.isArray(g) ? g.map(Number) : [0, -1]; return Math.abs(x) > Math.abs(y) ? [Math.sign(x), 0] : [0, y > 0 ? 1 : -1]; };
 
 // ---- the kinds ------------------------------------------------------------------------------------------------------
 // tile (m), depth (m: height 0..1 spans it), size (bake px), porosity (withWet), refs: measured ranges the defaults
@@ -98,17 +101,17 @@ const KINDS = {
   corrugated: {
     micro: [0.002, 0.04, 0.04, 0.05], family: 'metal', variants: ['galvanised', 'painted', 'rusted'], tile: 1.52, depth: 0.018, size: 1024, porosity: 0.1,
     refs: { albedo: [0.05, 0.7], rough: [0.25, 0.95], metal: 'zinc 1 / paint 0 / rust 0', note: 'zinc F0 ~(0.62, 0.64, 0.66); rust 0.10-0.35 (R)' },
-    defaults: { color: [0.17, 0.24, 0.27], roughness: 0.6, pitch: 0.076, sheet: 0.76, fixings: 0.38, profile: 'sine', rust: 0.3, chips: 0.2, whiteRust: 0.3 },
-    pack: (o) => ({ A: [...o.color, o.roughness], B: [o.pitch, o.sheet, o.fixings, o.profile === 'box' ? 1 : 0], C: [o.rust, o.chips, o.whiteRust, 0], D: [0, 0, 0, 0] }),
+    defaults: { color: [0.17, 0.24, 0.27], roughness: 0.6, pitch: 0.076, sheet: 0.76, fixings: 0.38, profile: 'sine', rust: 0.3, chips: 0.2, whiteRust: 0.3, gravity: [0, -1] },
+    pack: (o) => ({ A: [...o.color, o.roughness], B: [o.pitch, o.sheet, o.fixings, o.profile === 'box' ? 1 : 0], C: [o.rust, o.chips, o.whiteRust, 0], D: [...fall(o.gravity), 0, 0] }),
     quantum: (o, T) => [snap(T, o.sheet), snap(T, o.fixings)],
     edge: (o, v) => (v === 1 ? { rgb: [0.6, 0.62, 0.64], rough: 0.45, metal: 1, mode: 0, chip: 0.012 } : { rgb: [0.2, 0.08, 0.03], rough: 0.9, metal: 0, mode: 0, chip: 0.015 }),
   },
   paintedMetal: {
     micro: [0.002, 0.02, 0.2, 0.03], family: 'metal', variants: ['sheet', 'panels', 'enamel'], tile: 2.0, depth: 0.003, size: 1024, porosity: 0.1,
     refs: { albedo: [0.03, 0.85], rough: [0.15, 0.92], metal: 'paint 0 / bare steel 1 / rust 0', note: 'paint as its pigment (white 0.70-0.85, black 0.03-0.05); bare steel F0 (0.53, 0.53, 0.54); red-oxide primer ~(0.25, 0.08, 0.05)' },
-    defaults: { color: [0.3, 0.33, 0.36], roughness: 0.45, primer: [0.24, 0.08, 0.05], chips: 0.35, panel: [1.0, 1.0], boltSpacing: 0.15, rust: 0.5, streaks: 0.5, gloss: 0 },
+    defaults: { color: [0.3, 0.33, 0.36], roughness: 0.45, primer: [0.24, 0.08, 0.05], chips: 0.35, panel: [1.0, 1.0], boltSpacing: 0.15, rust: 0.5, streaks: 0.5, gloss: 0, gravity: [0, -1] },
     variantDefaults: { enamel: { roughness: 0.25, gloss: 0.5 } },
-    pack: (o) => ({ A: [...o.color, o.roughness], B: [...o.primer, o.chips], C: [o.panel[0], o.panel[1], o.boltSpacing, o.rust], D: [o.streaks, o.gloss, 0, 0] }),
+    pack: (o) => ({ A: [...o.color, o.roughness], B: [...o.primer, o.chips], C: [o.panel[0], o.panel[1], o.boltSpacing, o.rust], D: [o.streaks, o.gloss, ...fall(o.gravity)] }),
     quantum: (o, T) => [snap(T, o.panel[0]), snap(T, o.panel[1])],
     edge: (o) => ({ rgb: STEEL, rough: 0.42, metal: 1, mode: 0, chip: 0.012 }),
   },

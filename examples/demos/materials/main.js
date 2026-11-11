@@ -47,7 +47,7 @@ const VIEWS = {
   ground: { eye: [-0.9, 0.42, 0.95], look: [-0.75, 0.0, 0.62] },
 };
 // grain for the directional kinds: along the wall, along x on the cube
-const GRAIN = { wood: 'x', stainless: 'x', corrugated: 'y', bamboo: 'x', fabric: 'y', carbonFibre: 'x', aluminium: 'x', rubber: 'x', paper: 'x' };
+const GRAIN = { wood: 'x', stainless: 'x', bamboo: 'x', fabric: 'y', carbonFibre: 'x', aluminium: 'x', rubber: 'x', paper: 'x' };
 
 let current = null, mats = [];
 function clear() {

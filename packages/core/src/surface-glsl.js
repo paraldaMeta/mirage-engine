@@ -525,61 +525,92 @@ MsS ms_tile(vec2 u){
 }`,
 
   // A: paint rgb, roughness   B: pitch, sheet width, fixing spacing, profile (0 sine, 1 box)   C: rust amount, chips, white rust, -
+  // D: gravity in the surface plane (xy: an axis, [0, -1] = down v), -, -
   corrugated: /* glsl */ `
 MsS ms_corrugated(vec2 u){
   float V = msX.z;
   float pitch = msSnap(msB.x), x = u.x / pitch, fx = fract(x);
-  float prof = msB.w < 0.5 ? 0.5 + 0.5 * cos(2.0 * MS_PI * fx) : smoothstep(0.18, 0.32, abs(fx - 0.5)) ;
-  float crest = smoothstep(0.75, 1.0, prof);
+  float prof = msB.w < 0.5 ? 0.5 + 0.5 * cos(2.0 * MS_PI * fx) : smoothstep(0.18, 0.32, abs(fx - 0.5));
+  float crest = smoothstep(0.75, 1.0, prof), valley = 1.0 - smoothstep(0.0, 0.3, prof);
   float sw = msSnap(msB.y);
-  float lap = msLine(u.x - floor(u.x / sw + 0.5) * sw, 0.0015);
+  float lapD = u.x - floor(u.x / sw + 0.5) * sw;
+  float lap = msLine(lapD, 0.0015), nearLap = 1.0 - smoothstep(0.0, 0.05, abs(lapD));
   float fsp = msSnap(msB.z);
-  vec2 fq = vec2((fract(x) - 0.0) * pitch, mod(u.y, fsp) - 0.5 * fsp);
-  float fix = (1.0 - smoothstep(0.006, 0.0075 + msFP, length(vec2(min(fq.x, pitch - fq.x), fq.y)))) * step(0.5, mod(floor(x), 2.0));
-  float m1 = msFbm(u, 0.8, 3), m2 = msFbm(u + 2.0, 5.0, 3), fine = msFbm(u + 3.0, 150.0, 2);
-  // runs from each fixing downward and along the valleys
-  float run = (1.0 - smoothstep(0.003, 0.012, min(fq.x, pitch - fq.x))) * step(0.5, mod(floor(x), 2.0)) * step(fq.y, -0.006)
-            * (1.0 - smoothstep(0.0, 0.08 + 0.35 * (msFbm(vec2(u.x, 0.0) * 3.0, 9.0, 2) * 0.5 + 0.5), -fq.y));
-  float valley = 1.0 - smoothstep(0.0, 0.3, prof);
+  vec2 fq = vec2(fx * pitch, mod(u.y, fsp) - 0.5 * fsp);
+  float fd = length(vec2(min(fq.x, pitch - fq.x), fq.y)), fOn = step(0.5, mod(floor(x), 2.0));
+  float fix = (1.0 - smoothstep(0.006, 0.0075 + msFP, fd)) * fOn;
+  // the frame gravity acts in: g = the fall direction (an axis of the plane); a = along the fall (+ = further down),
+  // c = across it
+  vec2 G = msD.xy, Cg = vec2(-G.y, G.x);
+  float a = dot(u, G), c = dot(u, Cg);
+  float fa = dot(vec2(fq.x - (fq.x > 0.5 * pitch ? pitch : 0.0), fq.y), G), fc = dot(vec2(fq.x - (fq.x > 0.5 * pitch ? pitch : 0.0), fq.y), Cg);
+  float m1 = msFbm(msWarp(u, 1.5, 0.06), 0.8, 4), m2 = msFbm(u + 2.0, 5.0, 3), fine = msFbm(u + 3.0, 150.0, 2);
+  // water runs down along the fall and gathers where the profile holds it (the valleys when the ribs run down the
+  // fall); a streak field drawn out along the fall, strongest in the wet channels and under every source above
+  float lines = msFbm2(vec2(c, a) + 4.0, vec2(60.0, 1.2), 3) * 0.6 + msFbm2(vec2(c, a) + 8.0, vec2(160.0, 2.5), 2) * 0.4;
+  float chan = mix(1.0, valley * 0.8 + 0.2, abs(G.y));               // ribs along the fall: water in the valleys
+  // sources: fixings (a run hanging under each, of its own length), the laps, rust patches above
+  float runF = (1.0 - smoothstep(0.002, 0.006 + 0.004 * smoothstep(0.0, 0.2, fa), abs(fc))) * step(0.004, fa)
+             * (1.0 - smoothstep(0.0, 0.08 + 0.4 * (msFbm(vec2(c, 0.0) * 3.0, 9.0, 2) * 0.5 + 0.5), fa)) * fOn;
+  float rk = msC.x;
+  float rf = 0.5 + 0.5 * (0.45 * msFbm(msWarp(u, 6.0, 0.03) + 5.0, 2.8, 4) + 0.3 * msFbm(u + 2.0, 14.0, 3) + 0.25 * msFbm(u + 9.0, 70.0, 2))
+           + 0.15 * valley * abs(G.y) + 0.25 * nearLap + 0.3 * (1.0 - smoothstep(0.0, 0.03, fd)) * fOn;
+  float above = 0.0;
+  for (int i = 1; i <= 3; i++) {
+    vec2 ua = u - G * (0.04 * float(i * i));
+    float ra = 0.5 + 0.5 * (0.45 * msFbm(msWarp(ua, 6.0, 0.03) + 5.0, 2.8, 3) + 0.3 * msFbm(ua + 2.0, 14.0, 2));
+    above = max(above, smoothstep(0.74 - 0.32 * rk, 0.8 - 0.32 * rk, ra) * (1.0 - 0.22 * float(i)));
+  }
+  float streak = smoothstep(0.05, 0.45, lines + 0.5 * above + 0.3 * nearLap - 0.2) * clamp(above + 0.35 * nearLap + 0.2 * rk, 0.0, 1.0) * chan;
   vec3 col; float r, met = 0.0;
-  float rn = msFbm(u + 5.0, 3.5, 4) * 0.5 + 0.5 + 0.15 * valley;
+  float rt = msFbm(u + 2.0, 25.0, 3) * 0.5 + 0.5;
+  vec3 rc = msRustCol(0.3 + 0.65 * rt) * (0.8 + 0.4 * (fine * 0.5 + 0.5)) * vec3(1.15, 0.95, 0.8);
   if (V < 0.5) {
-    // galvanised: spangle cells, white rust in the valleys and under the fixings
+    // galvanised: spangle cells, white rust in the wet channels and under the fixings, red rust where the zinc is gone
     vec4 sp = msCell(u, 55.0, 1.0);
     col = vec3(0.64, 0.66, 0.68) * (0.82 + 0.24 * sp.z) * (0.95 + 0.06 * m1);
     r = 0.32 + 0.22 * sp.w + 0.05 * m2;
     met = 1.0;
-    float wr = smoothstep(0.7 - 0.4 * msC.z, 0.78 - 0.4 * msC.z, rn + 0.4 * run);
+    float wr = smoothstep(0.66 - 0.4 * msC.z, 0.74 - 0.4 * msC.z, rf * 0.8 + 0.3 * streak + 0.4 * runF);
     col = mix(col, vec3(0.58, 0.58, 0.55) * (0.85 + 0.2 * fine), wr); r = mix(r, 0.9, wr); met *= 1.0 - wr;
-    float rs = smoothstep(0.86 - 0.35 * msC.x, 0.9 - 0.35 * msC.x, rn + 0.5 * run);
-    col = mix(col, msRustCol(m2 * 0.5 + 0.5), rs); r = mix(r, 0.9, rs); met *= 1.0 - rs;
+    float rs = msCut(rf + 0.3 * runF, 0.82 - 0.32 * rk, 0.01);
+    col = mix(col, rc, rs); r = mix(r, 0.9, rs); met *= 1.0 - rs;
+    col = mix(col, col * vec3(0.85, 0.72, 0.6), streak * rk * 0.7 * (1.0 - rs));
   } else if (V < 1.5) {
-    // painted: the film wears through on the crests first (to zinc), rust where the zinc has gone
-    col = msA.rgb * (0.94 + 0.06 * m1 + 0.04 * m2);
-    r = msA.a + 0.04 * fine;
-    float wn = msFbm(u + 9.0, 9.0, 3) * 0.45 + msFbm(u + 2.0, 40.0, 2) * 0.12 + 0.5 + 0.12 * crest + 0.2 * lap;
-    float L = msLayers(wn, msC.y);
+    // painted: the film chips where it is knocked (the crests, the laps, round the fixings) in crisp layered flakes
+    // (paint -> primer -> zinc), rust where the zinc has gone; runs hang under the fixings and the chips, down the fall
+    col = msA.rgb * (0.93 + 0.08 * m1 + 0.05 * m2) * (1.0 + 0.06 * lines * rk);
+    r = msA.a + 0.04 * fine + 0.04 * m1;
+    float wn = msFbm(msWarp(u + 9.0, 20.0, 0.006), 7.0, 4) * 0.45 + msFbm(u + 2.0, 40.0, 2) * 0.12 + 0.5 + 0.14 * crest + 0.25 * nearLap + 0.2 * (1.0 - smoothstep(0.0, 0.02, fd)) * fOn;
+    float L = msLayers(wn, msC.y * 0.42);
     float zinc = clamp(L - 1.0, 0.0, 1.0);
-    col = mix(col, col * 1.12, clamp(L, 0.0, 1.0) * (1.0 - zinc));
+    col = mix(col, col * 1.1, clamp(L, 0.0, 1.0) * (1.0 - zinc));
     col = mix(col, vec3(0.6, 0.62, 0.64), zinc); r = mix(r, 0.45, zinc); met = zinc;
-    float rs = clamp(smoothstep(0.82 - 0.4 * msC.x, 0.88 - 0.4 * msC.x, rn) + run * msC.x + clamp(L - 2.0, 0.0, 1.0) * msC.x, 0.0, 1.0);
-    col = mix(col, msRustCol(m2 * 0.5 + 0.5), rs); r = mix(r, 0.88, rs); met *= 1.0 - rs;
+    float rs = clamp(msCut(rf, 0.8 - 0.32 * rk, 0.008) + clamp(L - 2.0, 0.0, 1.0) * smoothstep(0.3, 0.6, rf + 0.3 * rk), 0.0, 1.0);
+    vec2 spk = msSpeck(u + 3.0, 70.0, clamp(rk * smoothstep(0.6, 0.85, rf) * 1.4, 0.0, 1.0), 0.45, 0.0);
+    rs = max(rs, spk.x);
+    col = mix(col, mix(col, rc, 0.6) * vec3(1.05, 0.95, 0.9), clamp(streak * rk + runF * rk, 0.0, 1.0) * (1.0 - rs));
+    r = mix(r, r + 0.12, streak * rk);
+    col = mix(col, rc, rs); r = mix(r, 0.86, rs); met *= 1.0 - rs;
   } else {
-    // rusted through: scale and pitting, a ghost of the paint in places
+    // rusted through: scale and pitting, a ghost of the paint in places, darker runs down the fall
     float scale_ = msFbm(u + 1.0, 40.0, 3);
-    col = msRustCol(0.45 + 0.4 * m2 + 0.2 * scale_) * (0.9 + 0.15 * m1);
+    col = rc * (0.75 + 0.3 * m1);
     col = mix(col, vec3(0.06, 0.035, 0.025), smoothstep(0.3, 0.6, scale_) * 0.5);
-    float ghost = smoothstep(0.55, 0.6, msFbm(u + 7.0, 2.0, 3) * 0.5 + 0.5);
+    col *= 1.0 - 0.3 * streak;
+    float ghost = msCut(msFbm(u + 7.0, 2.0, 3) * 0.5 + 0.5 + 0.05 * fine, 0.62, 0.006);
     col = mix(col, msA.rgb * 0.7, ghost * 0.85); r = mix(0.86 + 0.06 * scale_, 0.7, ghost);
   }
-  float h = prof * 0.9 + 0.05 * fine + 0.06 * fix;
+  vec2 pit = msSpeck(u + 5.0, 200.0, 0.4, 0.5, 4.0);
+  float rustAmt = V < 0.5 ? 0.0 : 1.0 - smoothstep(0.0, 0.6, abs(r - 0.86) * 10.0);
+  float h = prof * 0.9 + 0.04 * fine + 0.06 * fix - 0.04 * pit.x * rustAmt;
   col *= 1.0 - 0.35 * lap;
   col = mix(col, vec3(0.5, 0.5, 0.52), fix * 0.6);
   float ao = 1.0 - 0.25 * valley - 0.3 * lap;
   return MsS(col, clamp(r, 0.04, 1.0), clamp(h, 0.0, 1.0), met, ao);
 }`,
 
-  // A: paint rgb, roughness   B: primer rgb, chips   C: panel w, panel h, bolt spacing, rust   D: streaks, gloss, -, -
+  // A: paint rgb, roughness   B: primer rgb, chips   C: panel w, panel h, bolt spacing, rust   D: streaks, gloss, gravity (an axis of the plane, [0, -1] = down v)
   paintedMetal: /* glsl */ `
 MsS ms_paintedMetal(vec2 u){
   float V = msX.z;
@@ -603,7 +634,8 @@ MsS ms_paintedMetal(vec2 u){
   float rk = msC.a;
   float rbig = msFbm(msWarp(u, 6.0, 0.03) + 7.0, 2.6, 4), rmid = msFbm(msWarp(u, 25.0, 0.006) + 2.0, 12.0, 3), rfine = msFbm(u + 1.0, 70.0, 3);
   float rgrain = msFbm(u + 6.0, 180.0, 2);
-  float rvert = msFbm2(u + 3.0, vec2(45.0, 2.5), 3) * msD.x;       // drawn out downward by the wash
+  vec2 G = msD.zw, ug = vec2(dot(u, vec2(-G.y, G.x)), dot(u, G));    // the plane turned so gravity is -v
+  float rvert = msFbm2(ug + 3.0, vec2(45.0, 2.5), 3) * msD.x;      // drawn out downward by the wash
   float rf = 0.5 + 0.5 * (0.36 * rbig + 0.26 * rmid + 0.3 * rfine + 0.2 * rgrain + 0.26 * rvert) + 0.35 * near;
   float th = 0.8 - 0.28 * rk;
   float patchR = msCut(rf, th, 0.004);
@@ -624,17 +656,17 @@ MsS ms_paintedMetal(vec2 u){
   float above = 0.0;
   for (int i = 1; i <= 4; i++) {
     float dy = 0.025 * float(i * i);
-    vec2 ua = u + vec2(0.0, dy);
+    vec2 ua = u - G * dy;
     float ra = 0.5 + 0.5 * (0.55 * msFbm(msWarp(ua, 6.0, 0.03) + 7.0, 2.6, 3) + 0.3 * msFbm(ua + 2.0, 12.0, 2));
     above = max(above, msCut(ra, th, 0.04) * (1.0 - 0.18 * float(i)));
   }
-  float lines = msFbm2(u + 4.0, vec2(55.0, 1.1), 3) * 0.6 + msFbm2(u + 8.0, vec2(140.0, 2.5), 2) * 0.4;
+  float lines = msFbm2(ug + 4.0, vec2(55.0, 1.1), 3) * 0.6 + msFbm2(ug + 8.0, vec2(140.0, 2.5), 2) * 0.4;
   float runs = smoothstep(0.0, 0.35, lines + 0.8 * above - 0.25) * above * (0.5 + 0.5 * msD.x) * (1.0 - rust);
   // colour
   float rt = msFbm(u + 2.0, 25.0, 3) * 0.5 + 0.5;
   vec3 rc = msRustCol(0.35 + 0.6 * rt + 0.2 * sp2.y) * (0.8 + 0.4 * (rfine * 0.5 + 0.5)) * vec3(1.2, 0.95, 0.75);
   rc = mix(rc, rc * vec3(0.55, 0.5, 0.48), smoothstep(0.65, 0.9, rf) * 0.6);   // old scale: darker, browner
-  float wash = msFbm2(u + 13.0, vec2(30.0, 0.8), 3) * 0.6 + msFbm2(u + 17.0, vec2(160.0, 1.5), 2) * 0.4;   // weathered in vertical washes
+  float wash = msFbm2(ug + 13.0, vec2(30.0, 0.8), 3) * 0.6 + msFbm2(ug + 17.0, vec2(160.0, 1.5), 2) * 0.4;   // weathered in washes down the fall
   vec3 col = msA.rgb * (0.95 + 0.05 * m1 + 0.04 * m2 + 0.03 * rfine + 0.14 * wash * msD.x);
   col = mix(col, col * 1.08, lip);
   col = mix(col, msB.rgb * (0.92 + 0.1 * m2), primer * (1.0 - smoothstep(0.3, 0.9, rk)));

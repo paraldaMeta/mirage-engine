@@ -1,7 +1,7 @@
 // The surface gallery: every surface (or the ones named) on its test objects under three lightings, dry and wet, from
 // 5 m and from 0.5 m, one contact sheet per surface in out/gallery/ (gitignored).
 // node examples/demos/materials/shoot.mjs [--only concrete,asphalt:worn] [--lights studio,golden,night] [--views far,near,wall,ground]
-//        [--wet 0,0.8] [--mode baked|procedural] [--w 960 --h 600] [--spp 8] [--no-package]
+//        [--wet 0,0.8] [--mode baked|procedural] [--w 960 --h 600] [--spp 8] [--no-package] [--opts '{"rust":0.8}' --name heavy]
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -15,6 +15,7 @@ const html = path.join(here, 'out/materials.html'), outDir = path.join(here, 'ou
 if (!process.argv.includes('--no-package')) execFileSync('node', [path.join(root, 'packages/tools/src/package.mjs'), here, '--out', html], { stdio: ['ignore', 'ignore', 'inherit'] });
 fs.mkdirSync(outDir, { recursive: true });
 const W = +arg('w', 960), H = +arg('h', 600), SPP = +arg('spp', 8), MODE = arg('mode', 'baked');
+const OPTS = JSON.parse(arg('opts', '{}')), NAME = arg('name', '');
 const LIGHTS = arg('lights', 'studio,golden,night').split(','), VIEWS = arg('views', 'far,near,wall,ground').split(','), WETS = arg('wet', '0,0.8').split(',').map(Number);
 
 const b = await launch({ w: W, h: H });
@@ -31,13 +32,13 @@ const ONE = process.argv.includes('--one-sheet'), oneItems = [];
 for (const s of list) {
   const items = ONE ? oneItems : [];
   for (const light of LIGHTS) for (const wet of WETS) for (const view of VIEWS) {
-    const data = await page.evaluate((o) => { window.__mirage.show(o); return window.__mirage.still(); }, { s, light, wet, view, mode: MODE });
+    const data = await page.evaluate((o) => { window.__mirage.show(o); return window.__mirage.still(); }, { s, light, wet, view, mode: MODE, opts: OPTS });
     items.push({ label: ONE ? `${s} ${light[0]}${wet ? ' wet' : ''} ${view}` : `${light} ${wet ? 'wet' : 'dry'} ${view}`, data });
   }
   if (ONE) continue;
   const note = await page.evaluate((k) => { const K = window.__mirage.SURFACE_KINDS[k.split(':')[0]], v = k.split(':')[1]; const R = (K.refs.variants || {})[v] || K.refs; return `albedo ${R.albedo.join('-')}, roughness ${R.rough.join('-')}, metal ${R.metal}: ${R.note}`; }, s);
   const sheet = await page.evaluate(sheetInPage, items, { cols: VIEWS.length, tw: 480, title: `${s} (${MODE}) | ${note}` });
-  const file = path.join(outDir, `${s.replace(':', '-')}.png`);
+  const file = path.join(outDir, `${s.replace(':', '-')}${NAME ? '-' + NAME : ''}.png`);
   fs.writeFileSync(file, Buffer.from(sheet.split(',')[1], 'base64'));
   console.log(file);
 }
