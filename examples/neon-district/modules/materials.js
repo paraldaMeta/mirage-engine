@@ -228,7 +228,8 @@ export function materials(ctx) {
     screenAmber: mat.std({ roughness: 0.12, metalness: 0 }, SCREEN('vec3(1.0, 0.55, 0.12)')),
     screenPink: mat.std({ roughness: 0.12, metalness: 0 }, SCREEN('vec3(1.0, 0.2, 0.55)')),
     paperGlow: glow([1.0, 0.62, 0.3], 0.9),
-    neon: Object.fromEntries(Object.entries(NEON).map(([k, c]) => [k, lib.material(SURFACES.neon({ color: c, intensity: 9 }))])),
+    // (low: the plain glow, a few ALU fewer per pixel where the tubes fill the view)
+    neon: Object.fromEntries(Object.entries(NEON).map(([k, c]) => [k, ctx.shared.tier === 'low' ? glow(c) : lib.material(SURFACES.neon({ color: c, intensity: 9 }))])),
     neonSoft: Object.fromEntries(Object.entries(NEON).map(([k, c]) => [k, glow(c, 1.5)])),   // large faces: a sign box, a light panel
   };
   return (ctx.shared.mats = M);
