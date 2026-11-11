@@ -2,9 +2,9 @@
 // URL: ?mode=walk (default) | fly | game | orbit   ?view=<viewpoint name>   ?modules=a,b (build only these: a module
 //      owner's self-test)   ?spp=N  ?w=&h=  ?grain=0  ?ui=0
 // Contract with the tools: window.__mirage = { world, built, play } and window.__READY = true once playable.
-import { createWorldRenderer } from '@mirage/core';
-import { buildWorld } from '@mirage/world';
-import { createPlay } from '@mirage/play';
+import { createWorldRenderer } from '@miragekit/core';
+import { buildWorld } from '@miragekit/world';
+import { createPlay } from '@miragekit/play';
 import plan from './plan.js';
 import modules from './modules/index.js';
 

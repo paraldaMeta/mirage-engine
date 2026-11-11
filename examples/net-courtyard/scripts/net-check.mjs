@@ -11,8 +11,8 @@
 // usage: node scripts/net-check.mjs [--clients 3] [--seconds 10] [--latency 150] [--loss 0.05] [--no-host]
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { launch } from '@mirage/tools/src/chrome.mjs';
-import { createServer } from '@mirage/net/server';
+import { launch } from '@miragekit/tools/src/chrome.mjs';
+import { createServer } from '@miragekit/net/server';
 import * as game from '../game.js';
 
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i < 0 ? d : +process.argv[i + 1]; };

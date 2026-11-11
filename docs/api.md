@@ -9,17 +9,17 @@ a release may change. `npm run test:pack` fails if a package exports a name that
 - **experimental**: public and usable, but a minor release may change it (listed in the changelog). Mostly the
   rendering internals and constants a world rarely needs.
 
-The entry points `@mirage/<pkg>` are the API. Subpaths are an explicit allow-list: each package's `exports` map
+The entry points `@miragekit/<pkg>` are the API. Subpaths are an explicit allow-list: each package's `exports` map
 names every importable file (there is no `"./*"`), each with its own `.d.ts`, and a file under `src/` that is not
 listed is internal and cannot be imported from an installed package. `npm test` fails on an import of a subpath
 that is not listed (`scripts/check-imports.mjs`, over source, examples and docs) and on a `.d.ts` that declares
 other value names than its module exports (`scripts/check-types.mjs`). The subpaths a world normally needs:
 
-- the world kits `@mirage/world/kits/vegetation`, `/kits/terrain`, `/kits/water`, `/kits/rain`, `/kits/splat` and
+- the world kits `@miragekit/world/kits/vegetation`, `/kits/terrain`, `/kits/water`, `/kits/rain`, `/kits/splat` and
   `/kits/fur` (experimental), documented in the world README;
-- `@mirage/core/rng`, `@mirage/core/geom`, `@mirage/world/plan`;
-- `@mirage/core/export` (`exportWorld`, experimental: [export.md](export.md)), `@mirage/core/assets`
-  ([import.md](import.md)) and `@mirage/core/ktx2` (`createKTX2Loader(renderer, { transcoderPath, workers })`,
+- `@miragekit/core/rng`, `@miragekit/core/geom`, `@miragekit/world/plan`;
+- `@miragekit/core/export` (`exportWorld`, experimental: [export.md](export.md)), `@miragekit/core/assets`
+  ([import.md](import.md)) and `@miragekit/core/ktx2` (`createKTX2Loader(renderer, { transcoderPath, workers })`,
   experimental: a KTX2Loader for `createTextures({ ktx2 })`; a subpath so bundles that never import it never contain
   three's KTX2Loader).
 
@@ -31,7 +31,7 @@ count of stable and experimental exports, and how a name is promoted: [STABILITY
 > The split 1.0.0 ships with, as proposed in the 1.0 review (docs/review-1.0.md); the owner can still move names
 > before the tag. After it, moving a name from experimental to stable is a minor release, the other way a major one.
 
-## @mirage/core
+## @miragekit/core
 
 | export | stability | what it is |
 |---|---|---|
@@ -39,7 +39,7 @@ count of stable and experimental exports, and how a name is promoted: [STABILITY
 | `patch(material, hooks, G)` | stable | add GLSL hooks to a three.js material (vertex, albedo, roughness, normal, emissive, lighting, output) |
 | `createTextures(world, { manifest, url, anisotropy })` | stable | the optional world-space texture layer for CC0 PBR sets |
 | `PROC` | stable | ready hook sets: `plaster`, `stone`, `wood`, `terracotta` |
-| `createTextures(world, { manifest, url, anisotropy, decode, ktx2 })` | stable | the optional world-space texture layer for CC0 PBR sets; opt-ins (experimental): `decode: 'bitmap'` decodes off the main thread (same pixels), `ktx2` loads `.ktx2` files (`@mirage/core/ktx2`); `tex.textures()` lists its textures |
+| `createTextures(world, { manifest, url, anisotropy, decode, ktx2 })` | stable | the optional world-space texture layer for CC0 PBR sets; opt-ins (experimental): `decode: 'bitmap'` decodes off the main thread (same pixels), `ktx2` loads `.ktx2` files (`@miragekit/core/ktx2`); `tex.textures()` lists its textures |
 | `TEX_GLSL` | stable | the GLSL of the texture layer (`mgTexTri`, `mgTexWall`, `mgTexGround`, …) |
 | `glslName(name)` | stable | how a texture set name is spelled in `MG_TEX_<name>` (`'stone-wall'` → `stone_2d_wall`; plain names unchanged) |
 | `LIGHT2_DEFAULTS` | experimental | light2's settings (`ls` lamp shadows, `ssr` reflections, `vol` volumetric light, `bloom` mixed bloom); `createWorldRenderer({ light2 })` turns it on |
@@ -71,7 +71,7 @@ count of stable and experimental exports, and how a name is promoted: [STABILITY
 | `WET` | experimental | the wetness's page-global uniforms (`uWet`, `uRain`) |
 | `WET_GLSL` | experimental | the wet GLSL (`mgWetApply`, `mgWetNormal`, `mgWetRipples`, `mgWetH`) |
 | `NOISE_GLSL` | stable | the GLSL noise library (`mgHash`, `mgValue2/3`, `mgFbm2/3`, `mgCell2/3`, …) |
-| `rng(seed)` | stable | seeded random stream: `next`, `float`, `range`, `int`, `pick`, `chance`, `sign`, `gauss`, `inDisc`, `onSphere`, `fork(name)` (also `@mirage/core/rng`) |
+| `rng(seed)` | stable | seeded random stream: `next`, `float`, `range`, `int`, `pick`, `chance`, `sign`, `gauss`, `inDisc`, `onSphere`, `fork(name)` (also `@miragekit/core/rng`) |
 | `geom` | stable | geometry helpers: `wall`, `archPath`, `lathe`, `taperedTube`, `instances`, `MeshBatch`, `compose`, `lerp`, `clamp`, `smoothstep`, `remap` (experimental: `softExtrude`, `softBox`, `sootPlumes`, `wall({ round })`, `openingProblem(opening, wallHeight)`: why an opening does not fit its wall, the text of MG206). A `wall` opening's `height` is where its arch springs, not its top, and `arch` defaults to `'round'` (top = height + width / 2): give `arch: 'flat'` for a straight lintel at `height`; three's `mergeGeometries` and `RoundedBoxGeometry` re-exported |
 | `skyAt(date, place)` | stable | Sun and Moon position for a date and a place (pure JS) |
 | `placeDate(day, time, tzHours)` | stable | a `Date` for a local wall-clock time |
@@ -120,7 +120,7 @@ count of stable and experimental exports, and how a name is promoted: [STABILITY
 | `effectRadius(emitter)` | experimental | radius of a sphere about a defined emitter that holds its particles, for culling |
 | `VFX_ENUMS` | experimental | the allowed values of the format's enumerated keys (shapes, blends, sorts, …) |
 | `createLod()` | experimental | merge-and-swap level-of-detail helper |
-| `chunkGeometry(geometry, { maxVertices, maxSize, minVertices })` | experimental | split one geometry into spatial pieces with tight bounds (also `@mirage/core/chunk`); guide: `docs/big-worlds.md` |
+| `chunkGeometry(geometry, { maxVertices, maxSize, minVertices })` | experimental | split one geometry into spatial pieces with tight bounds (also `@miragekit/core/chunk`); guide: `docs/big-worlds.md` |
 | `chunkObject(root, options)` | experimental | replace every large static mesh under `root` by its chunks so frustum culling can work; `MeshBatch.finish({ chunk })` calls it |
 | `createSimplifier(mesh)` | experimental | Mirage's own quadric-error mesh simplifier (attributes, locked and border vertices), resumable: `run({ triangles, error, budgetMs })`, `extract()` |
 | `simplify(mesh, { triangles, ratio, error })` | experimental | one simplified level of a `{ positions, index, attributes }` mesh |
@@ -149,19 +149,19 @@ count of stable and experimental exports, and how a name is promoted: [STABILITY
 | `nextFrame(timeout)` | experimental | resolves after the next frame was drawn (a macrotask where there is no `requestAnimationFrame`) |
 | `writeGLB(root, { clips, meshopt })` | experimental | a binary glTF of an object tree: nodes, meshes, skins, standard-material factors, embedded images, animation clips (clip `userData` as extras); `meshopt: true` compresses vertex streams (EXT_meshopt_compression, own encoder) |
 
-Model import, `@mirage/core/assets` (opt-in subpath, [import.md](import.md)):
+Model import, `@miragekit/core/assets` (opt-in subpath, [import.md](import.md)):
 
 | export | stability | what it is |
 |---|---|---|
 | `createAssets(world, { decoders, adapt, anisotropy, workers })` | experimental | glTF / GLB import with a reference-counted cache: `load(urlOrBytes, { key, path, scale, shadows, collide, adapt })`, `instantiate`, `instances`, `retain`, `release`, `refs`, `get`, `stats`, `dispose`; Draco, meshopt and KTX2 decoders start only for files that name them; materials are patched into the world's fog, shadows and light; `collide: 'mesh' \| 'box' \| 'hull' \| false` says what the model adds to the walk grid and Rapier |
 | `gltfExtensions(buffer)` | experimental | the `extensionsUsed` of a .glb or .gltf buffer, without loading it |
-| `decoders` | experimental | from `@mirage/core/assets-decoders`: three's Draco and Basis decoder files as Vite `?url` imports (a single-file build inlines them); pass to `createAssets` |
+| `decoders` | experimental | from `@miragekit/core/assets-decoders`: three's Draco and Basis decoder files as Vite `?url` imports (a single-file build inlines them); pass to `createAssets` |
 
-## @mirage/world
+## @miragekit/world
 
 | export | stability | what it is |
 |---|---|---|
-| `definePlan(plan)` | stable | validate a site plan and fill defaults; throws listing every problem (also `@mirage/world/plan`) |
+| `definePlan(plan)` | stable | validate a site plan and fill defaults; throws listing every problem (also `@miragekit/world/plan`) |
 | `contains(shape, x, z)` | stable | is a point inside a rect / circle / poly |
 | `bbox(shape)` | stable | bounding rectangle of a shape |
 | `pathLength(path)` | stable | length of a plan path |
@@ -176,7 +176,7 @@ Model import, `@mirage/core/assets` (opt-in subpath, [import.md](import.md)):
 The module interface (`name`, `build`, `finalize`, `anchors`, `ambientVolumes`, and the `ctx` fields) is stable;
 see [world-protocol.md](world-protocol.md).
 
-Gaussian splats, `@mirage/world/kits/splat` (opt-in subpath, world README "Gaussian splats"):
+Gaussian splats, `@miragekit/world/kits/splat` (opt-in subpath, world README "Gaussian splats"):
 
 | export | stability | what it is |
 |---|---|---|
@@ -186,7 +186,7 @@ Gaussian splats, `@mirage/world/kits/splat` (opt-in subpath, world README "Gauss
 | `splatEffects.reveal(options)`, `splatEffects.dissolve(options)` | experimental | built-in effects (GLSL hooks on centre, rotation / scale and colour), driven by `progress` |
 | `splatSorter()`, `packSplats(data, row)`, `splatBounds(data)` | experimental | the depth sort (the worker's code), the texture packing and the data bounds, for tests and tools |
 
-## @mirage/play
+## @miragekit/play
 
 | export | stability | what it is |
 |---|---|---|
@@ -206,7 +206,7 @@ Gaussian splats, `@mirage/world/kits/splat` (opt-in subpath, world README "Gauss
 | `gridRay(grid, from, to)` | experimental | 0..1: the fraction of a segment that is clear on a walk grid (cameras, sight) |
 | `airAt(grid, x, y, z)` | experimental | true when the point is in the air of its column |
 | `volumeAt(volumes, type, x, y, z)` | experimental | the ladder / water volume holding a point, or null |
-| `createMover(grid, { pos, body })` | experimental | the walker plus coyote time, jump buffering, variable jump height, sprint, crouch with a ceiling check, slope slide, ladders, swimming, mantling, riding and pushing solids; walker-shaped (`createPlay({ walker })`, @mirage/net's `applyInput`), `mode`, `save` / `restore` |
+| `createMover(grid, { pos, body })` | experimental | the walker plus coyote time, jump buffering, variable jump height, sprint, crouch with a ceiling check, slope slide, ladders, swimming, mantling, riding and pushing solids; walker-shaped (`createPlay({ walker })`, @miragekit/net's `applyInput`), `mode`, `save` / `restore` |
 | `driveAnimator(mover, animator)` | experimental | writes the mover's mode, speed, grounded and crouch into an animator's parameters and fires `jump` / `land` |
 | `MOVER` | experimental | the mover's default body numbers (`BODY` plus sprint, crouch, coyote, buffer, slope, climb, swim, mantle, push) |
 | `MOVER_MODES` | experimental | the mode names: idle, walk, run, sprint, crouch, jump, fall, slide, climb, swim, mantle |
@@ -255,7 +255,7 @@ Gaussian splats, `@mirage/world/kits/splat` (opt-in subpath, world README "Gauss
 | `createRigModel({ material, colors })` | experimental | a rigged humanoid authored in code (20 bones, 880 vertices, T-pose, nine clips with root motion and foot events): the test rig of the checks and the anim demo |
 | `RIG` | experimental | that rig's measures and clip speeds |
 
-## @mirage/game
+## @miragekit/game
 
 | export | stability | what it is |
 |---|---|---|
@@ -303,17 +303,17 @@ Gaussian splats, `@mirage/world/kits/splat` (opt-in subpath, world README "Gauss
 | `peak(samples, from, to)` | experimental | largest absolute sample (checks) |
 | `toneLevel(samples, sampleRate, freq)` | experimental | amplitude of one frequency in samples (Goertzel; checks) |
 | `onset(samples, level)` | experimental | index of the first sample at or over a level (checks) |
-| `createUIKit(opts)` | experimental | the UI toolkit on the DOM: reactive descriptions, layout, themes, layers (`docs/ui.md`; widgets in `@mirage/game/ui-widgets`) |
+| `createUIKit(opts)` | experimental | the UI toolkit on the DOM: reactive descriptions, layout, themes, layers (`docs/ui.md`; widgets in `@miragekit/game/ui-widgets`) |
 | `createI18n({ locale, tables })` | experimental | string tables, plurals and formats through `Intl`, runtime language switch, direction and font stack |
 | `createFocusNav({ root, input })` | experimental | spatial focus for keyboard and gamepad, focus scopes, last-used device |
 | `createWorldUI({ kit, camera })` | experimental | labels, markers and health bars anchored to 3D points, with occlusion and distance fade |
 | `createCanvasUI({ description })` | experimental | a widget panel drawn into a texture, for screens in the world and XR |
 | `createKitUI(opts)` | experimental | `createUI`'s overlay rebuilt on the toolkit: pass as `startGame`'s `ui` |
 
-## @mirage/net
+## @miragekit/net
 
 Multiplayer for walked worlds; all of it experimental and opt-in (nothing else imports it). Guide and numbers:
-`docs/multiplayer.md`. The Node server is not in the index: `import { createServer } from '@mirage/net/server'`
+`docs/multiplayer.md`. The Node server is not in the index: `import { createServer } from '@miragekit/net/server'`
 (`createServer({ protocol, grid, dir, setup, conditions, origins, host })`, 127.0.0.1 by default), and the
 `mirage-net` command (`serve`, `bake`) wraps it.
 
@@ -341,13 +341,13 @@ Multiplayer for walked worlds; all of it experimental and opt-in (nothing else i
 | `sceneTriangles(scene)` | experimental | triangles for `bakeGridCPU` from a three.js scene's meshes |
 | `createNetOverlay(client, options)` | experimental | debug overlay: rtt, loss, bytes/s per entity type, prediction error; keys change the simulated network |
 
-## @mirage/editor
+## @miragekit/editor
 
 A visual editor in the browser against a live world; all of it experimental and opt-in (nothing else imports it).
 Guide, keys, numbers and limits: `docs/editor.md`. The command is `mirage-editor <project dir> [--write] [--port n]
 [--layer file.json] [--open]`; the Node server behind it is not in the index: `import { startEditor } from
-'@mirage/editor/server'` (`startEditor({ root, port, write, layerFile })`, 127.0.0.1 only). The page side of a
-project imports `@mirage/editor/runtime` (the last six rows). The editor's client (`src/client`) is not an API.
+'@miragekit/editor/server'` (`startEditor({ root, port, write, layerFile })`, 127.0.0.1 only). The page side of a
+project imports `@miragekit/editor/runtime` (the last six rows). The editor's client (`src/client`) is not an API.
 
 | export | stability | what it is |
 |---|---|---|
@@ -368,12 +368,12 @@ project imports `@mirage/editor/runtime` (the last six rows). The editor's clien
 | `createPlaced(world)` | experimental | the placed objects in a scene: `set(id, def)`, `get`, `ready`, `dispose` |
 | `applyNodes(scene, nodes)` | experimental | write node overrides (pose, visibility, material values) onto the nodes at their scene paths |
 | `applyEnv(world, env)` | experimental | apply environment edits: `time`, `date`, `wet`, `rain`, `post.<setting>`, `light2.<part>.<setting>` |
-| `createTimelines(plan, world, placed)` | experimental | `plan.timelines` as `createTimeline` instances of `@mirage/play`, bound to placed objects, nodes and the camera |
+| `createTimelines(plan, world, placed)` | experimental | `plan.timelines` as `createTimeline` instances of `@miragekit/play`, bound to placed objects, nodes and the camera |
 | `createTriggers(plan, { onEnter, onLeave })` | experimental | `plan.triggers` as a test of a position against the boxes, with enter and leave callbacks |
 
-## @mirage/tools
+## @miragekit/tools
 
 Command-line tools (no JS entry point). Stable: `mirage-playtest` (scenario format in the playtest skill),
 `mirage-package`, `mirage-snap`, `mirage-deploy`. Experimental: `mirage-walktest`, `mirage-perf`, `mirage-e2e` (runs the `examples/` of the current folder or `--root`),
-`mirage-gpu-load`, `mirage-still-pop`, `mirage-xr-stereo-check` (both eyes of an emulated session against the desktop frame, interaction, locomotion, AR), `mirage-xr-check` (WebXR in an emulated Quest 3; repository checks; some expect this repository's `examples/`). `mirage-ship` (web, PWA and wrapper scaffolds; `mirage-desktop-check` runs an Electron scaffold or its packaged app and checks it over DevTools; with the subpaths `@mirage/core/platform`, `@mirage/core/byte-targets` and `@mirage/game/platform`: `docs/platforms.md`). The tools
+`mirage-gpu-load`, `mirage-still-pop`, `mirage-xr-stereo-check` (both eyes of an emulated session against the desktop frame, interaction, locomotion, AR), `mirage-xr-check` (WebXR in an emulated Quest 3; repository checks; some expect this repository's `examples/`). `mirage-ship` (web, PWA and wrapper scaffolds; `mirage-desktop-check` runs an Electron scaffold or its packaged app and checks it over DevTools; with the subpaths `@miragekit/core/platform`, `@miragekit/core/byte-targets` and `@miragekit/game/platform`: `docs/platforms.md`). The tools
 need Chrome: `$CHROME`, or the usual install place on macOS, Linux and Windows.

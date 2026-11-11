@@ -23,7 +23,7 @@
 | 手机真机与集成显卡 | 待实测 | 没有设备；所有者决定这次不做。 |
 | Firefox / WebKit / Safari | **Firefox、WebKit 通过；真 Safari 不测** | [复测记录](acceptance/runs/2026-11-09-browsers/README.md)，`457a880`：七个示例两种引擎全部通过，错误为 0。已知问题：WebKit 下 garden-quest 偶发台阶处「走不动」，main 15 次里 2 次、分支 19 次里 2 次，不是这次的回归，单列为后续问题。真 Safari 由所有者决定这次不测；只测了 Playwright 自带的 WebKit，它和 Safari 不完全相同。 |
 | GPU CI | 工作流在，仓库没有 runner | 所有者决定暂不注册自托管 runner（公开仓库的安全考虑）。 |
-| 公开 API、npm 包名与发布文档 | 稳定性划分已写（[api.md](api.md)），包名暂定 `@mirage/*` | `npm run test:pack` 通过；`"./*"` 子路径白名单未定；npm 上 `mirage-engine` 已被占用。`@mirage` scope 能不能用，要所有者登录 npm 后确认，不行再换。 |
+| 公开 API、npm 包名与发布文档 | 稳定性划分已写（[api.md](api.md)），包名暂定 `@miragekit/*` | `npm run test:pack` 通过；`"./*"` 子路径白名单未定；npm 上 `mirage-engine` 已被占用。`@mirage` scope 能不能用，要所有者登录 npm 后确认，不行再换。 |
 
 还要做的：所有者看图（林缘、河湾、人物）→ A1 的 B 场和匿名评审 → 确认 `@mirage` scope 和子路径白名单 → 打 tag。手机真机、集显、真 Safari 和 GPU CI 由所有者决定这次不做。
 每一条"待验收"只能用同一修订的报告和实际观察来关闭。

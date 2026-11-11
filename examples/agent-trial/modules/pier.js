@@ -3,7 +3,7 @@
 // Reads plan: pier, footprints.pierHead. Offers anchors: lamps (pos = the lantern ring on top of each pier lamp
 // post, kind 'post'). Consumes: none. Numbers in NOTES.md § pier.
 import * as THREE from 'three';
-import { PROC } from '@mirage/core';
+import { PROC } from '@miragekit/core';
 import { materials } from './materials.js';
 
 const PLANK_T = 0.05, GAP = 0.01, PLANK_W = 0.2;       // deck boards: thickness, gap, nominal width

@@ -14,7 +14,7 @@
 // back and let the same listener run", and what is saved is exactly what was shown.
 // Item ids: "plan:<path>" (a plan entry), "obj:<id>" (a placed object), "node:<scene path>" (a built node).
 // ---------------------------------------------------------------------------
-import planSchema from '@mirage/world/plan.schema.json';
+import planSchema from '@miragekit/world/plan.schema.json';
 import { h, CSS } from './dom.js';
 import { createViewport } from './viewport.js';
 import { createPanels } from './panels.js';
@@ -170,7 +170,7 @@ async function boot() {
           // the modules register their per-frame callbacks on the world: the ones of a replaced build go quiet
           const proxy = Object.create(world);
           proxy.ctx = { ...world.ctx, onUpdate: (fn) => world.ctx.onUpdate((t) => my === gen && fn(t)) };
-          const { buildWorld } = await import('@mirage/world');
+          const { buildWorld } = await import('@miragekit/world');
           host.built = await buildWorld(proxy, opts);
           setRoots();
           const missing = applyNodes(scene, doc.layer.nodes);

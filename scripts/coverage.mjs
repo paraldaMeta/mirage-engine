@@ -70,7 +70,7 @@ export const pct = (a, b) => (b ? (100 * a / b).toFixed(1) : '0.0');
 export function summarize(rows) {
   const by = (set, name) => ({ name, files: set.length, loaded: set.filter((r) => r.loaded).length, lines: sum(set, 'lines'), linesRun: sum(set, 'linesRun'), chars: sum(set, 'chars'), charsRun: sum(set, 'charsRun'), functions: sum(set, 'functions'), functionsRun: sum(set, 'functionsRun') });
   const pk = [...new Set(rows.map((r) => r.file.split(path.sep)[1]))].sort();
-  return [...pk.map((p) => by(rows.filter((r) => r.file.split(path.sep)[1] === p), '@mirage/' + p)), by(rows, 'all')];
+  return [...pk.map((p) => by(rows.filter((r) => r.file.split(path.sep)[1] === p), '@miragekit/' + p)), by(rows, 'all')];
 }
 
 function sources() {

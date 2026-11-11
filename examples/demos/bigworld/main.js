@@ -9,12 +9,12 @@
 //      ?trees=N (30000)  ?load=M (600 m)  ?w=&h=  ?quality=  ?auto=1 (fly the test path)  ?t=0..1 (start on the path)
 // Keys: W A S D + drag to fly, Shift fast. window.__mirage = { world, part, lod, occ, trees, run(frames), still(t), ... }
 import * as THREE from 'three';
-import { createWorldRenderer, geom } from '@mirage/core';
-import { createAutoLod } from '@mirage/core/autolod';
-import { createInstances } from '@mirage/core/instancing';
-import { createOcclusion } from '@mirage/core/hiz';
-import { chunkObject } from '@mirage/core/chunk';
-import { createPartition } from '@mirage/world';
+import { createWorldRenderer, geom } from '@miragekit/core';
+import { createAutoLod } from '@miragekit/core/autolod';
+import { createInstances } from '@miragekit/core/instancing';
+import { createOcclusion } from '@miragekit/core/hiz';
+import { chunkObject } from '@miragekit/core/chunk';
+import { createPartition } from '@miragekit/world';
 
 const Q = new URLSearchParams(location.search);
 const on = (k) => !Q.has('base') ? Q.get(k) !== '0' : Q.get(k) === '1';

@@ -1,4 +1,4 @@
-// Mirage original code. Every `@mirage/<pkg>/<subpath>` written anywhere in the repository (source, examples, docs,
+// Mirage original code. Every `@miragekit/<pkg>/<subpath>` written anywhere in the repository (source, examples, docs,
 // the agent skill, READMEs) must be a subpath that package's export map lists: `node scripts/check-imports.mjs`
 // (part of `npm test`). The export maps are explicit allow-lists (no "./*"), so a file under src/ that is not listed
 // is internal; an import of it works inside this workspace only by accident of a bundler alias and breaks for
@@ -6,7 +6,7 @@
 //   - an export map still carries a wildcard, or lists a target that does not exist,
 //   - a package's src/ reaches into another package's src/ with a relative path (it must go through the name),
 //   - a typed module (src/x.js with src/x.d.ts) is listed without its `types` condition.
-// @mirage/tools has no export map (it is a set of commands): there a subpath must simply be an existing file.
+// @miragekit/tools has no export map (it is a set of commands): there a subpath must simply be an existing file.
 //   usage: node scripts/check-imports.mjs            exit 1 with every offending file:line
 //          import { scan, exported } from './check-imports.mjs'   (the checks call these with fixtures)
 import { execFileSync } from 'node:child_process';
@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TEXT = /\.(js|mjs|cjs|ts|mts|html|md|json)$/;
-const SPEC = /@mirage\/(core|world|play|game|net|editor|tools)\/([A-Za-z0-9_.\-/]*[A-Za-z0-9_])/g;
+const SPEC = /@miragekit\/(core|world|play|game|net|editor|tools)\/([A-Za-z0-9_.\-/]*[A-Za-z0-9_])/g;
 
 /** { name: { exports, dir } } for every package under packages/ */
 export function readPackages(root = ROOT) {
@@ -25,7 +25,7 @@ export function readPackages(root = ROOT) {
     const f = path.join(root, 'packages', d, 'package.json');
     if (!fs.existsSync(f)) continue;
     const pkg = JSON.parse(fs.readFileSync(f, 'utf8'));
-    out[pkg.name.replace('@mirage/', '')] = { exports: pkg.exports || null, dir: path.join(root, 'packages', d), name: pkg.name };
+    out[pkg.name.replace('@miragekit/', '')] = { exports: pkg.exports || null, dir: path.join(root, 'packages', d), name: pkg.name };
   }
   return out;
 }
@@ -33,7 +33,7 @@ export function readPackages(root = ROOT) {
 export function exported(pkg, sub) {
   if (!pkg) return false;
   if (!pkg.exports) return fs.existsSync(path.join(pkg.dir, sub));   // no map: any shipped file
-  // 'kits' in prose ("@mirage/world/kits/*") names a folder of exported subpaths
+  // 'kits' in prose ("@miragekit/world/kits/*") names a folder of exported subpaths
   return Object.prototype.hasOwnProperty.call(pkg.exports, './' + sub) || Object.keys(pkg.exports).some((k) => k.startsWith('./' + sub + '/'));
 }
 /** problems in one file's text: [{ line, text }] */
@@ -43,10 +43,10 @@ export function scan(text, file, pkgs) {
   lines.forEach((l, i) => {
     for (const m of l.matchAll(SPEC)) {
       const sub = m[2].replace(/\.$/, '');
-      if (!exported(pkgs[m[1]], sub)) bad.push({ line: i + 1, text: `@mirage/${m[1]}/${sub} is not in the export map of @mirage/${m[1]}` });
+      if (!exported(pkgs[m[1]], sub)) bad.push({ line: i + 1, text: `@miragekit/${m[1]}/${sub} is not in the export map of @miragekit/${m[1]}` });
     }
     if (own) for (const m of l.matchAll(/(?:from|import)\s*\(?\s*['"]((?:\.\.\/)+)([a-z]+)\/src\//g)) {
-      if (m[1] === '../../' && m[2] !== own[1] && pkgs[m[2]]) bad.push({ line: i + 1, text: `relative import into packages/${m[2]}/src: import '@mirage/${m[2]}' instead` });
+      if (m[1] === '../../' && m[2] !== own[1] && pkgs[m[2]]) bad.push({ line: i + 1, text: `relative import into packages/${m[2]}/src: import '@miragekit/${m[2]}' instead` });
     }
   });
   return bad;
@@ -74,7 +74,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   let seen = 0;
   for (const f of files) {
     const text = fs.readFileSync(path.join(ROOT, f), 'utf8');
-    if (!text.includes('@mirage/') && !text.includes('/src/')) continue;
+    if (!text.includes('@miragekit/') && !text.includes('/src/')) continue;
     seen++;
     for (const b of scan(text, f, pkgs)) bad.push(`${f}:${b.line}  ${b.text}`);
   }

@@ -1,7 +1,7 @@
 // vegetation: shade trees (a tapering trunk, a crown of lumpy leaf masses) on the lawns, cypresses along the
 // walls and outside. Crowns and the open trunk tubes do not collide; each trunk gets a closed proxy.
 import * as THREE from 'three';
-import { fbm2 } from '@mirage/core';
+import { fbm2 } from '@miragekit/core';
 import { materials } from './materials.js';
 
 // a leaf mass: an icosphere pushed in and out by two octaves of value noise (seeded by its position)

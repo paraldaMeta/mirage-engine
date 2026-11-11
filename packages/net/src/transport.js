@@ -11,7 +11,7 @@
 //      const net = createLoopbackNetwork({ seed: 'check', latency: 75, jitter: 20, loss: 0.05, duplicate: 0.01, reorder: 0.02 });
 //      const [a, b] = net.pair();          // a.send(x) arrives at b.onmessage after latency +- jitter, or never
 //      net.advance(16.7);                  // move the clock; everything due is delivered in time order
-//    Deterministic: one seeded generator (@mirage/core rng), ties broken by send order. `reorder` holds a packet
+//    Deterministic: one seeded generator (@miragekit/core rng), ties broken by send order. `reorder` holds a packet
 //    back by up to `reorderMs` more (default 3 x jitter + 30 ms), so later packets overtake it.
 //    Conditions can be per pair (net.pair({ loss: 0.2 })) and changed while running (end.conditions.loss = 0).
 //    createLoopbackNetwork({ realtime: true }) delivers on setTimeout instead (the browser host's own player).
@@ -19,7 +19,7 @@
 //    simulator behind `mirage-net --latency 150 --loss 0.05` and the overlay's keys).
 // 3. webSocketTransport(url | socket): a browser or Node 22 WebSocket carrying binary frames.
 // ---------------------------------------------------------------------------
-import { rng } from '@mirage/core/rng';
+import { rng } from '@miragekit/core/rng';
 
 const NONE = { latency: 0, jitter: 0, loss: 0, duplicate: 0, reorder: 0 };
 

@@ -1,6 +1,6 @@
 # The editor
 
-`@mirage/editor` is a visual editor that runs in the browser against a live Mirage world. Experimental and opt-in:
+`@miragekit/editor` is a visual editor that runs in the browser against a live Mirage world. Experimental and opt-in:
 a project that does not import it is unchanged, and a project that does, with an empty edit layer, renders the same
 pixels as before (measured below).
 
@@ -27,7 +27,7 @@ Ctrl + Shift + Z undo and redo all of them, and the History tab lists them.
 
 **Panels.** Hierarchy (the plan's points, footprints, regions, paths and viewpoints, the placed objects, and the
 scene nodes the modules built). Inspector with typed fields: numbers that drag, vectors, colours, enums, asset
-pickers; the plan's fields are typed from `@mirage/world`'s `plan.schema.json`, a world's own fields from their
+pickers; the plan's fields are typed from `@miragekit/world`'s `plan.schema.json`, a world's own fields from their
 values. Asset browser: the project's glTF models and textures, the effects of `VFX_LIBRARY`, audio files. Console:
 the editor's log and the diagnostics (`MG` codes of `docs/diagnostics.md`, from `lintPlan` on the edited plan and
 the last build report). Stats: draw calls, triangles, CPU ms per frame.
@@ -36,7 +36,7 @@ the last build report). Stats: draw calls, triangles, CPU ms per frame.
 
 | type | what it becomes |
 |---|---|
-| `model` | a glTF through `@mirage/core/assets` |
+| `model` | a glTF through `@miragekit/core/assets` |
 | `primitive`, `wall` | a box / sphere / cylinder / plane, or a wall along drawn points, with colour, roughness, metalness, a texture |
 | `light` | a point or spot light (`world.lighting.addLight` on a clustered world, a three light otherwise) |
 | `probe`, `gi` | `plan.lighting.probes` / `plan.lighting.gi` for `createWorldRenderer({ lighting })` |
@@ -72,7 +72,7 @@ toggle is a live field in the World tab; they are edits like the others (undo, s
 **Tools.** Draw: walls (a placed `wall`), paths and regions (plan entries), click by click. Material and parameter
 editor: select any node a module built and edit its material's values (a `nodes` override). Timeline: tracks of
 transform keys for placed objects and nodes, camera keys, scrubbing and playback on `createTimeline` of
-`@mirage/play`. Animator viewer: the states, weights and parameters of the animators the page hands over with
+`@miragekit/play`. Animator viewer: the states, weights and parameters of the animators the page hands over with
 `attach({ animators })`; it shows state, it does not edit graphs.
 
 **Keys.** `?` shows the sheet.
@@ -97,7 +97,7 @@ The screenshots on this page are written by the check (`node packages/editor/edi
 ## Wiring a project
 
 ```js
-import { editable } from '@mirage/editor/runtime';
+import { editable } from '@miragekit/editor/runtime';
 import edits from './plan.edits.json';                       // {} until the first save
 
 const ed = editable(plan, edits);

@@ -9,8 +9,8 @@ import { createForces } from './src/physics-forces.js';
 import { createVehicle } from './src/vehicle.js';
 import { createRagdoll } from './src/ragdoll.js';
 import { createPhysicsDebug } from './src/physics-debug.js';
-import { createRigModel } from '@mirage/play/rig-model';
-import { createAnimator } from '@mirage/play/anim';
+import { createRigModel } from '@miragekit/play/rig-model';
+import { createAnimator } from '@miragekit/play/anim';
 
 const ok = (c, m) => { if (!c) { console.error('FAIL', m); process.exit(1); } console.log('  ok', m); };
 const f = (v) => +v.toFixed(3);

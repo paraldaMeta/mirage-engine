@@ -1,6 +1,6 @@
 # M1 notes — the rendering core
 
-M1 delivers `packages/core` (`@mirage/core`) and `examples/hello-courtyard`. Everything that came from Golden
+M1 delivers `packages/core` (`@miragekit/core`) and `examples/hello-courtyard`. Everything that came from Golden
 Temple's code was **rewritten**, not copied: new structure, names, GLSL and algorithms where practical. Code
 from the author's own later work in an earlier project was **adapted**. Nothing place-specific from that project is in the repo.
 
@@ -64,7 +64,7 @@ three's materials instead of ShaderMaterials; per-material hook points; named se
 ## Verification (this Mac: Apple M4 Pro, ANGLE Metal, Chrome headless)
 
 - `npm install` at the root: ok (0 vulnerabilities). `npx vite build` in the example: ok (840 kB, 222 kB gzip).
-- `npm test -w @mirage/core`: ok (rng determinism, solar noon at Kyoto, golden-hour exposure = 1, Moon as key
+- `npm test -w @miragekit/core`: ok (rng determinism, solar noon at Kyoto, golden-hour exposure = 1, Moon as key
   light at night, wall with openings, arch end points). LOD helper smoke-tested in node.
 - `node scripts/verify.mjs <dir>` (built `dist/` via `vite preview`, 1440×900, spp 6): no console errors or
   warnings in any view. Still camera, two consecutive renders:

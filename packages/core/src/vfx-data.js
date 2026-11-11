@@ -2,7 +2,7 @@
 // The effect description format of the particle system: plain JSON in, a validated and fully-defaulted copy out.
 // Nothing here touches the GPU, so an agent or an editor can author, diff, store and check effects in Node.
 //
-//   import { defineEffect, bakeCurves } from '@mirage/core';
+//   import { defineEffect, bakeCurves } from '@miragekit/core';
 //   const fx = defineEffect({ name: 'puff', rate: 40, life: [0.8, 1.4], shape: { type: 'sphere', radius: 0.2 },
 //     velocity: { dir: [0, 1, 0], speed: [0.5, 1], spread: 25 }, gravity: -0.4, drag: 0.8,
 //     size: [0.2, 0.4], sizeOverLife: [[0, 0.3], [1, 1.6]], color: [[0, '#ffffff'], [1, '#606060']],

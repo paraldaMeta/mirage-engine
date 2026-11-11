@@ -1,8 +1,8 @@
 // Demo: a day-to-night time-lapse of examples/snow-hut (its plan and modules, unchanged) under a running clock:
 // the sun crosses, the lamps come on at dusk, the moon rises; the camera circles the hut. Code only, one file.
 // URL: ?from=06:30  ?to=22:30  ?rate=40 (clock minutes per second)  ?date=2026-01-15  ?w=&h=
-import { createWorldRenderer, placeDate, placeClock, skyAt } from '@mirage/core';
-import { buildWorld } from '@mirage/world';
+import { createWorldRenderer, placeDate, placeClock, skyAt } from '@miragekit/core';
+import { buildWorld } from '@miragekit/world';
 import plan from '../../snow-hut/plan.js';
 import modules from '../../snow-hut/modules/index.js';
 

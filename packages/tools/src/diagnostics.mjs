@@ -75,7 +75,7 @@ export const CODES = {
   MG602: { severity: 'error', title: 'uncaught exception in the page', fix: 'Fix the code that threw (the stack names the file and line); main.js must not throw before window.__READY = true.' },
   MG603: { severity: 'error', title: 'page never became ready', fix: 'The page threw or hung before window.__READY = true: read the console errors in the message, fix main.js or the import that fails.' },
   MG604: { severity: 'error', title: 'scenario step failed', fix: 'Read the message; fix the step (its fields) or the world it ran against.' },
-  // ---- MG7xx game state (games built on @mirage/game)
+  // ---- MG7xx game state (games built on @miragekit/game)
   MG701: { severity: 'error', title: 'expectation failed', fix: 'Compare the value with the expectation; fix the world or the scenario step.' },
   MG702: { severity: 'error', title: 'no interaction prompt', fix: 'Walk within reach (2.4 m) of the entity and lookAt it by id before expecting near / prompt.' },
   MG703: { severity: 'error', title: 'game flag not set', fix: 'Check the interaction ran (tap "KeyE" while near) and that its handler sets the flag; a toggle can flip back after a second press.' },
@@ -120,7 +120,7 @@ const xyz = (p) => p.map((v) => fmt(v)).join(', ');
 // ---------------------------------------------------------------------------------------------------- plan
 const PLAN_RULES = { required: 'MG101', type: 'MG102', finite: 'MG103', range: 'MG103', size: 'MG104', enum: 'MG105', const: 'MG105', oneOf: 'MG106', order: 'MG107', walk: 'MG108', empty: 'MG109' };
 
-/** planIssues(plan) (from @mirage/world/plan-validation) -> diagnostics. */
+/** planIssues(plan) (from @miragekit/world/plan-validation) -> diagnostics. */
 export function fromPlanIssues(issues) {
   // a LIST of spots under plan.points (points: { lamps: [[x, y, z], ...] }) fails once per entry with "expected
   // number": said once per name, with what to write instead ("Set points.lamps[0] so it is number" helped nobody)

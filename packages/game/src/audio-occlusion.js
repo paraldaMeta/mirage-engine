@@ -9,7 +9,7 @@
 // far side of a ledge) counts as solid, and a window in a wall is shut; physics and scene rays return shut or clear
 // for the first hit (thickness is not measured), so the engine's side rays do the grading.
 // ---------------------------------------------------------------------------
-const MAXL = 4;   // floors per cell of the walk grid (@mirage/play/walkgrid MAXL; not imported: that module pulls three in)
+const MAXL = 4;   // floors per cell of the walk grid (@miragekit/play/walkgrid MAXL; not imported: that module pulls three in)
 
 /** March the segment through the walk grid. A point is in the open when its cell has a floor at or below it (skin
  *  metres of slack) with the ceiling above it. The answer is the blocked length over `thickness` metres, capped at 1:

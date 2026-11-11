@@ -1,0 +1,46 @@
+# Mirage original code. Publishes the seven @miragekit/* packages to npm with provenance (docs/releasing.md).
+# Runs when a GitHub release is published, or by hand (Actions -> release -> Run workflow) as a dry run.
+# The publish job waits in the protected `npm` environment until the owner approves it.
+# Auth: npm trusted publishing (OIDC, no token) once each package is linked to this workflow on npmjs.com; until
+# then (a first publish of a new package) an NPM_TOKEN secret on the `npm` environment, limited to @miragekit.
+name: release
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'npm publish --dry-run (nothing leaves the runner)'
+        type: boolean
+        default: true
+permissions:
+  contents: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22
+          registry-url: 'https://registry.npmjs.org'
+      - run: npm install -g npm@11.6.2   # trusted publishing needs npm 11.5.1 or later
+      - run: npm ci --ignore-scripts
+      - run: npm test && npm run test:pack
+      - name: the tag is the packages' version
+        if: github.event_name == 'release'
+        run: |
+          want="$(node -p "require('./packages/core/package.json').version")"
+          test "${GITHUB_REF_NAME#v}" = "$want"
+      - name: 'publish in peer-dependency order: core, world, play, game, net, editor, tools'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          DRY: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && '--dry-run' || '' }}
+        run: |
+          npm publish $DRY --provenance --access public -w packages/core -w packages/world -w packages/play -w packages/game -w packages/net -w packages/editor -w packages/tools

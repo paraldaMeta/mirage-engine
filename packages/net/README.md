@@ -1,6 +1,6 @@
-# @mirage/net
+# @miragekit/net
 
-Multiplayer for worlds walked with `@mirage/play`: an authoritative room that runs the same walker over the same
+Multiplayer for worlds walked with `@miragekit/play`: an authoritative room that runs the same walker over the same
 walk grid, headlessly in Node or inside one player's browser; snapshots with quantised fields and deltas against
 acknowledged baselines; client-side prediction with reconciliation; lag-compensated hit queries; a lobby with room
 codes, reconnect and host migration. No dependencies: the WebSocket server is in this package (`src/ws.js`), the
@@ -8,12 +8,12 @@ client is the platform's `WebSocket`.
 
 ```js
 // game.js: imported by the page and by the server, so the two cannot disagree
-import { kitProtocol, installKit } from '@mirage/net/kit';
+import { kitProtocol, installKit } from '@miragekit/net/kit';
 export const protocol = kitProtocol({ bounds: plan.bounds });
 export const setup = (room) => installKit(room, { pickups: [[4, 0, 2]] });
 
 // the page
-import { connectLobby, joinRoom, deserializeGrid } from '@mirage/net';
+import { connectLobby, joinRoom, deserializeGrid } from '@miragekit/net';
 const grid = deserializeGrid(new Uint8Array(await (await fetch('./grid.bin')).arrayBuffer()));
 const lobby = await connectLobby('ws://127.0.0.1:8787/net');
 const { client } = await joinRoom({ lobby, code: 'YARD', protocol, grid, name: 'Ada', setup });
@@ -41,4 +41,4 @@ is `examples/net-courtyard`.
 | `lobby.js`, `host.js` | `connectLobby`, `joinRoom`, `hostRoom` (host mode and migration) |
 | `kit.js` | `kitProtocol`, `installKit`: names, pickups, chat, tag |
 | `overlay.js` | `createNetOverlay`: rtt, loss, bytes/s per entity type, prediction error |
-| `server.js`, `ws.js` | Node only: `createServer`, `acceptWebSocket`; import as `@mirage/net/server` |
+| `server.js`, `ws.js` | Node only: `createServer`, `acceptWebSocket`; import as `@miragekit/net/server` |

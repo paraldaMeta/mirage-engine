@@ -5,7 +5,7 @@
 //        [--maps color,orm,normal] [--png] [--query "time=12:00"] [--verify dir] [--views all | 0,2] [--spp 4]
 //        [--usdz-thin 1] [--w 960 --h 600] [--no-validate]
 // --usdz-thin f: keep that share of each instanced mesh's instances in the USDZ (grass and leaves dominate its size)
-// Opens the page in the local headless Chrome (like mirage-snap), injects the exporter (@mirage/core/export,
+// Opens the page in the local headless Chrome (like mirage-snap), injects the exporter (@miragekit/core/export,
 // bundled here with vite) and writes:
 //   <out>.glb           glTF 2.0 binary; instanced vegetation stays instanced (EXT_mesh_gpu_instancing)
 //   <usdz>              USDZ for Quick Look (instances merged, vertex colours baked)
@@ -13,13 +13,13 @@
 // --verify dir: reloads the GLB with GLTFLoader in the same page, renders it from the plan's viewpoints through the
 //   world's own renderer next to the live world, writes dir/vNN-<name>.png (live | GLB | difference) and
 //   dir/verify.json (coverage IoU, normal agreement, colour difference); parses the USDZ with three's USDLoader.
-// gltf-validator (a devDependency of @mirage/tools) checks the GLB unless --no-validate; it is skipped with a note
+// gltf-validator (a devDependency of @miragekit/tools) checks the GLB unless --no-validate; it is skipped with a note
 // when not installed.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { launch, serve, open } from './chrome.mjs';
-import { zipOffsets } from '@mirage/core/export';
+import { zipOffsets } from '@miragekit/core/export';
 
 const args = process.argv.slice(2);
 const BOOL = new Set(['--png', '--no-validate']);

@@ -9,7 +9,7 @@
 //   elementPose / elementMoved / elementScaled   // how a gizmo edits a plan entry (pure array maths)
 //
 // Field types: number (drag), vector, color, enum, bool, string, asset (a picker), points (a list of [x, z]),
-// json (anything else, edited as text). Plan fields come from @mirage/world's plan.schema.json; a world's own
+// json (anything else, edited as text). Plan fields come from @miragekit/world's plan.schema.json; a world's own
 // fields, which the schema does not know, are typed from their value. No three.js, no DOM.
 // ---------------------------------------------------------------------------
 import { parsePath, joinPath, clone } from './layer.js';

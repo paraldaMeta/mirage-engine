@@ -5,8 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import schema from '@mirage/world/plan.schema.json' with { type: 'json' };
-import { definePlan } from '@mirage/world/plan';
+import schema from '@miragekit/world/plan.schema.json' with { type: 'json' };
+import { definePlan } from '@miragekit/world/plan';
 
 const cli = fileURLToPath(new URL('./src/validate-plan.mjs', import.meta.url));
 const examples = fileURLToPath(new URL('../../examples/', import.meta.url));

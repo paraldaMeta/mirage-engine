@@ -1,4 +1,4 @@
-# @mirage/world
+# @miragekit/world
 
 The world protocol: a site plan as the single source of positions, a module interface, and a loader that builds
 modules in order with failure isolation, merged anchors, ambient volumes and seeded randomness per module.
@@ -10,8 +10,8 @@ TypeScript consumers need Three's declarations. Coverage, nullable results and t
 checks are described in [the type handoff](../../docs/TYPES.md). These declarations have not been compiled on the development Air.
 
 ```js
-import { createWorldRenderer } from '@mirage/core';
-import { buildWorld } from '@mirage/world';
+import { createWorldRenderer } from '@miragekit/core';
+import { buildWorld } from '@miragekit/world';
 
 const world = createWorldRenderer({ canvas, place, time: 'golden' });
 const { plan, modules, anchors, report } = await buildWorld(world, { plan: myPlan, modules: [ground, walls, props], shared: { tex } });
@@ -21,7 +21,7 @@ await world.prepare();
 
 | export | |
 |---|---|
-| `@mirage/world/plan.schema.json` | JSON Schema for site plans. The loader and `mirage-validate-plan` also enforce coordinate ordering and report each invalid field. |
+| `@miragekit/world/plan.schema.json` | JSON Schema for site plans. The loader and `mirage-validate-plan` also enforce coordinate ordering and report each invalid field. |
 | `buildWorld(world, { plan, modules, shared, log })` | build, anchors, finalize; returns `{ plan, modules, anchors, report }` |
 | `buildWorld(..., { slice: true \| { budgetMs, yield } })` | opt-in time slicing for a world built while another runs: yields to the frame between modules once `budgetMs` (8) of building ran; `report.slices` = `{ yields, longestMs, longModules, longTasks }` |
 | `createStreamer(world, { plan, modules, ... })`, `regionOf(root)` | opt-in: modules streamed in and out by distance (below) |
@@ -34,14 +34,14 @@ Use `consumes: { required: ['lamps'], optional: ['seats'] }` to report available
 Both lists can be omitted. See [the world protocol](../../docs/world-protocol.md#3-anchors) for examples and failure behavior.
 `ctx` adds to the core's `world.ctx`: `plan, name, root (= scene), R, rng(sub), anchors, modules, shared, onUpdate, collider(mesh), log, world`.
 
-`NOTES.template.md`: the per-world notes file modules use to talk to each other. `npm test -w @mirage/world` runs
+`NOTES.template.md`: the per-world notes file modules use to talk to each other. `npm test -w @miragekit/world` runs
 `check.mjs` (plan checks, order, anchors, failure isolation, per-module rng; no GPU).
 
 ## Streaming modules in and out (`createStreamer`, experimental, opt-in)
 
 ```js
-import { createStreamer } from '@mirage/world';
-import { bakeWalkGridAsync } from '@mirage/play';
+import { createStreamer } from '@miragekit/world';
+import { bakeWalkGridAsync } from '@miragekit/play';
 const streamer = createStreamer(world, { plan, shared: { tex }, modules: [{ name: 'hall', center: [40, 12], radius: 30, build }],
   onChange: (name, inScene, region) => bakeWalkGridAsync(world, { into: play.grid, region }) });
 // once a frame, before the draw:
@@ -62,7 +62,7 @@ lamps or lights that exist from the start. Demo and measurements: `examples/demo
 
 ## Vegetation
 
-Import `addTreeCanopies` and `addGrass` from `@mirage/world/kits/vegetation` inside a world module.
+Import `addTreeCanopies` and `addGrass` from `@miragekit/world/kits/vegetation` inside a world module.
 
 ```js
 const trees = addTreeCanopies(ctx, {
@@ -83,7 +83,7 @@ heavily excluded terrain. An optional `seed` names the RNG stream within the wor
 ## Fur, short grass and moss (shells)
 
 ```js
-import { addFur } from '@mirage/world/kits/fur';
+import { addFur } from '@miragekit/world/kits/fur';
 
 // Inside build(ctx): a lawn panel, or moss on any mesh with normals (world space).
 const lawn = addFur(ctx, { rect: [6.5, 18.9, 31, 32], y: 0.061, length: 0.07, density: 900, shells: 16 });
@@ -125,8 +125,8 @@ TAA / the still path's sub-frames for anti-aliasing.
 ## Terrain and water
 
 ```js
-import { addTerrain } from '@mirage/world/kits/terrain';
-import { addWater } from '@mirage/world/kits/water';
+import { addTerrain } from '@miragekit/world/kits/terrain';
+import { addWater } from '@miragekit/world/kits/water';
 
 // Inside build(ctx).
 const bed = addTerrain(ctx, {
@@ -152,8 +152,8 @@ The water contributes no ground or Rapier collision. The bed sets wading depth. 
 ## Rain
 
 ```js
-import { setWetness, setRain, withWet } from '@mirage/core';
-import { addRain } from '@mirage/world/kits/rain';
+import { setWetness, setRain, withWet } from '@miragekit/core';
+import { addRain } from '@miragekit/world/kits/rain';
 
 // Inside build(ctx), or with { ...world.ctx, root: world.scene } after building.
 const rain = addRain(ctx, { count: 6000, intensity: 1 });   // intensity: calls setRain(1)
@@ -170,7 +170,7 @@ and rain"). In an orthographic view the box is centred where the view axis meets
 thinner than a pixel keeps at least `minAlpha` (0.25). The fall runs on the scene clock wrapped to 64 s on the CPU
 (each streak falls a whole number of box heights per period), so it stays smooth after hours; the wind drifts a
 streak only since it left the top of its column, so a change of wind does not throw the rain across the sky.
-Under reduced motion (core's `world.setReducedMotion`, @mirage/play's `prefers-reduced-motion`) it falls at
+Under reduced motion (core's `world.setReducedMotion`, @miragekit/play's `prefers-reduced-motion`) it falls at
 `ctx.motion.rain` x `speed` (0.4: 8.5 -> 3.4 m/s, shorter streaks). Limits: no splashes, and no shelter: streaks fall
 inside arcades and rooms wherever the box reaches (hide the mesh indoors). Remove it with `mesh.removeFromParent()` and dispose its geometry and material.
 Limits: no splashes, and no shelter: streaks fall inside arcades and rooms wherever the box reaches (hide the mesh
@@ -179,7 +179,7 @@ indoors). Remove it with `mesh.removeFromParent()` and dispose its geometry and 
 ## Gaussian splats
 
 ```js
-import { addSplats, loadSplats, splatEffects } from '@mirage/world/kits/splat';
+import { addSplats, loadSplats, splatEffects } from '@miragekit/world/kits/splat';
 
 // Inside build(ctx), or with { ...world.ctx, root: world.scene } after building.
 const data = await loadSplats('scan.ply');   // .splat | 3DGS .ply | SOG meta.json (its webp files beside it)

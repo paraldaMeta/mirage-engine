@@ -6,7 +6,7 @@
 // and each visible instance goes to the InstancedMesh of the level its distance asks for: the source mesh,
 // simplified copies (simplify.js), or an impostor quad (impostor.js) as the last level.
 //
-//   import { createInstances } from '@mirage/core/instancing';
+//   import { createInstances } from '@miragekit/core/instancing';
 //   const trees = createInstances(world, { source: treeGroup,            // a Mesh or a Group of meshes (one material each)
 //     matrices,                                                         // Float32Array, 16 per instance (world space)
 //     ratios: [0.5, 0.2, 0.08], errorPx: 1.5, hysteresis: 0.15,         // LOD chain and switch rule, as autolod.js

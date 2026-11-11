@@ -10,7 +10,7 @@
 | mood | dusk: sun 1.2° above the sea in the west (azimuth 262°), behind the lighthouse seen from the promenade; calm sea, light haze; palette: cold blue-grey sea, warm orange sky low, white tower with one red band, weathered grey-brown timber, warm lamp light; sound: wind, water, the ignite click |
 | references | kinds of place: a harbour-town promenade with a cast-iron rail; a timber pleasure pier on piles; a small round masonry harbour light (no real named site) |
 | scale | bounds 90 × 60 m; route spawn → pier head ≈ 70 m (47 s walking, 17 s running) |
-| target | walk + one interactable (@mirage/game); desktop; single file ≤ 5 MB; frame ≤ 8 ms walking on an M-series; no photo textures (code-only materials) |
+| target | walk + one interactable (@miragekit/game); desktop; single file ≤ 5 MB; frame ≤ 8 ms walking on an M-series; no photo textures (code-only materials) |
 
 Decisions made without asking: sea to the west so the sunset is behind the lighthouse; high tide, no beach (the
 seawall drops straight into the water, so nothing below the promenade is walkable); the deck and promenade at one

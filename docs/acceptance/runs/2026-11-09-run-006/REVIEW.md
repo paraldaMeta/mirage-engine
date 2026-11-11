@@ -35,4 +35,4 @@
 | Firefox、WebKit 与真 Safari | 见 STATUS-1.0 | 待验收 |
 | A1 | 见 STATUS-1.0 | 待验收 |
 | GPU CI | 工作流在；所有者决定暂不注册自托管 runner（公开仓库的安全考虑） | 待验收 |
-| API 与发布 | 类型消费者 NodeNext / Bundler 都通过；`npm run test:pack` 通过；包名定为 `@mirage/*`（scope 能否注册待所有者登录 npm 确认） | 待验收 |
+| API 与发布 | 类型消费者 NodeNext / Bundler 都通过；`npm run test:pack` 通过；包名定为 `@miragekit/*`（scope 能否注册待所有者登录 npm 确认） | 待验收 |

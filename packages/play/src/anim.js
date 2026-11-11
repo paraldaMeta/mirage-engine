@@ -3,7 +3,7 @@
 // ---------------------------------------------------------------------------
 // Animation controller: state machines, blend spaces, masked and additive layers, root motion, clip events.
 //
-//   import { createAnimator } from '@mirage/play';
+//   import { createAnimator } from '@miragekit/play';
 //   const anim = createAnimator(model, clips, {
 //     parameters: { speed: 0, grounded: true, jump: 'trigger', wave: 'trigger' },
 //     rootMotion: { bone: 'Root' },

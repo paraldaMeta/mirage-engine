@@ -1,7 +1,7 @@
 // Test-machine contracts for the procedural player. Mesh extents here use bind-pose metres.
 import assert from '../../scripts/soft-assert.mjs';
 import * as THREE from 'three';
-import { createEnv, createMaterials } from '@mirage/core';
+import { createEnv, createMaterials } from '@miragekit/core';
 import { createCharacter } from './src/index.js';
 
 const world = { mat: createMaterials(createEnv().G) };

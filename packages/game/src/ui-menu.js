@@ -4,8 +4,8 @@
 // gamepad in every panel, glyphs that follow the device, a language / theme / text size / reduced motion tab,
 // right-to-left layout, and `ui.kit` to mount a game's own HUD into the same root.
 // ---------------------------------------------------------------------------
-// import { startGame } from '@mirage/game';
-// import { createKitUI } from '@mirage/game/ui-menu';
+// import { startGame } from '@miragekit/game';
+// import { createKitUI } from '@miragekit/game/ui-menu';
 // const g = await startGame(world, { plan, ui: createKitUI });                       // opt-in; the default stays createUI
 // const g = await startGame(world, { plan, ui: (o) => createKitUI({ ...o, theme: 'contrast', locale: 'zh-Hant' }) });
 // g.ui.kit.mount(h(Bar, { value: hp, max: 100 }));                                    // the game's own widgets
@@ -14,7 +14,7 @@
 // kitOptions (passed to createUIKit). The player's language, theme, text size and motion choice are kept in
 // game.settings.ui (saved with game.saveSettings(), like bindings and volumes).
 // ---------------------------------------------------------------------------
-import { createLifetime } from '@mirage/core/lifetime';
+import { createLifetime } from '@miragekit/core/lifetime';
 import { createUIKit, h, each, show, signal, stack, row, anchor, safeArea, onCleanup } from './ui-kit.js';
 import { Button, Prompt, Slider, Toggle, Select, Tabs, RebindList, modals, toasts, confirm } from './ui-widgets.js';
 import { LOCALE_NAMES } from './ui-locales.js';

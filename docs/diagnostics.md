@@ -65,7 +65,7 @@ when this page and the table disagree.
 | MG203 | error | required anchors missing (`consumes.required`) | a module that offers them, or move the key to `consumes.optional` |
 | MG204 | error | module definition invalid (no name / build, duplicate name, bad anchors, consumes, ambientVolumes) | the documented shape |
 | MG205 | info | module built no triangles | add meshes to `ctx.root`, if it should be visible |
-| MG206 | warning | a `wall()` opening reaches the top of its wall: an opening's `height` is where its arch springs and `arch` defaults to `'round'` (+ width / 2), so a 2.1 m door 1.2 m wide tops out at 2.7 m (console warning from `@mirage/core/geom`, listed by the playtest) | `arch: 'flat'`, or the lower `height` that keeps the arch under the wall top (the message has the numbers) |
+| MG206 | warning | a `wall()` opening reaches the top of its wall: an opening's `height` is where its arch springs and `arch` defaults to `'round'` (+ width / 2), so a 2.1 m door 1.2 m wide tops out at 2.7 m (console warning from `@miragekit/core/geom`, listed by the playtest) | `arch: 'flat'`, or the lower `height` that keeps the arch under the wall top (the message has the numbers) |
 
 Module failures fail a playtest through the console errors they log (allowed with the scenario's `"errors": N`).
 
@@ -123,7 +123,7 @@ Module failures fail a playtest through the console errors they log (allowed wit
 | MG603 | error | the page never became ready (`window.__READY`) | what the page logged before it failed |
 | MG604 | error | a scenario step threw | the step's message |
 
-### MG7xx: game state (@mirage/game)
+### MG7xx: game state (@miragekit/game)
 
 | code | severity | problem | fix |
 |---|---|---|---|

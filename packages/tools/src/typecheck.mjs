@@ -82,7 +82,7 @@ try {
   for (const [name, version] of Object.entries(result.toolchain)) {
     if (read(path.join(out, 'node_modules', name, 'package.json')).version !== version) throw new Error('Unexpected installed version: ' + name);
   }
-  const gameDir = path.join(out, 'node_modules/@mirage/game');
+  const gameDir = path.join(out, 'node_modules/@miragekit/game');
   const requireFromGame = createRequire(path.join(gameDir, 'package.json'));
   const upstream = path.dirname(requireFromGame.resolve(rapier));
   const shipped = path.join(gameDir, 'types/rapier');

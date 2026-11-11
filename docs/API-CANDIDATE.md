@@ -7,18 +7,18 @@
 
 | 包／入口 | 暴露内容 | 类型状态 |
 |---|---|---|
-| `@mirage/world` | `definePlan`、`contains`、`bbox`、`pathLength`、`along`、`buildWorld`、`LAYER` | 已写声明，待异机编译；含 PlanInput、WorldModule、ModuleContext、BuildReport 等类型。 |
+| `@miragekit/world` | `definePlan`、`contains`、`bbox`、`pathLength`、`along`、`buildWorld`、`LAYER` | 已写声明，待异机编译；含 PlanInput、WorldModule、ModuleContext、BuildReport 等类型。 |
 | world `/plan`、`/loader`、`/plan-validation` | 同名实现模块；额外有 `planProblems(unknown)` | 已写声明，待验证。 |
 | world `/kits/vegetation`、`/kits/terrain`、`/kits/water` | `addTreeCanopies`、`addGrass`、`addTerrain`、`addWater` | 已写声明，待验证。 |
 | world `/plan.schema.json` | 编辑器与校验器共用的 JSON Schema | 保持 JSON 导出；消费者用 resolveJsonModule 读取。 |
 | core `/rng`、`/geom`、`/materials`、`/env` | 随机流、几何辅助、材质钩子和环境 uniforms | 已写相邻声明，供模块上下文与工具包使用，待验证。 |
-| `@mirage/core` 根入口与其他子路径 | 渲染器、天空／昼夜、大气、雾、星空、后期、材质、随机、LOD、纹理、环境光、设备画质、geom 命名空间 | 根入口及所有现有 JS 子路径已写声明；含生命周期、光照空值、后期、环境光、纹理与 LOD，待异机编译。 |
-| `@mirage/play` | `createPlay`、`createCharacter`、`bakeWalkGrid`、`makeGrid`、`MAXL`、`createWalker`、`BODY`、`mountWorld` | 根入口及子路径已写声明；含人物、相机、grid／Rapier walker、嵌入与现有停止／销毁边界，待验证。 |
-| `@mirage/game` | `startGame`、`createPhysics`、`loadRapier`、`createGame`、`createInput`、输入常量、`createAudio`、`SURFACES`、`createUI` | 根入口及子路径已写声明；含保存、实体／触发区、固定时钟、输入、UI 与音频。会话销毁与 Rapier 双模式类型适配待验证。 |
-| `@mirage/tools` | 场景校验、试玩、打包、截图、性能、静态交付和回归命令 | CLI 参数／返回状态为文档约定；无运行时库入口。 |
+| `@miragekit/core` 根入口与其他子路径 | 渲染器、天空／昼夜、大气、雾、星空、后期、材质、随机、LOD、纹理、环境光、设备画质、geom 命名空间 | 根入口及所有现有 JS 子路径已写声明；含生命周期、光照空值、后期、环境光、纹理与 LOD，待异机编译。 |
+| `@miragekit/play` | `createPlay`、`createCharacter`、`bakeWalkGrid`、`makeGrid`、`MAXL`、`createWalker`、`BODY`、`mountWorld` | 根入口及子路径已写声明；含人物、相机、grid／Rapier walker、嵌入与现有停止／销毁边界，待验证。 |
+| `@miragekit/game` | `startGame`、`createPhysics`、`loadRapier`、`createGame`、`createInput`、输入常量、`createAudio`、`SURFACES`、`createUI` | 根入口及子路径已写声明；含保存、实体／触发区、固定时钟、输入、UI 与音频。会话销毁与 Rapier 双模式类型适配待验证。 |
+| `@miragekit/tools` | 场景校验、试玩、打包、截图、性能、静态交付和回归命令 | CLI 参数／返回状态为文档约定；无运行时库入口。 |
 
 四个运行时包目前都有 `./* → ./src/*.js` 通配导出，因此许多实现文件也可被消费者导入。
-例如 `@mirage/game/simulation`、`@mirage/play/character-model` 与 `/play` 的 `frameGate` 已能被访问，
+例如 `@miragekit/game/simulation`、`@miragekit/play/character-model` 与 `/play` 的 `frameGate` 已能被访问，
 但尚未决定是否长期支持。**本轮不收窄通配符**，避免使现有项目失去入口；冻结前要列出保留子路径和迁移说明。
 
 ## 已写进声明的边界

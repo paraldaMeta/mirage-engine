@@ -1,6 +1,6 @@
 // Every sound of the audio demo and of its checks, made in code (nothing is downloaded): plain arithmetic on
 // Float32Arrays, so Node writes the two .wav files in fx/ with the same functions the page plays from memory.
-import { sfc32, hash32 } from '@mirage/core/rng';
+import { sfc32, hash32 } from '@miragekit/core/rng';
 
 export const SR = 48000;
 const TAU = Math.PI * 2;

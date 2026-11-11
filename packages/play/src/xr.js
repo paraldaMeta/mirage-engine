@@ -89,7 +89,7 @@ function installGrade(post) {
   const fn = /* glsl */ `
 uniform vec4 mgXR[ 3 ];
 vec3 CustomToneMapping( vec3 color ) {
-	// Mirage XR grade (@mirage/play xr.js): renderFrame's grade without its screen-space parts
+	// Mirage XR grade (@miragekit/play xr.js): renderFrame's grade without its screen-space parts
 	if ( mgXR[ 0 ].w == 0.0 ) return ${tm}( color );   // a material compiled without the grade's uniforms
 	color = ( color * mgXR[ 0 ].w + mgXR[ 1 ].rgb ) * mgXR[ 0 ].rgb;   // bloom stand-in, exposure, white balance
 	color = ${tm}( color );

@@ -2,7 +2,7 @@
 // traveller's skeleton, the timeline, and the rig as the play character.
 import assert from '../../scripts/soft-assert.mjs';
 import * as THREE from 'three';
-import { createEnv, createMaterials } from '@mirage/core';
+import { createEnv, createMaterials } from '@miragekit/core';
 import { createRigModel, RIG } from './src/rig-model.js';
 import { createAnimator } from './src/anim.js';
 import { solveTwoBone, solveLookAt, createFootIK } from './src/ik.js';

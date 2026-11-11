@@ -17,7 +17,7 @@ is Mirage original code; nothing comes from the author's earlier project or from
   | `mirage-module` | one module by the protocol: plan-only positions, `ctx.R`, batching and geometry signatures, materials through hooks, collision rules and proxies, anchors, budgets, NOTES, self-test |
   | `mirage-parallel-build` | the lead's side: preconditions, the ownership / plan / anchors / NOTES / builds contract, launching in Claude Code, Codex, Cursor or sequentially, integration and conflict order; `references/worker-prompt.md` |
   | `mirage-playtest` | build → run → scripted inputs → screenshots + metrics → pass / fail → fix → rerun; scenario format, what every world must check, a failure table |
-  | `mirage-game` | `@mirage/game` from a module's anchors: `startGame`, interactables, state, physics, saves, sound, UI, how to test it |
+  | `mirage-game` | `@miragekit/game` from a module's anchors: `startGame`, interactables, state, physics, saves, sound, UI, how to test it |
   | `mirage-ship` | single file, budgets, deploy folder (uploads nothing, never without the user's explicit OK), credits / licence checklist |
 
   `agent/INSTALL.md`: Claude Code (`~/.claude/skills` or `.claude/skills`), Codex / Cursor (`.agents/skills`),
@@ -38,11 +38,11 @@ is Mirage original code; nothing comes from the author's earlier project or from
   `scenarios/playtest.json` (start, walk 45 m to the key, prompt, pick up, climb to the pavilion, unlock, flicker,
   frame cost); every example has `npm run playtest`.
 - **Engine fixes** (both reported or exposed by the trial, both with checks):
-  - `@mirage/play` walker: a falling walker whose disc overlapped an overhang (a bench seat, a coping lip) never
+  - `@miragekit/play` walker: a falling walker whose disc overlapped an overhang (a bench seat, a coping lip) never
     landed and fell through the world. It now never moves into a place its body does not fit: going up that is a
     ceiling, coming down it lands on the edge; with no floor at all under its centre it still falls. New case in
     `packages/play/check.mjs` (jumps at an overhanging bench from 26 distances: lowest feet 0.00, was −5.04).
-  - `@mirage/game` input: a key pressed inside a dialog also queued its action, so Enter on "Continue" interacted
+  - `@miragekit/game` input: a key pressed inside a dialog also queued its action, so Enter on "Continue" interacted
     as the dialog closed (in the trial it turned the lighthouse straight off again). Inside a dialog only the menu /
     inventory toggles pass now. garden-quest's 37-step playthrough passes unchanged.
 - **agent-trial**: brief, plan (90 × 60 m walkable, sea level 0, promenade and deck at 2.4 m, sun 1.2° at 262°),

@@ -3,7 +3,7 @@
 // ---------------------------------------------------------------------------
 // Inverse kinematics on top of an animated pose: two-bone limbs, look-at chains, feet on the ground.
 //
-//   import { solveTwoBone, solveLookAt, createFootIK } from '@mirage/play';
+//   import { solveTwoBone, solveLookAt, createFootIK } from '@miragekit/play';
 //   solveTwoBone(arm, foreArm, hand, target, { pole: elbowHint });       // hand reaches target (world space)
 //   solveLookAt([neck, head], target, { share: [0.35, 0.65], limit: 1.2 });
 //   const feet = createFootIK(model, { ground: (x, z, y) => grid.groundAt(x, z, y, 0.4),

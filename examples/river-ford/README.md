@@ -1,7 +1,7 @@
 # River Ford · 河湾浅滩
 
-这条路线从西岸下坡，穿过水下河床，再登上东岸。地形和水面分别使用 `@mirage/world/kits/terrain` 和
-`@mirage/world/kits/water`。碎石、树木和岸草用地形的 `heightAt` 定位。水面的法线随世界时钟变化，碰撞由河床提供。
+这条路线从西岸下坡，穿过水下河床，再登上东岸。地形和水面分别使用 `@miragekit/world/kits/terrain` 和
+`@miragekit/world/kits/water`。碎石、树木和岸草用地形的 `heightAt` 定位。水面的法线随世界时钟变化，碰撞由河床提供。
 
 ## 测试机验收
 
@@ -9,8 +9,8 @@
 
 ```sh
 npm ci
-npm test -w @mirage/world
-npm test -w @mirage/game
+npm test -w @miragekit/world
+npm test -w @miragekit/game
 npm run test:e2e -- --only river-ford
 npm run metrics -w river-ford
 ```

@@ -1,12 +1,12 @@
 // Compile only. Never run this file: it includes intentional API misuse guarded by @ts-expect-error.
 import * as THREE from 'three';
-import { createWorldRenderer } from '@mirage/core';
-import { definePlan, buildWorld, type WorldModule } from '@mirage/world';
-import { createPlay } from '@mirage/play';
+import { createWorldRenderer } from '@miragekit/core';
+import { definePlan, buildWorld, type WorldModule } from '@miragekit/world';
+import { createPlay } from '@miragekit/play';
 import { startGame, createPhysics, loadRapier, createGame, createInput, createAudio, createUI,
-  ACTIONS, DEFAULT_BINDINGS, PAD, SURFACES, type Game, type Snapshot, type InteractableEntity, type PlayerSnapshot } from '@mirage/game';
-import { createSimulation } from '@mirage/game/simulation';
-import { keyName, PAD_NAMES } from '@mirage/game/input';
+  ACTIONS, DEFAULT_BINDINGS, PAD, SURFACES, type Game, type Snapshot, type InteractableEntity, type PlayerSnapshot } from '@miragekit/game';
+import { createSimulation } from '@miragekit/game/simulation';
+import { keyName, PAD_NAMES } from '@miragekit/game/input';
 
 const world = createWorldRenderer();
 const plan = definePlan({ name: 'typed-game', bounds: [-8, -8, 8, 8],

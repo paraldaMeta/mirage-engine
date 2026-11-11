@@ -17,11 +17,11 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PKGS = ['core', 'world', 'play', 'game', 'net', 'editor'];
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-/** docs/api.md as { '@mirage/core': [{ head, level, text }] }: the table rows that carry a stability cell. */
+/** docs/api.md as { '@miragekit/core': [{ head, level, text }] }: the table rows that carry a stability cell. */
 export function apiRows(md) {
   const out = {}; let pkg = null;
   for (const line of md.split('\n')) {
-    const h = /^## (@mirage\/[\w-]+)/.exec(line);
+    const h = /^## (@miragekit\/[\w-]+)/.exec(line);
     if (h) { pkg = h[1]; out[pkg] = []; continue; }
     if (/^## /.test(line)) { pkg = null; continue; }
     const m = /^\|(.+?)\|\s*(stable|experimental)\s*\|(.*)\|\s*$/.exec(line);

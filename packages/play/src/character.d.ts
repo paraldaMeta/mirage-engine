@@ -1,5 +1,5 @@
 import type * as THREE from 'three';
-import type { MaterialKit } from '@mirage/core/materials';
+import type { MaterialKit } from '@miragekit/core/materials';
 export interface CharacterPalette { jacket: THREE.ColorRepresentation; trousers: THREE.ColorRepresentation; scarf: THREE.ColorRepresentation; leather: THREE.ColorRepresentation; skin: THREE.ColorRepresentation; hair: THREE.ColorRepresentation }
 export interface CharacterAppearance { palette?: Partial<CharacterPalette> }
 export type CharacterState = 'idle' | 'walk' | 'run' | 'jump' | 'fall' | 'land';

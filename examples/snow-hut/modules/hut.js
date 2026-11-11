@@ -5,7 +5,7 @@
 // Reads plan: hut, points.door / stove / lantern / lamp, woodpile. Anchors: stoves (pos = the fire door's centre,
 // rotY 0: faces +Z). Ambient volume: the room.
 import * as THREE from 'three';
-import { PROC } from '@mirage/core';
+import { PROC } from '@miragekit/core';
 import { materials, withSnow } from './materials.js';
 
 const LOG = 0.26;                       // log course height

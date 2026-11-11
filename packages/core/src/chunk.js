@@ -3,7 +3,7 @@
 // This splits a geometry into pieces that are compact in space, each with tight bounds and at most a vertex
 // budget, so three's per-object frustum test (and the occlusion test, hiz.js) has something to reject.
 //
-//   import { chunkGeometry, chunkObject } from '@mirage/core/chunk';
+//   import { chunkGeometry, chunkObject } from '@miragekit/core/chunk';
 //   const parts = chunkGeometry(geo, { maxVertices: 24000, maxSize: 40, minVertices: 1500 });   // BufferGeometry[]
 //   const stats = chunkObject(root, { maxSize: 40 });      // every static mesh under root, replaced in place
 //   new MeshBatch().add(...).finish({ chunk: true | { maxSize: 40 } })                           // the same, at merge time

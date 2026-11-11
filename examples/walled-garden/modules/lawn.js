@@ -1,7 +1,7 @@
-// lawn (opt-in, ?lawn=fur | fur-fins | tufts): turf on the lower east lawn panel, for comparing @mirage/world's shell
+// lawn (opt-in, ?lawn=fur | fur-fins | tufts): turf on the lower east lawn panel, for comparing @miragekit/world's shell
 // fur (one draw call) with its instanced tuft cards. Without ?lawn the module is not loaded (the garden is as before).
-import { addFur } from '@mirage/world/kits/fur';
-import { addGrass } from '@mirage/world/kits/vegetation';
+import { addFur } from '@miragekit/world/kits/fur';
+import { addGrass } from '@miragekit/world/kits/vegetation';
 
 export default (kind) => ({
   name: 'lawn',

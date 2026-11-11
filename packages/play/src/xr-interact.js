@@ -1,9 +1,9 @@
 // Mirage original code. Things to do with your hands in XR: grab (near, or far along the ray), throw, hold with two
-// hands (turn and scale), snap zones, poke buttons, and canvas UI panels (@mirage/game ui-canvas) by ray and by poke.
+// hands (turn and scale), snap zones, poke buttons, and canvas UI panels (@miragekit/game ui-canvas) by ray and by poke.
 // It knows nothing of WebXR: it is fed "pointers" (a grip pose, a ray, a fingertip, grab / select flags), which
 // createXR builds from controllers and tracked hands, and a test can build from numbers.
 // ---------------------------------------------------------------------------
-// const ix = createXRInteraction({ physics: g.physics });          // physics (optional): @mirage/game createPhysics
+// const ix = createXRInteraction({ physics: g.physics });          // physics (optional): @miragekit/game createPhysics
 // const xr = createXR(play, { interact: ix });                     // createXR feeds it every frame
 // ix.grabbable(mesh, { body: phys.body(mesh, { mass: 2 }) });      // near grab within reach, else along the ray;
 //                                                                  // thrown with the hand's velocity on release

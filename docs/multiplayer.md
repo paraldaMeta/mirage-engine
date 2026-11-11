@@ -1,7 +1,7 @@
-# Multiplayer (`@mirage/net`)
+# Multiplayer (`@miragekit/net`)
 
 Experimental and opt-in: nothing in core, world, play or game imports it, and a page that does not import it is
-byte for byte the page it was. It is for worlds walked with `@mirage/play`: several players in one world, each
+byte for byte the page it was. It is for worlds walked with `@miragekit/play`: several players in one world, each
 seeing the others, with the server deciding everything that matters.
 
 ## Try it
@@ -32,7 +32,7 @@ numbers below, `npm test -w packages/net` are the Node checks.
 | sessions | `server.js`, `lobby.js`, `host.js` | a JSON lobby (list, create, join by code, host), reconnect within 30 s as the same player with a full resync, late join, host mode and migration |
 | tooling | `bin/mirage-net.mjs`, `overlay.js` | the dev server with the network simulator (`--latency --jitter --loss --duplicate --reorder`), the grid bake, the overlay |
 
-**No GPU on the server.** `@mirage/play` bakes its walk grid on the GPU. `mirage-net bake <dist> --out grid.bin`
+**No GPU on the server.** `@miragekit/play` bakes its walk grid on the GPU. `mirage-net bake <dist> --out grid.bin`
 opens the built page in headless Chrome once and writes that grid to a file (hello-courtyard: 239 KB, 18 KB
 gzipped). The server loads it, and so does every client (`deserializeGrid`) instead of baking its own, so both
 ends walk on identical bits. That is what lets prediction be exact rather than close. `bakeGridCPU` builds a grid
@@ -144,7 +144,7 @@ Not measured: real networks, real WebRTC across NATs, browsers other than Chrome
 
 ## Limits and what is left out
 
-- The walker only: no vehicles, physics props or `@mirage/game` actors are replicated. `@mirage/game` is not wired
+- The walker only: no vehicles, physics props or `@miragekit/game` actors are replicated. `@miragekit/game` is not wired
   to it; a networked game writes its rules against `createRoom` (as `kit.js` does).
 - Dedicated rooms are WebSocket only (no WebRTC in Node, and no dependency was added for it).
 - No STUN/TURN is configured; WebRTC was exercised between Chrome instances on one machine only.

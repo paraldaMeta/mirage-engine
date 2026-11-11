@@ -3,8 +3,8 @@
 // ---------------------------------------------------------------------------
 // The Draco and Basis decoder files of three, as URLs a Vite build resolves (and a single-file build inlines):
 //
-//   import { createAssets } from '@mirage/core/assets';
-//   import { decoders } from '@mirage/core/assets-decoders';
+//   import { createAssets } from '@miragekit/core/assets';
+//   import { decoders } from '@miragekit/core/assets-decoders';
 //   const assets = createAssets(world, { decoders });
 //
 // `?url` is Vite's asset import; with another bundler (or none) pass folder URLs instead:

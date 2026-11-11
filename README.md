@@ -101,13 +101,13 @@ integration ([TRIAL.md](examples/agent-trial/TRIAL.md)).
 
 | package | what it does |
 |---|---|
-| [`@mirage/core`](packages/core) | rendering: physical sky and aerial perspective inside every material, sun / moon key light with fitted soft shadows, image-based light captured from the built world, sub-frame accumulation (AA, soft shadows, clean SSAO, depth of field), temporal AA while moving, day / night for any place and time, the `patch()` material-hook system with a GLSL noise library, an optional CC0 texture layer, seeded randomness, geometry helpers, LOD |
-| [`@mirage/world`](packages/world) | the world protocol: site plan validation, modules (`build` / `anchors` / `finalize` / `ambientVolumes`), build order, failure isolation (a throwing module is skipped, the world still loads), per-module randomness, a build report ([docs/world-protocol.md](docs/world-protocol.md)) |
-| [`@mirage/play`](packages/play) | walk, fly, isometric game view, orbit; collision and ground from a walk grid baked from the real geometry; progressive refinement when the view stops; an embed API for host games |
-| [`@mirage/game`](packages/game) | a minimal game layer: Rapier physics (lazy WASM), character controller, doors, an action map (keys, gamepad, touch), procedural Web Audio, entities and interactables, inventory, versioned save / load, an accessible HTML overlay |
-| [`@mirage/net`](packages/net) | multiplayer: an authoritative room, prediction and reconciliation, delta snapshots, WebSocket and WebRTC transports (experimental) |
-| [`@mirage/editor`](packages/editor) | `mirage-editor`: edit a live world in the browser; edits are a layer file over the plan (experimental) |
-| [`@mirage/tools`](packages/tools) | the playtest runner, single-file packager, still snapshots and contact sheets, frame cost, a static deploy folder (no upload) |
+| [`@miragekit/core`](packages/core) | rendering: physical sky and aerial perspective inside every material, sun / moon key light with fitted soft shadows, image-based light captured from the built world, sub-frame accumulation (AA, soft shadows, clean SSAO, depth of field), temporal AA while moving, day / night for any place and time, the `patch()` material-hook system with a GLSL noise library, an optional CC0 texture layer, seeded randomness, geometry helpers, LOD |
+| [`@miragekit/world`](packages/world) | the world protocol: site plan validation, modules (`build` / `anchors` / `finalize` / `ambientVolumes`), build order, failure isolation (a throwing module is skipped, the world still loads), per-module randomness, a build report ([docs/world-protocol.md](docs/world-protocol.md)) |
+| [`@miragekit/play`](packages/play) | walk, fly, isometric game view, orbit; collision and ground from a walk grid baked from the real geometry; progressive refinement when the view stops; an embed API for host games |
+| [`@miragekit/game`](packages/game) | a minimal game layer: Rapier physics (lazy WASM), character controller, doors, an action map (keys, gamepad, touch), procedural Web Audio, entities and interactables, inventory, versioned save / load, an accessible HTML overlay |
+| [`@miragekit/net`](packages/net) | multiplayer: an authoritative room, prediction and reconciliation, delta snapshots, WebSocket and WebRTC transports (experimental) |
+| [`@miragekit/editor`](packages/editor) | `mirage-editor`: edit a live world in the browser; edits are a layer file over the plan (experimental) |
+| [`@miragekit/tools`](packages/tools) | the playtest runner, single-file packager, still snapshots and contact sheets, frame cost, a static deploy folder (no upload) |
 | [`agent/`](agent) | seven skills for agents, an install guide, a validator (run by `npm test`) |
 
 ## Examples

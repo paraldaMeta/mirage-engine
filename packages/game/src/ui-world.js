@@ -4,7 +4,7 @@
 // transform / opacity only where the rounded value changed: no layout is read, none is caused, and a still camera
 // writes nothing at all.
 // ---------------------------------------------------------------------------
-// import { createWorldUI } from '@mirage/game/ui-world';
+// import { createWorldUI } from '@miragekit/game/ui-world';
 // const world = createWorldUI({ kit, camera, occluders: [wallsMesh], maxDistance: 40 });
 // const tag = world.label({ object: npc, offset: [0, 1.9, 0], text: 'Ana' });          // follows an Object3D
 // const goal = world.marker({ position: [4, 1, -12], icon: '◆', label: 'Gate', clamp: true });   // sticks to the screen edge when off screen

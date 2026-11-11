@@ -5,7 +5,7 @@ keys 1–4 for the trail entrance, grass at ground level, a side-lit canopy and 
 The tree at x = 2.5, z = 0 is the collision reference in the walk scenario.
 
 The ground module builds the path from `plan.paths.trail`. The verge module reads that same path to clear
-the grass and imports both generators from `@mirage/world/kits/vegetation`. All walkable-area trees are placed in
+the grass and imports both generators from `@miragekit/world/kits/vegetation`. All walkable-area trees are placed in
 the plan. The backdrop module plants the wood beyond the meadow (26–170 m out, untextured, no collision or shadow)
 so the horizon fades into haze instead of ending at the ground's edge. The seed controls crown, grass and far-tree
 placement. The low tier reduces leaf, grass and far-tree instances while retaining the same tree positions and

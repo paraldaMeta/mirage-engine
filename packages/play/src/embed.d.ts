@@ -1,6 +1,6 @@
 import type * as THREE from 'three';
-import type { WorldRenderer, WorldRendererOptions, RenderCamera, ShadowRegion } from '@mirage/core';
-import type { PlanInput, DefinedPlan, WorldModule, AnchorTable, BuildReport, XYZ } from '@mirage/world';
+import type { WorldRenderer, WorldRendererOptions, RenderCamera, ShadowRegion } from '@miragekit/core';
+import type { PlanInput, DefinedPlan, WorldModule, AnchorTable, BuildReport, XYZ } from '@miragekit/world';
 import type { BakedWalkGrid } from './walkgrid.js';
 import type { GridWalker, GridBody } from './walker.js';
 export interface MountedWorld<P extends PlanInput = PlanInput> {

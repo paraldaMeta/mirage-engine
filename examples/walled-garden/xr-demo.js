@@ -9,9 +9,9 @@
 //                        zone, a poke button and a canvas UI panel (ray + trigger / pinch, or a fingertip)
 //   ?xrar=1              AR: anchors, plane shadows, light estimation, a shadows-only ground, a DOM overlay
 import * as THREE from 'three';
-import { createXRInteraction } from '@mirage/play';
-import { createCanvasUI, cv } from '@mirage/game/ui-canvas';
-import { signal } from '@mirage/game/ui-reactive';
+import { createXRInteraction } from '@miragekit/play';
+import { createCanvasUI, cv } from '@miragekit/game/ui-canvas';
+import { signal } from '@miragekit/game/ui-reactive';
 
 export function xrDemo(Q, world, play, plan) {
   const on = (k) => Q.has(k) && Q.get(k) !== '0';

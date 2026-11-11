@@ -46,7 +46,7 @@ Found by the lead while integrating:
 - **The path end** (tool): the flicker walk's look-ahead point clamped at the path's end, so the view swung round in
   the last 6 m (flickerMax 11 on a straight walk). The path now runs straight on past its end (max 2.1 on the same
   walk).
-- **Enter in a dialog** (engine, `@mirage/game` input): closing "The lamp is lit" with Enter also queued the
+- **Enter in a dialog** (engine, `@miragekit/game` input): closing "The lamp is lit" with Enter also queued the
   `interact` action, which fired when the dialog closed and turned the light straight off. Every expectation still
   passed (they were all before the dialog); only the contact sheet showed dark lanterns after step 7. Keys pressed
   inside a dialog now only pass the menu / inventory toggles. The scenario checks `flags.lit` after closing, and the

@@ -11,7 +11,7 @@
 // ponytail: PannerNode + buffers made in JS instead of three's PositionalAudio (which wraps the same nodes and
 // needs the camera in the scene graph); no reverb, no occlusion; sounds are generated once (~0.2 s) on unlock.
 // ---------------------------------------------------------------------------
-import { sfc32, hash32 } from '@mirage/core/rng';
+import { sfc32, hash32 } from '@miragekit/core/rng';
 
 export const SURFACES = ['stone', 'gravel', 'grass', 'wood'];
 

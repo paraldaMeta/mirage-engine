@@ -19,7 +19,7 @@ and write the choice down (do not ask unless the choice changes the whole world)
 | mood | time of day, weather, palette, sound | `render.time`, fog, materials' tints, audio loops |
 | references | 2–4 *kinds* of place or picture (no copyrighted designs, no real named sites) | proportions, materials |
 | scale | metres across, how long a walk takes | `bounds`, path lengths (walking speed 1.5 m/s, run 4.2) |
-| target | walk / game / stills; device; size budget | modes, `@mirage/game` or not, budgets |
+| target | walk / game / stills; device; size budget | modes, `@miragekit/game` or not, budgets |
 
 Adjectives are where the default look lives: "cosy, atmospheric, natural" gets the same generated world every time.
 Turn each one into numbers (sun elevation 6°, fog density 0.004, wall 2.4 m, a palette of four named colours) and
@@ -48,7 +48,7 @@ footprints, then the paths that connect them, then the points everyone shares.
 - `budget`: frame ms, triangles, single-file MB (defaults in the template). Modules share them.
 
 Check it in node (no browser needed; `definePlan` throws listing every problem):
-`node --input-type=module -e "import { definePlan } from '@mirage/world/plan'; import p from './plan.js'; console.log(definePlan(p).name)"`
+`node --input-type=module -e "import { definePlan } from '@miragekit/world/plan'; import p from './plan.js'; console.log(definePlan(p).name)"`
 
 ## 3. Modules → `BRIEF.md` § Modules
 

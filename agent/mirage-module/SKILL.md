@@ -41,7 +41,7 @@ export default {
    openings: [{ x, width, height, sill?, arch? }] })`, `geom.smoothstep`.
 4. **Materials through hooks, never `ShaderMaterial`.** `ctx.mat.std(params, hooks)` / `mat.phys(...)`, hooks
    are GLSL strings (`albedo` edits `diffuseColor`, `normal` uses `mgBump`, noise `mgFbm3(p, oct)`,
-   `mgWorldPos`). Ready sets from `@mirage/core`: `PROC.plaster(base, { wear, foot })`, `PROC.stone(base, { course, block })`,
+   `mgWorldPos`). Ready sets from `@miragekit/core`: `PROC.plaster(base, { wear, foot })`, `PROC.stone(base, { course, block })`,
    `PROC.wood(base, axis 'x' | 'y' | 'z' = grain)`, `PROC.terracotta(base)` (`base` a GLSL `vec3(...)` string); each returns a
    plain hooks object you may extend (append to its `albedo` string). Water: `mat.phys({ color, roughness: 0.04, ior:
    1.33 }, { normal: 'normal = mgBump(normal, mgFbm2(mgWorldPos.xz * 3.0, 3) * 0.6, 0.002);' })`, `collide = false`. Shared

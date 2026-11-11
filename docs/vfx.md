@@ -1,12 +1,12 @@
 # Visual effects (experimental, opt-in)
 
-`createVfx` in `@mirage/core` is a GPU particle system for WebGL2 with the things that go around one: trails,
+`createVfx` in `@miragekit/core` is a GPU particle system for WebGL2 with the things that go around one: trails,
 beams and lightning, decals, a library of ten ready effects. An effect is plain JSON. Nothing runs until
 `createVfx` is called; a world without it renders exactly as before (the built bundles of `hello-courtyard` and
 `snow-hut` are byte-identical to the ones built from the commit before this work, and so are their stills).
 
 ```js
-import { createVfx, VFX_LIBRARY } from '@mirage/core';
+import { createVfx, VFX_LIBRARY } from '@miragekit/core';
 const vfx = createVfx(world);                       // hooks the world's clock
 const fire = vfx.spawn(VFX_LIBRARY.fire, { position: [0, 0, 0] });   // looping: returns a handle
 vfx.burst(VFX_LIBRARY.explosion, [4, 1, 0]);                         // one-shot: allocates nothing

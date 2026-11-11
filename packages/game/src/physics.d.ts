@@ -1,7 +1,7 @@
 import type * as THREE from 'three';
 import type { Collider, RigidBody, KinematicCharacterController, World } from '#rapier';
-import type { XYZ } from '@mirage/world';
-import type { Body, WalkerLike, MotionInput } from '@mirage/play/walker';
+import type { XYZ } from '@miragekit/world';
+import type { Body, WalkerLike, MotionInput } from '@miragekit/play/walker';
 // The runtime returns Rapier's declared default API in both module resolution modes.
 type RapierAPI = typeof import('#rapier')['default'];
 export type { Collider, RigidBody, KinematicCharacterController, World } from '#rapier';

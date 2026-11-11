@@ -3,7 +3,7 @@
 // worker). Technique: Garland & Heckbert 1997 (plane quadrics, edge collapse), Hoppe 1999 (attributes in the
 // quadric), the link condition for topology; the code is ours.
 //
-//   import { createSimplifier, simplify } from '@mirage/core/simplify';
+//   import { createSimplifier, simplify } from '@miragekit/core/simplify';
 //   const s = createSimplifier({ positions, index,                       // Float32Array xyz, Uint32Array or null (soup)
 //     attributes: [{ array: normals, itemSize: 3, weight: 0.3 }, { array: uvs, itemSize: 2, weight: 0.3 }],
 //     locked,                                                           // Uint8Array per input vertex: never removed

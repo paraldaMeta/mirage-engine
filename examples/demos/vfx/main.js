@@ -1,13 +1,13 @@
-// Demo: the effect system (@mirage/core createVfx) in a small yard. Pick an effect, watch the counters, change its
+// Demo: the effect system (@miragekit/core createVfx) in a small yard. Pick an effect, watch the counters, change its
 // numbers in the panel and take the JSON away.
 // URL: ?fx=fire | smoke | sparks | dust | splash | snow | leaves | fireflies | magic | explosion | lightning | all
 //      ?time=dusk | golden | HH:MM   ?mode=orbit | walk   ?w=&h=  ?ui=0  ?spp=N  ?panel=0
 //      ?fx=none (an empty yard with the system on: vfx-check.mjs and vfx-bench.mjs drive it)  ?dpr=1|2  ?max=N (the global cap)
 //      ?vfx=0 (the yard with no effect system at all)
 import * as THREE from 'three';
-import { createWorldRenderer, placeDate, createVfx, defineEffect, VFX_LIBRARY } from '@mirage/core';
-import { buildWorld, definePlan } from '@mirage/world';
-import { createPlay } from '@mirage/play';
+import { createWorldRenderer, placeDate, createVfx, defineEffect, VFX_LIBRARY } from '@miragekit/core';
+import { buildWorld, definePlan } from '@miragekit/world';
+import { createPlay } from '@miragekit/play';
 
 const Q = new URLSearchParams(location.search);
 const W = +Q.get('w') || innerWidth, H = +Q.get('h') || innerHeight;

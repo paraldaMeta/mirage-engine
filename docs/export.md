@@ -12,7 +12,7 @@ Options: `--bake N` (largest atlas edge, default 1024), `--density T` (most texe
 `--maps color,orm,normal`, `--png` (no JPEG), `--usdz-thin f` (keep that share of each instanced mesh's instances in
 the USDZ), `--query "time=19:30"` (any page query, as for mirage-snap), `--views 0,3` and `--spp 4` for `--verify`,
 `--no-validate`. In a page of your own: `const { glb, usdz, report } = await exportWorld(world, { usdz: true,
-exclude: [play.figure] })` from `@mirage/core/export`.
+exclude: [play.figure] })` from `@miragekit/core/export`.
 
 ## What goes in, and how the looks survive
 

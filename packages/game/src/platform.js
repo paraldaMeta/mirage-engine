@@ -1,10 +1,10 @@
 // Mirage original code.
 // ---------------------------------------------------------------------------
-// Platform layer, page side (opt-in: nothing in the engine imports this file; `@mirage/game/platform`). One object
+// Platform layer, page side (opt-in: nothing in the engine imports this file; `@miragekit/game/platform`). One object
 // for what differs between a browser tab, an installed PWA, an Electron / Tauri window and a Capacitor app on a
-// phone. The renderer side (device probe, WebGL context recovery, quality governor) is `@mirage/core/platform`.
+// phone. The renderer side (device probe, WebGL context recovery, quality governor) is `@miragekit/core/platform`.
 //
-//   import { createPlatform, createSaveStorage, registerServiceWorker, createInstallPrompt } from '@mirage/game/platform';
+//   import { createPlatform, createSaveStorage, registerServiceWorker, createInstallPrompt } from '@miragekit/game/platform';
 //   const saves = await createSaveStorage();                  // the wrapper's save folder, else localStorage
 //   const g = await startGame(world, { built, storage: saves, ... });
 //   const platform = createPlatform({ canvas, play: g.play, game: g.game, audio: g.audio, saves });

@@ -11,7 +11,7 @@
 // ponytail: the impulse response is exponentially decaying noise with a darkening one-pole filter and a few early
 // taps, not a room simulation; decodeWav reads PCM 8/16/24/32 and float 32 only (anything else goes to the browser).
 // ---------------------------------------------------------------------------
-import { sfc32, hash32 } from '@mirage/core/rng';
+import { sfc32, hash32 } from '@miragekit/core/rng';
 
 export const dbToGain = (db) => 10 ** (db / 20);
 export const gainToDb = (g) => (g > 1e-10 ? 20 * Math.log10(g) : -200);

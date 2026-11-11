@@ -1,8 +1,8 @@
-// Mirage original code. The winding-number idea is @mirage/play walkgrid.js's; this file does it without a GPU.
+// Mirage original code. The winding-number idea is @miragekit/play walkgrid.js's; this file does it without a GPU.
 // ---------------------------------------------------------------------------
 // The walk grid for a machine with no GPU: the server's collision.
 //
-// @mirage/play bakes the grid by rendering the scene top-down on the GPU (walkgrid.js). A dedicated server has no
+// @miragekit/play bakes the grid by rendering the scene top-down on the GPU (walkgrid.js). A dedicated server has no
 // GPU, so it gets the same arrays one of two ways:
 //
 // 1. A serialised grid. A page that baked the grid writes it out, the server loads it, and every client loads the
@@ -22,7 +22,7 @@
 //    crossing heights where the GPU one has 8-bit depths in 0.1 m slabs, so floors agree to about a millimetre but
 //    not bit for bit: use ONE grid on both ends (ship the serialised one), never a GPU bake against a CPU bake.
 //
-// makeGrid here is the same query object as @mirage/play's (createWalker and createNavGrid take either).
+// makeGrid here is the same query object as @miragekit/play's (createWalker and createNavGrid take either).
 // ---------------------------------------------------------------------------
 
 export const MAXL = 4;

@@ -5,7 +5,7 @@ import * as THREE from 'three';
 // Optional wet surfaces, puddles and rain ripples. Nothing here is compiled into a material unless it opts in with
 // withWet(hooks, options); worlds that do not ask for it build exactly the shaders they did before.
 //
-//   import { withWet, setWetness, setRain } from '@mirage/core';
+//   import { withWet, setWetness, setRain } from '@miragekit/core';
 //   const paving = world.mat.std({ roughness: 0.8 }, withWet(myHooks, { porosity: 0.5, height: 'mgS.h' }));
 //   world.mat.patch(m, withWet(m.userData.hooks, { porosity: 0.85, puddles: 0 }));  // an existing material
 //   setWetness(0.8); setRain(1);           // page-global

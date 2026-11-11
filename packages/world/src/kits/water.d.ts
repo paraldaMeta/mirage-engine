@@ -1,5 +1,5 @@
 import type * as THREE from 'three';
-import type { MaterialKit } from '@mirage/core/materials';
+import type { MaterialKit } from '@miragekit/core/materials';
 import type { XZ } from '../plan.js';
 
 export interface WaterOptions {

@@ -1,5 +1,5 @@
 import type * as THREE from 'three';
-import type { WorldRenderer, Pipeline } from '@mirage/core';
+import type { WorldRenderer, Pipeline } from '@miragekit/core';
 
 /** What the governor may take away from an eye: resolution scale and the optional passes. */
 export interface XRPostLevel { scale?: number; ao?: boolean; bloom?: boolean; lut?: boolean }

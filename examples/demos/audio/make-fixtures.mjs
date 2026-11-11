@@ -4,7 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { encodeWav } from '@mirage/game/audio-dsp';
+import { encodeWav } from '@miragekit/game/audio-dsp';
 import { chime, theme } from './sounds.js';
 
 const fx = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fx');

@@ -1,9 +1,9 @@
 // The courtyard's materials, made once per world and shared by every module (ctx.shared).
-// ctx.shared.detail (default on; `?nodetail` turns it off): the close-range relief of @mirage/core's relief.js on the
+// ctx.shared.detail (default on; `?nodetail` turns it off): the close-range relief of @miragekit/core's relief.js on the
 // walls, the paving, the stone and the land, and the plaster's hand-applied render. Off, every material compiles
 // exactly as it did before the relief existed.
 import * as THREE from 'three';
-import { PROC, renderHeight, renderShade, withWet } from '@mirage/core';
+import { PROC, renderHeight, renderShade, withWet } from '@miragekit/core';
 
 export function materials(ctx) {
   if (ctx.shared.mats) return ctx.shared.mats;
@@ -31,7 +31,7 @@ export function materials(ctx) {
     diffuseColor.rgb *= mgTexTint(mgS, c, 0.9);`, normal: 'normal = mgTexNormal(normal, mgS, normalize(mgWorldNormal));' }, { relief: D }));
   const ashlar = tex.material('ashlar', { mapping: 'wall', tint: [0.56, 0.47, 0.37], detail: 1.1, tile: 2.4, roughness: 0.85, ...(D ? { relief: RL.ashlar } : {}) });
   const paving = tex.material('paving', { mapping: 'ground', tint: [0.56, 0.48, 0.38], detail: 0.8, roughness: 0.82, ...(D ? { relief: RL.paving } : {}) });
-  // ctx.shared.wet (`?wet=`, off by default): @mirage/core's wet.js on the ground and the masonry; the photo sets'
+  // ctx.shared.wet (`?wet=`, off by default): @miragekit/core's wet.js on the ground and the masonry; the photo sets'
   // heights (mgS.h) let the paving joints and the land's hollows fill first. Without it nothing is re-patched.
   if (ctx.shared.wet) {
     const wet = (m, o) => mat.patch(m, withWet(m.userData.hooks, o));

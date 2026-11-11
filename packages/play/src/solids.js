@@ -18,7 +18,7 @@
 // feet is a floor to stand on, anything above the floor lowers the ceiling to its underside. That is the whole
 // rule, and it is the same rule the bake applies to static geometry, so a walker treats a crate like a kerb and a
 // closed door like a wall.
-// THE ONE RULE for two collision worlds (the grid here, Rapier in @mirage/game): a moving solid is described once,
+// THE ONE RULE for two collision worlds (the grid here, Rapier in @miragekit/game): a moving solid is described once,
 // as a shape and a pose in this list. The walker and the navigation read it from here; Rapier gets a collider built
 // from the same numbers (linkSolids, physics-link.js). Kinematic solids are moved by the game and copied to Rapier
 // before its step; dynamic solids are moved by Rapier and copied back after it. Nothing else moves a solid.

@@ -1,5 +1,5 @@
 // Mirage original code. Electron preload written by `mirage-ship` (template). The page gets one small object and
-// no Node: window.mirageNative, the same shape in every wrapper (@mirage/game/platform talks to it).
+// no Node: window.mirageNative, the same shape in every wrapper (@miragekit/game/platform talks to it).
 'use strict';
 const { contextBridge, ipcRenderer } = require('electron');
 const call = (channel, ...args) => ipcRenderer.invoke(channel, ...args);

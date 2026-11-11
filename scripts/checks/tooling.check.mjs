@@ -49,17 +49,17 @@ process.exit(0);
   assert.deepEqual(checkMaps(pkgs), [], 'the real export maps have no wildcard and no missing target');
   assert.ok(exported(pkgs.core, 'geom') && exported(pkgs.world, 'kits/water') && exported(pkgs.world, 'kits'));
   assert.ok(!exported(pkgs.core, 'particle-draw') && !exported(pkgs.core, 'no-such-file'), 'a file under src/ that is not listed is not importable');
-  assert.ok(exported(pkgs.tools, 'src/chrome.mjs') && !exported(pkgs.tools, 'src/nope.mjs'), '@mirage/tools has no map: an existing file');
-  const bad = scan("import { a } from '@mirage/core/particle-draw';\nimport { wall } from '@mirage/core/geom';\nconst b = await import('@mirage/play/secret');\n", 'examples/x/src/main.js', pkgs);
+  assert.ok(exported(pkgs.tools, 'src/chrome.mjs') && !exported(pkgs.tools, 'src/nope.mjs'), '@miragekit/tools has no map: an existing file');
+  const bad = scan("import { a } from '@miragekit/core/particle-draw';\nimport { wall } from '@miragekit/core/geom';\nconst b = await import('@miragekit/play/secret');\n", 'examples/x/src/main.js', pkgs);
   assert.deepEqual(bad.map((b) => b.line), [1, 3]);
-  assert.match(bad[0].text, /@mirage\/core\/particle-draw is not in the export map of @mirage\/core/);
-  assert.deepEqual(scan("import { x } from '../../world/src/loader.js';\n", 'packages/core/src/a.js', pkgs).map((b) => b.text), ["relative import into packages/world/src: import '@mirage/world' instead"]);
+  assert.match(bad[0].text, /@miragekit\/core\/particle-draw is not in the export map of @miragekit\/core/);
+  assert.deepEqual(scan("import { x } from '../../world/src/loader.js';\n", 'packages/core/src/a.js', pkgs).map((b) => b.text), ["relative import into packages/world/src: import '@miragekit/world' instead"]);
   assert.deepEqual(scan("import { x } from '../../core/src/geom.js';\n", 'packages/core/checks/a.js', pkgs), [], 'a check script may reach into src');
-  const wild = { name: '@mirage/x', dir: pkgs.core.dir, exports: { './*': './src/*.js', './gone': './src/gone.js', './geom': './src/geom.js' } };
+  const wild = { name: '@miragekit/x', dir: pkgs.core.dir, exports: { './*': './src/*.js', './gone': './src/gone.js', './geom': './src/geom.js' } };
   const m = checkMaps({ x: wild });
   assert.ok(m.some((t) => /wildcard/.test(t)) && m.some((t) => /"\.\/gone" -> \.\/src\/gone\.js does not exist/.test(t)) && m.some((t) => /"\.\/geom" has \.\/src\/geom\.d\.ts but no "types"/.test(t)), 'wildcard, missing target and missing types are each reported: ' + m.join(' | '));
   // and Node itself refuses it (the map, not the check, is what protects an installed package)
-  const r = spawnSync(process.execPath, ['--input-type=module', '-e', "await import('@mirage/core/particle-draw')"], { encoding: 'utf8', cwd: path.join(here, '../..') });
+  const r = spawnSync(process.execPath, ['--input-type=module', '-e', "await import('@miragekit/core/particle-draw')"], { encoding: 'utf8', cwd: path.join(here, '../..') });
   assert.ok(r.status !== 0 && /ERR_PACKAGE_PATH_NOT_EXPORTED/.test(r.stderr), 'node: ERR_PACKAGE_PATH_NOT_EXPORTED for an unlisted file');
 }
 
@@ -99,14 +99,14 @@ process.exit(0);
 
 // ---- the stability report reads rows, own package first
 {
-  const rows = apiRows('## @mirage/core\n| `geom` | stable | meshes; `wall`, `openingProblem` |\n| `createThing(world, { fast })` | experimental | a thing |\nprose about `loose`\n## @mirage/play\n| `createThing` | stable | another |\n## Notes\n| `x` | stable | not a package |\n');
-  assert.deepEqual(Object.keys(rows), ['@mirage/core', '@mirage/play']);
-  assert.equal(classify('geom', '@mirage/core', rows), 'stable');
-  assert.equal(classify('createThing', '@mirage/core', rows), 'experimental', 'the own package row wins');
-  assert.equal(classify('createThing', '@mirage/play', rows), 'stable');
-  assert.equal(classify('openingProblem', '@mirage/core', rows), 'stable', 'a name in the description takes the row');
-  assert.equal(classify('create', '@mirage/core', rows), null, 'a prefix of a name is not the name');
-  assert.equal(classify('loose', '@mirage/core', rows), null, 'prose is not a row');
+  const rows = apiRows('## @miragekit/core\n| `geom` | stable | meshes; `wall`, `openingProblem` |\n| `createThing(world, { fast })` | experimental | a thing |\nprose about `loose`\n## @miragekit/play\n| `createThing` | stable | another |\n## Notes\n| `x` | stable | not a package |\n');
+  assert.deepEqual(Object.keys(rows), ['@miragekit/core', '@miragekit/play']);
+  assert.equal(classify('geom', '@miragekit/core', rows), 'stable');
+  assert.equal(classify('createThing', '@miragekit/core', rows), 'experimental', 'the own package row wins');
+  assert.equal(classify('createThing', '@miragekit/play', rows), 'stable');
+  assert.equal(classify('openingProblem', '@miragekit/core', rows), 'stable', 'a name in the description takes the row');
+  assert.equal(classify('create', '@miragekit/core', rows), null, 'a prefix of a name is not the name');
+  assert.equal(classify('loose', '@miragekit/core', rows), null, 'prose is not a row');
 }
 
 // ---- the docs index check

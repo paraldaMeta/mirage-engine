@@ -3,7 +3,7 @@
 // trunks instanced. Trunks are solid (the yard ones block), needles are not.
 // Reads plan: pines, ground.yard; ctx.modules.ground.heightAt (ground builds first). Anchors: none.
 import * as THREE from 'three';
-import { PROC } from '@mirage/core';
+import { PROC } from '@miragekit/core';
 import { withSnow } from './materials.js';
 
 function spruce(tiers = 7) {            // unit height 1, radius ~0.36 at the bottom tier

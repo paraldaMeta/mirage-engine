@@ -4,7 +4,7 @@
 // threshold is the one drawn. Switches cross-fade through a screen-door dither, with hysteresis so a mesh at the
 // boundary does not flicker. Opt-in: nothing happens to a world that never calls createAutoLod.
 //
-//   import { createAutoLod, buildProxy } from '@mirage/core/autolod';
+//   import { createAutoLod, buildProxy } from '@miragekit/core/autolod';
 //   const lod = createAutoLod(world, { errorPx: 1, ratios: [0.5, 0.25, 0.12], fade: 0.3, workers: 2 });
 //   lod.add(built.root);            // after buildWorld (and chunkObject, if used): chains start building
 //   await lod.ready();              // optional: selection works with whatever is built so far

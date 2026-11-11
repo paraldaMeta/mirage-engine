@@ -1,14 +1,14 @@
-# @mirage/game
+# @miragekit/game
 
-A minimal game layer over a world built with `@mirage/world` and played with `@mirage/play`: Rapier physics
+A minimal game layer over a world built with `@miragekit/world` and played with `@miragekit/play`: Rapier physics
 (the WASM loads lazily, so pages without a game stay small), a kinematic character controller, hinged doors,
 dynamic props, an action map over keyboard / mouse / gamepad / touch, a Web Audio mixer with procedural sounds,
 entities and systems, interactables, an inventory, flags, events, save / load and pause, and an accessible
 HTML overlay. Example: `examples/garden-quest`.
 
 ```js
-import { buildWorld } from '@mirage/world';
-import { startGame } from '@mirage/game';
+import { buildWorld } from '@miragekit/world';
+import { startGame } from '@miragekit/game';
 
 const built = await buildWorld(world, { plan, modules, shared });
 const g = await startGame(world, {
@@ -71,8 +71,8 @@ does `reset()`. Without `localStorage` (node, a sandboxed iframe) saves are kept
 
 Licence and size: Rapier is Apache-2.0; `@dimforge/rapier3d-compat` 0.19.3 inlines its 1.57 MB WASM as base64
 (2.24 MB JS, 0.84 MB gzip), loaded by a dynamic `import()` only when `createPhysics` runs. Add
-`rapierWasm()` from `@mirage/tools/src/vite-rapier.mjs` to the page's Vite plugins to ship the wasm as its own file
-(0.59 MB gzip in all, compiled while it downloads); the game examples do. `npm test -w @mirage/game`
+`rapierWasm()` from `@miragekit/tools/src/vite-rapier.mjs` to the page's Vite plugins to ship the wasm as its own file
+(0.59 MB gzip in all, compiled while it downloads); the game examples do. `npm test -w @miragekit/game`
 runs `check.mjs` (the character on a hand-made scene, doors, a crate, game state, saves) in node.
 
 ## Type declarations (candidate)

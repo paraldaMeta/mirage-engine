@@ -5,7 +5,7 @@ the effects object (`world.pipeline.fx`, `packages/core/src/postfx.js`) is not e
 hello-courtyard and walled-garden are byte-identical to the ones before this work (`npm run test:determinism`).
 
 ```js
-import { createWorldRenderer, postFromQuery } from '@mirage/core';
+import { createWorldRenderer, postFromQuery } from '@miragekit/core';
 const world = createWorldRenderer({ renderer, post: { taa2: 1, upscale: 0.67, motionBlur: 0.5, ...postFromQuery(new URLSearchParams(location.search)) } });
 world.post.bloomPyramid = 1;   // every option can change between frames
 ```

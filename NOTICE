@@ -32,7 +32,7 @@ SOFTWARE.
 
 ---
 
-Builds that use `@mirage/game` bundle Rapier (https://rapier.rs, `@dimforge/rapier3d-compat`), by Dimforge
+Builds that use `@miragekit/game` bundle Rapier (https://rapier.rs, `@dimforge/rapier3d-compat`), by Dimforge
 (Sébastien Crozet and contributors), licensed under the Apache License 2.0 (http://www.apache.org/licenses/LICENSE-2.0). Mirage uses its npm runtime. The unchanged 0.19.3 TypeScript declarations and their license ship in
 packages/game/types/rapier for NodeNext consumers.
 

@@ -1,8 +1,8 @@
 // Mirage code. Approach adapted from the author's own earlier bakewalk (top-down rasterisation of layer-0
 // geometry into a walk grid with step height and clearance); the method below (winding-number slabs) is new.
 import * as THREE from 'three';
-import { LAYER } from '@mirage/world';
-import { nextFrame } from '@mirage/core/stream';
+import { LAYER } from '@miragekit/world';
+import { nextFrame } from '@miragekit/core/stream';
 
 // ---------------------------------------------------------------------------
 // The walk grid: collision and ground from the real geometry, baked on the GPU in the page.

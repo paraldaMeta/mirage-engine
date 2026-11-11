@@ -1,4 +1,4 @@
-# @mirage/editor
+# @miragekit/editor
 
 A visual editor that runs in the browser against a live Mirage world: a viewport with fly/orbit camera, click
 selection and move/rotate/scale gizmos; a hierarchy, an inspector whose fields come from the plan schema, an asset
@@ -14,7 +14,7 @@ What it saves is data, never code: an edit layer (`plan.edits.json`) of override
 overrides, environment settings and timelines. The project applies it on load with a few lines:
 
 ```js
-import { editable } from '@mirage/editor/runtime';
+import { editable } from '@miragekit/editor/runtime';
 import edits from './plan.edits.json';                       // {} until the first save
 
 const ed = editable(plan, edits);

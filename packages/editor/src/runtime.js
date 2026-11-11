@@ -2,7 +2,7 @@
 // ---------------------------------------------------------------------------
 // The runtime half of the editor: the few lines a project adds so that what the editor saved is what it loads.
 //
-//   import { editable } from '@mirage/editor/runtime';
+//   import { editable } from '@miragekit/editor/runtime';
 //   import edits from './plan.edits.json';                 // written by the editor; {} until the first save
 //   const ed = editable(plan, edits);
 //   const world = createWorldRenderer({ ..., lighting: ed.lighting(lighting) });
@@ -16,7 +16,7 @@
 // Under `mirage-editor` the server injects the layer being edited (globalThis.__MIRAGE_EDITOR__), which then wins
 // over the imported file, and attach() hands the live world to the editor's client.
 //
-// Placed objects (plan.objects): model (glTF through @mirage/core/assets), primitive, wall, light
+// Placed objects (plan.objects): model (glTF through @miragekit/core/assets), primitive, wall, light
 // (world.lighting.addLight when the world has clustered lights, a stock three light otherwise), vfx (VFX_LIBRARY by
 // name). probe / gi / audioZone / sound / nav / trigger / spawnPoint are data: applyEdits turns them into the plan
 // fields their systems read (plan.lighting, plan.audio.zones, plan.nav.areas, plan.triggers, plan.spawns).
@@ -124,7 +124,7 @@ export function createPlaced(world, { resolve = (u) => u, onError = (id, e) => c
     model(def, it) {
       if (!def.url) return;
       wait((async () => {
-        assets ??= (await import('@mirage/core/assets')).createAssets(world);
+        assets ??= (await import('@miragekit/core/assets')).createAssets(world);
         const model = await assets.load(resolve(def.url), { collide: def.collide === false ? false : 'mesh' });
         if (items.get(it.id) !== it) return;   // changed or removed while loading
         const inst = assets.instantiate(model);
@@ -146,8 +146,8 @@ export function createPlaced(world, { resolve = (u) => u, onError = (id, e) => c
     },
     vfx(def, it) {
       wait((async () => {
-        vfx ??= (await import('@mirage/core/vfx')).createVfx(world);
-        const { VFX_LIBRARY } = await import('@mirage/core/vfx-library');
+        vfx ??= (await import('@miragekit/core/vfx')).createVfx(world);
+        const { VFX_LIBRARY } = await import('@miragekit/core/vfx-library');
         if (items.get(it.id) !== it) return;
         const p = it.root.getWorldPosition(new THREE.Vector3());
         // a name of the library only: an effect is looked up, never built from what the layer file says
@@ -212,8 +212,8 @@ function envSlot(world, k) {
 export async function applyEnv(world, env = {}, only) {
   const keys = only || Object.keys(env);
   if (!keys.length) return;
-  // the two modules it needs, not the whole of @mirage/core: a build keeps them out of the page's first load
-  const [sky, wetm] = await Promise.all([import('@mirage/core/sky-time'), import('@mirage/core/wet')]), core = { ...sky, ...wetm };
+  // the two modules it needs, not the whole of @miragekit/core: a build keeps them out of the page's first load
+  const [sky, wetm] = await Promise.all([import('@miragekit/core/sky-time'), import('@miragekit/core/wet')]), core = { ...sky, ...wetm };
   let base = ENV_BASE.get(world);
   if (!base) ENV_BASE.set(world, base = {});
   for (const k of keys) {
@@ -271,7 +271,7 @@ export function createTriggers(plan, { onEnter = () => {}, onLeave = () => {} } 
 export async function createTimelines(plan, world, placed) {
   const defs = plan?.timelines || {}, out = {};
   if (!Object.keys(defs).length) return out;
-  const { createTimeline } = await import('@mirage/play/timeline');
+  const { createTimeline } = await import('@miragekit/play/timeline');
   const target = (t) => (t === 'camera' ? world.camera : String(t).startsWith('obj:') ? placed?.get(t.slice(4)) : String(t).startsWith('node:') ? resolveNode(world.scene, t.slice(5)) : null);
   for (const [name, d] of Object.entries(defs)) {
     const tracks = [];

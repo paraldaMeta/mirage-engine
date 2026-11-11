@@ -3,7 +3,7 @@
 // fragment shader advances by a FIXED step. The CPU only decides how many particles each live instance spawns in a
 // step and where its origin is; position, velocity, forces, collision and death all happen on the GPU.
 //
-//   import { ParticlePool, defineEffect } from '@mirage/core';     // normally reached through createVfx (vfx.js)
+//   import { ParticlePool, defineEffect } from '@miragekit/core';     // normally reached through createVfx (vfx.js)
 //   const pool = new ParticlePool(renderer, defineEffect(desc).emitters[0], { hz: 60 });
 //   const src = pool.addSource({ matrix, scale: 1 });              // an instance of the effect: no allocation
 //   pool.advanceTo(step, env);                                     // run fixed steps up to an absolute step count

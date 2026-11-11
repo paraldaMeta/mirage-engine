@@ -2,7 +2,7 @@
 // ---------------------------------------------------------------------------
 // The server half of WebSocket, for Node. Node 22 ships a WebSocket CLIENT (globalThis.WebSocket) but no server,
 // and the usual answer is the `ws` package. This file is the part of it this engine needs (about 150 lines:
-// handshake, frames both ways, fragments, ping/pong, close), so @mirage/net adds no runtime dependency and every
+// handshake, frames both ways, fragments, ping/pong, close), so @miragekit/net adds no runtime dependency and every
 // limit a public server needs sits where it can be read:
 //
 //   httpServer.on('upgrade', (req, socket, head) => {

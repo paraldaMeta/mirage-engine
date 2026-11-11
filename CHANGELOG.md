@@ -4,6 +4,12 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
 
 ## Unreleased
 
+**Changes in behaviour**
+- The packages are named `@miragekit/core`, `@miragekit/world`, `@miragekit/play`, `@miragekit/game`,
+  `@miragekit/net`, `@miragekit/editor` and `@miragekit/tools` (were `@mirage/*`, never published: `@mirage` and
+  `@mirage-engine` are taken on npm). Imports change from `@mirage/...` to `@miragekit/...`; nothing else does.
+- `.github/workflows/release.yml` publishes them to npm with provenance after the owner approves (docs/releasing.md).
+
 **Fixes**
 - `mirage-package` (single-file builds) no longer inlines three's default Draco and Basis decoder files (~2.5 MB),
   which three's DRACOLoader and KTX2Loader name at module top level; Mirage's `createAssets` always sets its own

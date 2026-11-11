@@ -1,5 +1,5 @@
 // Mirage original code. The two static servers (the test server in packages/tools/src/chrome.mjs and the game
-// server's page hosting in @mirage/net/server) serve files inside their folder only, also when a symbolic link in the
+// server's page hosting in @miragekit/net/server) serve files inside their folder only, also when a symbolic link in the
 // folder points out of it (the name check alone let `dist/leak -> /somewhere/else` through).
 //   node scripts/checks/serve.check.mjs
 import fs from 'node:fs';

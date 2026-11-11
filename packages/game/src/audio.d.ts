@@ -1,5 +1,5 @@
 import type * as THREE from 'three';
-import type { XYZ } from '@mirage/world';
+import type { XYZ } from '@miragekit/world';
 export type Surface = 'stone' | 'gravel' | 'grass' | 'wood';
 export type AudioBus = 'master' | 'music' | 'sfx' | 'ambience';
 export type LoopSound = 'wind' | 'water' | 'pad';

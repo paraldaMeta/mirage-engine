@@ -1,5 +1,5 @@
 // Mirage original code. An action map over the keyboard, the Gamepad API (standard mapping) and touch
-// (the overlay's virtual stick and buttons feed it). Mouse look stays in @mirage/play (pointer lock or drag).
+// (the overlay's virtual stick and buttons feed it). Mouse look stays in @miragekit/play (pointer lock or drag).
 // ---------------------------------------------------------------------------
 // const input = createInput({ bindings });   input.poll() once per frame, then:
 //   input.down('jump'), input.pressed('interact') (this frame's edges), input.move() -> { x, z }, input.look(dt) -> [dx, dy]
@@ -8,7 +8,7 @@
 //   touch: input.stick(x, z), input.hold(action, on), input.tap(action), input.addLook(dx, dy)
 // ---------------------------------------------------------------------------
 
-import { createLifetime } from '@mirage/core/lifetime';
+import { createLifetime } from '@miragekit/core/lifetime';
 
 export const ACTIONS = ['forward', 'back', 'left', 'right', 'run', 'jump', 'interact', 'inventory', 'menu'];
 export const DEFAULT_BINDINGS = {

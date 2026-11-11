@@ -4,7 +4,7 @@
 // Reads plan: shore, bounds. Offers anchors: lamps (pos = top ring of each entrance lamp post, kind 'post'),
 // seats (pos = ground point under each bench centre, rotY faces west). Consumes: none.
 import * as THREE from 'three';
-import { PROC } from '@mirage/core';
+import { PROC } from '@miragekit/core';
 import { materials } from './materials.js';
 
 const ss = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };

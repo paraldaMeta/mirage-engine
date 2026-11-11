@@ -1,5 +1,5 @@
-import type { WalkerLike } from '@mirage/play/walker';
-import type { SimulationDriver } from '@mirage/play/play';
+import type { WalkerLike } from '@miragekit/play/walker';
+import type { SimulationDriver } from '@miragekit/play/play';
 import type { Game } from './game.js';
 import type { Physics } from './physics.js';
 export interface Simulation extends SimulationDriver {

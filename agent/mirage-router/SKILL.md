@@ -1,6 +1,6 @@
 ---
 name: mirage-router
-description: Entry point for building 3D web worlds with the Mirage engine (code-only three.js worlds for AI agents). Use when the user says "Mirage", "build a world / scene / town / level in code", "site plan", "world module", "walkable 3D scene", or when the project has @mirage/* dependencies or a plan.js with regions/footprints/viewpoints. Detects the project state and routes to mirage-brief-to-plan, mirage-module, mirage-parallel-build, mirage-playtest, mirage-game or mirage-ship.
+description: Entry point for building 3D web worlds with the Mirage engine (code-only three.js worlds for AI agents). Use when the user says "Mirage", "build a world / scene / town / level in code", "site plan", "world module", "walkable 3D scene", or when the project has @miragekit/* dependencies or a plan.js with regions/footprints/viewpoints. Detects the project state and routes to mirage-brief-to-plan, mirage-module, mirage-parallel-build, mirage-playtest, mirage-game or mirage-ship.
 ---
 
 # Mirage router
@@ -15,11 +15,11 @@ Agents build modules in parallel and verify the result with scripted playtests i
 # the Mirage repo root: has packages/world and packages/tools
 ls packages/world/src/loader.js packages/tools/src/playtest.mjs 2>/dev/null || ls node_modules/@mirage
 # a Mirage project (a world): any of these
-grep -l '"@mirage/' package.json; ls plan.js modules/index.js NOTES.md 2>/dev/null
+grep -l '"@miragekit/' package.json; ls plan.js modules/index.js NOTES.md 2>/dev/null
 ```
 
 Mirage is not on npm yet: a world lives in a clone of the repo as `examples/<name>` (npm workspaces link
-`@mirage/*`). Below, `$MIRAGE` = the repo root. Read once per session: `$MIRAGE/docs/world-protocol.md` (100 lines).
+`@miragekit/*`). Below, `$MIRAGE` = the repo root. Read once per session: `$MIRAGE/docs/world-protocol.md` (100 lines).
 
 ## 2. Route
 

@@ -2,7 +2,7 @@
 // The big-world switches for a scene that is already built, in one call: spatial chunks (chunk.js), automatic LOD
 // (autolod.js) and occlusion culling (hiz.js). All opt-in; nothing here runs unless it is called.
 //
-//   import { applyBigWorld } from '@mirage/core/bigworld';
+//   import { applyBigWorld } from '@miragekit/core/bigworld';
 //   const big = applyBigWorld(world, world.scene, { chunk: true, lod: true, occ: true });   // after the build, before world.prepare()
 //   const big = applyBigWorld(world, world.scene, 'chunk,lod,occ');                         // the same, from a URL flag (?perf=chunk,lod,occ)
 //   big.stats()   // { chunk: { meshes, chunks, split }, lod: { ... }, occ: { ... } }

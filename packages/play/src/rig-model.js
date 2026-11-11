@@ -3,8 +3,8 @@
 // ---------------------------------------------------------------------------
 // A rigged humanoid authored in code: the engine's test asset for import, animation, IK and retargeting.
 //
-//   import { createRigModel } from '@mirage/play';
-//   import { writeGLB } from '@mirage/core';
+//   import { createRigModel } from '@miragekit/play';
+//   import { writeGLB } from '@miragekit/core';
 //   const rig = createRigModel();                       // { root, mesh, bones, clips }
 //   const glb = writeGLB(rig.root, { clips: rig.clips });   // what examples/demos/anim loads (written in the page)
 //

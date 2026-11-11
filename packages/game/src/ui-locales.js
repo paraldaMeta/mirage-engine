@@ -2,7 +2,7 @@
 // Arabic: the sample tables, and the proof that plural rules, interpolation and right-to-left hold together.
 // createUIKit() lays them under the game's tables (a game's own string for the same key wins).
 // ---------------------------------------------------------------------------
-// import { LOCALES, LOCALE_NAMES } from '@mirage/game/ui-locales';
+// import { LOCALES, LOCALE_NAMES } from '@miragekit/game/ui-locales';
 // const i18n = createI18n({ locale: 'zh-Hant', tables: { en: { 'game.title': 'Courtyard' }, 'zh-Hant': { 'game.title': '庭院' } } });
 // A new language: i18n.add('fr', { 'ui.close': 'Fermer', ... }); keys it lacks fall back to English and are listed
 // in i18n.missing. Messages are ICU-style: {name}, {n, plural, one {# item} other {# items}}, {n, number, percent}.

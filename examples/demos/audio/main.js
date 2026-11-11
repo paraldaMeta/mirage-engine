@@ -6,7 +6,7 @@
 // snapshot, P HRTF / equal-power, O occlusion, G debug overlay.
 // URL flags: ?panning=equalpower  ?voices=8  ?occlusion=0  ?zones=0  ?swarm=64  ?debug=0  ?seed=x  ?auto=1 (no
 // gesture: start at once and walk a loop)  ?test=1 (run the offline checks and list them).
-import { createAudioEngine, createMusic, createAudioDebug, zonesFromPlan } from '@mirage/game';
+import { createAudioEngine, createMusic, createAudioDebug, zonesFromPlan } from '@miragekit/game';
 import { hum, siren, step, speech, stem, sine } from './sounds.js';
 import { runTests } from './tests.js';
 import chimeUrl from './fx/chime.wav?url';

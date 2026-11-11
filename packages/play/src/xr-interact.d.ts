@@ -14,7 +14,7 @@ export interface XRPointer {
   pulse?: (strength: number, ms: number) => void;
 }
 export interface XRInteractionOptions {
-  /** @mirage/game createPhysics (optional): held bodies turn kinematic, thrown ones dynamic. */
+  /** @miragekit/game createPhysics (optional): held bodies turn kinematic, thrown ones dynamic. */
   physics?: unknown;
   /** Near-grab reach beyond an object's radius (0.1 m); far-grab distance along the ray (6 m); far grab at all. */
   reach?: number; rayReach?: number; ray?: boolean;
@@ -39,7 +39,7 @@ export interface XRSnapZoneOptions {
   accepts?: (object: THREE.Object3D) => boolean;
   onSnap?: (object: THREE.Object3D, zone: unknown) => void; onUnsnap?: (object: THREE.Object3D, zone: unknown) => void;
 }
-/** The part of a ui-canvas panel (@mirage/game createCanvasUI) the interaction drives. */
+/** The part of a ui-canvas panel (@miragekit/game createCanvasUI) the interaction drives. */
 export interface XRPanelLike { pointerUV(uv: { x: number; y: number }, down: boolean): unknown; pointer(x: number, y: number, down: boolean): unknown }
 export interface XRInteractionState {
   time: number;

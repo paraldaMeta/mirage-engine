@@ -1,9 +1,9 @@
 // Test-machine checks using real mesh raycasts; no renderer is needed for these geometry contracts.
 import assert from '../../scripts/soft-assert.mjs';
 import * as THREE from 'three';
-import { createEnv, createMaterials } from '@mirage/core';
-import { addTerrain } from '@mirage/world/kits/terrain';
-import { addWater } from '@mirage/world/kits/water';
+import { createEnv, createMaterials } from '@miragekit/core';
+import { addTerrain } from '@miragekit/world/kits/terrain';
+import { addWater } from '@miragekit/world/kits/water';
 
 const ctx = { root: new THREE.Group(), mat: createMaterials(createEnv().G) };
 const options = { bounds: [10, -4, 12, -2], segments: [1, 1], sample: (x, z) => (x - 10) * (z + 4) };

@@ -1,10 +1,10 @@
-# @mirage/play
+# @miragekit/play
 
-Walk, fly, an isometric game view and orbit over a world built with `@mirage/world`; collision and ground from a
+Walk, fly, an isometric game view and orbit over a world built with `@miragekit/world`; collision and ground from a
 walk grid baked from the real geometry; progressive refinement when the view stops; an embed API for games.
 
 ```js
-import { createPlay } from '@mirage/play';
+import { createPlay } from '@miragekit/play';
 const play = createPlay(world, { plan, canvas, mode: 'walk', spp: 6, refine: [6, 16] });
 ```
 
@@ -17,7 +17,7 @@ const play = createPlay(world, { plan, canvas, mode: 'walk', spp: 6, refine: [6,
 | 1–9, R, H | the plan's viewpoints, back to the spawn, hide the help |
 | touch | a finger on the left half is a stick around where it went down (dragged past 80 px it runs); one on the right half looks; buttons top left: Walk / Orbit and View (the next viewpoint). Orbit keeps OrbitControls' touch. `touch: false` turns it off; games (`opts.input`) use their own overlay |
 
-Options for games (`@mirage/game` uses them): `walker` (any object with the walker's shape — `pos`, `onGround`,
+Options for games (`@miragekit/game` uses them): `walker` (any object with the walker's shape — `pos`, `onGround`,
 `blocked`, `body`, `update(dt, input)`, `place(p)` — replaces the grid walker; the grid stays for ground queries),
 `input(dt)` (returns `{ x, z, up, run, jump }` instead of reading the keys), `devKeys: false` (no F / G / O / R / H /
 digits), `onStep(dt)` (runs after each step; truthy = the scene moved, so the frame is not treated as still).
@@ -49,7 +49,7 @@ as a transparent still (core's `world.renderTransparent`).
 ## WebXR: VR and AR (`createXR(play, opts)`, experimental)
 
 ```js
-import { createPlay, createXR, xrSupport } from '@mirage/play';
+import { createPlay, createXR, xrSupport } from '@miragekit/play';
 const xrs = await xrSupport();                                  // before the world: its context gets MSAA for XR
 const world = createWorldRenderer({ ..., xr: xrs.vr || xrs.ar });
 const play = createPlay(world, { plan, canvas });               // or a game's g.play
@@ -77,7 +77,7 @@ accepts the same appearance option. The palette also accepts `jacket`, `trousers
 `hair`. `play.figure` is the existing Three.js group. `play.avatar.state` exposes `idle`, `walk`, `run`,
 `jump`, `fall` or `land`.
 
-Hosts can import `createCharacter` from `@mirage/play` and attach its `root` to their own scene. The origin
+Hosts can import `createCharacter` from `@miragekit/play` and attach its `root` to their own scene. The origin
 is at the soles in metres and forward is +Z. Call `update(dt, { distance, run, onGround, verticalSpeed })`
 with horizontal displacement since the previous frame, seconds and vertical speed in m/s. `reset()` settles
 the pose after a teleport. `dispose()` detaches the root and releases its owned resources.
@@ -108,13 +108,13 @@ each frame: change it during an async bake and re-bake that region afterwards.
 ## The walker (`createWalker(grid, { pos, body })`)
 
 A cylinder (r 0.28 m, head 1.8 m, eye 1.62 m) that steps up ≤ 0.4 m (0.12 m in the air), falls under gravity,
-jumps (4.2 m/s: apex ≈ 0.9 m), and slides along what blocks it (sub-steps of 5 cm). Pure JS: `npm test -w @mirage/play`
+jumps (4.2 m/s: apex ≈ 0.9 m), and slides along what blocks it (sub-steps of 5 cm). Pure JS: `npm test -w @miragekit/play`
 runs it on a hand-made grid in node.
 
 ## NPC navigation (`createNavGrid(grid, opts)`, experimental)
 
 ```js
-import { createNavGrid, createNavAgent, createNavCrowd } from '@mirage/play';
+import { createNavGrid, createNavAgent, createNavCrowd } from '@miragekit/play';
 const nav = createNavGrid(play.grid);                              // ~85 ms for the 80 x 94 m garden
 const path = nav.findPath([x, y, z], [x, y, z], { radius: 0.2 });  // [[x, y, z], ...] feet waypoints, or null
 const door = nav.block({ box: [x0, y0, z0, x1, y1, z1] });         // or { cylinder: [x, z, r, y0, y1] }; nav.unblock(door)
@@ -126,7 +126,7 @@ const crowd = createNavCrowd(nav, { separation: 2 }); crowd.add(dog); crowd.upda
 No second mesh: NPCs path on the grid the player walks on. Every floor of every cell carries a fit bit per
 radius, computed by the walker's own test (its disc of cells, each within `step` 0.4 m of the feet with `head`
 1.8 m of air) at the floor's height and where the feet settle; since the disc offsets are whole cells, the bit is
-the walker's answer anywhere in the cell (`npm test -w @mirage/play` compares them floor by floor; on
+the walker's answer anywhere in the cell (`npm test -w @miragekit/play` compares them floor by floor; on
 walled-garden 20 000 of 20 000). A move lands on the next cell's highest floor within a step (drops up to `drop`,
 default a step), so stairs join floors and a slab above keeps its own nodes. Paths: A* over coarse blocks
 (`coarse` cells a side, each split into its connected pieces), then cell A* inside that corridor, then string

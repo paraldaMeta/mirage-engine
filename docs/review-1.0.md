@@ -70,7 +70,7 @@ npm 库"该有的东西**——接口边界、卸载（dispose）、发布元数
 按"作为 1.0 的公开库"来看：
 
 1. **接口边界没定。** 每个包的 `exports` 是 `"./*": "./src/*.js"`，等于每个源文件都是公开接口，任何内部重构都算破坏性
-   变更。`@mirage/game` 自己就在用 `@mirage/core/rng`。
+   变更。`@miragekit/game` 自己就在用 `@miragekit/core/rng`。
 2. **没有卸载。** `createPlay`、`startGame`、`createInput`、`createUI`、`createAudio`、`createPhysics` 都没有
    `dispose()`；`play.stop()` 只停帧循环。单页应用里打开再关掉一个世界，会留下约 15 个 window/document 监听、
    OrbitControls、DOM 节点、渲染目标、AudioContext（浏览器限制数量）和 Rapier 的 WASM 内存，旧的按键处理还在响应。
@@ -78,8 +78,8 @@ npm 库"该有的东西**——接口边界、卸载（dispose）、发布元数
 3. **没有类型声明（d.ts）**（*更正：Codex 链已有，测试机通过，见第 0 节*），接口文档分散在各包 README，core 有 19 个导出没有任何文档（例如 `createEnv`、`FOG`、
    `pickQuality`、`hash32`），play 3 个、game 5 个。
 4. **发布元数据不全。** 包里没有 LICENSE 文件，没有 `repository` / `homepage` / `bugs`；`three` 的 peer 依赖钉死
-   `0.186.1`，`@mirage/*` 之间钉死 `0.2.0`，任何补丁版本都会让 npm 报 ERESOLVE。
-5. **包名没定。** npm 上 `mirage-engine` 已被别人占用（一个把 DOM 映射到 WebGL 的项目，0.3.23）；`@mirage/*`
+   `0.186.1`，`@miragekit/*` 之间钉死 `0.2.0`，任何补丁版本都会让 npm 报 ERESOLVE。
+5. **包名没定。** npm 上 `mirage-engine` 已被别人占用（一个把 DOM 映射到 WebGL 的项目，0.3.23）；`@miragekit/*`
    目前查不到包，但 `@mirage` 这个 scope（组织）是否可注册我查不到（npmjs.com 对脚本返回 403），要 Oscar 登录确认。
 6. **没有 CI。**（*更正：本分支加了无 GPU 的 CI；Codex 链有 GPU 工作流，缺 runner*） 节点测试、包内容、示例构建都只在作者机器上跑过；GPU 端到端需要带 GPU 的 runner。
 7. **只在 macOS 上能跑工具。** Chrome 路径写死 `/Applications/Google Chrome.app/...`，Linux / Windows / CI 上所有
@@ -98,7 +98,7 @@ npm 库"该有的东西**——接口边界、卸载（dispose）、发布元数
 |---|---|---|---|---|
 | 1 | 高 | `game/src/ui.js` | 背包名、按键设置、存档摘要用 `innerHTML` 拼进界面；**导入别人给的存档文件就能在页面里执行脚本** | 已修 + 测（浏览器） |
 | 2 | 高 | `tools/src/deploy.mjs` | 参数解析把 `--out` 的值当成示例目录，然后无条件 `rmSync(out, recursive)`；`mirage-deploy --out . myworld` **删掉当前目录** | 已修 + 测（已复现：旧代码把沙盒目录清空） |
-| 3 | 高 | `agent/mirage-brief-to-plan/assets/skeleton/package.json` | 脚手架要 `@mirage/*@0.1.0`，仓库是 0.2.0，按技能新建世界后 `npm install` **404 失败** | 已修 + 测（已复现） |
+| 3 | 高 | `agent/mirage-brief-to-plan/assets/skeleton/package.json` | 脚手架要 `@miragekit/*@0.1.0`，仓库是 0.2.0，按技能新建世界后 `npm install` **404 失败** | 已修 + 测（已复现） |
 | 4 | 高 | `play/src/walkgrid.js` | 烘焙行走网格时把普通 `Object3D`（glTF 的节点）和 `LOD` 当成"不算碰撞的东西"隐藏，**它们下面的实体网格全部没有碰撞**，人直接穿过去（物理那边却有碰撞） | 已修 + 测（浏览器 bake-check） |
 | 5 | 高 | `game/src/physics.js` | `loadRapier()` 在 WASM 初始化完成前就把模块交出去；先预加载再 `createPhysics()` 会抛 `rawintegrationparameters_new of undefined` | 已修 + 测（已复现）；Codex 链也修了，rebase 后用 Codex 的实现，测试保留 |
 | 6 | 高 | `game/src/physics.js` | `addStatic` 遇到空几何、0 个实例的 InstancedMesh、没有 position 的网格、BatchedMesh 直接抛错，**`startGame` 整个失败** | 已修 + 测（已复现） |
@@ -159,8 +159,8 @@ npm 库"该有的东西**——接口边界、卸载（dispose）、发布元数
   但也有 `build*` / `mount*` / `start*` / `define*` 和一个类 `Pipeline`。我在 `docs/api.md` 里把每个导出列出来，
   分成 **stable**（1.0 起只在大版本里变）和 **experimental**（小版本可以变，主要是渲染内部和常量），这是**提案**，
   要 Oscar 定。
-- **导出表**：本分支把 `"./*"` 去掉，只留入口和两个确实被用到、又不依赖渲染器的子路径（`@mirage/core/rng`、
-  `@mirage/world/plan`）。
+- **导出表**：本分支把 `"./*"` 去掉，只留入口和两个确实被用到、又不依赖渲染器的子路径（`@miragekit/core/rng`、
+  `@miragekit/world/plan`）。
 - **文档**：每个包有 README，`docs/world-protocol.md` 讲协议，技能包讲工作流，整体是够 Agent 用的；缺的是
   一份完整的接口清单（现在有 `docs/api.md`，`npm run test:pack` 会在有导出没写进去时失败）、类型声明、文档站。
   中文 README 和英文同步。
@@ -270,7 +270,7 @@ P0 = 不做不能叫 1.0；P1 = 1.0 应该有，可以在 1.0 之后很快补；
    CHANGELOG 的 1.0.0 一节也改了；P1 各项作为 1.x 的小版本补。没打 tag、没发布。
 3. **接口划分**（P0-4）：`docs/api.md` 里 stable / experimental 的划分是提案，尤其是 `createUI`、`Pipeline`、
    `installFog` 要不要承诺。
-4. **子路径白名单**：`"./*"` 按 Codex 的决定暂时保留（工具包从 `@mirage/world/kits/*` 导入）；冻结前要定哪些子路径长期支持。
+4. **子路径白名单**：`"./*"` 按 Codex 的决定暂时保留（工具包从 `@miragekit/world/kits/*` 导入）；冻结前要定哪些子路径长期支持。
 7. **看图**（P0-13）：林缘、河湾、人物三组截图在 `docs/acceptance/runs/2026-11-09-run-005/`；林缘的地平线灰带要不要改。
 8. **"开始键只负责开始"**：Codex 的固定时钟输入让离开开始界面的那个键不再同时触发它的动作（例如按 P / Esc 开始，不会同时打开菜单）。
    我保留了这个行为，确认一下。

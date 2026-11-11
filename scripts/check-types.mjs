@@ -62,7 +62,7 @@ if (!argv.includes('--no-tsc')) {
 
 // ---- 2. runtime exports against declared values
 // modules Node cannot import, with the reason (keep this list short and explained)
-const BUNDLER_ONLY = { '@mirage/core/assets-decoders': "imports the decoders' .wasm with Vite's ?url" };
+const BUNDLER_ONLY = { '@miragekit/core/assets-decoders': "imports the decoders' .wasm with Vite's ?url" };
 let compared = 0, names = 0;
 const untyped = [];
 for (const e of entries) {

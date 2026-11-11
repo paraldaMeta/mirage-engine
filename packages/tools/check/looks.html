@@ -6,24 +6,24 @@
 <script type="importmap">{ "imports": {
   "three": "/node_modules/three/build/three.module.js",
   "three/addons/": "/node_modules/three/examples/jsm/",
-  "@mirage/core": "/packages/core/src/index.js",
-  "@mirage/core/lifetime": "/packages/core/src/lifetime.js",
-  "@mirage/core/geom": "/packages/core/src/geom.js",
-  "@mirage/core/materials": "/packages/core/src/materials.js",
-  "@mirage/core/rng": "/packages/core/src/rng.js",
-  "@mirage/core/stream": "/packages/core/src/stream.js",
-  "@mirage/core/world": "/packages/core/src/world.js",
-  "@mirage/world": "/packages/world/src/index.js",
-  "@mirage/play": "/packages/play/src/index.js",
-  "@mirage/world/kits/fur": "/packages/world/src/kits/fur.js",
-  "@mirage/world/kits/vegetation": "/packages/world/src/kits/vegetation.js"
+  "@miragekit/core": "/packages/core/src/index.js",
+  "@miragekit/core/lifetime": "/packages/core/src/lifetime.js",
+  "@miragekit/core/geom": "/packages/core/src/geom.js",
+  "@miragekit/core/materials": "/packages/core/src/materials.js",
+  "@miragekit/core/rng": "/packages/core/src/rng.js",
+  "@miragekit/core/stream": "/packages/core/src/stream.js",
+  "@miragekit/core/world": "/packages/core/src/world.js",
+  "@miragekit/world": "/packages/world/src/index.js",
+  "@miragekit/play": "/packages/play/src/index.js",
+  "@miragekit/world/kits/fur": "/packages/world/src/kits/fur.js",
+  "@miragekit/world/kits/vegetation": "/packages/world/src/kits/vegetation.js"
 } }</script>
 </head><body><canvas></canvas>
 <script type="module">
 import * as THREE from 'three';
-import { createWorldRenderer, PROC, rng } from '@mirage/core';
-import { addFur } from '@mirage/world/kits/fur';
-import { addGrass } from '@mirage/world/kits/vegetation';
+import { createWorldRenderer, PROC, rng } from '@miragekit/core';
+import { addFur } from '@miragekit/world/kits/fur';
+import { addGrass } from '@miragekit/world/kits/vegetation';
 
 const Q = new URLSearchParams(location.search), scene = Q.get('scene') || 'metals';
 const W = +Q.get('w') || 960, H = +Q.get('h') || 540, canvas = document.querySelector('canvas');
@@ -72,7 +72,7 @@ if (scene === 'metals') {
 camera.updateProjectionMatrix();
 await world.prepare();
 if (scene === 'play') {
-  const { createPlay } = await import('@mirage/play');
+  const { createPlay } = await import('@miragekit/play');
   const m = Q.get('motion') || 'auto', plan = { name: 'looks', bounds: [-6, -6, 6, 6], viewpoints: [], spawn: { eye: [0.3, 1.62, 3], look: [0, 0.05, -0.4] } };
   out.play = createPlay(world, { plan, ui: false, hud: false, reducedMotion: { auto: 'auto', on: true, off: false }[m] });
 }

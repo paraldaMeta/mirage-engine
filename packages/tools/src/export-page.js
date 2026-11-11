@@ -1,7 +1,7 @@
 // Mirage original code. The page half of mirage-export: bundled by export.mjs (with its own copy of three, the
 // same version as the page's) and injected into an example after window.__READY. Exposes window.__mirageExport.
 import * as THREE from 'three';
-import { exportWorld } from '@mirage/core/export';
+import { exportWorld } from '@miragekit/core/export';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { USDLoader } from 'three/addons/loaders/USDLoader.js';
 

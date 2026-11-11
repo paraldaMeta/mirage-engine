@@ -1,8 +1,8 @@
 import type * as THREE from 'three';
 import type { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import type { WorldRenderer, Quality, ConvergeResult } from '@mirage/core';
-import type { ReducedMotionSettings } from '@mirage/core/world';
-import type { PlanInput, ViewMode, Viewpoint, XYZ } from '@mirage/world';
+import type { WorldRenderer, Quality, ConvergeResult } from '@miragekit/core';
+import type { ReducedMotionSettings } from '@miragekit/core/world';
+import type { PlanInput, ViewMode, Viewpoint, XYZ } from '@miragekit/world';
 import type { GridWalker, WalkerLike, MotionInput } from './walker.js';
 import type { WalkGrid } from './walkgrid.js';
 import type { Character, CharacterAppearance } from './character.js';
@@ -36,12 +36,12 @@ export interface Play<W extends WalkerLike = GridWalker> {
   stats: { frames: number; moving: number; refined: number; lastMs: number; draws: number };
   render(options?: { moving?: boolean; spp?: number; frameIndex?: number; target?: THREE.WebGLRenderTarget | null; converge?: boolean | number }): ConvergeResult | void;
   /** A still of the current view with a transparent sky (world.renderTransparent); nothing is drawn to the canvas. */
-  render(options: { transparent: true; spp?: number; frameIndex?: number }): import('@mirage/core/world').TransparentStill;
+  render(options: { transparent: true; spp?: number; frameIndex?: number }): import('@miragekit/core/world').TransparentStill;
   place(eye: XYZ, look: XYZ, mode?: ViewMode): void;
   viewpoint(index: number): void; setMode(mode: ViewMode): void;
   turn(dx: number, dy: number, scale: number): void; syncWalkerView(): void; lookAt(position: XYZ): void;
   yaw: number; pitch: number; viewSize: number; powerSaver: boolean;
-  /** Merged into each step's input (WebXR controllers, @mirage/play/xr); null for none. */
+  /** Merged into each step's input (WebXR controllers, @miragekit/play/xr); null for none. */
   xrInput: ((input: MotionInput, dt: number) => MotionInput) | null;
   readonly mode: ViewMode; readonly still: number; readonly clock: number; readonly refine: [number, number];
   readonly maxFps: number; readonly idleFor: number;

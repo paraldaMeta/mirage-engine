@@ -1,4 +1,4 @@
-import type { XYZ } from '@mirage/world';
+import type { XYZ } from '@miragekit/world';
 import type { WalkGrid } from './walkgrid.js';
 export interface Body { radius: number; head: number; eye: number; step: number; walk: number; run: number; gravity: number; jump: number }
 export interface GridBody extends Body { airStep: number }

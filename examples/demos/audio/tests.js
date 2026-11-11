@@ -2,7 +2,7 @@
 // no real time) and the samples are measured: levels, spectra, onsets to the sample. The engine is ticked once per
 // 1024 frames of the render, so its clock and the audio clock agree and every run gives the same samples.
 // window.__audio.runTests() in the page; examples/demos/audio/audio-check.mjs runs them in headless Chrome.
-import { createAudio, createAudioEngine, createMixer, createMusic, audioStatsText, encodeWav, gainToDb, rms, peak, toneLevel, onset } from '@mirage/game';
+import { createAudio, createAudioEngine, createMixer, createMusic, audioStatsText, encodeWav, gainToDb, rms, peak, toneLevel, onset } from '@miragekit/game';
 import { SR, sine, noise, impulse, rampUp, step } from './sounds.js';
 
 const QN = 1024, DT = QN / SR;

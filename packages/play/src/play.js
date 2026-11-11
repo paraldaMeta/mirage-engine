@@ -2,8 +2,8 @@
 // core's renderFrame (temporal AA while moving, the still sub-frame path once the view holds still).
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { QUALITY_KEY, QUALITY_LEVELS } from '@mirage/core';
-import { createLifetime } from '@mirage/core/lifetime';
+import { QUALITY_KEY, QUALITY_LEVELS } from '@miragekit/core';
+import { createLifetime } from '@miragekit/core/lifetime';
 import { bakeWalkGrid } from './walkgrid.js';
 import { createWalker } from './walker.js';
 import { createCharacter } from './character.js';
@@ -50,7 +50,7 @@ function mountPlay(world, opts, life) {
   const grid = opts.grid || bakeWalkGrid(world, { bounds: plan.bounds, ...plan.walk });
   const spawn = plan.spawn || plan.viewpoints[0] || { eye: [0, 1.7, 0], look: [0, 1.7, -1] };
   // opts.walker: anything with the walker's shape ({ pos, onGround, blocked, body, update(dt, input), place(p) }),
-  // e.g. @mirage/game's physics character; the grid stays for ground queries (fly, viewpoints, agents)
+  // e.g. @miragekit/game's physics character; the grid stays for ground queries (fly, viewpoints, agents)
   const walker = opts.walker || createWalker(grid, { pos: [spawn.eye[0], spawn.eye[1] - 1.62, spawn.eye[2]] });
   const B = walker.body;
   let mode = opts.mode || spawn.mode || 'walk';

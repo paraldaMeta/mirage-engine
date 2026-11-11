@@ -1,5 +1,5 @@
 // net-courtyard: hello-courtyard's world (its plan, modules and textures, imported from next door) walked by several
-// players at once with @mirage/net: each sees the others' characters with their names, the lanterns are shared (the
+// players at once with @miragekit/net: each sees the others' characters with their names, the lanterns are shared (the
 // first to reach one gets the point) and there is a text chat. Start it with `npm run build && npm run serve`, then
 // open the printed address in two windows. docs/multiplayer.md has the whole story.
 // URL: ?name=Ada   ?room=CODE (default YARD, the server's own room)
@@ -10,10 +10,10 @@
 //                  (with the overlay: keys [ ] change latency, - = loss, 0 clears)
 //      ?mode=walk | game   ?bot=1 (walks by itself: the browser check)   ?quality= ?w= ?h= ?spp= ?ui=0
 import * as THREE from 'three';
-import { createWorldRenderer, createTextures, pickQuality, setRelief } from '@mirage/core';
-import { buildWorld } from '@mirage/world';
-import { createPlay, createCharacter } from '@mirage/play';
-import { connectLobby, joinRoom, hostRoom, deserializeGrid, createNetOverlay } from '@mirage/net';
+import { createWorldRenderer, createTextures, pickQuality, setRelief } from '@miragekit/core';
+import { buildWorld } from '@miragekit/world';
+import { createPlay, createCharacter } from '@miragekit/play';
+import { connectLobby, joinRoom, hostRoom, deserializeGrid, createNetOverlay } from '@miragekit/net';
 import manifest from '../hello-courtyard/tex/manifest.json';
 import plan from '../hello-courtyard/plan.js';
 import modules from '../hello-courtyard/modules/index.js';

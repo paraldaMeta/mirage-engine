@@ -5,7 +5,7 @@
 //
 // usage: mirage-playtest <scenario.json> <dist dir | page.html> [--out dir]
 // The page must set window.__READY = true and window.__mirage = { play, built, g? } (every example does; g is
-// @mirage/game's startGame result, which adds near / prompt / flags / inventory to the state).
+// @miragekit/game's startGame result, which adds near / prompt / flags / inventory to the state).
 //
 // scenario: { "title", "query": "mode=walk&ui=0", "w": 1440, "h": 900, "errors": 0 (allowed console / page errors; warnings are listed, never counted), "steps": [step] }
 // step (fields run in this order; any combination):

@@ -338,7 +338,7 @@ const same = (a, b) => a.pos[0] === b.pos[0] && a.pos[1] === b.pos[1] && a.pos[2
   }
 }
 
-// ---- 11. @mirage/net's step takes a mover as it takes a walker ----
+// ---- 11. @miragekit/net's step takes a mover as it takes a walker ----
 {
   const { applyInput, quantiseInput, saveWalker, restoreWalker } = await import('../net/src/sim.js');
   const a = createMover(grid, { pos: [-1, 0, -5] }), b = createMover(grid, { pos: [-1, 0, -5] });

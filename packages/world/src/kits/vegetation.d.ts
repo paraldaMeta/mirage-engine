@@ -1,7 +1,7 @@
 import type * as THREE from 'three';
-import type * as geom from '@mirage/core/geom';
-import type { RandomStream } from '@mirage/core/rng';
-import type { MaterialKit } from '@mirage/core/materials';
+import type * as geom from '@miragekit/core/geom';
+import type { RandomStream } from '@miragekit/core/rng';
+import type { MaterialKit } from '@miragekit/core/materials';
 import type { Bounds, XYZ } from '../plan.js';
 
 export interface VegetationContext {

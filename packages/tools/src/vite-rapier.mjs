@@ -1,8 +1,8 @@
-// Mirage original code. A Vite plugin for pages that use @mirage/game: Rapier's wasm as its own file instead of
+// Mirage original code. A Vite plugin for pages that use @miragekit/game: Rapier's wasm as its own file instead of
 // base64 inside the JavaScript.
 //
 //   // vite.config.js
-//   import { rapierWasm } from '@mirage/tools/src/vite-rapier.mjs';
+//   import { rapierWasm } from '@miragekit/tools/src/vite-rapier.mjs';
 //   export default defineConfig({ plugins: [rapierWasm()] });
 //
 // @dimforge/rapier3d-compat embeds its 1.5 MB wasm as a 2 MB base64 string and decodes it on init: the page

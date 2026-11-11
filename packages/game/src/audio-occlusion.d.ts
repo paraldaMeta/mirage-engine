@@ -1,6 +1,6 @@
 /** 0 (clear) .. 1 (shut) between a sound and the ears. */
 export type Occluder = (from: number[], to: number[]) => number;
-/** The walk grid of @mirage/play (createWalkGrid): the blocked length of the segment over `thickness` metres. */
+/** The walk grid of @miragekit/play (createWalkGrid): the blocked length of the segment over `thickness` metres. */
 export function gridOccluder(grid: { cell: number; floors: ArrayLike<number>; count: ArrayLike<number>; idx(x: number, z: number): number },
   options?: { thickness?: number; skin?: number; step?: number }): Occluder;
 /** A Rapier ray (createPhysics().ray); near: metres ignored at both ends. */

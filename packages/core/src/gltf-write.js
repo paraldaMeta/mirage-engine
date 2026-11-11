@@ -3,7 +3,7 @@
 // ---------------------------------------------------------------------------
 // A small GLB writer for what exportWorld (export.js) leaves out: skinned meshes and animation clips.
 //
-//   import { writeGLB } from '@mirage/core';
+//   import { writeGLB } from '@miragekit/core';
 //   const bytes = writeGLB(rig.root, { clips: rig.clips });            // Uint8Array, runs in Node and the browser
 //   const small = writeGLB(rig.root, { clips, meshopt: true });        // EXT_meshopt_compression vertex streams
 //

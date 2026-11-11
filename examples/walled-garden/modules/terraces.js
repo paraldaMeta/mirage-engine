@@ -2,7 +2,7 @@
 // with parapets, and the stairs on the axis with their cheek walls.
 // Offers `posts` (lamp posts at each stair head: { pos: ground point }) and `urns` (at each stair foot).
 import * as THREE from 'three';
-import { fbm2 } from '@mirage/core';
+import { fbm2 } from '@miragekit/core';
 import { materials } from './materials.js';
 
 export default {

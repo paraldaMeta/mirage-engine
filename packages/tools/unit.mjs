@@ -1,4 +1,4 @@
-// Node checks of the tools that need no browser: `npm test -w @mirage/tools`
+// Node checks of the tools that need no browser: `npm test -w @miragekit/tools`
 import assert from '../../scripts/soft-assert.mjs';
 import { findChrome } from './src/chrome.mjs';
 

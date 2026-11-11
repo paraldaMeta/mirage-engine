@@ -8,13 +8,13 @@ adapted as listed below; nothing place-specific from that project is in the repo
 
 ## What
 
-- **`@mirage/world`** — `definePlan()` (site plan: metres, the core's axes, bounds, walk range, regions,
+- **`@miragekit/world`** — `definePlan()` (site plan: metres, the core's axes, bounds, walk range, regions,
   footprints, paths, points, viewpoints; every problem listed at once), `buildWorld(world, { plan, modules,
   shared })`: builds in order into one group per module, `anchors` merged with `from`, `finalize` after every
   build, ambient volumes to the core, `ctx.R` seeded per module (`plan.seed/name`), `ctx.collider()` proxies.
   A module that throws in build / anchors / finalize is logged and dropped with its group and its updates.
   Convention for agents and humans: `docs/world-protocol.md`; notes template: `packages/world/NOTES.template.md`.
-- **`@mirage/play`** — walk (WASD, mouse look with pointer lock or drag, Shift run, Space jump), fly (F), an
+- **`@miragekit/play`** — walk (WASD, mouse look with pointer lock or drag, Shift run, Space jump), fly (F), an
   orthographic isometric game view following a figure (G, wheel zoom), orbit (O, the stills view), viewpoints 1–9,
   R spawn. Moving frames: the core's TAA; when the view stops: the core's still path at spp 6, after ~0.75 s at
   spp 16, then no rendering until something moves. Shadows follow the view, snapped to shadow texels.

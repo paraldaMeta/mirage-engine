@@ -69,8 +69,8 @@ The engine talks only to that and never imports a wrapper's library.
 Two subpath modules; nothing in the engine imports them.
 
 ```js
-import { probeDevice, createContextRecovery, createQualityGovernor } from '@mirage/core/platform';
-import { createPlatform, createSaveStorage, registerServiceWorker, createInstallPrompt } from '@mirage/game/platform';
+import { probeDevice, createContextRecovery, createQualityGovernor } from '@miragekit/core/platform';
+import { createPlatform, createSaveStorage, registerServiceWorker, createInstallPrompt } from '@miragekit/game/platform';
 
 const caps = await probeDevice();                       // tier 0..3, limits, float targets, battery, ... -> quality + settings
 const world = createWorldRenderer({ quality: caps.quality, dynamicRes: caps.settings.dynamicRes, ... });
@@ -109,7 +109,7 @@ const platform = createPlatform({ canvas, play: g.play, game: g.game, audio: g.a
 - **Saves** (`createSaveStorage`). The game's storage is synchronous; a native folder is not. It reads every save
   once at start, answers reads from memory and writes behind in order. A failed write is kept, listed in
   `errors` and retried on the next `flush()`.
-- **8-bit render targets** (`@mirage/core/byte-targets`, `createWorldRenderer({ byteTargets: true })`). On a
+- **8-bit render targets** (`@miragekit/core/byte-targets`, `createWorldRenderer({ byteTargets: true })`). On a
   context with neither `EXT_color_buffer_float` nor `EXT_color_buffer_half_float` the world's half-float targets
   are incomplete and the canvas is black. The renderer now switches them to 8 bits there, automatically; the option
   forces it elsewhere. It covers targets that hold colour. Features that store numbers in float targets (GPU

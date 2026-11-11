@@ -1,6 +1,6 @@
 # Navigation and AI
 
-Everything here is **opt-in and experimental**, in `@mirage/play`. It extends the navigation grid
+Everything here is **opt-in and experimental**, in `@miragekit/play`. It extends the navigation grid
 (`createNavGrid`: nodes are the walk grid's cells, one per floor) that NPCs already used; a game that calls none of
 the new methods gets the paths it got before. Plain JS, no wasm, no second mesh to bake or ship.
 

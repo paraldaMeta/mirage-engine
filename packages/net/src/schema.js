@@ -21,7 +21,7 @@
 // 1 bit small?, then a signed difference in half the field's bits, or the whole value. A full state is every field.
 // Both ends compute the same `protocol.hash` from the definition; the server refuses a client whose hash differs.
 // ---------------------------------------------------------------------------
-import { hash32 } from '@mirage/core/rng';
+import { hash32 } from '@miragekit/core/rng';
 import { cleanText } from './wire.js';
 
 const TAU = Math.PI * 2;

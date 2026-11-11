@@ -1,6 +1,6 @@
 ---
 name: mirage-game
-description: Make a Mirage world playable as a small game with @mirage/game - interactables (pick up, use, open, light), inventory, flags, events, hinged doors and pushable props (Rapier physics, lazy WASM), a character controller, keyboard / mouse / gamepad / touch input, procedural 3D sound, save / load and an accessible HTML overlay (objective, prompt, toasts, menu). Use when the user wants something to do in a world - "add a lever / key / door / quest", "make it a game", "pick up", "inventory", "save game", "sound", "HUD" - or a scenario needs near / prompt / flags.
+description: Make a Mirage world playable as a small game with @miragekit/game - interactables (pick up, use, open, light), inventory, flags, events, hinged doors and pushable props (Rapier physics, lazy WASM), a character controller, keyboard / mouse / gamepad / touch input, procedural 3D sound, save / load and an accessible HTML overlay (objective, prompt, toasts, menu). Use when the user wants something to do in a world - "add a lever / key / door / quest", "make it a game", "pick up", "inventory", "save game", "sound", "HUD" - or a scenario needs near / prompt / flags.
 ---
 
 # Game layer
@@ -12,7 +12,7 @@ Modules stay pure world (geometry + anchors). The game is one lead-owned file, `
 ## 1. Switch main.js to startGame
 
 ```js
-import { startGame } from '@mirage/game';                 // add "@mirage/game": "1.0.0" to package.json
+import { startGame } from '@miragekit/game';                 // add "@miragekit/game": "1.0.0" to package.json
 import { setupGame, objective } from './game.js';
 // ... createWorldRenderer, buildWorld, camera as before; remove world.prepare() and createPlay (startGame does both)
 const g = await startGame(world, {

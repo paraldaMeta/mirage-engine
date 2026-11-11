@@ -1,5 +1,5 @@
 // Mirage original code. startGame wires the parts over a built world: Rapier colliders from the modules'
-// geometry, the physics character as @mirage/play's walker, the action map as play's input, footsteps, the
+// geometry, the physics character as @miragekit/play's walker, the action map as play's input, footsteps, the
 // interaction prompt, the overlay, save / load of the player and every entity, pause.
 // ---------------------------------------------------------------------------
 // const built = await buildWorld(world, { plan, modules });
@@ -9,8 +9,8 @@
 // g = { game, physics, input, audio, ui, play, character, root, save(slot), load(slot | json text) }
 // ---------------------------------------------------------------------------
 import * as THREE from 'three';
-import { createLifetime } from '@mirage/core/lifetime';
-import { createPlay } from '@mirage/play';
+import { createLifetime } from '@miragekit/core/lifetime';
+import { createPlay } from '@miragekit/play';
 import { createPhysics } from './physics.js';
 import { createSimulation } from './simulation.js';
 import { createGame } from './game.js';
@@ -54,7 +54,7 @@ async function mountGame(world, opts, life, dispose, ownAudio) {
   root.name = 'game'; root.userData.collide = false;     // entities move: the baked walk grid leaves them out
   life.defer(() => { root.removeFromParent(); root.clear(); });
   world.scene.add(root);
-  const game = createGame({ id, version, migrate, ...(opts.storage ? { storage: opts.storage } : {}) });   // storage: a Storage-like for saves (@mirage/game/platform createSaveStorage)
+  const game = createGame({ id, version, migrate, ...(opts.storage ? { storage: opts.storage } : {}) });   // storage: a Storage-like for saves (@miragekit/game/platform createSaveStorage)
   life.defer(() => game.dispose());
   const input = createInput();
   life.defer(() => input.dispose());

@@ -230,7 +230,7 @@ export function createTextures(world, { manifest, url, anisotropy = 8, decode = 
     if (/\.ktx2$/i.test(file)) {
       // opt-in compressed path: a KTX2Loader passed as `ktx2` (createKTX2Loader, ktx2.js). Encode bottom row first
       // (basisu -y_flip; toktx --lower_left_maps_to_s0t0) so v runs as in the WebP path, with mipmaps in the file.
-      if (!ktx2) throw new Error(`[mirage/textures] ${file} is KTX2: pass createTextures(world, { ktx2: await createKTX2Loader(renderer) }), createKTX2Loader from @mirage/core/ktx2`);
+      if (!ktx2) throw new Error(`[mirage/textures] ${file} is KTX2: pass createTextures(world, { ktx2: await createKTX2Loader(renderer) }), createKTX2Loader from @miragekit/core/ktx2`);
       slot.value = style(new THREE.Texture(), srgb);
       loads.push(new Promise((res) => ktx2.load(toUrl(file), (t) => {
         if ((t.colorSpace === THREE.SRGBColorSpace) !== srgb) console.warn('[mirage/textures]', file, 'is', t.colorSpace || 'linear', 'but the set expects', srgb ? 'sRGB' : 'linear');

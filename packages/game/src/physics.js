@@ -5,7 +5,7 @@
 //                               meshes that write depth, minus userData.collide === false, plus collider proxies)
 //   phys.body(obj, { shape: 'box' | 'ball', mass })        a dynamic prop; obj follows the body
 //   phys.hinge(obj, { half, offset, swing })               a kinematic door leaf turning about obj's origin (y axis)
-//   phys.character({ pos })     a kinematic character controller with the @mirage/play walker's shape
+//   phys.character({ pos })     a kinematic character controller with the @miragekit/play walker's shape
 //   phys.step(dt)               one Rapier step; true while anything moved (props awake, a door turning)
 //   phys.settle(maxSteps?)      step until every dynamic prop sleeps (a hand-placed pile at rest before the first frame)
 //   phys.ray(from, dir, max)    -> { point, distance, surface, object } | null
@@ -181,7 +181,7 @@ export async function createPhysics(scene, { gravity = 9.81 } = {}) {
     return { point: from.map((v, k) => v + dir[k] * d), distance: d, surface: i.surface || 'default', object: i.object };
   }
 
-  /** a cylinder on a kinematic character controller with the @mirage/play walker's interface */
+  /** a cylinder on a kinematic character controller with the @miragekit/play walker's interface */
   function character({ pos = [0, 0, 0], body: B0 = {}, onPlace } = {}) {
     const B = { radius: 0.28, head: 1.8, eye: 1.62, step: 0.4, walk: 1.5, run: 4.2, gravity, jump: 4.2, stride: 0.75, ...B0 };
     // a cylinder like the walk grid's body: a capsule's round bottom climbs 0.18 m risers at a third of the walking

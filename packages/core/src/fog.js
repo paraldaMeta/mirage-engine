@@ -22,7 +22,7 @@ export const FOG = {
 };
 
 // three's shader chunks are one table for the whole page, and Mirage rewrites some of them (the fog here, light2.js,
-// softshadow.js, the XR grade in @mirage/play). They stay rewritten while a world is alive and go back to three's own
+// softshadow.js, the XR grade in @miragekit/play). They stay rewritten while a world is alive and go back to three's own
 // text when the last world on the page is disposed, so an app that closes its world gets the stock three back.
 let stock = null, live = 0;
 const resets = new Set();

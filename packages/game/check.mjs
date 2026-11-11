@@ -1,4 +1,4 @@
-// Node checks of @mirage/game: the character controller on a hand-made scene (floor, wall with a gap, stairs, a
+// Node checks of @miragekit/game: the character controller on a hand-made scene (floor, wall with a gap, stairs, a
 // 0.6 m box, a hinged door, a crate), and the game state (inventory, flags, events, save / load, migration).
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -7,9 +7,9 @@ import { startGame } from './src/start.js';
 import { createSimulation } from './src/simulation.js';
 import { createGame } from './src/game.js';
 import { createInput } from './src/input.js';
-import { createEnv, createMaterials } from '@mirage/core';
-import { addTerrain } from '@mirage/world/kits/terrain';
-import { addWater } from '@mirage/world/kits/water';
+import { createEnv, createMaterials } from '@miragekit/core';
+import { addTerrain } from '@miragekit/world/kits/terrain';
+import { addWater } from '@miragekit/world/kits/water';
 
 import { ok } from '../../scripts/soft-assert.mjs';   // reports every failure with a count, not only the first
 const scene = new THREE.Scene(), M = new THREE.MeshBasicMaterial();

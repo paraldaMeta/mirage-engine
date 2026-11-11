@@ -1,4 +1,4 @@
-# @mirage/core
+# @miragekit/core
 
 The rendering core of Mirage: a physical sky, aerial perspective inside every material, a key light (Sun by
 day, Moon by night) with fitted soft shadows, image-based light captured from the built world, a sub-frame
@@ -11,7 +11,7 @@ The root renderer lifecycle and all current JS subpaths have candidate declarati
 See [coverage and off-machine validation](../../docs/TYPES.md) and [resource ownership](../../docs/LIFECYCLE.md).
 
 ```js
-import { createWorldRenderer, PROC } from '@mirage/core';
+import { createWorldRenderer, PROC } from '@miragekit/core';
 
 const world = createWorldRenderer({
   canvas, width: 1440, height: 900,
@@ -49,7 +49,7 @@ requestAnimationFrame(loop);
 | `dynamicRes` | off | `true` or `{ target: 60 fps, min: 0.6, step: 0.1 }`: moving frames render smaller when they run over budget (see below) |
 | `light2` | off | `true` or `{ ls, ssr, vol, bloom }` overriding `LIGHT2_DEFAULTS` (each part `false` to drop it): lamp shadows, screen-space reflections, volumetric light, mixed bloom (see below) |
 | `softShadows` | off | `true` or fields overriding `SOFTSHADOW_DEFAULTS`: contact-hardening soft sun shadows, per pixel, in still and walking frames alike (see below) |
-| `reducedMotion` | off | `true` or `{ sway: 0.25, rain: 0.4 }`: reduced motion from the start (see "Reduced motion"); @mirage/play sets it from `prefers-reduced-motion` |
+| `reducedMotion` | off | `true` or `{ sway: 0.25, rain: 0.4 }`: reduced motion from the start (see "Reduced motion"); @miragekit/play sets it from `prefers-reduced-motion` |
 
 Returns `{ renderer, scene, camera, sun, sky, stars, pipeline, ctx, G, keyDir, mat, geom, rng, post, device, light2, softShadows,
 light, state, exposure, setTime(time, { ease }), tick(dt), prepare(), renderFrame(T, opts), resize(w, h), dispose(), captureEnv(),
@@ -75,7 +75,7 @@ setAmbientVolumes(list) }`. `prepare({ warm: true })` (opt-in) also draws one di
   its `root`).
 - `setAmbientVolumes([{ min, max, factor = 0.3, soft = 0.6 }])` (up to 8 boxes): the image-based light is scaled by
   `factor` inside each box (interiors), ramping over `soft` metres. Compiled in only while a world has volumes, so
-  worlds without them render exactly as before. `@mirage/world` passes modules' `ambientVolumes` here.
+  worlds without them render exactly as before. `@miragekit/world` passes modules' `ambientVolumes` here.
 - `ctx` = `{ THREE, renderer, scene, camera, G, keyDir, mat, geom, rng, quality, place, onUpdate(fn) }` for
   world-building modules; `onUpdate(fn(t))` runs before every sub-frame.
 
@@ -140,7 +140,7 @@ All three are off by default; off, frames are bit-identical to before.
   restarts TAA (a brief shimmer). Still frames always render at full size. The interval includes the page's own
   work and the display's refresh: on a 60 Hz display a 60 fps target can only be met, never beaten, so steps up are
   probes. An app with its own frame cap sets `world.dynamicRes.cap` (fps) so the cap is not read as a slow GPU;
-  @mirage/play does this from `maxFps` and the power saver. `pipeline.w / h` stay the output size; the render size
+  @miragekit/play does this from `maxFps` and the power saver. `pipeline.w / h` stay the output size; the render size
   is `pipeline.rw / rh`.
 ## Soft sun shadows (opt-in): `softShadows`
 
@@ -225,7 +225,7 @@ wind's strength is scaled by `sway` (0.25; every `mgWind` and `uWind` sway reads
 x its speed (0.4: slower, shorter streaks; kits read `world.ctx.motion`), and the still path's default shutter is
 0 (no motion blur across the sub-frames; an explicit `shutter` still wins). `world.reducedMotion` is the settings in
 use or null. No shader changes: with it off the frames are bit-identical (hello-courtyard,
-walled-garden, woodland-path, river-ford: 23 views, 0 px). @mirage/play follows the user's `prefers-reduced-motion` (its `reducedMotion` option). Measured in
+walled-garden, woodland-path, river-ford: 23 views, 0 px). @miragekit/play follows the user's `prefers-reduced-motion` (its `reducedMotion` option). Measured in
 `looks.check.mjs` (a fur lawn in a 1.5 x wind): the image change between T = 0 and 1.7 s drops from 3.9 to 1.5 /255
 per channel; rain 8.5 -> 3.4 m/s.
 
@@ -277,7 +277,7 @@ Walls and floors that hold up at 1–3 m. Nothing is compiled into a material un
 not ask for it build exactly the shaders they did before.
 
 ```js
-import { setRelief, PROC, renderHeight, renderShade } from '@mirage/core';
+import { setRelief, PROC, renderHeight, renderShade } from '@miragekit/core';
 const paving = tex.material('paving', { mapping: 'ground', relief: 0.025 });         // depth (m) of the relief
 const render = tex.material('plaster', { mapping: 'wall', relief: 0.024, render: 0.009 });   // + hand-applied render
 const lime = world.mat.std({ roughness: 0.9 }, PROC.plaster(undefined, { render: 0.009 }));  // [und, swipe] also
@@ -322,8 +322,8 @@ Rain-wet ground and walls, puddles and rain rings on any Standard / Physical mat
 into a material unless it opts in, and an opted-in material compiles its wet code only while the wetness is above 0.
 
 ```js
-import { withWet, setWetness, setRain } from '@mirage/core';
-import { addRain } from '@mirage/world/kits/rain';
+import { withWet, setWetness, setRain } from '@miragekit/core';
+import { addRain } from '@miragekit/world/kits/rain';
 const paving = tex.material('paving', { mapping: 'ground' });
 world.mat.patch(paving, withWet(paving.userData.hooks, { porosity: 0.5, height: 'mgS.h', heightMid: tex.info('paving').hMean }));
 const lime = world.mat.std({ roughness: 0.9 }, withWet(PROC.plaster(), { porosity: 0.85, puddles: 0 }));
@@ -355,7 +355,7 @@ addRain(ctx);                     // falling streaks around the camera (a world 
   only them) while the level is above 0 and recompiles them when it crosses 0, like `setAmbientVolumes`; moving
   between levels above 0 recompiles nothing. At `setWetness(0)` the program is the dry one: hello-courtyard's frames
   are bit-identical with `?wet=0` (5 views, 0 px). The two uniforms (`WET`) are page-global, not in the world's `G`.
-- **Changing it live**: `world.tick(dt)` notices `setWetness` / `setRain` (and returns true, so @mirage/play draws
+- **Changing it live**: `world.tick(dt)` notices `setWetness` / `setRain` (and returns true, so @miragekit/play draws
   again); a wetness change recaptures the image-based light from scratch, so `setWetness(0)` after a wet spell
   gives the dry image exactly and wet puddles reflect a wet world. Without tick(), call `world.captureEnv(true)`
   after clearing `scene.environment`, and draw. Set the levels only through `setWetness` / `setRain`: writing
@@ -391,7 +391,7 @@ const up = createUploadBudget(world.renderer, { bytes: 8 << 20 }).add(tex.textur
   Same pixels: flipped while decoding (`imageOrientation: 'flipY'`), straight alpha, no colour conversion, as three
   uploads these `<img>` textures. Falls back to the image loader where `createImageBitmap` is missing or fails.
 - `createTextures({ ktx2 })`: manifest files ending in `.ktx2` (ETC1S / UASTC, made with `basisu -ktx2 -mipmap -y_flip`,
-  normal maps `-linear -normal_map`) load through three's KTX2Loader from `@mirage/core/ktx2`
+  normal maps `-linear -normal_map`) load through three's KTX2Loader from `@miragekit/core/ktx2`
   (`createKTX2Loader(renderer, { transcoderPath })`); serve `three/examples/jsm/libs/basis/basis_transcoder.{js,wasm}`.
   A subpath on purpose: a bundle that never imports it has no KTX2Loader and no transcoder.
 - `world.prepare({ warm: true })`: `compileAsync` links the programs, but the first frame still pays texture
@@ -399,7 +399,7 @@ const up = createUploadBudget(world.renderer, { bytes: 8 << 20 }).add(tex.textur
   one still frame (one sub-frame) to the canvas, waits for the GPU with a 1-px readback, clears the canvas and puts
   back every per-frame history (TAA, auto exposure, dynamic resolution), so the next frame is the same as without it.
 - `createUploadBudget(renderer, { bytes, count })`: `renderer.initTexture` spread over frames (at least one a frame).
-- `createJobQueue`, `createLRU`, `objectBytes`, `texturesOf`, `disposeObject`: the parts of `@mirage/world`'s
+- `createJobQueue`, `createLRU`, `objectBytes`, `texturesOf`, `disposeObject`: the parts of `@miragekit/world`'s
   `createStreamer` (modules streamed in and out by distance), usable on their own.
 - `watchLongTasks()`: long tasks (PerformanceObserver) from now until `stop()`.
 
@@ -421,4 +421,4 @@ const up = createUploadBudget(world.renderer, { bytes: 8 << 20 }).add(tex.textur
 `skyState`, `lightAt` (pure light model); `transmit`, `scatter`, `skyLightAt` (the atmosphere on the CPU);
 `createSky`, `createStars`, `Pipeline`, `installFog`, `LIGHT2_DEFAULTS`, `light2Config`, `installLight2`, `addLampSource`, `LampShadows`, `SOFTSHADOW_DEFAULTS`, `softShadowConfig`, `installSoftShadows`, `createLod`, `deviceProfile`, `createEnvLight`, `TEX_GLSL`,
 `geom.*`, `NOISE_GLSL`.
-`npm test -w @mirage/core` runs `check.mjs`.
+`npm test -w @miragekit/core` runs `check.mjs`.

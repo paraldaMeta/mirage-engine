@@ -183,7 +183,7 @@ export async function startEditor({ root, port = 5190, write = false, layerFile 
       return send(res, 200, { ok: true, where, bytes: Buffer.byteLength(text), file: boot().layerFile });
     }
     if (path === 'lint') {
-      diagnostics ??= await Promise.all([import('@mirage/tools/src/diagnostics.mjs'), import('@mirage/world/plan-validation')]);
+      diagnostics ??= await Promise.all([import('@miragekit/tools/src/diagnostics.mjs'), import('@miragekit/world/plan-validation')]);
       const [D, P] = diagnostics, plan = body.plan, out = [];
       if (plan && typeof plan === 'object') {
         const issues = P.planIssues(plan);

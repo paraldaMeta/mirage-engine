@@ -1,5 +1,5 @@
 // Mirage original code.
-// Everything here runs in a browser and in Node. The Node server is '@mirage/net/server' (and '@mirage/net/ws'):
+// Everything here runs in a browser and in Node. The Node server is '@miragekit/net/server' (and '@miragekit/net/ws'):
 // it imports node:http, so it is not in this file.
 export { createLoopbackNetwork, conditioned, webSocketTransport } from './transport.js';
 export { rtcTransport, preferTransport } from './rtc.js';

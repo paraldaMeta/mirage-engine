@@ -5,7 +5,7 @@
 //   h('div', { class: 'mg-row', onclick }, 'text', child)
 //   fieldRow(field, value, (next, { merge }) => ...)     // one row for a schema.js field
 //
-// Plain DOM on purpose. @mirage/game's ui-kit is a HUD toolkit (menus, bars, focus rings for a pad, drawn over the
+// Plain DOM on purpose. @miragekit/game's ui-kit is a HUD toolkit (menus, bars, focus rings for a pad, drawn over the
 // game canvas at game scale); an editor needs dense rows, trees and drag-to-scrub numbers, which it does not have,
 // and a framework would be the engine's first UI dependency. Every widget reports through one callback with
 // `merge` set while a value is being dragged, so a scrub is one undo step.

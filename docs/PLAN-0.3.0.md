@@ -12,7 +12,7 @@
 ## B15 挂点声明（待异机验证）
 
 后续独立分支 `codex/mirage-anchor-contracts` 接续 B15 的挂点声明。开发基线为第一批的 `071c13c`，
-实现待异机验证。在该分支的测试机 checkout 运行 `npm ci` 和 `npm test -w @mirage/world`；
+实现待异机验证。在该分支的测试机 checkout 运行 `npm ci` 和 `npm test -w @miragekit/world`；
 验收覆盖后加载的生产者、必需与可选挂点、失败隔离和旧模块兼容性。
 
 ## 共用地形与水面（2026-11-04，待异机验证）
@@ -48,7 +48,7 @@
 
 ### `fix/b8-touch`（e3712df）
 
-- 浏览模式（`@mirage/play`，没有游戏输入时）：左半屏按下的手指是以按下点为中心的摇杆，拖过 80 px 就跑；右半屏的手指转视角；第一次触摸（或粗指针设备）时左上角出现 Walk / Orbit 和 View（下一个视点）按钮。院子默认是 orbit，以前手机上根本出不来。
+- 浏览模式（`@miragekit/play`，没有游戏输入时）：左半屏按下的手指是以按下点为中心的摇杆，拖过 80 px 就跑；右半屏的手指转视角；第一次触摸（或粗指针设备）时左上角出现 Walk / Orbit 和 View（下一个视点）按钮。院子默认是 orbit，以前手机上根本出不来。
 - 轻点会附带一个 mousedown，以前它会去要指针锁定，锁着时 Chrome 拒绝 pointer capture，walled-garden 每次触摸都报错；现在触摸后 1 s 内的 mousedown 不要锁。
 - 游戏摇杆推出外圈 1.25 倍半径就跑（外圈变亮）。
 - 测试：`npm run test:touch`（`packages/tools/src/touch-check.mjs`，844x390 触屏模拟，真实的 CDP 触摸事件）。之前：院子走 0、转 0；garden-quest 推满 0.999 m 对 70 % 的 0.693 m（没跑）。之后五个示例：40 帧走 0.69 到 0.80 m、跑 2.78 到 2.80 m、转 0.75 到 0.9 rad，抬手不漂，无报错。
@@ -82,9 +82,9 @@
 
 **7. 固定步长物理。** 现在角色每帧一个可变步长（短于 1/90 s 的帧攒起来，修 120 Hz 台阶用的），`physics.step(dt)` 也是可变的。做法：角色和 `physics.step` 都用 1/60 的累加器，一帧走 0 到 N 步；显示用上一步和这一步之间插值的位置（`w.pos` 给相机，碰撞和存档用真实位置），不插值的话 144 Hz 屏上镜头会一顿一顿。验收：同样的按键在 30 / 60 / 144 Hz 下终点误差小于 1 cm；`packages/game/check.mjs` 台阶 38/38；snow-hut 门口 30 到 165 Hz 都能进（方法：Chrome 里把 requestAnimationFrame 换成自己的队列，按目标帧率的时间戳推进）。
 
-**8. 总平面图的 schema。** 现在校验写在 `@mirage/world` 的 loader 代码里。加 `plan.schema.json` 和一个校验命令，五个示例全过，写错的计划报出字段名。
+**8. 总平面图的 schema。** 现在校验写在 `@miragekit/world` 的 loader 代码里。加 `plan.schema.json` 和一个校验命令，五个示例全过，写错的计划报出字段名。
 
-**9. 植被工具包。** 叶片卡片的树冠和实例化的草，放进 `@mirage/world` 的 kits，一个演示；记下单文件体积和帧时间；画面要所有者看。
+**9. 植被工具包。** 叶片卡片的树冠和实例化的草，放进 `@miragekit/world` 的 kits，一个演示；记下单文件体积和帧时间；画面要所有者看。
 
 ## 换机器
 

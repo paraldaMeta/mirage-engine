@@ -27,7 +27,7 @@
 // voice that comes back from virtual resumes within one update of where it would be; streams are not spatial and
 // are never virtual; occlusion bends nothing (no diffraction or transmission by material).
 // ---------------------------------------------------------------------------
-import { sfc32, hash32 } from '@mirage/core/rng';
+import { sfc32, hash32 } from '@miragekit/core/rng';
 import { createMixer, reverbBuffer } from './audio-mixer.js';
 import { distanceGain, coneGain, dopplerRatio, occlusionResponse, reverbParams, decodeWav, dataUrlBytes } from './audio-dsp.js';
 
