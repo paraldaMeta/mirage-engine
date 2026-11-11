@@ -35,9 +35,12 @@ jobs:
       - run: npm test && npm run test:pack
       - name: the tag is the packages' version
         if: github.event_name == 'release'
-        run: test "${GITHUB_REF_NAME#v}" = "$(node -p "require('./packages/core/package.json').version")"
-      - name: publish (core, world, play, game, net, editor, tools: the peer-dependency order)
+        run: |
+          want="$(node -p "require('./packages/core/package.json').version")"
+          test "${GITHUB_REF_NAME#v}" = "$want"
+      - name: 'publish in peer-dependency order: core, world, play, game, net, editor, tools'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           DRY: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && '--dry-run' || '' }}
-        run: npm publish $DRY --provenance --access public -w packages/core -w packages/world -w packages/play -w packages/game -w packages/net -w packages/editor -w packages/tools
+        run: |
+          npm publish $DRY --provenance --access public -w packages/core -w packages/world -w packages/play -w packages/game -w packages/net -w packages/editor -w packages/tools
