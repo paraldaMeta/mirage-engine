@@ -1,81 +1,24 @@
-// streetlife: the people and the trade of the street (plan.streetlife). Low-poly silhouettes with emissive accents
-// (visors, lit strips down a cyber arm, umbrellas with glowing rims) standing under the awnings, at the noodle cart,
-// at the vending machines; a few walking a loop along the far pavement east of the fight, their legs swinging on
-// the scene clock. A converted shipping container under the plaza's gallery is a yakitori stall (real corrugated
+// streetlife: the machines and the trade of the street (plan.streetlife). The street life is robots (machines.js):
+// service androids in soft liveries standing under the awnings in twos and threes, talking (heads turn, a hand
+// gestures), at the noodle cart, the stall and the vending machines, some under umbrellas with lit rims; androids and
+// a wheeled parcel courier on a loop along the far pavement east of the fight; a vendor on a rail in the stall and one
+// on a pedestal behind the cart; a sweeper on the north kerb; a queue totem by the clinic; units that broke down
+// against a wall. A converted shipping container under the plaza's gallery is a yakitori stall (real corrugated
 // walls, the side flap propped up as an awning, a lit inside, lanterns, a pot that steams). Two rows of vending
-// machines with lit faces: in the alley by the spawn and by the plaza. People are decor (walked and shot through,
-// out of the walk grid); the container and the machines are solid.
+// machines with lit faces: in the alley by the spawn and by the plaza. The machines are decor (walked and shot
+// through, out of the walk grid); the container and the vending machines are solid.
 // Offers `steam` (the stall's pot).
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { materials } from './materials.js';
 import { lamp, decor, signTexture } from './lib.js';
 import { detail, thin, corrugated, worn, textAtlas, atlasQuad } from './kit.js';
-
-const strip = (g) => { g.deleteAttribute('uv'); return g.index ? g.toNonIndexed() : g; };
-// a person, feet at the origin, facing +z: a coat that flares, shoulders, arms, a head; legs apart (for the walkers)
-function bodyGeo() {
-  const parts = [
-    new THREE.CylinderGeometry(0.2, 0.25, 0.66, 7).translate(0, 1.2, 0),            // the chest
-    new THREE.CylinderGeometry(0.25, 0.3, 0.42, 7).translate(0, 0.78, 0),            // the coat's skirt
-    new THREE.SphereGeometry(0.115, 8, 6).scale(1, 1.15, 1).translate(0, 1.67, 0.01),
-    new THREE.CylinderGeometry(0.05, 0.06, 0.1, 6).translate(0, 1.54, 0),
-    new THREE.BoxGeometry(0.5, 0.09, 0.22).translate(0, 1.5, 0),                     // shoulders
-  ];
-  for (const s of [-1, 1]) parts.push(new THREE.CylinderGeometry(0.05, 0.045, 0.62, 5).translate(0, -0.31, 0).rotateZ(s * 0.12).translate(s * 0.25, 1.5, 0));
-  return mergeGeometries(parts.map(strip));
-}
-const legGeo = () => mergeGeometries([new THREE.CylinderGeometry(0.075, 0.055, 0.84, 5).translate(0, -0.42, 0), new THREE.BoxGeometry(0.11, 0.07, 0.24).translate(0, -0.84, 0.05)].map(strip));
-// accents in the body's frame: a visor, a strip down the left arm, a collar light
-const accentGeo = () => mergeGeometries([new THREE.BoxGeometry(0.2, 0.035, 0.05).translate(0, 1.69, 0.1), new THREE.BoxGeometry(0.02, 0.4, 0.03).rotateZ(-0.12).translate(-0.27, 1.25, 0.04), new THREE.BoxGeometry(0.3, 0.02, 0.02).translate(0, 1.04, 0.24)].map(strip));
-const umbrellaGeo = () => mergeGeometries([new THREE.ConeGeometry(0.55, 0.22, 8, 1, true).translate(0, 2.1, 0), new THREE.CylinderGeometry(0.01, 0.01, 0.9, 4).translate(0.2, 1.65, 0.12)].map(strip));
-const rimGeo = () => strip(new THREE.TorusGeometry(0.55, 0.012, 4, 16).rotateX(Math.PI / 2).translate(0, 1.99, 0));
+import { buildMachines } from './machines.js';
 
 export default {
   name: 'streetlife',
   build(ctx) {
-    const { geom, root, plan, mat, R } = ctx, M = materials(ctx), K = plan.levels.kerb, L = plan.streetlife || {}, D = detail(ctx);
+    const { geom, root, plan, mat } = ctx, M = materials(ctx), K = plan.levels.kerb, L = plan.streetlife || {}, D = detail(ctx);
     const group = new THREE.Group(); group.name = 'street-life'; decor(group);
-
-    // ---- people standing about: [x, z, yaw (they face +z turned by it), umbrella?]
-    const people = thin(ctx, L.people || [], 4), walkers = thin(ctx, L.walkers || [], 1);
-    const all = [...people.map((p) => ({ x: p[0], z: p[1], yaw: p[2], umb: !!p[3], y: p[4] ?? K, walk: null })), ...walkers.map((w, i) => ({ ...w, walk: w, y: K, yaw: 0, umb: i % 2 === 0 }))];
-    const n = all.length, coat = mat.std({ color: 0xffffff, roughness: 0.55 }), tint = [[0.012, 0.012, 0.015], [0.035, 0.014, 0.014], [0.01, 0.022, 0.03], [0.03, 0.026, 0.022], [0.02, 0.02, 0.024]];
-    const bodies = new THREE.InstancedMesh(bodyGeo(), coat, n), legs = new THREE.InstancedMesh(legGeo(), coat, n * 2);
-    const accents = new THREE.InstancedMesh(accentGeo(), mat.glow([1, 1, 1], 6), n);
-    const umbs = all.filter((p) => p.umb), umbIdx = new Map(umbs.map((p, i) => [p, i]));
-    const ub = new THREE.InstancedMesh(umbrellaGeo(), mat.std({ color: 0xffffff, roughness: 0.3, metalness: 0.1, transparent: true, opacity: 0.75, side: THREE.DoubleSide }), Math.max(1, umbs.length));
-    const ur = new THREE.InstancedMesh(rimGeo(), mat.glow([1, 1, 1], 9), Math.max(1, umbs.length));
-    const glowC = [[1.0, 0.16, 0.5], [0.1, 0.85, 1.0], [1.0, 0.55, 0.12], [0.55, 0.25, 1.0], [0.2, 1.0, 0.55]];
-    all.forEach((p, i) => {
-      const c = new THREE.Color().setRGB(...tint[i % tint.length]);
-      bodies.setColorAt(i, c); legs.setColorAt(2 * i, c); legs.setColorAt(2 * i + 1, c);
-      accents.setColorAt(i, new THREE.Color().setRGB(...glowC[(i * 3) % glowC.length]));
-      if (p.umb) { const k = umbIdx.get(p); ub.setColorAt(k, new THREE.Color().setRGB(...[[0.1, 0.1, 0.12], [0.5, 0.05, 0.1], [0.05, 0.2, 0.3]][k % 3])); ur.setColorAt(k, new THREE.Color().setRGB(...glowC[(k * 2 + 1) % glowC.length])); }
-      p.scale = 0.92 + 0.16 * R.fork('p' + i).next();
-    });
-    const meshes = [bodies, legs, accents, ub, ur];
-    if (!umbs.length) ub.count = ur.count = 0;
-    for (const m of meshes) { m.castShadow = false; m.frustumCulled = false; m.userData.occlude = false; group.add(m); }
-    const m4 = new THREE.Matrix4(), base = new THREE.Matrix4(), leg = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), sc = new THREE.Vector3();
-    const pose = (t) => {
-      all.forEach((p, i) => {
-        let x = p.x, z = p.z, yaw = p.yaw, swing = 0, bob = 0;
-        if (p.walk) {   // along [x0 .. x1] at z0 one way, back at z1 the other
-          const w = p.walk, len = Math.abs(w.x1 - w.x0), u = ((t * w.speed / (2 * len + 1.2)) + w.phase) % 1, s = u * (2 * len + 1.2), dir = Math.sign(w.x1 - w.x0);
-          if (s < len) { x = w.x0 + dir * s; z = w.z0; yaw = dir * Math.PI / 2; } else if (s < len + 0.6) { x = w.x1; z = w.z0 + (w.z1 - w.z0) * (s - len) / 0.6; yaw = 0; } else if (s < 2 * len + 0.6) { x = w.x1 - dir * (s - len - 0.6); z = w.z1; yaw = -dir * Math.PI / 2; } else { x = w.x0; z = w.z1 + (w.z0 - w.z1) * (s - 2 * len - 0.6) / 0.6; yaw = Math.PI; }
-          const ph = t * w.speed * 4.2 + i;
-          swing = Math.sin(ph) * 0.42; bob = Math.abs(Math.cos(ph)) * 0.035;
-        } else bob = Math.sin(t * 0.6 + i * 1.3) * 0.006;   // breathing
-        base.compose(v.set(x, p.y + bob, z), q.setFromEuler(e.set(0, yaw, 0)), sc.setScalar(p.scale));
-        bodies.setMatrixAt(i, base); accents.setMatrixAt(i, base);
-        for (const s of [-1, 1]) { leg.compose(v.set(s * 0.1, 0.9, 0), q.setFromEuler(e.set(s * swing, 0, 0)), sc.set(1, 1, 1)); legs.setMatrixAt(2 * i + (s > 0 ? 1 : 0), m4.multiplyMatrices(base, leg)); }
-        if (p.umb) { leg.compose(v.set(0, 0, 0), q.setFromEuler(e.set(0.08 + swing * 0.05, 0, -0.1)), sc.set(1, 1, 1)); const k = umbIdx.get(p); m4.multiplyMatrices(base, leg); ub.setMatrixAt(k, m4); ur.setMatrixAt(k, m4); }
-      });
-      for (const m of meshes) m.instanceMatrix.needsUpdate = true;
-    };
-    pose(0);
-    if (walkers.length) ctx.onUpdate(pose);
 
     const b = new geom.MeshBatch(), fx = new geom.MeshBatch();
     // ---- the yakitori container under the gallery
@@ -151,8 +94,24 @@ export default {
       const mid = [x0 + dx * (nV - 1) / 2, 0, z0 + dz * (nV - 1) / 2], n2 = [Math.sin(rotY), 0, Math.cos(rotY)];
       lamp(ctx, { pos: [mid[0] + n2[0] * 1.1, 1.3, mid[2] + n2[2] * 1.1], color: tint, intensity: 3.2, range: 5, normal: n2, back: 1.1 });
     });
+    // ---- the machines (machines.js): bystanders, walkers and a courier on the east pavement's loop, the vendors, a
+    //      sweeper, the clinic's queue totem, units that broke down. Decor: walked and shot through, out of the walk grid.
+    const people = thin(ctx, L.people || [], 4), walkers = thin(ctx, L.walkers || [], 1), w0 = (L.walkers || [])[0];
+    const machines = buildMachines(ctx, {
+      stand: people.map((p) => ({ x: p[0], z: p[1], yaw: p[2], umb: !!p[3], y: p[4] ?? K })),
+      // one loop (the first walker's), one pace, evenly spaced: nobody walks through anybody at the ends
+      walkers: w0 && { loop: w0, y: K, n: walkers.length, speed: walkers.reduce((s, w) => s + w.speed, 0) / walkers.length, courier: walkers.length > 1 ? 1 : -1 },
+      stall: S && { m: geom.compose([S.at[0], K, S.at[1]], [0, S.rotY ?? 0, 0]) },
+      cart: L.cartVendor && { m: geom.compose([L.cartVendor[0], K, L.cartVendor[1]], [0, L.cartVendor[2], 0]) },
+      sweeper: L.sweeper && D > 0.5 && { a: L.sweeper[0], b: L.sweeper[1], y: K },   // not at low detail
+      totem: L.totem && [L.totem[0], K, L.totem[1], L.totem[2]],
+      broken: thin(ctx, L.broken || [], 1).map(([x, z, yaw, y]) => [x, y ?? K, z, yaw]),
+      detail: D,
+    });
+    group.add(machines.group);
+    ctx.onUpdate(machines.update);
     root.add(group, b.finish({ name: 'street-life-solid', castShadow: false }), decor(fx.finish({ name: 'street-life-decor', castShadow: false })));
-    return { steam, n, D };
+    return { steam, n: machines.count, tris: machines.tris, D };
   },
   anchors: (ctx, built) => ({ steam: built.steam ? [{ pos: built.steam, rotY: 0 }] : [] }),
 };
