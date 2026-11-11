@@ -14,10 +14,10 @@ import * as THREE from 'three';
 //   scene -> velocity (camera motion from depth, then moving / skinned objects drawn over it)
 //         -> taa2: reproject by velocity, clip in YCoCg, write a full-size frame (the temporal upscaler when the
 //            scene was rendered smaller: post.upscale, or dynamic resolution)
-//         -> bokeh (lens blur from depth) -> motionBlur (along velocity) -> rcas -> godrays -> bloomPyramid -> flare
-//         -> grade (+ lut, chroma)
+//         -> bokeh (lens blur from depth) -> motionBlur (along velocity) -> rcas -> godrays -> bloomPyramid -> lensDirt
+//         -> streak -> flare -> grade (+ lut, chroma)
 // Stills (spp > 1) never use the temporal passes: they integrate lens and shutter by accumulation and stay
-// bit-identical run to run; godrays, bloomPyramid, flare, lut and chroma apply to both.
+// bit-identical run to run; godrays, bloomPyramid, lensDirt, streak, flare, lut and chroma apply to both.
 // ---------------------------------------------------------------------------
 
 /** Defaults of the opt-in passes (spread into DEFAULT_POST). 0 / null = off. */
@@ -38,6 +38,12 @@ export const FX_DEFAULTS = {
   godraysThreshold: 0.3, // sky dimmer than this x the sun's (key light's) luminance casts weaker shafts (clouds, the sky away from the sun)
   godraysVol: 0.35,  // weight of the god rays while light2's volumetric light marches the sun's own shafts (0 = leave them to it)
   flare: 0,          // the sun's lens flare (veiling glare, ghosts, halo), tested against the depth buffer, strength; 0 = off
+  lensDirt: 0,       // 0..1: a dirty lens: a procedural smudge mask lit by a wide glow of the frame's bright light, added after the bloom; 0 = off
+  lensDirtThreshold: 1,  // exposed luminance (after exposure and auto exposure, before the tone map) above which light lights the dirt
+  streak: 0,         // 0..1: anamorphic streaks, bright pixels smeared horizontally and tinted, added before the grade; 0 = off
+  streakThreshold: 3,    // exposed luminance (after exposure and auto exposure, before the tone map) above which a pixel streaks
+  streakLength: 1,   // the streak's reach: 1 = about a third of the frame width each way
+  streakTint: [0.5, 0.7, 1.0],   // linear RGB multiplier of the streak (a cool blue, as an anamorphic lens's coating gives)
 };
 
 const VS = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }';
@@ -53,6 +59,10 @@ vec3 unsquash(vec3 c){ return c / max(1.0 - max(c.r, max(c.g, c.b)), 1e-4); }
 vec3 toY(vec3 c){ return vec3(dot(c, vec3(0.25, 0.5, 0.25)), dot(c, vec3(0.5, 0.0, -0.5)), dot(c, vec3(-0.25, 0.5, -0.25))); }
 vec3 fromY(vec3 c){ return vec3(c.x + c.y - c.z, c.x + c.z, c.x - c.y - c.z); }`;
 const IGN = 'float ign(vec2 p){ return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }';
+// the grade's exposure (uExp) times the adapted auto exposure when it is on (post.js end(): the EV in tAE)
+const EXPO = /* glsl */ `
+uniform sampler2D tAE; uniform float uUseAE, uExp;
+float expo(){ return uExp * (uUseAE > 0.5 ? exp2(texture2D(tAE, vec2(0.5)).r) : 1.0); }`;
 
 /** Halton sequence, base b, index i >= 1. */
 export function halton(i, b) { let f = 1, r = 0; while (i > 0) { f /= b; r += f * (i % b); i = Math.floor(i / b); } return r; }
@@ -100,16 +110,69 @@ export function lutTexture({ size, data }) {
 }
 
 /** URL flags -> post settings (only the keys present): ?taa2=1&upscale=0.67&mb=0.5&bokeh=1&lens=0.03&focus=6&bloom=0.15
- *  &bloom2=1&chroma=0.6&lut=warm|cool|bleach&godrays=0.5&flare=1. Q: a URLSearchParams. */
+ *  &bloom2=1&chroma=0.6&lut=warm|cool|bleach&godrays=0.5&flare=1&dirt=0.6&streak=0.5&streakthr=3&streaklen=1.
+ *  Q: a URLSearchParams. */
 export function postFromQuery(Q) {
   const o = {}, num = (k, to = k) => { if (Q.has(k) && Number.isFinite(+Q.get(k))) o[to] = +Q.get(k); };
   num('taa2'); num('upscale'); num('mb', 'motionBlur'); num('bokeh'); num('lens', 'dof'); num('focus'); num('bloom'); num('bloom2', 'bloomPyramid'); num('chroma');
-  num('godrays'); num('flare');
+  num('godrays'); num('flare'); num('dirt', 'lensDirt'); num('streak'); num('streakthr', 'streakThreshold'); num('streaklen', 'streakLength');
   num('ssr', 'ssr2'); num('ssrrough', 'ssrRough'); num('ssgi'); num('girange', 'ssgiRange'); num('girays', 'ssgiRays'); num('contact'); num('rcas');   // screen.js (lighting.screen)
   const L = { warm: ([r, g, b]) => [r ** 0.92, g, b ** 1.12], cool: ([r, g, b]) => [r ** 1.1, g, b ** 0.9],
     bleach: ([r, g, b]) => { const l = 0.2126 * r + 0.7152 * g + 0.0722 * b, s = (x) => { const m = l + (x - l) * 0.55; return m * m * (3 - 2 * m); }; return [s(r), s(g), s(b)]; } }[Q.get('lut')];
   if (L) o.lut = lutTexture(makeLut(L));
   return o;
+}
+
+/** The lens-dirt mask (post.lensDirt) as plain data: one byte per texel, row 0 at the bottom, made in code from a
+ *  seed (no image file): a faint mottle, soft blotches (some with the brighter rim of a dried drop), a few wiped
+ *  streaks and specks of dust. Same seed, same bytes. */
+export function lensDirtMask({ width = 512, height = 256, seed = 7 } = {}) {
+  let s = seed >>> 0 || 1;
+  const rnd = () => { s = (s + 0x6D2B79F5) >>> 0; let t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  const f = new Float32Array(width * height), H = height;
+  // a faint mottle: four octaves of value noise on a coarse lattice
+  for (let o = 0, cell = H / 3, amp = 0.05; o < 4; o++, cell /= 2, amp *= 0.6) {
+    const gw = Math.ceil(width / cell) + 2, gh = Math.ceil(height / cell) + 2, g = Float32Array.from({ length: gw * gh }, rnd);
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+      const u = x / cell, v = y / cell, i = Math.floor(u), j = Math.floor(v), a = u - i, b = v - j, sa = a * a * (3 - 2 * a), sb = b * b * (3 - 2 * b);
+      const n = (g[j * gw + i] * (1 - sa) + g[j * gw + i + 1] * sa) * (1 - sb) + (g[(j + 1) * gw + i] * (1 - sa) + g[(j + 1) * gw + i + 1] * sa) * sb;
+      f[y * width + x] += amp * n;
+    }
+  }
+  const stamp = (cx, cy, r, fn) => {
+    for (let y = Math.max(0, Math.floor(cy - r)); y <= Math.min(height - 1, Math.ceil(cy + r)); y++)
+      for (let x = Math.max(0, Math.floor(cx - r)); x <= Math.min(width - 1, Math.ceil(cx + r)); x++) {
+        const v = fn(x - cx, y - cy);
+        if (v > 0) f[y * width + x] += v;
+      }
+  };
+  // soft blotches: a Gaussian smudge, a fifth of them a dried drop (a ring brighter than its middle); squashed a little
+  for (let i = 0; i < 34; i++) {
+    const cx = rnd() * width, cy = rnd() * height, r = H * (0.03 + 0.16 * rnd() ** 2), k = 0.15 + 0.45 * rnd(), ring = rnd() < 0.2;
+    const sq = 0.75 + 0.5 * rnd(), th = rnd() * Math.PI, c = Math.cos(th), sn = Math.sin(th);
+    stamp(cx, cy, r * 1.4, (dx, dy) => {
+      const u = (dx * c + dy * sn) / sq, v = (-dx * sn + dy * c) * sq, d = Math.sqrt(u * u + v * v) / r;
+      return k * (ring ? 0.5 * Math.exp(-3 * d * d) + Math.exp(-((d - 0.8) ** 2) / 0.04) * 0.4 : Math.exp(-2.5 * d * d));
+    });
+  }
+  // wiped streaks: a soft line, fading in and out along its length
+  for (let i = 0; i < 6; i++) {
+    const len = H * (0.3 + 0.7 * rnd()), wid = H * (0.006 + 0.014 * rnd()), k = 0.12 + 0.2 * rnd(), th = rnd() * Math.PI;
+    const ax = Math.cos(th), ay = Math.sin(th), cx = rnd() * width, cy = rnd() * height;
+    stamp(cx, cy, len / 2 + 3 * wid, (dx, dy) => {
+      const t = dx * ax + dy * ay, n = -dx * ay + dy * ax;
+      if (Math.abs(t) > len / 2) return 0;
+      return k * Math.sin(Math.PI * (t / len + 0.5)) * Math.exp(-(n * n) / (2 * wid * wid));
+    });
+  }
+  // specks of dust
+  for (let i = 0; i < 140; i++) {
+    const cx = rnd() * width, cy = rnd() * height, r = 0.6 + 1.6 * rnd() ** 2, k = 0.35 + 0.65 * rnd();
+    stamp(cx, cy, r * 2.5, (dx, dy) => k * Math.exp(-(dx * dx + dy * dy) / (r * r)));
+  }
+  const out = new Uint8Array(width * height);
+  for (let i = 0; i < out.length; i++) out[i] = Math.round(255 * Math.min(1, f[i]));
+  return out;
 }
 
 // velocity of whatever moves on its own: the vertex is placed where the scene drew it (jittered projection) and
@@ -682,7 +745,113 @@ export class PostFX {
     }
     // the exposure the old additive bloom of P.bloom gave a flat image (post.js _bloom: 3 x its radius-mixed mip
     // weights), so switching the pyramid on keeps the mid-tones of a look tuned with the old bloom
-    return 1 + Math.max(0, P.bloom) * 3 * [1.0, 0.8, 0.6, 0.4, 0.2].reduce((t, f) => t + f + (1.2 - 2 * f) * (P.bloomRadius ?? 0.5), 0);
+    const expK = 1 + Math.max(0, P.bloom) * 3 * [1.0, 0.8, 0.6, 0.4, 0.2].reduce((t, f) => t + f + (1.2 - 2 * f) * (P.bloomRadius ?? 0.5), 0);
+    return expK;
+  }
+
+  // the exposure the grade will apply (P.exposure x the bloom's factor x the adapted auto exposure, read on the GPU),
+  // so a threshold can be set in exposed luminance: the light that will reach the tone map's shoulder
+  _expo(m, P, exposure) {
+    const u = m.uniforms;
+    u.uExp.value = Number.isFinite(exposure) ? exposure : 1; u.uUseAE.value = P.autoExposure > 0 ? 1 : 0; u.tAE.value = this.pp.aeA.texture;
+  }
+
+  /** lensDirt: the lens's dirt lit by the light of bright things. The frame's light above P.lensDirtThreshold
+   *  (exposed luminance, a soft knee per pixel: lamps, the sun, a bright sky; not a lit wall) is taken to 1/8 size,
+   *  then 1/32, blurred there (a Gaussian of sigma 3 texels, ~100 output pixels: a smudge catches the light of a lamp
+   *  a few hundred pixels away) and added into pp.accRT x the dirt mask (lensDirtMask, made once) x P.lensDirt, after
+   *  whichever bloom ran. exposure: the grade's exposure. No noise: stills stay bit-identical. */
+  lensDirt(P, exposure) {
+    const pp = this.pp, w8 = Math.max(2, Math.ceil(pp.w / 8)), h8 = Math.max(2, Math.ceil(pp.h / 8)), w32 = Math.max(2, Math.ceil(pp.w / 32)), h32 = Math.max(2, Math.ceil(pp.h / 32));
+    const A = this.rt('drA', w8, h8), B = this.rt('drB', w32, h32), C = this.rt('drC', w32, h32);
+    if (!this.dirtTex) {
+      const w = 512, h = 256, t = this.dirtTex = new THREE.DataTexture(lensDirtMask({ width: w, height: h }), w, h, THREE.RedFormat, THREE.UnsignedByteType);
+      t.minFilter = t.magFilter = THREE.LinearFilter; t.generateMipmaps = false; t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; t.unpackAlignment = 1; t.needsUpdate = true;
+    }
+    const pre = this.mat('drPre', () => quadMat(/* glsl */ `
+      varying vec2 vUv; uniform sampler2D tColor; uniform vec2 uPx; uniform float uThr;
+      ${EXPO}
+      void main(){
+        // this texel covers 8 x 8 output pixels: 16 bilinear taps of 2 x 2, each thresholded on its own (a small hot
+        // lamp keeps its light; the dim pixels round it add none)
+        vec3 s = vec3(0.0); float e = expo();
+        for (int y = 0; y < 4; y++) for (int x = 0; x < 4; x++){
+          vec3 c = min(texture2D(tColor, vUv + (vec2(x, y) * 2.0 - 3.0) * uPx).rgb, vec3(32000.0));
+          float l = dot(c, vec3(0.2126, 0.7152, 0.0722)) * e;
+          s += c * (max(l - uThr, 0.0) / max(l, 1e-4));
+        }
+        gl_FragColor = vec4(s / 16.0, 1.0);
+      }`, { tColor: { value: null }, uPx: { value: new THREE.Vector2() }, uThr: { value: 1 }, tAE: { value: null }, uUseAE: { value: 0 }, uExp: { value: 1 } }));
+    const down = this.mat('drDown', () => quadMat(/* glsl */ `
+      varying vec2 vUv; uniform sampler2D tIn; uniform vec2 uT;
+      void main(){ gl_FragColor = vec4(0.25 * (texture2D(tIn, vUv + uT * vec2(-1.0, -1.0)).rgb + texture2D(tIn, vUv + uT * vec2(1.0, -1.0)).rgb + texture2D(tIn, vUv + uT * vec2(-1.0, 1.0)).rgb + texture2D(tIn, vUv + uT).rgb), 1.0); }`,
+    { tIn: { value: null }, uT: { value: new THREE.Vector2() } }));
+    const blur = this.mat('drBlur', () => quadMat(/* glsl */ `
+      varying vec2 vUv; uniform sampler2D tIn; uniform vec2 uD;
+      void main(){
+        vec3 s = vec3(0.0); float ws = 0.0;
+        for (int i = -4; i <= 4; i++){ float w = exp(-0.125 * float(i * i)); s += texture2D(tIn, vUv + float(i) * uD).rgb * w; ws += w; }
+        gl_FragColor = vec4(s / ws, 1.0);
+      }`, { tIn: { value: null }, uD: { value: new THREE.Vector2() } }));
+    const add = this._addMat('drAdd', /* glsl */ `
+      varying vec2 vUv; uniform sampler2D tFar, tDirt; uniform float uK;
+      void main(){
+        vec3 g = texture2D(tFar, vUv).rgb;
+        gl_FragColor = vec4(g * (texture2D(tDirt, vUv).r * uK), 1.0);
+      }`, { tFar: { value: null }, tDirt: { value: null }, uK: { value: 0 } });
+    pre.uniforms.tColor.value = pp.accRT.texture; pre.uniforms.uPx.value.set(1 / pp.w, 1 / pp.h); pre.uniforms.uThr.value = Math.max(0, P.lensDirtThreshold ?? 1);
+    this._expo(pre, P, exposure);
+    pp._draw(pre, A);
+    down.uniforms.tIn.value = A.texture; down.uniforms.uT.value.set(1 / w8, 1 / h8); pp._draw(down, B);
+    blur.uniforms.tIn.value = B.texture; blur.uniforms.uD.value.set(1.5 / w32, 0); pp._draw(blur, C);
+    blur.uniforms.tIn.value = C.texture; blur.uniforms.uD.value.set(0, 1.5 / h32); pp._draw(blur, B);
+    const u = add.uniforms;
+    u.tFar.value = B.texture; u.tDirt.value = this.dirtTex; u.uK.value = 20 * Math.min(2, P.lensDirt);
+    pp._accView(false);
+    pp._draw(add, pp.accRT);
+  }
+
+  /** streak: anamorphic streaks. Pixels brighter than P.streakThreshold (exposed luminance, soft knee) are taken at
+   *  a quarter width and half height, smeared along x by three passes of 9 taps (steps 1, 4 and 16 texels x
+   *  P.streakLength, weights falling off exponentially: a bright core and a long tail), mostly desaturated, tinted by
+   *  P.streakTint and added into pp.accRT x P.streak (after the bloom, before the flare and the grade). exposure: the
+   *  grade's exposure (P.exposure x the bloom's factor). No noise: stills stay bit-identical. */
+  streak(P, exposure) {
+    const pp = this.pp, w = Math.max(2, Math.ceil(pp.w / 4)), h = Math.max(2, Math.ceil(pp.h / 2)), A = this.rt('stA', w, h), B = this.rt('stB', w, h);
+    const pre = this.mat('stPre', () => quadMat(/* glsl */ `
+      varying vec2 vUv; uniform sampler2D tColor; uniform vec2 uPx; uniform float uThr;
+      ${EXPO}
+      void main(){
+        // this texel covers 4 x 2 output pixels: two bilinear taps of 2 x 2 each
+        vec3 c = 0.5 * (min(texture2D(tColor, vUv - vec2(uPx.x, 0.0)).rgb, vec3(32000.0)) + min(texture2D(tColor, vUv + vec2(uPx.x, 0.0)).rgb, vec3(32000.0)));
+        float l = dot(c, vec3(0.2126, 0.7152, 0.0722)) * expo();
+        gl_FragColor = vec4(c * (max(l - uThr, 0.0) / max(l, 1e-4)), 1.0);
+      }`, { tColor: { value: null }, uPx: { value: new THREE.Vector2() }, uThr: { value: 1 }, tAE: { value: null }, uUseAE: { value: 0 }, uExp: { value: 1 } }));
+    const blur = this.mat('stBlur', () => quadMat(/* glsl */ `
+      varying vec2 vUv; uniform sampler2D tIn; uniform float uStep;
+      void main(){
+        vec3 s = texture2D(tIn, vUv).rgb; float ws = 1.0;
+        for (int i = 1; i <= 4; i++){
+          float w = exp(-0.55 * float(i)); vec2 o = vec2(float(i) * uStep, 0.0);
+          s += (texture2D(tIn, vUv + o).rgb + texture2D(tIn, vUv - o).rgb) * w; ws += 2.0 * w;
+        }
+        gl_FragColor = vec4(s / ws, 1.0);
+      }`, { tIn: { value: null }, uStep: { value: 0 } }));
+    const add = this._addMat('stAdd', /* glsl */ `
+      varying vec2 vUv; uniform sampler2D tIn, tMid; uniform vec3 uTint;
+      void main(){
+        vec3 s = 0.5 * (texture2D(tIn, vUv).rgb + texture2D(tMid, vUv).rgb);   // a bright core (the second pass) and a long tail (the third)
+        gl_FragColor = vec4(mix(vec3(dot(s, vec3(0.2126, 0.7152, 0.0722))), s, 0.3) * uTint, 1.0);
+      }`, { tIn: { value: null }, tMid: { value: null }, uTint: { value: new THREE.Vector3() } });
+    pre.uniforms.tColor.value = pp.accRT.texture; pre.uniforms.uPx.value.set(1 / pp.w, 1 / pp.h); pre.uniforms.uThr.value = Math.max(0, P.streakThreshold ?? 3);
+    this._expo(pre, P, exposure);
+    pp._draw(pre, A);
+    const L = Math.min(4, Math.max(0.1, P.streakLength ?? 1));
+    [[A, B, 1], [B, A, 4], [A, B, 16]].forEach(([src, dst, st]) => { blur.uniforms.tIn.value = src.texture; blur.uniforms.uStep.value = st * L / w; pp._draw(blur, dst); });
+    const t = Array.isArray(P.streakTint) ? P.streakTint : [0.5, 0.7, 1.0];
+    add.uniforms.tIn.value = B.texture; add.uniforms.tMid.value = A.texture; add.uniforms.uTint.value.set(t[0], t[1], t[2]).multiplyScalar(3 * Math.min(2, P.streak));
+    pp._accView(false);
+    pp._draw(add, pp.accRT);
   }
 
   /** The grade with a 3D LUT and / or chromatic aberration: the pipeline's own grade text, patched (the default
@@ -707,6 +876,7 @@ export class PostFX {
   dispose() {
     for (const t of Object.values(this.rts)) t.dispose();
     for (const m of Object.values(this.mats)) m.dispose();
+    if (this.dirtTex) { this.dirtTex.dispose(); this.dirtTex = null; }
     this.rts = {}; this.mats = {}; this.hist = {};
   }
 }

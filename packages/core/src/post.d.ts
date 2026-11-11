@@ -40,6 +40,12 @@ export interface PostSettings {
   godrays: number; godraysDecay: number; godraysThreshold: number; godraysVol: number;
   /** The sun's lens flare (0 = off): veiling glare, ghosts, a faint halo, depth-tested; scales with the sun's radiance. */
   flare: number;
+  /** A dirty lens (0 = off; 0.5 subtle, 1 strong): a procedural smudge mask (lensDirtMask) lit by a wide blur of the
+   *  frame's light above lensDirtThreshold (exposed luminance: lamps, the sun; a lit wall stays below), added after the bloom. */
+  lensDirt: number; lensDirtThreshold: number;
+  /** Anamorphic streaks (0 = off): light above streakThreshold (exposed luminance) smeared horizontally, its reach
+   *  x streakLength (1 = about a third of the frame width each way), tinted by streakTint (linear RGB, a cool blue). */
+  streak: number; streakThreshold: number; streakLength: number; streakTint: [number, number, number];
   /** Screen-space reflections in the lit materials (needs `lighting: { screen: true }`): strength 0..1, the roughness
    *  where they end, the longest ray (m) and the depth thickness (m). */
   ssr2: number; ssrRough: number; ssrDist: number; ssrThick: number;
@@ -73,7 +79,7 @@ export class Pipeline {
   /** Turn on light2's passes (createWorldRenderer does this for `light2`). */
   useLight2(settings: Light2Settings, context: { sun: THREE.DirectionalLight; G: Record<string, THREE.IUniform> }): void;
   taa(inverseViewProjection: THREE.Matrix4, previousViewProjection: THREE.Matrix4, alpha: number): void;
-  /** The postfx.js passes, made on first use (taa2, motionBlur, bokeh, bloomPyramid, lut, chroma, godrays, flare). */
+  /** The postfx.js passes, made on first use (taa2, motionBlur, bokeh, bloomPyramid, lut, chroma, godrays, flare, lensDirt, streak). */
   fx: PostFX | null;
   /** Where the sun is and how bright (post.godrays, post.flare): its direction and the world's uniforms (uKeyDir, uKeyColor);
    *  createWorldRenderer sets it. Without it the lens passes draw nothing. */

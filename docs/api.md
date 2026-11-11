@@ -111,9 +111,10 @@ count of stable and experimental exports, and how a name is promoted: [STABILITY
 | `FOG` | experimental | the page-global fog uniforms |
 | `Pipeline` | experimental | the sub-frame accumulation / TAA / post pipeline |
 | `DEFAULT_POST` | experimental | default post settings (exposure, tone map, bloom, AO, DOF, …) |
-| `FX_DEFAULTS` | experimental | the post settings of `postfx.js`, all off: `taa2`, `upscale`, `motionBlur`, `bokeh`, `bloomPyramid`, `lut`, `chroma`, `rcas`, `godrays`, `flare` (`docs/post.md`) |
-| `PostFX` | experimental | the passes behind them (velocity buffer, temporal resolve / upscale, lens blur, motion blur, bloom pyramid, LUT grade, god rays, lens flare); `pipeline.fx` |
-| `postFromQuery(query)` | experimental | post settings from URL flags (`?taa2=1&upscale=0.67&mb=0.5&bokeh=1&lens=0.03&bloom2=1&lut=warm&chroma=0.6&godrays=1&flare=1`) |
+| `FX_DEFAULTS` | experimental | the post settings of `postfx.js`, all off: `taa2`, `upscale`, `motionBlur`, `bokeh`, `bloomPyramid`, `lut`, `chroma`, `rcas`, `godrays`, `flare`, `lensDirt`, `streak` (`docs/post.md`) |
+| `PostFX` | experimental | the passes behind them (velocity buffer, temporal resolve / upscale, lens blur, motion blur, bloom pyramid, LUT grade, god rays, lens flare, lens dirt, anamorphic streaks); `pipeline.fx` |
+| `postFromQuery(query)` | experimental | post settings from URL flags (`?taa2=1&upscale=0.67&mb=0.5&bokeh=1&lens=0.03&bloom2=1&lut=warm&chroma=0.6&godrays=1&flare=1&dirt=0.6&streak=0.6`) |
+| `lensDirtMask({ width, height, seed })` | experimental | `post.lensDirt`'s procedural mask as bytes (blotches, dried drops, wiped streaks, specks; the same seed, the same bytes) |
 | `parseCube(text)` | experimental | an Adobe / Resolve `.cube` 3D lookup table -> `{ size, data }` |
 | `makeLut(fn, size)` | experimental | a lookup table from a function of display-referred RGB |
 | `lutTexture(lut)` | experimental | the table as a `Data3DTexture` for `post.lut` |

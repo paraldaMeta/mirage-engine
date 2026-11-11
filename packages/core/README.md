@@ -41,7 +41,7 @@ requestAnimationFrame(loop);
 | `envProbe`, `envIntensity` | `[0, 3, 0]`, `0.5` | capture point and strength of the image-based light |
 | `envFade` | `1.5` | seconds an eased environment recapture cross-fades over |
 | `fog` | `{ density: 1, groundDensity: 0.0016, height: 18, air: 0.00012, level: 0, color: 1, glow: 1 }` | height fog (extinction /m at `level`, scale height m), thin air, multipliers for the haze colour and the glow toward the light |
-| `post` | `DEFAULT_POST` | `exposure (0.4), temperature, saturation, contrast, lift, vignette, tonemap ('aces' \| 'agx' \| 'neutral'), sharpen, grain, bloom, bloomRadius, ao, aoRadius, aoPower, aoLit, autoExposure, aeKey, aeNight, aeRange, aeUp, aeDown, sky, dof (lens radius m, 0 = off), focus (m)` (the opt-in ones: see "Ambient-only AO, auto exposure, dynamic resolution") |
+| `post` | `DEFAULT_POST` | `exposure (0.4), temperature, saturation, contrast, lift, vignette, tonemap ('aces' \| 'agx' \| 'neutral'), sharpen, grain, bloom, bloomRadius, ao, aoRadius, aoPower, aoLit, autoExposure, aeKey, aeNight, aeRange, aeUp, aeDown, sky, dof (lens radius m, 0 = off), focus (m)` (the opt-in ones: see "Ambient-only AO, auto exposure, dynamic resolution"; the post chain's `taa2`, `upscale`, `motionBlur`, `bokeh`, `bloomPyramid`, `lut`, `chroma`, `rcas`, `godrays`, `flare`, `lensDirt`, `streak`: `docs/post.md`) |
 | `spp` | per quality | sub-frames per frame |
 | `wind` | `{ dir: [0.8, 0.6], strength: 1 }` | for `mgWind()` in vertex hooks |
 | `clouds` | `0.35` | cloud cover 0..1 (`0.5` with the dusk sky) |
@@ -257,6 +257,25 @@ createWorldRenderer({ canvas, post: { godrays: 1, flare: 1 } });   // or ?godray
   night, below the horizon, with the sun behind the camera or under an orthographic camera. Stills stay
   bit-identical run to run; moving frames ease them through a short history (no shimmer under TAA). Cost at
   1280 x 720 with the sun in view: +0.19 ms (god rays), +0.0 ms (flare); at 2560 x 1440, +1.3 / +0.3 ms.
+
+## Lens dirt and anamorphic streaks (opt-in): `post.lensDirt`, `post.streak`
+
+Two lens effects for lamp-lit nights, off by default (frames bit-identical to before); details and costs in
+`docs/post.md`.
+
+```js
+createWorldRenderer({ canvas, post: { lensDirt: 0.6, streak: 0.6 } });   // or ?dirt=0.6&streak=0.6 through postFromQuery
+```
+
+- **`post.lensDirt`** (0.5 subtle, 1 strong): a procedural smudge mask (`lensDirtMask`: blotches, dried drops, wiped
+  streaks, specks; made in code, no image) lit by a wide blur of the light above `lensDirtThreshold` (1, exposed
+  luminance), so the blotches round a lamp glow in its colour and the rest of the lens stays clean. Any bloom path.
+- **`post.streak`** (0..1): light above `streakThreshold` (3, exposed luminance) smeared horizontally at low
+  resolution (three passes of 9 taps), `streakLength` (1 = about a third of the frame width each way), tinted by
+  `streakTint` (`[0.5, 0.7, 1.0]`, a cool blue), added before the grade.
+- Both read the adapted auto exposure, so they keep their thresholds while it adapts. Cost on moving frames:
+  about +0.1 ms each at 1440 x 900, +0.65 (dirt) / +0.9 (streak) ms at 2880 x 1800. Auto exposure and `rcas` were
+  measured at night (no pumping, no noise amplification): `docs/post.md`.
 
 ## Soft sun shadows (opt-in): `softShadows`
 
