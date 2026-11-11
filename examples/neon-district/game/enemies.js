@@ -38,16 +38,36 @@ function extraClips() {
   return [aim, flinch, die, scan];
 }
 
+// Four jobs on two rigs: they differ by kit, accent colour, behaviour and a tell the player can read.
+//   grunt     the sentinel: closes in, side-steps, fires bursts
+//   heavy     the warden: a red light and a rising whine 0.8 s before a long suppressing burst; cannot be hacked
+//             from the front
+//   shield    a sentinel with an amber energy shield in front that stops rounds; open it from the side, with an
+//             EMP, a hack, or by shooting the emitter on the shield's lower rim
+//   marksman  holds its post on high ground; a violet beam tightens on the player for 1.2 s before a heavy shot
+const GRUNT_COLORS = { skin: 0x14171b, shirt: 0x1b2026, trousers: 0x181c21, boots: 0x0c0d0f, hair: 0x14171b };
 const KIND = {
-  grunt: { name: 'grunt', hp: 60, speed: 3.0, damage: 5, burst: 3, visor: [0.1, 0.9, 1.0], colors: { skin: 0x14171b, shirt: 0x1b2026, trousers: 0x181c21, boots: 0x0c0d0f, hair: 0x14171b }, scale: 1 },
-  heavy: { name: 'heavy', hp: 135, speed: 2.3, damage: 8, burst: 5, visor: [1.0, 0.16, 0.1], colors: { skin: 0x141211, shirt: 0x1d1917, trousers: 0x191514, boots: 0x0c0d0f, hair: 0x141211 }, scale: 1.1 },
+  grunt: { name: 'grunt', rig: 'grunt', hp: 60, speed: 3.0, damage: 5, burst: 3, tele: 0.42, range: 24, fire: 19, visor: [0.1, 0.9, 1.0], colors: GRUNT_COLORS, scale: 1 },
+  heavy: { name: 'heavy', rig: 'heavy', hp: 135, speed: 2.3, damage: 7, burst: 9, gap: 0.09, tele: 0.8, range: 24, fire: 19, visor: [1.0, 0.16, 0.1], colors: { skin: 0x141211, shirt: 0x1d1917, trousers: 0x191514, boots: 0x0c0d0f, hair: 0x141211 }, scale: 1.1 },
+  shield: { name: 'shield', rig: 'grunt', hp: 70, speed: 2.5, damage: 5, burst: 3, tele: 0.5, range: 24, fire: 17, visor: [1.0, 0.62, 0.08], accent: 0xffa020, shieldHp: 170, colors: GRUNT_COLORS, scale: 1.02 },
+  marksman: { name: 'marksman', rig: 'grunt', hp: 55, speed: 2.4, damage: 30, burst: 1, tele: 1.2, range: 44, fire: 42, visor: [0.72, 0.2, 1.0], accent: 0xb050ff, eye: 1.8, colors: GRUNT_COLORS, scale: 0.98 },
 };
-const RANGE = 24, FOV = 130, FIRE_RANGE = 19;
+const FOV = 130;
 
 // tune: the difficulty, { dmg, hp, acc } factors on damage dealt to the player, health and accuracy (all 1: as built)
 export function createEnemies({ world, game, physics, plan, vfx, sfx, player, assist, onDispose, tune = { dmg: 1, hp: 1, acc: 1 } }) {
   const { mat } = world;
-  const armour = mat.std({ vertexColors: true, roughness: 0.42, metalness: 0.45 });
+  // a dim rim on the armour so a robot reads against a dark street; the visor (a dark zone, overdrive) raises it
+  const rim = { value: new THREE.Vector3(0.05, 0.11, 0.14) };
+  const armour = mat.std({ vertexColors: true, roughness: 0.42, metalness: 0.45 }, {
+    uniforms: { uNdRim: rim }, fragmentDecl: 'uniform vec3 uNdRim;',
+    output: 'outgoingLight += uNdRim * pow(1.0 - clamp(abs(dot(normalize(normal), normalize(vViewPosition))), 0.0, 1.0), 2.2);' });
+  const shieldMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.0, 0.55, 0.08).multiplyScalar(1.6), transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+  const beamMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.7, 0.2, 1.0).multiplyScalar(4), transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false });
+  // the warden's tell: one clustered lamp, put on whichever warden is winding up
+  const tell = new THREE.PointLight(0xff3010, 0, 9, 2); world.scene.add(tell); world.lighting?.addLight(tell);
+  /** hooks the rest of the game sets: env.dark(pos) 0..1, env.blind(from, to) (smoke), on.bark(e, key), on.pop(word, pos), on.dealt(amount) */
+  const env = { dark: () => 0, blind: () => false, rim: 0 }, on = { bark: () => {}, pop: () => {}, dealt: () => {} };
   const plate = mat.std({ color: new THREE.Color(0.03, 0.035, 0.045), roughness: 0.35, metalness: 0.9 });
   const visorMat = Object.fromEntries(Object.entries(KIND).map(([k, v]) => [k, mat.glow(v.visor, 7)]));
   const extra = extraClips();
@@ -62,7 +82,7 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
     // ---- the armour: plates, joints and lights authored in the rig's own space (T-pose, +Z forward, +X its left) and
     // skinned rigidly, each part to one bone. Two extra skinned meshes on the rig's skeleton (plates, lights) instead
     // of a mesh per part: a sentinel is four draws however many parts it has.
-    const B = rig.bones, bones = rig.mesh.skeleton.bones, heavy = def.kind === 'heavy';
+    const B = rig.bones, bones = rig.mesh.skeleton.bones, heavy = K.rig === 'heavy';
     const plates = [], lights = [], col = new THREE.Color();
     const part = (list, bone, geo, p, color, r = [0, 0, 0]) => {
       const g = geo.index ? geo.toNonIndexed() : geo.clone();
@@ -83,7 +103,7 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
     const ring = (pts, n = 8) => new THREE.LatheGeometry(v2(pts), n, Math.PI / n);
     const limb = (r0, r1, len, x) => new THREE.CylinderGeometry(r1, r0, len, 6).rotateZ(-x * HP);   // along X: r0 at the body's end, r1 at the far end
     const RBx = (w, h, d) => new THREE.BoxGeometry(w, h, d);
-    const C = heavy ? { a: 0x5c4a44, b: 0x9a4a32, c: 0xe0703c, d: 0x1c1b1c } : { a: 0x56626f, b: 0x8593a2, c: 0xe2e8ee, d: 0x1c2026 };   // shell, plate, accent, joint
+    const C = heavy ? { a: 0x5c4a44, b: 0x9a4a32, c: 0xe0703c, d: 0x1c1b1c } : { a: 0x56626f, b: 0x8593a2, c: K.accent ?? 0xe2e8ee, d: 0x1c2026 };   // shell, plate, accent, joint
     const W = heavy ? 0.25 : 0.215, hw = heavy ? 0.27 : 0.24, k = heavy ? 1.2 : 1;
     // head: a faceted helmet, a brow over the visor, a jaw with a grille, ear pods, a crest; the visor is a lit band
     // in three facets (a warden has one round eye in a socket, and a heavier jaw)
@@ -166,8 +186,21 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
     const gun = new THREE.Group(); B.RightHand.add(gun); gun.position.set(-0.1, -0.02, 0.02);
     const gparts = [[RBx(0.5, 0.085, 0.055, 0.01), [-0.06, 0.02, 0]], [new THREE.CylinderGeometry(0.014, 0.014, 0.3, 8).rotateZ(Math.PI / 2), [-0.42, 0.03, 0]], [RBx(0.07, 0.16, 0.04, 0.01), [0.02, -0.08, 0]], [RBx(0.2, 0.06, 0.045, 0.01), [0.27, 0.0, 0]], [RBx(0.16, 0.03, 0.03, 0), [-0.1, 0.075, 0]]]
       .map(([g, p]) => g.translate(...p).toNonIndexed());
+    const sniper = K.name === 'marksman';
+    if (sniper) gparts.push(new THREE.CylinderGeometry(0.012, 0.012, 0.5, 8).rotateZ(Math.PI / 2).translate(-0.72, 0.03, 0).toNonIndexed(), new THREE.CylinderGeometry(0.026, 0.026, 0.2, 10).rotateZ(Math.PI / 2).translate(-0.1, 0.11, 0).toNonIndexed());   // a long barrel, a scope
     const gunMesh = new THREE.Mesh(world.geom.mergeGeometries(gparts, false), plate); gunMesh.castShadow = true; gun.add(gunMesh);
-    const tip = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.03, 0.03), visorMat[def.kind || 'grunt']); tip.position.set(-0.58, 0.03, 0); gun.add(tip);
+    const tip = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.03, 0.03), visorMat[def.kind || 'grunt']); tip.position.set(sniper ? -0.98 : -0.58, 0.03, 0); gun.add(tip);
+    // the shield sentinel's kit: a curved energy shield carried in front, its emitter a lit node on the lower rim
+    let shield = null, emitter = null, beam = null;
+    if (K.name === 'shield') {
+      shield = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 1.55, 16, 1, true, -0.62, 1.24).translate(0, 0, -0.9 + 0.62), shieldMat);
+      shield.position.set(0, 1.12, 0); shield.rotation.y = 0; shield.renderOrder = 2; shield.userData.occlude = false; shield.castShadow = false;
+      emitter = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), visorMat.shield); emitter.position.set(0, 0.42, 0.63);
+      const frame = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.05, 0.06), plate); frame.position.set(0, 0.36, 0.6);
+      rig.root.add(shield, emitter, frame);
+    }
+    // the marksman's tell: a beam from the muzzle to the player that tightens before the shot
+    if (sniper) { beam = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1).translate(0, 0, 0.5), beamMat.clone()); beam.visible = false; beam.frustumCulled = false; beam.userData.occlude = false; beam.userData.collide = false; world.scene.add(beam); onDispose(() => beam.removeFromParent()); }
     rig.root.traverse((o) => { o.userData.occlude = false; });
     // a top-level object marked mgDynamic: the lamps' cached shadow tiles are drawn again when it moves near them,
     // and the probe bakes leave it out; collide = false keeps it out of the walk grid (it is not under the game's group)
@@ -189,6 +222,7 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
       id: def.id, def, K, rig, anim, tip, hp: K.hp, state: 'post', home: def.at.slice(), pos: def.at.slice(), yaw: def.face ?? 0, agent: null,
       aim: 0, watch: 0, t: 0, wait: 0, burst: 0, next: 1 + R() * 1.5, tele: 0, lastSeen: null, seenT: -1e9, shift: 0, patrolI: 0, dead: false, deadT: 0, active: def.zone !== 'wave' && def.zone !== 'relay', speed: 0,
       heading: [Math.sin(def.face ?? 0), Math.cos(def.face ?? 0)],
+      maxHp: K.hp, stun: 0, jam: 0, shield, emitter, beam, shieldHp: K.shieldHp || 0, shieldOff: 0, charge: 0, barkT: 0, lureT: 0, sparkT: 0,
     };
     // the head follows the player once it knows of them (after the clips have posed the bones)
     const eyeAt = new THREE.Vector3();
@@ -202,7 +236,10 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
     list.push(e); (byZone[def.zone] ||= []).push(e);
     return e;
   }
+  /** the kit's timers back to rest (a checkpoint, a revive) */
+  const calm = (e) => { e.stun = 0; e.jam = 0; e.shieldOff = 0; e.shieldHp = e.K.shieldHp || 0; e.charge = 0; e.lureT = 0; if (e.beam) e.beam.visible = false; };
   function restore(e, s) {
+    calm(e);
     e.hp = s.hp; e.dead = s.dead; e.pos = s.pos.slice(); e.yaw = s.yaw; e.active = s.active; e.state = s.dead ? 'dead' : 'post'; e.aim = 0; e.burst = 0; e.tele = 0; e.lastSeen = null; e.deadT = s.dead ? 99 : 0;
     e.rig.root.visible = s.shown && !s.dead; e.rig.root.position.set(...e.pos); e.rig.root.rotation.y = e.yaw; e.rig.root.scale.setScalar(e.K.scale);
     e.anim.reset(); e.anim.set('dead', false); e.anim.set('speed', 0); e.anim.setLayerWeight('aim', 0); e.anim.update(0);
@@ -212,7 +249,8 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
    *  building new rigs. hp: a factor on its health over the difficulty's */
   function revive(e, at, hp = 1) {
     const p = (nav && nav.nearest(at, { snap: 2 })) || at.slice();
-    Object.assign(e, { hp: e.K.hp * tune.hp * hp, dead: false, deadT: 0, state: 'post', aim: 0, burst: 0, tele: 0, next: 1 + R() * 1.5, lastSeen: null, seenT: -1e9, shift: 0, wait: 0, t: 0, active: true, watch: 0, speed: 0 });
+    calm(e);
+    Object.assign(e, { maxHp: e.K.hp * tune.hp * hp, hp: e.K.hp * tune.hp * hp, dead: false, deadT: 0, state: 'post', aim: 0, burst: 0, tele: 0, next: 1 + R() * 1.5, lastSeen: null, seenT: -1e9, shift: 0, wait: 0, t: 0, active: true, watch: 0, speed: 0 });
     if (e.agent) { e.agent.stop(); e.agent.walker.place(p); e.pos = e.agent.pos; e.agent.speed = e.agent.walker.body.walk = e.agent.walker.body.run = e.K.speed; crowd.remove(e.agent); crowd.add(e.agent); } else e.pos = p.slice();
     e.home = e.pos.slice();
     const r = e.rig.root; r.visible = true; r.position.set(...e.pos); r.rotation.y = e.yaw; r.scale.setScalar(e.K.scale);
@@ -222,11 +260,12 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
   /** out of play and out of sight, counted as dead: a free slot for revive() */
   function park(e) {
     Object.assign(e, { dead: true, state: 'dead', deadT: 99, active: false, burst: 0, tele: 0 });
+    calm(e);
     e.rig.root.visible = false;
     if (e.agent) { e.agent.stop(); crowd.remove(e.agent); }
   }
   /** the difficulty's health on every sentinel still standing (called when the player deploys) */
-  function retune() { for (const e of list) if (!e.dead) e.hp = e.K.hp * tune.hp; }
+  function retune() { for (const e of list) { e.maxHp = e.K.hp * tune.hp; if (!e.dead) e.hp = e.maxHp; } }
   for (const def of plan.enemies) build(def);
 
   /** once play exists: navigation on the player's walk grid */
@@ -242,10 +281,15 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
   }
 
   const eyeOf = (e, out) => out.set(e.pos[0], e.pos[1] + 1.5 * e.K.scale, e.pos[2]);
-  const seesPlayer = (e) => senses.sees({ pos: e.pos, heading: e.heading }, { pos: player.feet }, { range: RANGE, fov: e.state === 'fight' ? 300 : FOV, near: 2.5, eye: 1.55, height: player.height * 0.93 });
+  // the dark: a sentinel sees a third as far into a dark zone and less far out of one; steam blocks a line of sight
+  const sightOf = (e) => e.K.range * (1 - 0.65 * env.dark(player.feet)) * (1 - 0.3 * env.dark(e.pos));
+  const seesPlayer = (e) => !env.blind(e.pos, player.feet) && senses.sees({ pos: e.pos, heading: e.heading }, { pos: player.feet }, { range: sightOf(e), fov: e.state === 'fight' ? 300 : FOV, near: 2.5, eye: e.K.eye || 1.55, height: player.height * 0.93 });
+  /** a short line on the radio band (story.js shows it over the speaker's head), at most one per `gap` seconds each */
+  const bark = (e, key, gap = 4) => { if (game.time - e.barkT < gap) return; e.barkT = game.time; on.bark(e, key); };
   function alert(e, where, delay = 0) {
     if (e.dead || !e.active || e.state === 'fight' || e.state === 'alert') return;
     e.state = 'alert'; e.t = 0; e.wait = 0.35 + delay + R() * 0.3; e.lastSeen = where ? where.slice() : null;
+    bark(e, 'alert', 8);
   }
   /** a noise at `pos` (the player's shots): whoever is awake within `radius` turns to it */
   function noise(pos, radius = 22) {
@@ -253,24 +297,89 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
   }
   function wake(zone, where) { for (const e of byZone[zone] || []) if (!e.dead) { e.active = true; e.rig.root.visible = true; if (where) alert(e, where, R() * 0.8); } }
 
-  function damage(e, amount, head, point, dir) {
+  // ---- what the city does to them (hack.js, abilities.js)
+  /** stunned for t seconds (an EMP): no aim, no shot, the shield down, sparks */
+  function stun(e, t) {
+    if (e.dead) return;
+    e.stun = Math.max(e.stun, t); e.burst = 0; e.tele = 0; e.charge = 0; e.active = true;
+    if (e.shield) e.shieldOff = Math.max(e.shieldOff, t + 1);
+    e.agent?.stop(); e.anim.trigger('flinch'); bark(e, 'stun', 2);
+  }
+  /** every robot within r of pos (feet + 1 m), stunned; returns how many */
+  function stunAt(pos, r, t) {
+    let n = 0;
+    for (const e of list) if (!e.dead && e.rig.root.visible && Math.hypot(e.pos[0] - pos[0], e.pos[1] + 1 - pos[1], e.pos[2] - pos[2]) < r) { stun(e, t); n++; }
+    return n;
+  }
+  /** a hack on the robot itself: its weapon jams for t seconds and a shield drops */
+  function jam(e, t) {
+    e.jam = Math.max(e.jam, t); e.burst = 0; e.tele = 0; e.charge = 0;
+    if (e.shield) e.shieldOff = Math.max(e.shieldOff, t);
+    bark(e, 'hacked', 1); alert(e, player.feet, 0.5);
+  }
+  /** can the player hack it from `from`: a warden only from behind, or while it is stunned */
+  function hackable(e, from) {
+    if (e.dead || !e.active || !e.rig.root.visible) return false;
+    if (e.K.name !== 'heavy' || e.stun > 0) return true;
+    const dx = from[0] - e.pos[0], dz = from[2] - e.pos[2], l = Math.hypot(dx, dz) || 1;
+    return (dx * e.heading[0] + dz * e.heading[1]) / l < -0.2;
+  }
+  /** a zone goes dark: whoever was fighting near it loses the player and goes to look round where they were */
+  function darken(pos, r) {
+    for (const e of list) {
+      if (e.dead || !e.active || Math.hypot(e.pos[0] - pos[0], e.pos[2] - pos[2]) > r + 8 || (e.state !== 'fight' && e.state !== 'alert')) continue;
+      e.state = 'search'; e.t = 0; e.burst = 0; e.tele = 0; e.charge = 0; e.seenT = -1e9;
+      const g = [player.feet[0] + (R() - 0.5) * 7, player.feet[1], player.feet[2] + (R() - 0.5) * 7];
+      if (nav) e.agent.setGoal(nav.nearest(g, { snap: 2 }) || g);
+      bark(e, 'dark', 1);
+    }
+  }
+  /** a lure (a car alarm): whoever is awake within r and not on the player now goes to look */
+  function lure(pos, r) {
+    let n = 0;
+    for (const e of list) {
+      if (e.dead || !e.active || Math.hypot(e.pos[0] - pos[0], e.pos[2] - pos[2]) > r || (e.state === 'fight' && game.time - e.seenT < 1)) continue;
+      e.state = 'search'; e.t = 0; e.lureT = 8; e.lastSeen = pos.slice(); e.burst = 0; e.tele = 0; e.charge = 0;
+      if (nav) { e.agent.speed = e.agent.walker.body.walk = e.agent.walker.body.run = e.K.speed; e.agent.setGoal(nav.nearest(pos, { snap: 3 }) || pos); }
+      bark(e, 'lure', 1); n++;
+    }
+    return n;
+  }
+
+  /** hit: what rayHit returned ({ part: 'shield' | 'emitter' }) plus { melee, friendly, from } */
+  function damage(e, amount, head, point, dir, hit) {
     if (e.dead) return false;
-    e.hp -= amount * (head ? 2.2 : 1);
+    const part = hit?.part;
+    if (part === 'shield' || part === 'emitter') {   // the shield takes it; the emitter takes four times as much
+      e.shieldHp -= amount * (part === 'emitter' ? 4 : 1); e.active = true;
+      vfx.burst(FX.hit, point, { direction: [-dir[0], -dir[1] + 0.4, -dir[2]], scale: 0.6 });
+      alert(e, hit.friendly ? hit.from : player.feet);
+      if (e.shieldHp <= 0) { e.shieldOff = 9; e.shieldHp = e.K.shieldHp; on.pop('shield', point); bark(e, 'shieldDown', 1); sfx.play('nd_shatter', { at: point, gain: 0.8, ref: 4 }); }
+      return false;
+    }
+    let k = head ? 2.2 : 1;
+    if (hit?.melee && e.stun > 0) k *= 2.4;   // a stunned robot falls to the stock in one or two strikes
+    on.dealt(Math.max(0, Math.min(e.hp, amount * k)), e, hit);
+    e.hp -= amount * k;
+    if (head && !hit?.friendly) on.pop('head', point);
     e.anim.trigger('flinch');
     vfx.burst(FX.hit, point, { direction: [-dir[0], -dir[1] + 0.4, -dir[2]] });
-    e.active = true; alert(e, player.feet);
+    e.active = true; alert(e, hit?.friendly ? hit.from : player.feet);
     for (const o of byZone[e.def.zone] || []) if (o !== e) alert(o, player.feet, 0.3 + R() * 0.5);
     if (e.hp <= 0) {
       e.dead = true; e.state = 'dead'; e.deadT = 0; e.anim.set('dead', true); e.anim.setLayerWeight('aim', 0); e.agent.stop(); crowd.remove(e.agent);
+      e.charge = 0; e.tele = 0; e.stun = 0;
       vfx.burst(FX.down, [e.pos[0], e.pos[1] + 1.1, e.pos[2]]);
       sfx.play('nd_death', { at: [e.pos[0], e.pos[1] + 1, e.pos[2]], gain: 0.9, ref: 4 });
       game.emit('kill', e);
       return true;
     }
+    bark(e, 'hurt', 6);
     return false;
   }
 
-  /** the nearest sentinel a ray hits before `max`: { e, t, head, point } (three body spheres and a head) */
+  /** the nearest sentinel a ray hits before `max`: { e, t, head, point, part? } (three body spheres and a head; a
+   *  shield sentinel's shield first, from the front) */
   const _o = new THREE.Vector3(), _d = new THREE.Vector3(), _c = new THREE.Vector3();
   function rayHit(origin, dir, max) {
     let best = null;
@@ -278,6 +387,17 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
     for (const e of list) {
       if (e.dead || !e.rig.root.visible) continue;
       const s = e.K.scale;
+      if (e.shield && e.shieldOff <= 0 && e.stun <= 0) {
+        const hx = e.heading[0], hz = e.heading[1], cx = e.pos[0] + hx * 0.62 * s, cz = e.pos[2] + hz * 0.62 * s, den = dir[0] * hx + dir[2] * hz;
+        if (den < -0.05) {   // only from in front: a flank goes past it
+          const t = ((cx - origin[0]) * hx + (cz - origin[2]) * hz) / den;
+          if (t > 0 && t < max && (!best || t < best.t)) {
+            const px = origin[0] + dir[0] * t, py = origin[1] + dir[1] * t, pz = origin[2] + dir[2] * t;
+            const lat = (px - cx) * hz - (pz - cz) * hx, h = py - e.pos[1];
+            if (Math.abs(lat) < 0.6 * s && h > 0.34 * s && h < 1.9 * s) best = { e, t, head: false, owner: api, part: Math.hypot(lat, h - 0.42 * s) < 0.14 ? 'emitter' : 'shield' };
+          }
+        }
+      }
       for (const [h, r, head] of [[1.66 * s, 0.17 * s, true], [1.25 * s, 0.3 * s, false], [0.85 * s, 0.3 * s, false], [0.4 * s, 0.27 * s, false]]) {
         _c.set(e.pos[0], e.pos[1] + h, e.pos[2]).sub(_o);
         const tc = _c.dot(_d); if (tc < 0 || tc - r > max) continue;
@@ -290,12 +410,15 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
     return best;
   }
 
+  const TRACER = { grunt: '#50d8ff', heavy: '#ff5030', shield: '#ffb040', marksman: '#c060ff' };
   function fire(e) {
     const from = e.tip.getWorldPosition(new THREE.Vector3()), aimAt = new THREE.Vector3(player.feet[0], player.feet[1] + player.height * 0.77, player.feet[2]);
-    const dist = from.distanceTo(aimAt), moving = player.speed > 2.5 ? 0.7 : 1;
+    const dist = from.distanceTo(aimAt), moving = player.speed > 2.5 ? 0.7 : 1, sniper = e.K.name === 'marksman';
+    const dark = 1 - 0.65 * env.dark(player.feet);   // in a dark zone they shoot at shapes
     // the longer the player stands in their sight the surer the shot: leaning out of cover for a moment is cheap
-    const chance = Math.min(0.7 + 0.15 * (tune.acc - 1), tune.acc * (0.5 - dist * 0.011) * moving * (e.K === KIND.heavy ? 0.85 : 1) * (0.3 + 0.7 * Math.min(1, player.exposed / 2.5)) * (player.crouch > 0.5 ? 0.7 : 1));
-    const hit = R() < chance && seesPlayer(e);
+    const chance = dark * (sniper ? Math.min(0.92, 0.85 * tune.acc)
+      : Math.min(0.7 + 0.15 * (tune.acc - 1), tune.acc * (0.5 - dist * 0.011) * moving * (e.K === KIND.heavy ? 0.85 : 1) * (0.3 + 0.7 * Math.min(1, player.exposed / 2.5)) * (player.crouch > 0.5 ? 0.7 : 1)));
+    const hit = !(player.iframe > game.time) && R() < chance && seesPlayer(e);   // a dash's moment of grace: every shot misses
     if (!hit) aimAt.add(tmp.set(R() - 0.5, R() - 0.3, R() - 0.5).multiplyScalar(1.6 + dist * 0.06));
     const dir = aimAt.clone().sub(from).normalize();
     let end = aimAt;
@@ -304,17 +427,35 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
       end = w ? new THREE.Vector3(...w.point) : from.clone().addScaledVector(dir, 60);
       if (w) vfx.burst(FX.impact, w.point, { direction: [-dir.x, -dir.y, -dir.z] });
     }
-    vfx.beam({ from: from.toArray(), to: end.toArray(), width: 0.035, color: e.K === KIND.heavy ? '#ff5030' : '#50d8ff', intensity: 5, life: 0.09 });
-    sfx.play('nd_bolt', { at: from.toArray(), gain: 0.8, ref: 5 });
+    vfx.beam({ from: from.toArray(), to: end.toArray(), width: sniper ? 0.07 : 0.035, color: TRACER[e.K.name], intensity: sniper ? 8 : 5, life: sniper ? 0.2 : 0.09 });
+    sfx.play(sniper ? 'nd_snipe' : 'nd_bolt', { at: from.toArray(), gain: sniper ? 1 : 0.8, ref: sniper ? 8 : 5 });
     if (hit) player.hurt(e.K.damage * (assist ? 0.12 : 1) * tune.dmg, e.pos);
     game.dirty = true;
+  }
+
+  /** the marksman in a fight: holds its post, lines up one heavy shot at a time behind a tightening beam */
+  function snipe(e, dt, sees, dist) {
+    if (game.time - e.seenT > 6) { e.state = 'post'; e.charge = 0; e.agent.setGoal(e.home); return; }
+    if (Math.hypot(e.pos[0] - e.home[0], e.pos[2] - e.home[2]) > 1.5 && (e.agent.arrived || !e.agent.path)) e.agent.setGoal(e.home);
+    const can = sees && dist < e.K.fire && e.jam <= 0;
+    if (can && (e.next -= dt) <= 0) {
+      if (e.charge === 0) { sfx.play('nd_charge', { at: e.pos, gain: 0.8, ref: 7 }); bark(e, 'aim', 9); }
+      e.charge += dt;
+      if (e.charge >= e.K.tele) { fire(e); e.charge = 0; e.next = 2.2 + R(); }
+    } else if (!can) e.charge = Math.max(0, e.charge - dt * 3);
   }
 
   const firing = () => { let n = 0; for (const o of list) if (!o.dead && (o.burst > 0 || o.tele > 0)) n++; return n; };
   function think(e, dt) {
     const p = player.feet, dx = p[0] - e.pos[0], dz = p[2] - e.pos[2], dist = Math.hypot(dx, dz);
     e.t += dt;
-    const sees = !player.dead && dist < RANGE + 4 && seesPlayer(e);
+    e.jam = Math.max(0, e.jam - dt); e.shieldOff = Math.max(0, e.shieldOff - dt);
+    if (e.stun > 0) {   // stunned: arms down, sparks, nothing else
+      e.stun -= dt; e.agent.stop(); e.aim += (0 - e.aim) * Math.min(1, dt * 7);
+      if ((e.sparkT -= dt) <= 0) { e.sparkT = 0.3 + R() * 0.3; vfx.burst(FX.hit, [e.pos[0] + (R() - 0.5) * 0.4, e.pos[1] + 1.2 + R() * 0.5, e.pos[2] + (R() - 0.5) * 0.4], { direction: [0, 1, 0], scale: 0.5 }); }
+      return;
+    }
+    const sees = !player.dead && dist < e.K.range + 4 && seesPlayer(e);
     if (sees) { e.lastSeen = p.slice(); e.seenT = game.time; }
     let face = null, wantAim = 0;
     switch (e.state) {
@@ -328,21 +469,31 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
         e.agent.stop();
         if (e.lastSeen) face = e.lastSeen;
         wantAim = 0.5;
-        if (e.t > e.wait) { e.state = sees || game.time - e.seenT < 2 ? 'fight' : 'search'; e.t = 0; e.shift = 0; e.agent.speed = e.agent.walker.body.walk = e.agent.walker.body.run = e.K.speed; if (e.state === 'search' && e.lastSeen) e.agent.setGoal(nav.nearest(e.lastSeen, { snap: 2 }) || e.lastSeen); }
+        if (e.t > e.wait) {
+          e.state = sees || game.time - e.seenT < 2 ? 'fight' : 'search'; e.t = 0; e.shift = 0; e.agent.speed = e.agent.walker.body.walk = e.agent.walker.body.run = e.K.speed;
+          if (e.state === 'search' && e.lastSeen && e.K.name !== 'marksman') e.agent.setGoal(nav.nearest(e.lastSeen, { snap: 2 }) || e.lastSeen);
+          if (e.state === 'fight') bark(e, 'fight', 10);
+        }
         break;
       }
       case 'fight': {
         if (player.dead) { e.state = 'post'; e.agent.stop(); break; }
+        if (e.K.name === 'marksman') { snipe(e, dt, sees, dist); face = e.lastSeen || p; wantAim = sees ? 1 : 0.5; break; }
         const lost = game.time - e.seenT;
-        if (lost > 5) { e.state = 'search'; e.t = 0; if (e.lastSeen) e.agent.setGoal(nav.nearest(e.lastSeen, { snap: 2 }) || e.lastSeen); break; }
-        const canFire = sees && dist < FIRE_RANGE;
+        if (lost > 5) { e.state = 'search'; e.t = 0; bark(e, 'search', 8); if (e.lastSeen) e.agent.setGoal(nav.nearest(e.lastSeen, { snap: 2 }) || e.lastSeen); break; }
+        const canFire = sees && dist < e.K.fire && e.jam <= 0;
         if (canFire) { face = p; wantAim = 1; }
         if (e.burst > 0 || e.tele > 0) {   // committed: stand and shoot
           e.agent.stop(); face = e.lastSeen || p; wantAim = 1;
           if (e.tele > 0) { e.tele -= dt; if (e.tele <= 0) e.next = 0; }
-          else if ((e.next -= dt) <= 0) { fire(e); e.burst--; e.next = 0.13; if (e.burst === 0) { e.next = 1.7 + R() * 1.5; e.shift = 0; } }
+          else if ((e.next -= dt) <= 0) { fire(e); e.burst--; e.next = e.K.gap || 0.13; if (e.burst === 0) { e.next = 1.7 + R() * 1.5; e.shift = 0; } }
         } else if (canFire) {
-          if ((e.next -= dt) <= 0 && e.aim > 0.8) { if (firing() < 2) { e.burst = e.K.burst; e.tele = 0.42; } else e.next = 0.3 + R() * 0.4; }   // two fire at a time; the visor flares before the burst   // the visor flares before the burst
+          if ((e.next -= dt) <= 0 && e.aim > 0.8) {
+            if (firing() < 2) {   // two fire at a time; the visor flares before the burst (a warden's whine and red light: 0.8 s)
+              e.burst = e.K.burst; e.tele = e.K.tele;
+              if (e.K.name === 'heavy') { sfx.play('nd_warn', { at: [e.pos[0], e.pos[1] + 1.5, e.pos[2]], gain: 0.9, ref: 6 }); bark(e, 'suppress', 7); }
+            } else e.next = 0.3 + R() * 0.4;
+          }
           // between bursts: side-step to a spot nearby now and then
           if ((e.shift -= dt) <= 0 && (e.agent.arrived || !e.agent.path)) {
             e.shift = 1.8 + R() * 2;
@@ -356,8 +507,9 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
         }
         break;
       }
-      case 'search': {   // at the last place it knew: look round, then go home
-        if (sees) { e.state = 'fight'; e.t = 0; break; }
+      case 'search': {   // at the last place it knew: look round, then go home (a lure holds them there a while)
+        if (sees) { e.state = 'fight'; e.t = 0; e.lureT = 0; bark(e, 'fight', 6); break; }
+        if (e.lureT > 0) { e.lureT -= dt; if (e.agent.arrived || !e.agent.path) e.yaw += dt * 1.2; break; }
         if (e.agent.arrived || !e.agent.path || e.t > 9) { if (e.t > 3) { e.state = 'post'; e.t = 0; e.agent.setGoal(e.home); } else e.yaw += dt * 1.6; }
         break;
       }
@@ -374,6 +526,7 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
   }
 
   /** one fixed step */
+  const _a = new THREE.Vector3(), _b = new THREE.Vector3();
   function update(dt) {
     if (!nav) return false;
     let moved = false;
@@ -382,8 +535,12 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
     for (const e of list) if (!e.dead && e.active) { think(e, dt); if (e.state === 'fight' && game.time - e.seenT < 0.1) seen = true; }
     player.exposed = seen ? player.exposed + dt : Math.max(0, player.exposed - dt * 2);
     crowd.update(dt);
+    let teller = null, tellD = 1e9;
     for (const e of list) {
       const rootObj = e.rig.root;
+      const kit = !e.dead && rootObj.visible && e.shieldOff <= 0 && e.stun <= 0;
+      if (e.shield) { e.shield.visible = kit; e.emitter.visible = kit; }
+      if (e.beam) e.beam.visible = false;
       if (!rootObj.visible) continue;
       if (e.dead) {
         e.deadT += dt;
@@ -397,20 +554,37 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
       rootObj.position.set(e.pos[0], e.pos[1], e.pos[2]); rootObj.rotation.y = e.yaw;
       const sp = Math.hypot(e.pos[0] - px, e.pos[2] - pz) / dt;
       e.speed += (Math.min(sp, 4.4) - e.speed) * Math.min(1, dt * 8);
+      if (e.K.name === 'heavy' && e.tele > 0) { const dd = Math.hypot(e.pos[0] - player.feet[0], e.pos[2] - player.feet[2]); if (dd < tellD) { tellD = dd; teller = e; } }
+      if (e.beam && e.charge > 0) {   // the beam: from the muzzle to the player, wide and loose at first, a thread at the end
+        const k = Math.min(1, e.charge / e.K.tele), w = 0.06 * (1 - k) + 0.01, j = (1 - k) * 0.6;
+        e.tip.getWorldPosition(_a); _b.set(player.feet[0] + Math.sin(game.time * 3.1) * j, player.feet[1] + player.height * 0.8 + Math.sin(game.time * 4.3) * j * 0.5, player.feet[2] + Math.cos(game.time * 2.7) * j);
+        const len = Math.max(0.5, _a.distanceTo(_b) - 1.4);   // it stops short of the eye, so it reads as a line, not a wall
+        e.beam.position.copy(_a); e.beam.lookAt(_b); e.beam.scale.set(w, w, len); e.beam.visible = true;
+        e.beam.material.opacity = 0.25 + 0.7 * k * (k > 0.85 ? 0.6 + 0.4 * Math.sin(game.time * 50) : 1);
+      }
       if (far) continue;
       e.anim.set('speed', e.speed); e.anim.setLayerWeight('aim', e.aim); e.anim.setLayerWeight('scan', e.state === 'post' ? 1 : 0);
       e.watch = e.state === 'fight' || e.state === 'alert' ? 1 : 0;
       e.anim.update(dt);
       moved = true;
     }
-    // the visors flare while a burst is being lined up (one shared material per kind: the nearest one drives it)
+    // the warden's tell: a red lamp on its chest, pulsing fast while it winds up
+    if (teller) {
+      const room = Math.pow(Math.max(world.gradeLook ? world.exposure * world.gradeLook.exposure : world.exposure, 1e-4), -0.9);
+      tell.position.set(teller.pos[0] + teller.heading[0] * 0.5, teller.pos[1] + 1.4, teller.pos[2] + teller.heading[1] * 0.5);
+      tell.intensity = 26 * room * (0.55 + 0.45 * Math.sin(game.time * 34)) * (1 - teller.tele / teller.K.tele * 0.5);
+    } else tell.intensity = 0;
+    // the visors flare while a burst is being lined up (one shared material per kind: the nearest one drives it); a
+    // jammed or stunned robot's visor stutters
     for (const k of Object.keys(KIND)) {
-      let hot = 0;
-      for (const e of list) if (!e.dead && e.K === KIND[k] && e.tele > 0) hot = 1;
-      visorMat[k].color.setRGB(...KIND[k].visor).multiplyScalar(7 * (1 + 2.2 * hot * (0.6 + 0.4 * Math.sin(game.time * 40))));
+      let hot = 0, jammed = 0;
+      for (const e of list) if (!e.dead && e.K === KIND[k]) { if (e.tele > 0 || e.charge > 0) hot = 1; if (e.jam > 0 || e.stun > 0) jammed = 1; }
+      visorMat[k].color.setRGB(...KIND[k].visor).multiplyScalar(7 * (1 + 2.2 * hot * (0.6 + 0.4 * Math.sin(game.time * 40))) * (jammed && Math.sin(game.time * 23) > 0.3 ? 0.15 : 1));
     }
+    rim.value.set(0.05, 0.11, 0.14).multiplyScalar(1 + 5 * env.rim);
     return moved;
   }
-  const api = { list, byZone, start, update, damage, rayHit, noise, wake, alert, eyeOf, revive, park, retune, tune, get alive() { return list.filter((e) => !e.dead && e.active).length; }, get nav() { return nav; } };
+  const api = { list, byZone, start, update, damage, rayHit, noise, wake, alert, eyeOf, revive, park, retune, tune, env, on, stun, stunAt, jam, hackable, darken, lure, KIND,
+    get alive() { return list.filter((e) => !e.dead && e.active).length; }, get nav() { return nav; } };
   return api;
 }

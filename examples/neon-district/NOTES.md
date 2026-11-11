@@ -12,16 +12,77 @@ npm run playtest:holdout -w neon-district                               # the ho
 node examples/neon-district/scripts/measure.mjs --ab                   # frame time per quality and per feature
 node examples/neon-district/scripts/controls-check.mjs                 # title, holdout, keys, gamepad and touch, with real events (ONLY=touch: one part)
 node examples/neon-district/scripts/gameshots.mjs                      # frames of the running game, a contact sheet
+node examples/neon-district/scripts/kitshots.mjs                       # the hacks, abilities and new jobs in frames (out/kit)
 ```
 
-The playtest takes about nine minutes: it plays the route (140 steps: every wall, door and stair on it, the
+The playtest takes about nine minutes: it plays the route (152 steps: every wall, door and stair on it, the hacks, the abilities, the ammunition, the
 fights, the pass, the relay door, the uplink and its wave) and a view with rain never comes to rest, which the tool
-waits for before each of its 13 screenshots.
+waits for before each of its 17 screenshots.
 
 Everything is made in code. There is no texture, model or sound file in the folder: surfaces are GLSL hooks,
 signs are text drawn into a canvas with the system's own font (so the glyph shapes follow the machine: the
 Traditional Chinese signs need a CJK font, which macOS, Windows, Android and iOS ship), sounds are synthesised at
 the first click. Nothing was taken from another project.
+
+## What makes it different
+
+**The city is your weapon.** The gun is the fallback; the district is the toolkit (`game/kit.js` wires it all).
+
+- **Hack** (hold G, pad B; `game/hack.js`). Look at something of the city's within 25 m, a ring fills in 0.8 s, it
+  happens; three charge pips, one back every 8 s. The scan view while the key is held puts holo brackets on
+  everything hackable and marks robots within 30 m through walls (for 2 s after). Targets: every **street lamp** and
+  four **breaker boxes** (the alley, the bar, the server room, the roof) put their zone out for 12 s: pool lamps,
+  clustered lamps and sign faces really switch off (`world.lampPool.set` with scaled powers, the clustered lamps'
+  `nd`, the sign materials), then stutter back. In the dark the sentinels see a third as far, hit about a third as
+  often, and those fighting there lose the player and go looking; the player's visor raises the robots' rim and marks
+  the ones in the dark. Every low **sign** overloads into an EMP that stuns robots within 6.5 m for 4 s; every
+  **vent** blows a steam cloud no sentinel sees through for 10 s; every parked **car**'s alarm lures whoever is awake
+  within 26 m; a **kite** is turned for 15 s (it hunts sentinels, then burns out); a **sentinel** (two pips) has its
+  weapon jammed for 5 s, a warden only from behind or while stunned. Every fight on the route has at least two hack
+  options (alley: a breaker, two vents, two signs; street: lamps, cars, vents, signs, a kite; bar: a breaker, two
+  signs; plaza: four lamps, vents, signs, kites, the mender; server room: its breaker and the robots themselves; roof:
+  its breaker, the parapet sign, the wave's kites). The first fight teaches it with a radio line and a prompt.
+- **Abilities** (`game/abilities.js`): **dash** (1; 5 m the way you move, 0.35 s in which every shot misses, 5 s),
+  **EMP grenade** (2; an arc, stuns robots within 5 m for 4 s, 12 s), **overdrive** (3; charged by damage dealt, kills
+  and hacks; 8 s of everything marked through walls, fire 1.7 x as fast, reloads in half the time, free hacks).
+- **Enemy jobs** (`game/enemies.js`, `game/drones.js`), on the two rigs, each with its own accent and tell: the
+  **shield sentinel** (amber; a curved shield that stops rounds from the front: flank it, EMP it, hack it, or shoot
+  the lit emitter on its lower rim), the **marksman** (violet; holds the relay's roof over the plaza; a beam tightens
+  on you for 1.2 s before a heavy shot: break the line or dash), the **mender kite** (green ring; mends damaged
+  sentinels with a beam and keeps away from you), and the **warden** (a red lamp on its chest and a rising whine
+  0.8 s before a nine-round suppressing burst). Distinct hit, head-shot, shield-hit and kill sounds and crosshair
+  marks; a dim rim on the armour so robots read in the dark. The holdout brings shields from wave 2, marksmen from
+  wave 3, menders from wave 4.
+- **Ammunition you can always find** (`game/ammo.js`): sentinels drop ammo cells (always when your reserve is under
+  two magazines or the kill was with the stock; otherwise 35 %, every third kill at the latest), kites drop small
+  ones; five crates along the route (`plan.crates`) with a lamp and a holo glyph refill 30 s after they are emptied.
+  Under two magazines the counter goes amber and a waypoint and a compass tick point at the nearest full crate or
+  cell; dry, it pulses, a hint line shows and the radio says so once. Melee does 2.4 x on a stunned robot, so the
+  stock, the hacks, the grenade and turned kites are never a dead end.
+- **A short story with a sting** (`game/story.js`): a three-line cold open; the handler's name tag going wrong along
+  the route (CONTROL, C0NTR0L, CONTROL//RELAY-07); three clues (the pass card is issued to the relay itself, a
+  sentinel's banter line "there is no Control", the handler's slip "we— you"); when the uplink completes the
+  handler admits it is the relay's own mind and you have just let it out, every sign on the street stutters, and a
+  closing card has one last line. The holdout opens on a one-line epigraph instead. Idle sentinels trade deadpan
+  pairs over their heads when you are near and unseen; alert, hurt, hacked, stunned and lured barks keep the same
+  voice (a synthesised blip). Comic hit words pop on head shots, shield breaks, EMPs and overloads (the options
+  panel turns them off). All of it in English and Traditional Chinese (`game/text.js`, the `xt` tables).
+
+Keys and buttons of the kit (the touch layer is wired separately, through the API in `game/kit.js`):
+
+| | keyboard / mouse | gamepad |
+|---|---|---|
+| hack (hold) | G | B |
+| dash · EMP grenade · overdrive | 1 · 2 · 3 (mouse back / forward: dash / grenade) | d-pad left · d-pad right · d-pad up |
+
+What is rough: the bar's paper lanterns and bottle neon and every LED wall are shared emissive materials, so a dark
+zone leaves them glowing (a street lamp's panel gets a dark cover instead); the bar's baked irradiance probes keep a
+little of the lamps' bounce in the dark. The marksman's beam is a stretched box, not a volumetric beam. Robots do
+not hear the steam or the alarm of a car beyond the radius; a lured sentinel looks round the car, then goes home.
+Banter is timed with the page clock, not the game's (a pause does not hold a pair mid-line). The holdout's wave
+composition is checked only for its first waves by the scripted test. Tests: `?reserve=N` starts with N rounds in
+reserve (the playtest starts low so a drop, the marker and a crate are certain); the assist mode's floor on the
+reserve is now one magazine (it was two), low enough for the marker to show.
 
 ## What shows what
 
@@ -194,7 +255,7 @@ code (Rapier's WASM is 2.2 MB of it); there are no assets.
   (the engine's audio engine has both; not wired here), no recorded material.
 - **Movement.** Crouching lowers the eye and slows the walk but the body's collider keeps its height; there is no
   slide, no mantle, no sprint stamina. Leaning and crouching are keyboard only.
-- **Scope.** One gun, three enemy kinds, five minutes.
+- **Scope.** One gun, six enemy jobs on two rigs and a drone, five minutes.
 
 ## What the example works around (engine gaps)
 
@@ -222,7 +283,7 @@ code (Rapier's WASM is 2.2 MB of it); there are no assets.
    also draws into the state textures it still has bound (Chrome: "Feedback loop formed between Framebuffer and
    active Texture", a warning, 7 per jump). The game spawns its loops again three ticks after a `place`.
 10. **`mirage-playtest` waits 20 s for a still view before each screenshot.** A world with rain never rests, so the
-    scenario takes screenshots on 13 of its 140 steps only.
+    scenario takes screenshots on a few of its 152 steps only.
 11. **Moving casters must be top-level scene objects** (`userData.mgDynamic`) for the lamp shadow tiles to follow
     them, so the sentinels are added to `world.scene`, not to the game's group.
 14. **The overlay's start card cannot be replaced, only hidden.** Any key, the pad's A or Start, or a tap starts the

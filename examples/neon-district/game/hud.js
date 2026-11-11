@@ -117,6 +117,7 @@ export function createHud({ camera, onDispose, T }) {
         <label>${T.opt.time}<span><input type="range" data-k="hour" min="0" max="23.75" step="0.25" value="${hourValue(v.hour)}"><output>${hourText(hourValue(v.hour))}</output></span></label>
         ${flip('invert', T.opt.invert)}
         <label>${T.opt.full}<button data-b="full">${document.fullscreenElement ? T.opt.on : T.opt.off}</button></label>
+        <label>${T.opt.pops}<button data-b="pops">${v.pops === false ? T.opt.off : T.opt.on}</button></label>
         <label>${T.opt.lang}<button data-b="lang">${v.lang === 'zh' ? '繁體中文' : 'English'}</button></label>
         ${o.touch ? `<h3>${T.opt.touch}</h3>${range('tSens', 0.3, 2.5, 0.05, T.opt.tSens)}${range('tOpacity', 0.2, 1, 0.05, T.opt.tOpacity)}${range('tScale', 0.8, 1.25, 0.05, T.opt.tScale)}${flip('leftFire', T.opt.leftFire)}${flip('sprintLock', T.opt.sprintLock)}` : ''}
         <label><span></span><button data-b="close">${T.opt.close}</button></label></div><p>${o.touch ? T.opt.touchHint : T.opt.hint}</p>`;
@@ -131,6 +132,7 @@ export function createHud({ camera, onDispose, T }) {
         else if (k === 'invert' || k === 'leftFire' || k === 'sprintLock') { v[k] = !v[k]; b.textContent = v[k] ? T.opt.on : T.opt.off; b.setAttribute('aria-pressed', String(v[k])); o.onChange(k, v[k]); }
         else if (k === 'full') { const p = document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.(); Promise.resolve(p).catch(() => {}).then(() => { b.textContent = document.fullscreenElement ? T.opt.on : T.opt.off; }); }
         else if (k === 'lang') o.onLang();
+        else if (k === 'pops') { o.values.pops = o.values.pops === false; b.textContent = o.values.pops ? T.opt.on : T.opt.off; o.onChange('pops', o.values.pops); }
       }); }
       if (!o.touch) opt.querySelector('input').focus();   // on a phone a focused slider would take the first swipe
       return true;

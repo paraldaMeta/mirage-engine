@@ -16,6 +16,7 @@ import { createEnemies } from './enemies.js';
 import { createDrones } from './drones.js';
 import { createTitle } from './title.js';
 import { createTouch } from './touch.js';
+import { setupKit } from './kit.js';
 import { LANGS, pickLang } from './text.js';
 import { createAudioEngine, zonesFromPlan } from '@miragekit/game';
 
@@ -242,7 +243,7 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
     lastMag = weapon.S.mag;
     weapon.S.fire = ok && (held.mouse || held.key || held.pad || !!touch?.fire);
     weapon.S.aim = ok && (held.aimMouse || held.aimKey || held.aimPad || !!touch?.aim);
-    if (assist && weapon.S.reserve < 48) weapon.S.reserve = 48;   // the easy mode never runs dry
+    if (assist && weapon.S.reserve < 24) weapon.S.reserve = 24;   // the easy mode never runs dry (one magazine in reserve: low enough for ammo.js's marker)
     // the look: the player's sensitivity and the inverted axis, applied to what the mouse and the stick turned since
     // the last tick (play turns the view itself, at a fixed rate)
     if (opts.sens !== 1 || opts.invert) { play.yaw = endYaw + (play.yaw - endYaw) * opts.sens; play.pitch = Math.max(-1.45, Math.min(1.45, endPitch + (play.pitch - endPitch) * opts.sens * (opts.invert ? -1 : 1))); }
@@ -321,12 +322,14 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
   function startWave() {
     const w = ++H.wave;
     game.set('wave', w);
-    const pool = free(enemies.list, (e) => e.rig.root.visible), sky = free(drones.list, (e) => e.o.visible);
+    // the jobs come in order: shield sentinels from the second wave, marksmen from the third, menders from the fourth
+    const allowed = (e) => (e.K.name === 'shield' ? w >= 2 : e.K.name === 'marksman' ? w >= 3 : e.K.name === 'mender' ? w >= 4 : true);
+    const pool = free(enemies.list, (e) => e.rig.root.visible).filter(allowed), sky = free(drones.list, (e) => e.o.visible).filter(allowed).sort((a, b) => (b.kind === 'mender') - (a.kind === 'mender'));
     const n = Math.min(pool.length, 2 + w), heavies = Math.min(Math.floor((w - 1) / 2), n - 1), kites = Math.min(sky.length, 1 + Math.floor((w - 1) / 2));
     const hp = 1 + 0.07 * (w - 1);   // past the pool's size a wave grows in toughness
-    const big = pool.filter((e) => e.K.name === 'heavy'), small = pool.filter((e) => e.K.name !== 'heavy');
-    const pick = big.slice(0, heavies);
-    for (const e of [...small, ...big.slice(heavies)]) if (pick.length < n) pick.push(e);
+    const big = pool.filter((e) => e.K.name === 'heavy'), jobs = pool.filter((e) => e.K.name === 'shield' || e.K.name === 'marksman'), small = pool.filter((e) => e.K.name === 'grunt');
+    const pick = [...jobs.slice(0, Math.min(1 + Math.floor((w - 2) / 2), n - 1)), ...big.slice(0, heavies)];
+    for (const e of [...small, ...big.slice(heavies), ...jobs]) if (pick.length < n && !pick.includes(e)) pick.push(e);
     H.queue = []; H.foes = []; H.total = pick.length + kites;
     pick.forEach((e, i) => {
       H.queue.push(() => { enemies.revive(e, STAIR_FOOT[i % STAIR_FOOT.length], hp); e.home = roofAt.slice(); enemies.alert(e, player.feet, 0.3 + R() * 0.5); H.foes.push(e); });
@@ -391,13 +394,17 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
     return [plan.alley.rect[0] + 2, 1.4, plan.alley.rect[1]];
   };
 
+  // ---- the city as a weapon: hacks, abilities, ammunition that can be found, the story (kit.js)
+  const kit = setupKit({ ctx, shared, vfx, Q, T, player, weapon, enemies, drones, hud, sfx, stats, opts, holdout: H, live });
+
   return {
-    player, weapon, enemies, drones, stats, hud, sfx, leaves, opts, toggleOptions, run, tune, title, holdout: H, get touch() { return touch; },
+    player, weapon, enemies, drones, stats, hud, sfx, leaves, opts, toggleOptions, run, tune, title, holdout: H, kit, get touch() { return touch; },
     /** once startGame has made the character and play */
     start(game_) {
       g = game_; play = g.play;
       g.character.body.walk = 3.3; g.character.body.run = 5.4;      // a shooter's pace (the engine's walker strolls at 1.5 m/s)
       weapon.start(play); enemies.start(play.grid); drones.start(play.grid); endYaw = play.yaw; endPitch = play.pitch;
+      kit.start(g);
       vfx.setGround(play.grid);
       checkpoint('start', true);
       if (Q.has('start')) begin();   // the tests: straight in (main.js starts the overlay)

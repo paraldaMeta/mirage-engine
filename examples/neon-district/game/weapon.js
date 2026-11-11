@@ -172,11 +172,11 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
 
   function reload() {
     if (S.reloading > 0 || S.mag >= GUN.mag || S.reserve <= 0) return false;
-    S.reloading = GUN.reload; sfx.play('nd_reload', { gain: 0.7 });
+    S.reloading = GUN.reload * (S.boost ? 0.5 : 1); S.reloadLen = S.reloading; sfx.play('nd_reload', { gain: 0.7 });
     return true;
   }
   function shoot() {
-    S.mag--; S.cool = GUN.rate; stats.shots++;
+    S.mag--; S.cool = GUN.rate * (S.boost ? 0.6 : 1); stats.shots++;   // overdrive (abilities.js): faster fire
     // where the round goes: the view direction, opened by the spread (tighter when aiming, wider when hot or moving)
     const spread = ((0.008 - 0.0055 * S.ads) + S.heat * 0.012 * (1 - 0.55 * S.ads) + Math.min(player.speed, 5) * 0.002) * (1 - 0.3 * player.crouch);
     const a = R() * Math.PI * 2, r = Math.sqrt(R()) * spread;
@@ -195,10 +195,10 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
     vfx.burst(FX.muzzle, mz, { direction: d, scale: 1 - 0.65 * S.ads });   // smaller down the sight: it sits in the middle of the view
     if (eh) {
       stats.lastHead = !!eh.head;
-      const killed = eh.owner.damage(eh.e, GUN.damage, eh.head, eh.point, d);
+      const killed = eh.owner.damage(eh.e, GUN.damage, eh.head, eh.point, d, eh), shielded = !!eh.part;
       stats.hits++; if (eh.head) stats.heads++;
-      hud.hit(killed ? 'kill' : eh.head ? 'head' : 'hit');
-      sfx.play(killed ? 'nd_kill' : 'nd_hit', { gain: killed ? 0.8 : 0.55 });
+      hud.hit(killed ? 'kill' : shielded ? 'shield' : eh.head ? 'head' : 'hit');
+      sfx.play(killed ? 'nd_kill' : shielded ? 'nd_shieldhit' : eh.head ? 'nd_head' : 'nd_hit', { gain: killed ? 0.8 : 0.55 });
     } else if (hit) {
       const n = hit.normal;
       vfx.burst(FX.impact, end, { direction: [n.x, n.y, n.z] });
@@ -221,7 +221,7 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
     fwd.set(Math.cos(play.pitch) * Math.cos(play.yaw), Math.sin(play.pitch), Math.cos(play.pitch) * Math.sin(play.yaw));
     const o = camera.position.toArray(), d = fwd.toArray(), eh = targets.rayHit(o, d, 2.3);
     sfx.play('nd_impact', { gain: eh ? 0.9 : 0.35, rate: 0.5 });
-    if (eh) { stats.lastHead = false; const killed = eh.owner.damage(eh.e, 85, false, eh.point, d); hud.hit(killed ? 'kill' : 'hit'); player.shake(0.5); stats.melee = (stats.melee || 0) + 1; }
+    if (eh) { stats.lastHead = false; stats.meleeNow = true; const killed = eh.owner.damage(eh.e, 85, false, eh.point, d, { ...eh, melee: true }); stats.meleeNow = false; hud.hit(killed ? 'kill' : 'hit'); player.shake(0.5); stats.melee = (stats.melee || 0) + 1; }
     return true;
   }
   /** one fixed step of the game */
@@ -280,7 +280,7 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
     S.tuck += (tuck - S.tuck) * Math.min(1, dt * 12);
     // the reload: tilt, magazine out and back, level again
     let tilt = 0, magOut = 0;
-    if (S.reloading > 0) { const u = 1 - S.reloading / GUN.reload; tilt = THREE.MathUtils.smoothstep(u, 0, 0.14) * (1 - THREE.MathUtils.smoothstep(u, 0.82, 1)); magOut = THREE.MathUtils.smoothstep(u, 0.1, 0.3) * (1 - THREE.MathUtils.smoothstep(u, 0.5, 0.68)); }
+    if (S.reloading > 0) { const u = 1 - S.reloading / (S.reloadLen || GUN.reload); tilt = THREE.MathUtils.smoothstep(u, 0, 0.14) * (1 - THREE.MathUtils.smoothstep(u, 0.82, 1)); magOut = THREE.MathUtils.smoothstep(u, 0.1, 0.3) * (1 - THREE.MathUtils.smoothstep(u, 0.5, 0.68)); }
     const a = S.ads, low = Math.max(S.sprint, S.draw), jab = S.jab > 0 ? Math.sin(Math.PI * Math.min(1, (0.6 - S.jab) / 0.32)) * (S.jab > 0.28 ? 1 : 0) : 0;
     gun.position.set(THREE.MathUtils.lerp(0.17, 0, a) + bx + S.swayX * 0.6 + tilt * 0.03, THREE.MathUtils.lerp(-0.17, -0.0704, a) + by + S.swayY * 0.4 - tilt * 0.05 - low * 0.11 - S.tuck * 0.03,
       THREE.MathUtils.lerp(-0.28, -0.12, a) + S.kick * 0.022 * (1 - 0.5 * a) + S.tuck * 0.2 - jab * 0.22);
