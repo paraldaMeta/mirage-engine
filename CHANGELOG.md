@@ -5,6 +5,18 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
 ## Unreleased
 
 **New**
+- @miragekit/core: the wet layer learns where water goes and how it looks in rain (ported from the rainy ship deck
+  of the owner's Oman project, `withWet` options, all opt-in): `wear` (a GLSL float: ruts, a trodden path, joints,
+  round drains; the water gathers there, `wearDepth` 0.016 m) and `shelter` (a number, a GLSL float or a `{ value }`
+  uniform: dry and matte under cover), `rim` (a thin darker damp band round each puddle and an eased meniscus edge;
+  on with `wear` / `shelter`), `ripples` (the rain rings' strength per material, 0 off; their density and strength
+  follow `setRain`), `specAA` (the specular AA's strength while wet; the wet layer now applies it once, after its
+  normal and the rings, 4x on rippled standing water in rain). `SPEC_AA_GLSL` exports `mgSpecAA(r, n[, k])` for
+  shaders of your own; `patch()` hooks take `specAA: <number>` and `specAAIf`. Per-material numbers are a second
+  uniform (`mgWetQ`): no program per material. Without rain and the new options, stills are byte-identical to before
+  (hello-courtyard: no flag, `?wet=0`, `?wet=0.9`, `?wet=0.9&planar=1`); with rain the AA on the rings changes
+  puddle pixels only. hello-courtyard `&wear=1` (a trodden path and a ring round the basin, the pergola's strip dry);
+  checked by `packages/core/wet.check.mjs` (in `npm test`) and `packages/tools/src/wet-check.mjs` (Chrome).
 - @miragekit/core: a planar reflection for flat wet ground (`lighting: { planar: { y, scale, roughMax, fade, clip,
   layers, every } }`; experimental, opt-in, `PLANAR_DEFAULTS`, `docs/lighting.md`): the scene drawn once more from the
   camera mirrored in one horizontal plane (oblique near clip, half size, mipmapped), read by the lit materials for

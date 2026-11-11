@@ -538,19 +538,43 @@ addRain(ctx);                     // falling streaks around the camera (a world 
   about `heightMid`, `heightScale` m per unit: the paving's joints fill first). Vertical surfaces get thin run-off
   streaks, undersides stay dry, a damp band rises `band` m from the ground (`ground`: a height, an Object3D or a
   horizontal THREE.Plane). `puddles`: 0 none, 1 default, more fuller.
+- **Wear, shelter, rim** (opt-in): `wear` (a GLSL float 0..1 of the material: wheel ruts, a trodden path, joints,
+  round a drain) says where the water goes: the bed's own noise is halved and a fully worn spot sits `wearDepth` m
+  (0.016) below the unworn bed, so puddles gather in the ruts instead of in noise blobs. `shelter` (0..1: a number,
+  a GLSL float or a `{ value }` uniform; 1 under an awning or indoors) keeps the surface dry and matte there. `rim`
+  (0..1; 1 when `wear` or `shelter` is given, else 0) draws a thin darker damp band round each puddle (the bed a few
+  mm above the water line) and eases the water's edge over ~2 mm of bed height (a meniscus, not one cut level).
+  Up-facing surfaces pool, walls only streak, undersides stay dry, as before.
+
+  ```js
+  const ground = world.mat.std({ roughness: 0.85 }, withWet(groundHooks, {
+    porosity: 0.5, height: 'mgS.h', heightMid: tex.info('paving').hMean,       // the joints fill first
+    wear: 'smoothstep(0.35, 0.0, abs(abs(mgWorldPos.x) - 0.8))',               // two wheel ruts 1.6 m apart along z
+    shelter: '1.0 - smoothstep(-0.2, 0.2, mgWorldPos.z - 4.0)',                 // dry under the awning (z < 4)
+  }));
+  ```
 - **Reflections**: without light2 the puddles reflect the environment map. Under light2 only standing water is
   flagged for screen-space reflection: the soaked film keeps its low roughness for the image-based light and the
   sun but is floored at 0.42 for the flag (light2's threshold), so damp ground is a sheen, not a second mirror.
 - **Rain rings**: a sparse cell layer (two scales, ~2 cm waves, a drop per cell per cycle at a hashed spot), a
-  normal perturbation on standing water only, from `uTime` alone (stills are identical on every run). They fade
-  where a pixel covers more than ~1 cm and the pool reads rougher instead.
+  normal perturbation on standing water only, in world space (they do not swim with the UVs), from `uTime` alone
+  (stills are identical on every run). As many drops as the rain is heavy (`setRain`), half as strong at a drizzle;
+  `ripples` scales them per material (0 off: the frame is byte for byte that of `setRain(0)`; 1 default). They fade
+  where a pixel covers more than ~1 cm and the pool reads rougher instead. Under `lighting.planar` the rings bend
+  the mirror's lookup (its `DISTORT`), and standing water stays under its `roughMax`.
 - **Stability**: octaves finer than the pixel footprint fade out, shorelines are antialiased by the height's screen
-  derivative, far pools thin to a soaked sheen, and patch()'s specular AA widens the lobe where the normal varies
-  (a material that had none gets it only while wet: `hooks.specAA`).
+  derivative, far pools thin to a soaked sheen, and the specular AA (`mgSpecAA`, Kaplanyan / Tokuyoshi: the shading
+  normal's screen-space variance added to the squared roughness, clamped) widens the lobe once the wet layer and the
+  rings have bent the normal. `specAA` is its strength while wet (1; 0 / false off); in rain it is 4x on standing
+  water. While dry the material keeps patch()'s own AA (`hooks.specAA`; withWet adds `hooks.specAAIf:
+  '!defined(MG_WET)'` so it is applied once). `SPEC_AA_GLSL` is the helper for shaders of your own.
 - **Off**: the wet code sits inside `#ifdef MG_WET`; `setWetness` sets the define on the opted-in materials (and
   only them) while the level is above 0 and recompiles them when it crosses 0, like `setAmbientVolumes`; moving
   between levels above 0 recompiles nothing. At `setWetness(0)` the program is the dry one: hello-courtyard's frames
-  are bit-identical with `?wet=0` (5 views, 0 px). The two uniforms (`WET`) are page-global, not in the world's `G`.
+  are bit-identical with `?wet=0` (5 views, 0 px). The two uniforms (`WET`) are page-global, not in the world's `G`;
+  the per-material numbers are two uniforms (`mgWetP`, `mgWetQ`), so materials that differ only in porosity, ground,
+  band, puddles, ripples, specAA, rim or a numeric shelter share one program (GLSL options: `height`, `wear`, a
+  string `shelter` make their own).
 - **Changing it live**: `world.tick(dt)` notices `setWetness` / `setRain` (and returns true, so @miragekit/play draws
   again); a wetness change recaptures the image-based light from scratch, so `setWetness(0)` after a wet spell
   gives the dry image exactly and wet puddles reflect a wet world. Without tick(), call `world.captureEnv(true)`
@@ -563,8 +587,7 @@ addRain(ctx);                     // falling streaks around the camera (a world 
   TAA, dry / wet / wet + rain interleaved in one page): wet 0.8 +0.15…0.57 ms median (+2…5 %), rain streaks
   +0.0…0.25 ms more and one draw call. TAA shimmer on an orbit over the paving: flicker / motion unchanged (1.40 dry,
   1.40 wet). Details in `examples/hello-courtyard/NOTES.md`.
-- **Limits**: no occlusion from above (the ground under a pergola or an arcade gets as wet as the open court; give
-  such materials their own `withWet` options or none); no splashes, drips or wet-darkened foliage; the ripples are
+- **Limits**: no occlusion from above computed for you (say where with `shelter`); no splashes, drips or wet-darkened foliage; the ripples are
   normals only (no refraction of the bed); `ground` is read once (an Object3D moved later needs the material
   re-made, or `hooks.uniforms.mgWetP.value.y` set). ponytail: the uniforms are shared by every world on a page.
 

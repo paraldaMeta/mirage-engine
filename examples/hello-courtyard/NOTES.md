@@ -98,8 +98,8 @@ posts' feet, the arch-shaped patch of low sun on the north wall has the same sof
 photo set's height `mgS.h` about its hMean, 1.4 cm per unit), the land (0.8, puddles 0.8), the plaster (0.85, no
 puddles, damp band 0.45 m) and the ashlar (0.45, `mgS.h`) with `withWet` (@miragekit/core wet.js); `&rain` adds
 `addRain` (@miragekit/world/kits/rain) to the scene. Without either flag nothing is re-patched or added. Planks, clay,
-iron and the basin's water stay as they are; the pergola and the arcade do not shelter the ground (no occlusion).
-`window.__mirage.wet` = `{ setWetness, setRain, rain }` for tools.
+iron and the basin's water stay as they are; without `&wear=1` the pergola and the arcade do not shelter the ground.
+`window.__mirage.wet` = `{ setWetness, setRain, rain, withWet }` for tools.
 - **Off path** (built `dist/` of this branch against the base commit's, 1440 × 900, 6 sub-frames, 5 views: golden
   hero, night hero, golden hero + light2, night pergola + light2, noon basin): no flag, `?wet=0` and `?wet=0&rain=0`
   are all 0 px different. The first page a fresh browser loads differs from every later load of the same view by
@@ -111,6 +111,28 @@ iron and the basin's water stay as they are; the pergola and the arcade do not s
   rain on top +0.0…0.25 ms. Draw calls 52 → 53 with rain (one).
 - **Shimmer** (TAA orbit over the paving, `verify.mjs`'s second difference, grain off): flicker / motion 1.40 dry
   against 1.40 wet (golden), 1.46 / 1.46 (golden + light2), 1.43 / 1.43 (night + light2): no new sparkle.
+
+### `&wear=1`: puddles that follow the wear, shelter, rain rings, specular AA
+With `?wet`, `&wear=1` gives the paving `wear` (a trodden path from the gate to the basin, x ≈ 0 for z > 2.4, and a
+splashed, walked ring round the basin at 2.25 m, both broken by noise) and `shelter` (the pergola's strip along the
+north wall): the water gathers on the path and round the basin instead of in noise blobs, with a thin darker rim,
+and the strip under the pergola stays dry. `window.__mirage.wet.withWet` is there for tools.
+`node packages/tools/src/wet-check.mjs examples/hello-courtyard/dist --before=<dist of the parent> --out=examples/hello-courtyard/out/wet --cost=10`
+(960 × 600, Apple M4 Pro, headless Chrome):
+- No flag, `?wet=0`, `?wet=0.9`, `?wet=0.9&planar=1`: byte-identical to the parent's build (close, grazing). With
+  rain the rings' AA changes 16-25 k pixels of a view (puddles only).
+- Ripples 0 (every material's `mgWetQ.x`) at rain 1 = the frame of rain 0, byte for byte. Rain 0.25 / 0.5 / 1: 66 /
+  86 / 142 rings in the close view, 100 / 100 / 99.99 % of the changed pixels in the puddles.
+- Specular AA off → on, grazing over the wet floor, worst 1 % of the floor's pixels (temporal second difference
+  under TAA, camera held / drifting) and a 1-sample still's Laplacian energy: plain wet 0.9 + rain x1.06 / x1.04 /
+  x1.14; `&wear=1&planar=1` x1.06 / x1.04 / x1.12; at 21:30 x1.09 / x1.09 / x1.07.
+- Shelter: |wet − dry| 3.15 under the pergola against 14.5 on the open paving the same distance away.
+- Programs: 53 → 54 after 7 more wet materials with other numbers (porosity, ripples, specAA, rim, band, two numeric
+  shelters: the one is the shelter term).
+- Cost, walking frames, `?wet=0.9&rain=1`, 10 interleaved rounds of 60 (two runs): before 2.40 / 2.40 ms, after
+  2.30 / 2.40 ms median; after − before per round 0.00 ms (spread −0.50…+0.90, then −0.10…+0.10). Inside the noise
+  at this size (the timer is 0.1 ms coarse in headless Chrome).
+- `npm run test:determinism`: neon-district differs between redraws, also on the parent commit's build (not this).
 
 ## aoLit, auto exposure, dynamic resolution (optional)
 

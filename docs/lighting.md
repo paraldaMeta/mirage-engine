@@ -290,7 +290,11 @@ How. Before each sub-frame's scene pass (the pipeline calls the planar pass ahea
    Fresnel and the surface's own tint stay the material's. The target's outer 3 % fades out.
 
 With `withWet` materials the standing water (roughness about 0.05) mirrors sharply, the soaked film (0.1-0.2) gets a
-blurred, stretched image, and damp ground (0.42 and up) keeps its probe / sky reflection.
+blurred, stretched image, and damp ground (0.42 and up) keeps its probe / sky reflection. In rain the rings bend the
+mirror's lookup like any normal detail; the wet layer's specular AA widens the rippled water's roughness a little
+(4x its dry strength on standing water in rain, bounded by its 0.18 clamp, so far rippled pools can fade toward the
+probe reflection near `roughMax`). `wear` and `shelter` (packages/core/README.md, "Wet surfaces and rain") put the
+mirrors where the ground is worn and keep them out from under cover.
 
 Moving frames redraw the mirror every `every` frames; a kept mirror is read with the matrix it was drawn with, so it
 stays registered on the ground while the camera moves (what it shows lags). Still sub-frames always redraw it: jitter,
