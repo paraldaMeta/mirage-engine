@@ -74,7 +74,7 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
   const list = [], byZone = {};
   let nav = null, crowd = null, senses = null, rnd = 0x9e3779b9;
   const R = () => ((rnd = (Math.imul(rnd ^ (rnd >>> 15), 0x2c1b3c6d) ^ (rnd << 7)) >>> 0) / 4294967296);
-  const tmp = new THREE.Vector3();
+  const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3();
 
   function build(def) {
     const K = KIND[def.kind || 'grunt'], rig = createRigModel({ material: armour, colors: K.colors });
@@ -346,15 +346,21 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
     return n;
   }
 
-  /** hit: what rayHit returned ({ part: 'shield' | 'emitter' }) plus { melee, friendly, from } */
+  /** the shield breaks (rounds through it, or a rocket's blast): off for 9 s */
+  function breakShield(e, point) {
+    if (!e.shield) return;
+    e.shieldOff = 9; e.shieldHp = e.K.shieldHp; on.pop('shield', point); bark(e, 'shieldDown', 1); sfx.play('nd_shatter', { at: point, gain: 0.8, ref: 4 });
+    game.flags.shieldsBroken = (game.flags.shieldsBroken || 0) + 1;
+  }
+  /** hit: what rayHit returned ({ part: 'shield' | 'emitter' }) plus { melee, friendly, from, shieldK, splash } */
   function damage(e, amount, head, point, dir, hit) {
     if (e.dead) return false;
     const part = hit?.part;
     if (part === 'shield' || part === 'emitter') {   // the shield takes it; the emitter takes four times as much
-      e.shieldHp -= amount * (part === 'emitter' ? 4 : 1); e.active = true;
+      e.shieldHp -= amount * (part === 'emitter' ? 4 : 1) * (hit.shieldK || 1); e.active = true;   // shieldK: the shotgun up close
       vfx.burst(FX.hit, point, { direction: [-dir[0], -dir[1] + 0.4, -dir[2]], scale: 0.6 });
       alert(e, hit.friendly ? hit.from : player.feet);
-      if (e.shieldHp <= 0) { e.shieldOff = 9; e.shieldHp = e.K.shieldHp; on.pop('shield', point); bark(e, 'shieldDown', 1); sfx.play('nd_shatter', { at: point, gain: 0.8, ref: 4 }); }
+      if (e.shieldHp <= 0) breakShield(e, point);
       return false;
     }
     let k = head ? 2.2 : 1;
@@ -428,7 +434,16 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
       if (w) vfx.burst(FX.impact, w.point, { direction: [-dir.x, -dir.y, -dir.z] });
     }
     vfx.beam({ from: from.toArray(), to: end.toArray(), width: sniper ? 0.07 : 0.035, color: TRACER[e.K.name], intensity: sniper ? 8 : 5, life: sniper ? 0.2 : 0.09 });
-    sfx.play(sniper ? 'nd_snipe' : 'nd_bolt', { at: from.toArray(), gain: sniper ? 1 : 0.8, ref: sniper ? 8 : 5 });
+    // the shot as heard: near, a crack; far, duller and quieter (a low-passed version with more of the street in it)
+    const heard = Math.hypot(from.x - player.feet[0], from.y - player.feet[1] - 1.5, from.z - player.feet[2]);
+    if (sniper) sfx.play('nd_snipe', { at: from.toArray(), gain: heard > 20 ? 0.75 : 1, ref: 8 });
+    else sfx.play(heard > 16 ? ['nd_bolt_far', 'nd_bolt'] : 'nd_bolt', { at: from.toArray(), gain: heard > 16 ? 0.85 : 0.8, ref: heard > 16 ? 9 : 5 });
+    // a miss that passes within a metre and a half of the head: the round's whizz, where it passed
+    if (!hit) {
+      const head = tmp2.set(player.feet[0], player.feet[1] + player.height, player.feet[2]), k = Math.max(0, Math.min(end.distanceTo(from), head.clone().sub(from).dot(dir)));
+      const near = from.clone().addScaledVector(dir, k);
+      if (k > 2 && near.distanceTo(head) < 1.5) { sfx.play('nd_whizz', { at: near.toArray(), gain: 0.9, ref: 1.5, rate: 0.9 + R() * 0.2 }); game.flags.whizzes = (game.flags.whizzes || 0) + 1; }
+    }
     if (hit) player.hurt(e.K.damage * (assist ? 0.12 : 1) * tune.dmg, e.pos);
     game.dirty = true;
   }
@@ -584,7 +599,7 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
     rim.value.set(0.05, 0.11, 0.14).multiplyScalar(1 + 5 * env.rim);
     return moved;
   }
-  const api = { list, byZone, start, update, damage, rayHit, noise, wake, alert, eyeOf, revive, park, retune, tune, env, on, stun, stunAt, jam, hackable, darken, lure, KIND,
+  const api = { list, byZone, start, update, damage, breakShield, rayHit, noise, wake, alert, eyeOf, revive, park, retune, tune, env, on, stun, stunAt, jam, hackable, darken, lure, KIND,
     get alive() { return list.filter((e) => !e.dead && e.active).length; }, get nav() { return nav; } };
   return api;
 }

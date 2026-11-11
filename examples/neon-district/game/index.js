@@ -6,19 +6,23 @@
 //   steam on the `steam` anchors, sparks on `sparks`, motes round the hologram, rain rings round the player.
 // Input beyond the engine's action map: fire (mouse button, F, right trigger, touch), aim (right button, left
 // trigger, Q, touch hold or toggle), reload (R, right bumper, touch), a strike with the stock (V, right stick click,
-// touch), lean (Z / X, touch), crouch (C, touch), the options panel (O, touch). The touch controls are in touch.js.
+// touch), lean (Z / X, touch), crouch (C, touch), the options panel (O, touch), the guns (1-5, the mouse wheel, pad Y
+// cycles, touch: the strip), the 0 unlock (0, both sticks clicked together, touch: a field in the options). The
+// touch controls are in touch.js; the feel (rumble, buzz, heartbeat, hit-stop) in feel.js.
 import * as THREE from 'three';
 import { FX } from './fx.js';
 import { createSfx } from './sfx.js';
 import { createHud } from './hud.js';
 import { createWeapon } from './weapon.js';
+import { ARMS } from './arms.js';
+import { createFeel } from './feel.js';
 import { createEnemies } from './enemies.js';
 import { createDrones } from './drones.js';
 import { createTitle } from './title.js';
 import { createTouch } from './touch.js';
 import { setupKit } from './kit.js';
 import { LANGS, pickLang } from './text.js';
-import { createAudioEngine, zonesFromPlan } from '@miragekit/game';
+import { createAudioEngine, zonesFromPlan, PAD } from '@miragekit/game';
 
 export const VERSION = 1;
 const UPLINK_S = 40;
@@ -38,15 +42,15 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
   const sfx = createSfx(audio), assist = Q.get('assist') === '1';
   const stats = { shots: 0, hits: 0, heads: 0, kills: 0, deaths: 0 };
   const hud = createHud({ camera: world.camera, onDispose, T });
-  let g = null, play = null, shake = 0, seed = 0x51ed270b, uplinkT = 0, sparkT = 2, lastFeet = null;
+  let g = null, play = null, weapon = null, seed = 0x51ed270b, uplinkT = 0, sparkT = 2, lastFeet = null;
   const R = () => ((seed = (Math.imul(seed ^ (seed >>> 15), 0x2c1b3c6d) ^ (seed << 7)) >>> 0) / 4294967296);
   const player = {
     hp: 100, dead: false, speed: 0, exposed: 0, height: 1.62, crouch: 0, wantCrouch: false, feet: [plan.spawn.eye[0], plan.spawn.eye[1] - 1.62, plan.spawn.eye[2]], lastHurt: -99,
     collider: () => (g ? g.character.collider : undefined),
-    shake(k) { shake = Math.min(1.5, shake + k); },
+    shake(k) { weapon?.addShake(k); },
     hurt(amount, from) {
       if (player.dead || game.flags.done) return;
-      player.hp -= amount; player.lastHurt = game.time; hud.hurt(from); sfx.play('nd_hurt', { gain: 0.7 }); player.shake(0.8); touch?.buzz(amount > 12 ? 60 : 30);
+      player.hp -= amount; player.lastHurt = game.time; hud.hurt(from, amount); sfx.play('nd_hurt', { gain: 0.7 }); weapon.flinch(from, Math.min(1.6, 0.5 + amount / 15)); feel.hurt(amount);
       if (player.hp <= 0) die();
     },
   };
@@ -64,35 +68,65 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
   const wake = (zone) => { enemies.wake(zone, player.feet); drones.wake(zone); };
   // the player's own settings (kept with the key bindings and volumes, not in a save)
   // touch: its own look sensitivity, the buttons' opacity and size, the left FIRE, the sprint lock
-  const opts = { sens: 1, fov: 62, invert: false, tSens: 1, tOpacity: 0.7, tScale: 1, leftFire: true, sprintLock: true, ...(game.settings.nd || {}) };
+  // feel: camera shake (0-1.5), vibration (0-1), the hit-stop on kills; with prefers-reduced-motion a calmer default
+  const calm = !!globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  const opts = { sens: 1, fov: 62, invert: false, tSens: 1, tOpacity: 0.7, tScale: 1, leftFire: true, sprintLock: true, shake: calm ? 0.3 : 1, vibrate: 1, hitStop: !calm, unlocked: false, ...(game.settings.nd || {}) };
   if (Q.get('fov')) opts.fov = Math.min(90, Math.max(50, +Q.get('fov')));
   if (Q.get('sens')) opts.sens = +Q.get('sens');
-  const weapon = createWeapon({ world, root, vfx, sfx, physics, M, player, targets, hud, stats, onReload: () => game.set('reloads', (game.flags.reloads || 0) + 1) });
+  const feel = createFeel({ opts, input, sfx, canvas: world.renderer.domElement, game });
+  // which room the shots ring in: the audio engine's zones (the bar, the relay) are indoors, the alley is the alley,
+  // the rest (the street, the plaza, the roofs) is open
+  const room = () => {
+    const z = reverb?.stats?.zones || {};
+    if (Object.values(z).some((w) => w > 0.5)) return 'indoor';
+    const p = player.feet, a = plan.alley.rect;
+    return p[0] > a[0] - 0.5 && p[0] < a[2] + 0.5 && p[2] > a[1] && p[2] < a[3] + 0.5 && p[1] < 3 ? 'alley' : 'open';
+  };
+  const saveOpts = () => { game.settings.nd = { ...opts }; game.saveSettings(); };
+  const onUnlock = (r) => {
+    if (r === 'unlocked') { opts.unlocked = true; saveOpts(); game.ui.toast(T.arms.unlocked); hud.radio(T.arms.unlockRadio); }
+    else if (r === 'refilled') game.ui.toast(T.arms.refilled);
+    else game.ui.toast(T.arms.wait(r));
+  };
+  weapon = createWeapon({ world, root, vfx, sfx, physics, M, player, targets, hud, stats, game, opts, feel, room, enemies, drones, onUnlock, assist, onReload: () => game.set('reloads', (game.flags.reloads || 0) + 1) });
   onDispose(() => weapon.dispose());
   weapon.S.fov = opts.fov;
   game.on('kill', (e) => { stats.kills++; game.set('kills', stats.kills); hud.feed(`${T.kinds[e.K.name]} ${T.destroyed}${stats.lastHead && e.K.name !== 'drone' ? ' · ' + T.weak : ''}`, stats.lastHead && e.K.name !== 'drone'); });
 
   // ---- input: held flags from the mouse, the keys, the pad and the touch buttons
   const held = { mouse: false, key: false, pad: false, aimMouse: false, aimKey: false, aimPad: false, leanL: false, leanR: false };
-  let touch = null, touchOk = false, lastMag = 0;
+  // pad Y cycles the guns here, so the engine's Y (the inventory panel) is taken off it (the bag stays on I)
+  PAD.inventory.length = 0;
+  const SLOT = Object.fromEntries(ARMS.map((a) => ['Digit' + a.slot, a.id]));
+  let wheelT = 0;
+  const drill = Q.get('drill') === '1';
+  let touch = null, touchOk = false, lastMag = 0, fallV = 0, wasAir = false;
   const look = new THREE.Vector3();
   const live = () => g && g.ui.started && !game.paused && !player.dead;
   const canvas = world.renderer.domElement;
   const listen = (t, ev, fn, o) => { t.addEventListener(ev, fn, o); onDispose(() => t.removeEventListener(ev, fn, o)); };
-  listen(document, 'mousedown', (e) => { if (document.pointerLockElement !== canvas) return; if (e.button === 0) held.mouse = true; if (e.button === 2) held.aimMouse = true; });
+  listen(document, 'mousedown', (e) => { if (document.pointerLockElement !== canvas) return; if (e.button === 0) held.mouse = held.tap = true; if (e.button === 2) held.aimMouse = true; });
   listen(document, 'mouseup', (e) => { if (e.button === 0) held.mouse = false; if (e.button === 2) held.aimMouse = false; });
   listen(canvas, 'contextmenu', (e) => e.preventDefault());
-  listen(window, 'keydown', (e) => { if (e.repeat || !live()) return; if (e.code === 'KeyF') held.key = true; if (e.code === 'KeyQ') held.aimKey = true; if (e.code === 'KeyR') weapon.S.wantReload = true;
-    if (e.code === 'KeyV') weapon.melee(); if (e.code === 'KeyZ') held.leanL = true; if (e.code === 'KeyX') held.leanR = true; if (e.code === 'KeyC' || e.code === 'ControlLeft') player.wantCrouch = !player.wantCrouch; });
+  listen(window, 'keydown', (e) => { if (e.repeat || !live()) return; if (e.code === 'KeyF') held.key = held.tap = true; if (e.code === 'KeyQ') held.aimKey = true; if (e.code === 'KeyR') weapon.S.wantReload = true;
+    if (e.code === 'KeyV') weapon.melee(); if (e.code === 'KeyZ') held.leanL = true; if (e.code === 'KeyX') held.leanR = true; if (e.code === 'KeyC' || e.code === 'ControlLeft') player.wantCrouch = !player.wantCrouch;
+    if (SLOT[e.code]) { if (!weapon.select(SLOT[e.code]) && !weapon.W[SLOT[e.code]].owned) game.ui.toast(T.arms.locked); }
+    if (e.code === 'Digit0' || e.code === 'Numpad0') weapon.unlock();
+    // the tests' drill (?drill=1): J stands the street's shield sentinel 8 m ahead, K a sentinel 4 m ahead, facing the player
+    if (drill && (e.code === 'KeyJ' || e.code === 'KeyK')) {
+      const en = enemies.list.find((x) => x.id === (e.code === 'KeyJ' ? 'g11' : 'g1')), d = e.code === 'KeyJ' ? 8 : 4, at = [player.feet[0] + Math.cos(play.yaw) * d, player.feet[1], player.feet[2] + Math.sin(play.yaw) * d];
+      en.yaw = Math.atan2(player.feet[0] - at[0], player.feet[2] - at[2]); enemies.revive(en, at, 1); en.drill = true; if (e.code === 'KeyK') enemies.stun(en, 4); game.set('drills', (game.flags.drills || 0) + 1);
+    } });
+  listen(window, 'wheel', (e) => { if (!live() || hud.optionsOpen || performance.now() - wheelT < 120 || Math.abs(e.deltaY) < 1) return; wheelT = performance.now(); weapon.cycle(e.deltaY > 0 ? 1 : -1); }, { passive: true });
   listen(window, 'keydown', (e) => { if (e.code === 'KeyT' && !e.repeat && live()) { const order = ['night', 'dawn', 'day', 'dusk'], next = order[(order.indexOf(hour()) + 1) % 4]; setHour(next); game.ui.toast(T.hours[next]); }
     if (e.code === 'KeyO' && !e.repeat && g && g.ui.started && !player.dead && (hud.optionsOpen || !game.paused)) toggleOptions(); });
   listen(window, 'keyup', (e) => { if (e.code === 'KeyF') held.key = false; if (e.code === 'KeyQ') held.aimKey = false; if (e.code === 'KeyZ') held.leanL = false; if (e.code === 'KeyX') held.leanR = false; });
   listen(window, 'blur', () => { for (const k of Object.keys(held)) held[k] = false; });
-  let padReload = false, padMelee = false;
+  let padReload = false, padMelee = false, padCycle = false, padBoth = false;
   // the options panel pauses the game; its values apply at once and are kept in the settings
   function toggleOptions() {
     const open = hud.options({ values: { ...opts, lang, hour: hour() }, touch: !!touch, onHour: (h) => setHour(h),
-      onChange: (k, v) => { opts[k] = v; if (k === 'fov') weapon.S.fov = v; game.settings.nd = { ...opts }; game.saveSettings(); touch?.apply(); },
+      onChange: (k, v) => { if (k === 'code') { if (/0/.test(String(v))) weapon.unlock(); return; } opts[k] = v; if (k === 'fov') weapon.S.fov = v; saveOpts(); touch?.apply(); },
       onClose: () => { if (!title.shown) game.pause(false); title.render(); },
       onLang: () => { const u = new URL(location.href); u.searchParams.set('lang', lang === 'zh' ? 'en' : 'zh'); location.href = u.href; } });
     if (open) { game.pause(true); touch?.reset(); if (document.pointerLockElement) document.exitPointerLock(); }
@@ -157,7 +191,7 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
     game.add(pickups[p.id] = { id: p.id, object: o, update: (dt, gm) => {
       t += dt; o.rotation.y = t * 1.1; o.position.y = p.at[1] + 0.34 + Math.sin(t * 2) * 0.04;
       if (player.dead || Math.hypot(player.feet[0] - p.at[0], player.feet[2] - p.at[2]) > 0.95 || Math.abs(player.feet[1] - p.at[1]) > 1.2) return;
-      if (ammo) { if (!weapon.give(48)) return; sfx.play('nd_ammo', { gain: 0.8 }); game.ui.toast(T.ammo); }
+      if (ammo) { const got = weapon.give(48, true); if (!got) return; sfx.play('nd_ammo', { gain: 0.8 }); game.ui.toast(`${T.ammo} · ${T.arms.short[weapon.lastGive]} +${got}`); }
       else { if (player.hp >= 100) return; player.hp = Math.min(100, player.hp + 45); sfx.play('nd_med', { gain: 0.8 }); game.ui.toast(T.med); }
       vfx.burst(FX.take, [p.at[0], p.at[1] + 0.3, p.at[2]]); gm.remove(p.id);
     } });
@@ -219,12 +253,18 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
     held.pad = pb(7); held.aimPad = pb(6);
     if (pb(5) && !padReload) weapon.S.wantReload = true;
     padReload = pb(5);
-    if (pb(11) && !padMelee && live()) weapon.melee();
+    if (pb(11) && !padMelee && live() && !pb(10)) weapon.melee();
     padMelee = pb(11);
+    if (pb(3) && !padCycle && live()) weapon.cycle(1);
+    padCycle = pb(3);
+    if (pb(10) && pb(11) && !padBoth && live()) weapon.unlock();   // both sticks clicked together
+    padBoth = pb(10) && pb(11);
     if (g.ui.touch && !touch) {   // the touch controls, once a finger is seen (or the screen is a touch screen)
       hud.touch();
-      touch = createTouch({ T, input, opts, parent: document.querySelector('.mg-touch'), onDispose, ready: () => g.ui.started, paused: () => game.paused || player.dead,
-        on: { reload: () => { weapon.S.wantReload = true; }, crouch: () => { player.wantCrouch = !player.wantCrouch; }, melee: () => { if (live()) weapon.melee(); }, options: toggleOptions } });
+      touch = createTouch({ T, input, opts, parent: document.querySelector('.mg-touch'), onDispose, ready: () => g.ui.started, paused: () => game.paused || player.dead, kit, weapon, live,
+        on: { reload: () => { weapon.S.wantReload = true; }, crouch: () => { player.wantCrouch = !player.wantCrouch; }, melee: () => { if (live()) weapon.melee(); }, options: toggleOptions,
+          select: (id) => { if (!live()) return; if (!weapon.select(id) && !weapon.W[id].owned) game.ui.toast(T.arms.locked); }, cycle: (d) => { if (live()) weapon.cycle(d); } } });
+      hud.avoid(() => touch.rects()); kit.overlay.avoid(hud.under);
     }
     const ok = live();
     if (touch) {
@@ -238,21 +278,33 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
         const o = world.camera.position.toArray(), dv = world.camera.getWorldDirection(look).toArray(), on = targets.rayHit(o, dv, 70);
         if (on && !physics.ray(o, dv, on.t, player.collider())) touch.slow = 0.45;
       }
-      if (weapon.S.mag === 0 && lastMag > 0) touch.buzz([30, 40, 30]);   // the magazine ran dry
+      touch.paint();
     }
+    if (weapon.S.mag === 0 && lastMag > 0 && weapon.S.reloading <= 0) feel.empty();   // the magazine ran dry
     lastMag = weapon.S.mag;
-    weapon.S.fire = ok && (held.mouse || held.key || held.pad || !!touch?.fire);
+    weapon.S.fire = ok && (held.mouse || held.key || held.pad || held.tap || !!touch?.fire);   // tap: a press shorter than a step still fires once
+    held.tap = false;
     weapon.S.aim = ok && (held.aimMouse || held.aimKey || held.aimPad || !!touch?.aim);
-    if (assist && weapon.S.reserve < 24) weapon.S.reserve = 24;   // the easy mode never runs dry (one magazine in reserve: low enough for ammo.js's marker)
+    if (assist && weapon.S.reserve < weapon.arm.mag) weapon.S.reserve = weapon.arm.mag;   // the easy mode never runs dry (one magazine in reserve: low enough for ammo.js's marker)
     // the look: the player's sensitivity and the inverted axis, applied to what the mouse and the stick turned since
     // the last tick (play turns the view itself, at a fixed rate)
     if (opts.sens !== 1 || opts.invert) { play.yaw = endYaw + (play.yaw - endYaw) * opts.sens; play.pitch = Math.max(-1.45, Math.min(1.45, endPitch + (play.pitch - endPitch) * opts.sens * (opts.invert ? -1 : 1))); }
     // crouching: a lower eye and a slower walk (the body's collider keeps its height: no crawling under things)
     player.crouch += ((ok && player.wantCrouch ? 1 : 0) - player.crouch) * Math.min(1, dt * 10); player.height = 1.62 - 0.6 * player.crouch;
-    g.character.body.walk = player.crouch > 0.5 ? 1.7 : 3.3; g.character.body.run = player.crouch > 0.5 ? 1.7 : 5.4;
+    // the gun's weight: the gatling slows the walk, more while it spins
+    const heavy = weapon.arm.walkFiring && weapon.S.spin > 0.3 ? weapon.arm.walkFiring : weapon.arm.walk;
+    g.character.body.walk = (player.crouch > 0.5 ? 1.7 : 3.3) * heavy; g.character.body.run = (player.crouch > 0.5 ? 1.7 : 5.4) * heavy;
+    // a landing: a thump, a dip of the view, a rumble
+    const ch = g.character;
+    if (!ch.onGround) fallV = Math.min(fallV, ch.vy);
+    else if (wasAir) { if (fallV < -3.2) { weapon.land(-fallV); feel.land(-fallV); game.flags.landings = (game.flags.landings || 0) + 1; } fallV = 0; }
+    wasAir = !ch.onGround;
     weapon.S.wantLean = ok ? Math.max(-1, Math.min(1, (held.leanR ? 1 : 0) - (held.leanL ? 1 : 0) + (touch?.lean || 0))) : 0;
     weapon.update(dt, ok);
-    enemies.update(dt); drones.update(dt);
+    feel.update(dt, player.hp, player.dead);
+    // a hit-stop: for a few hundredths of a second after a kill the robots hold still
+    const edt = feel.stopping ? dt * 0.08 : dt;   // not 0: the robots divide by their step
+    enemies.update(edt); drones.update(edt);
     reverb?.update(dt, world.camera);
     if (!said.spotted && enemies.list.some((e) => e.state === 'fight')) { said.spotted = true; hud.radio(T.radio.spotted); }
     if (player.hp < 35 && !player.dead && game.time - said.hurtT > 40) { said.hurtT = game.time; hud.radio(T.radio.hurt); }
@@ -268,7 +320,6 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
     // health: a little of it comes back out of a fight
     if (!player.dead && assist) player.hp = Math.min(100, player.hp + dt * 6);
     else if (!player.dead && player.hp < 50 && game.time - player.lastHurt > 5) player.hp = Math.min(50, player.hp + dt * 9);
-    if (shake > 0.01) { play.yaw += (R() - 0.5) * shake * 0.006; play.pitch += (R() - 0.5) * shake * 0.006; shake *= Math.exp(-dt * 9); }
     // the uplink: it runs for UPLINK_S seconds, and ends when the wave is down too
     if (H.on) holdout(dt);
     else if (game.flags.uplink && !game.flags.done) {
@@ -299,7 +350,7 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
     // the HUD
     const S = weapon.S;
     hud.update(dt, { hp: player.hp, dead: player.dead, mag: S.mag, reserve: S.reserve, reloading: S.reloading > 0, ads: S.ads, pos: p, yaw: play.yaw,
-      spread: (0.008 - 0.0055 * S.ads) + S.heat * 0.012 + Math.min(player.speed, 5) * 0.002,
+      spread: weapon.spread(), arm: weapon.arm, gun: { id: weapon.id, to: weapon.switchingTo, heat: S.heat, vent: S.vent, spin: S.spin, owned: weapon.W },
       tally: `${H.on ? T.waveN(Math.max(1, H.wave)) + ' · ' : ''}${stats.kills} ${T.down} · ${T.front.diffs[run.difficulty]}${assist ? ' · ' + T.assist : ''}`,
       ...(H.on ? waveBar() : { uplink: game.flags.uplink && !game.flags.done ? uplinkT / UPLINK_S : null, uplinkText: uplinkT >= UPLINK_S ? T.uplinkReady : `${T.uplink} ${Math.round(100 * uplinkT / UPLINK_S)} %` }), goal: goal(game) });
   });

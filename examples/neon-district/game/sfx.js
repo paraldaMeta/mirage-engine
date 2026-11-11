@@ -1,14 +1,29 @@
-// The game's own sounds, made in code like the engine's (no files): the carbine, the sentinels' bolts, a reload,
-// impacts, pickups, the uplink's alarm, and four loops (rain, a sign's hum, a vent's hiss, the score).
-// @miragekit/game's mixer has no call that adds a sound, so they are put into its buffer table (audio.buffers, the
-// field the audio engine reads) once the mixer exists, which is at the first user gesture.
+// The game's own sounds, made in code like the engine's (no files): pickups, the uplink's alarm, hurt, thunder, and
+// four loops (rain, a sign's hum, a vent's hiss, the score), given to the mixer with audio.add at the first gesture.
+// The guns, their mechanics, casings, impacts, the robots' rifles and the rest of the feel's sounds are layered
+// syntheses in gunsound.js: rendered offline, a buffer at a time over the first second or two after the first gesture
+// (about 1.3 s of work in all, a few ms a step, the carbine first), each handed to audio.add as it is done. Until a
+// gun's own buffers exist its shots fall back to `nd_shot` (the first carbine sound, kept below).
+import { SOUNDS, ORDER } from './gunsound.js';
 const TAU = Math.PI * 2;
 
 export function createSfx(audio) {
   let ready = false;
   const waiting = [], loops = [];
+  // the buffer table as the old code wrote it: every write goes to the mixer through audio.add
+  const B = new Proxy({}, { set: (o, k, v) => { audio.add(k, v); return true; } });
+  let queue = null;
+  function renderSome(budgetMs) {
+    const t0 = performance.now(), ctx = audio.ctx, SR = ctx.sampleRate;
+    while (queue.length && performance.now() - t0 < budgetMs) {
+      const job = queue.shift(), data = SOUNDS[job.name].render(SR, job.v), b = ctx.createBuffer(1, data.length, SR);
+      b.copyToChannel(data, 0);
+      job.list.push(b);
+      audio.add(job.name, job.list.length > 1 ? job.list.slice() : job.list[0]);
+    }
+  }
   function make() {
-    const ctx = audio.ctx, SR = ctx.sampleRate, B = audio.buffers;
+    const ctx = audio.ctx, SR = ctx.sampleRate;
     let seed = 0x2545f491;
     const rnd = () => ((seed = (seed ^ (seed << 13)) >>> 0, seed = (seed ^ (seed >>> 17)) >>> 0, seed = (seed ^ (seed << 5)) >>> 0) / 4294967296);
     const noise = () => rnd() * 2 - 1;
@@ -69,14 +84,27 @@ export function createSfx(audio) {
       }
     });
     ready = true;
+    queue = [];
+    for (const name of ORDER) { const list = []; for (let v = 0; v < SOUNDS[name].n; v++) queue.push({ name, v, list }); }
     for (const fn of waiting.splice(0)) fn();
   }
+  const has = (n) => !!audio.buffers?.[n];
   return {
-    /** call once a frame: builds the sounds when the mixer first exists (after the first gesture) */
-    poll() { if (!ready && audio.ctx && audio.buffers) make(); },
+    /** call once a step: builds the sounds when the mixer first exists (after the first gesture), then the guns' a few ms at a time */
+    poll() { if (!ready && audio.ctx && audio.buffers) make(); else if (queue?.length) renderSome(6); },
     get ready() { return ready; },
-    play(name, o) { return ready ? audio.play(name, o) : null; },
+    /** how many of the layered sounds are still to be made */
+    get pending() { return queue ? queue.length : -1; },
+    has,
+    /** a name, or a list of names: the first one that exists plays */
+    play(name, o) { if (!ready) return null; const n = Array.isArray(name) ? name.find(has) : name; return n ? audio.play(n, o) : null; },
     /** a loop that starts as soon as the sounds exist */
     loop(name, o) { const start = () => loops.push(audio.loop(name, o)); if (ready) start(); else waiting.push(start); },
+    /** a flat loop with a handle: stop(), rate(r); null while its buffer is not made yet */
+    loop2(name, o = {}) {
+      if (!ready || !has(name)) return null;
+      const h = audio.loop(name, { bus: 'sfx', ...o });
+      return { stop() { try { h.src?.stop(); } catch { /* already stopped */ } }, rate(r) { if (h.src) h.src.playbackRate.value = r; } };
+    },
   };
 }

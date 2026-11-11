@@ -1,5 +1,6 @@
 // Ammunition the player can find: never a dead end.
-//   cells    a destroyed sentinel drops an ammo cell (24 rounds) on a 35 % chance (every third kill at the latest);
+//   cells    a destroyed sentinel drops an ammo cell (24 units: rounds for the gun in hand, or the emptiest; arms.js
+//            `per` converts: 6 shells, 1 rocket, 60 gatling rounds) on a 35 % chance (every third kill at the latest);
 //            always when the reserve is under two magazines, and always for a kill with the stock; a destroyed or
 //            burnt-out kite drops a small one (12) where it lands. A cell glows, bobs, slides to a player who comes
 //            within 2.2 m, is taken by walking over it, and blinks out after 40 s. Eight at most (a pool).
@@ -49,8 +50,9 @@ export function createAmmo({ world, game, plan, weapon, player, vfx, sfx, lamps,
     game.set('drops', (game.flags.drops || 0) + 1);
   }
   game.on('kill', (e) => {
+    if (e.drill) return;   // the tests' drill (index.js ?drill=1): no drop, so the route's own drops stay as they were
     if (e.K.name === 'drone' || e.K.name === 'mender') return drop(e.pos, SMALL);
-    const low = weapon.S.reserve < LOW, melee = !!stats.meleeNow;
+    const L = weapon.lowInfo(), low = L.reserve < Math.min(LOW, L.low), melee = !!stats.meleeNow;
     since++;
     if (low || melee || since >= 3 || R() < 0.35) { since = 0; drop(e.pos, CELL); }
   });
@@ -84,10 +86,10 @@ export function createAmmo({ world, game, plan, weapon, player, vfx, sfx, lamps,
       if (!c.live) continue;
       c.t += dt;
       const d = Math.hypot(c.pos[0] - chest[0], (c.pos[1] - p[1]) * 0.5, c.pos[2] - chest[2]);
-      if (!player.dead && d < 2.2 && weapon.S.reserve < 168) { const k = Math.min(1, dt * 7); c.pos[0] += (p[0] - c.pos[0]) * k; c.pos[2] += (p[2] - c.pos[2]) * k; c.pos[1] += (p[1] - c.pos[1]) * k; }
+      if (!player.dead && d < 2.2 && weapon.wants()) { const k = Math.min(1, dt * 7); c.pos[0] += (p[0] - c.pos[0]) * k; c.pos[2] += (p[2] - c.pos[2]) * k; c.pos[1] += (p[1] - c.pos[1]) * k; }
       if (!player.dead && d < 0.9) {
         const got = weapon.give(c.n);
-        if (got > 0) { c.live = false; c.o.visible = false; sfx.play('nd_cell', { gain: 0.8 }); game.ui.toast(`${X.ammo} +${got}`); game.set('cellsTaken', (game.flags.cellsTaken || 0) + 1); continue; }
+        if (got > 0) { c.live = false; c.o.visible = false; sfx.play('nd_cell', { gain: 0.8 }); game.ui.toast(`${X.ammo} · ${T.arms.short[weapon.lastGive]} +${got}`); game.set('cellsTaken', (game.flags.cellsTaken || 0) + 1); continue; }
       }
       if (c.t > LIFE) { c.live = false; c.o.visible = false; continue; }
       c.o.position.set(c.pos[0], c.pos[1] + 0.22 + Math.sin(c.t * 3) * 0.05, c.pos[2]); c.o.rotation.y = c.t * 1.8;
@@ -101,15 +103,16 @@ export function createAmmo({ world, game, plan, weapon, player, vfx, sfx, lamps,
         continue;
       }
       if (!player.dead && Math.hypot(p[0] - c.at[0], p[2] - c.at[2]) < 1.05 && Math.abs(p[1] - c.at[1]) < 1.2) {
-        const got = weapon.give(CRATE);
+        const got = weapon.give(CRATE, true);
         if (got > 0) {
           c.full = false; c.t = REFILL; c.strip.material = bandOff; c.glyph.material.color.setRGB(1.6, 0.25, 0.2); c.lamp.power = 0.8; c.lamp.color = [1, 0.15, 0.1]; lamps.touch();
-          sfx.play('nd_ammo', { gain: 0.8 }); game.ui.toast(`${X.crate} +${got} · ${X.refill(REFILL)}`); game.set('cratesTaken', (game.flags.cratesTaken || 0) + 1);
+          sfx.play('nd_ammo', { gain: 0.8 }); game.ui.toast(`${X.crate} · ${T.arms.short[weapon.lastGive]} +${got} · ${X.refill(REFILL)}`); game.set('cratesTaken', (game.flags.cratesTaken || 0) + 1);
         }
       }
     }
     // the marker, when the reserve is low
-    const S = weapon.S, state = S.mag + S.reserve <= 0 ? 'dry' : S.reserve < LOW ? 'low' : 'ok';
+    // the gun in hand (with the sidearm in hand, the emptiest real gun: the sidearm itself never runs dry)
+    const S = weapon.lowInfo(), state = S.mag + S.reserve <= 0 ? 'dry' : S.reserve < Math.min(LOW, S.low) ? 'low' : 'ok';
     target = state === 'ok' ? null : nearest();
     if (state !== 'ok') { game.set('ammoLow', true); if (target && game.flags.ammoTarget !== target.id) game.set('ammoTarget', target.id); }
     else if (game.flags.ammoLow) game.set('ammoLow', false);

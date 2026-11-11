@@ -6,7 +6,13 @@
 //   right   drag anywhere that is not a button to turn. FIRE big and low; AIM above it; RELOAD, CROUCH, JUMP in an arc
 //           round FIRE; MELEE. A finger that starts on FIRE (either one) or AIM turns the view as it drags, so one thumb
 //           fires and aims at once. AIM and LEAN: hold for as long as held, a quick tap toggles.
-//   USE     centre right, only when there is something to use, with its label.
+//   kit     a column left of RELOAD / CROUCH: HACK (hold on a target: its pips, the ring filling, dimmed with the
+//           reason when nothing can be hacked), OVERDRIVE (a charge ring; lit when ready), GRENADE and DASH (cooldown
+//           sweeps). The API they use: kit.hack.start() / cancel() / target() / charges / max / progress,
+//           kit.abilities.use(name) / left(name) / cooldown(name) / charge / active.
+//   guns    a strip of the five slots at the bottom centre: tap a slot to switch, swipe across it to cycle (locked
+//           slots dashed; the 0 unlock is a field in the options panel).
+//   USE     centre right (left of the kit column), only when there is something to use, with its label.
 //   top right  the options panel and the overlay's menu. (The engine's quality / fps corner is hidden on touch: the
 //           right edge belongs to the thumb; the title already hides it.)
 // Every finger is its own pointer id (move, turn and fire together). It all feeds the engine's input (input.stick,
@@ -25,7 +31,27 @@ const CSS = `
 .ndt .ndt-b.fire.on{background:#ff3150a0}
 .ndt .ndt-b small{position:absolute;bottom:-1px;right:-1px;min-width:15px;height:15px;padding:0 3px;border-radius:8px;background:#03121a;border:1px solid #8ff0ff90;font-size:9px;line-height:13px;text-align:center}
 .ndt .ndt-b[hidden]{display:none}
-.ndt .ndt-use{border-radius:26px;display:flex;align-items:center;gap:8px;padding:0 16px 0 6px;max-width:250px;border-color:#ffd34a;color:#fff3c8;background:#1a1404d8;opacity:max(var(--o),.9);font:600 12px/1.25 system-ui,-apple-system,"PingFang TC","Noto Sans TC",sans-serif;letter-spacing:.01em;text-align:left}
+.ndt .ndt-b.kit{border-color:#7af0ffb0}
+.ndt .ndt-b.kit:before{content:"";position:absolute;inset:-1px;border-radius:50%;background:conic-gradient(#02080ce0 var(--cd,0%),transparent 0);pointer-events:none}
+.ndt .ndt-b.kit b{position:absolute;inset:0;display:grid;place-items:center;font-size:13px;color:#fff;text-shadow:0 0 3px #000;pointer-events:none}
+.ndt .ndt-b.kit.ready{border-color:#c8f8ff;box-shadow:0 0 8px #19d8ff80}
+.ndt .ndt-b.over{border-color:#ff6ac8b0;color:#ffd8f0}
+.ndt .ndt-b.over:before{background:conic-gradient(#ff3aa8 var(--ch,0%),transparent 0);-webkit-mask:radial-gradient(circle,transparent calc(50% - 4px),#000 calc(50% - 3px));mask:radial-gradient(circle,transparent calc(50% - 4px),#000 calc(50% - 3px))}
+.ndt .ndt-b.over.ready{border-color:#ff8ad0;box-shadow:0 0 12px #ff3aa8a0;opacity:1}.ndt .ndt-b.over.active{background:#ff3aa860}
+.ndt .ndt-b.hack{border-color:#19d8ffd0;color:#bff6ff}
+.ndt .ndt-b.hack:before{background:conic-gradient(#19d8ff var(--hp,0%),transparent 0);-webkit-mask:radial-gradient(circle,transparent calc(50% - 4px),#000 calc(50% - 3px));mask:radial-gradient(circle,transparent calc(50% - 4px),#000 calc(50% - 3px))}
+.ndt .ndt-b.hack.dim{opacity:calc(var(--o) * .5);border-color:#ff5a6a90;color:#ff9aa4}
+.ndt .ndt-b.hack.dim:before{background:none}
+.ndt .ndt-b.hack i{position:absolute;bottom:14%;left:50%;display:flex;gap:3px;transform:translateX(-50%);pointer-events:none}
+.ndt .ndt-b.hack i u{width:5px;height:5px;transform:rotate(45deg);border:1px solid #19d8ff;background:#03121a}.ndt .ndt-b.hack i u.on{background:#19d8ff}
+.ndt .ndt-b.hack em{position:absolute;right:calc(100% + 4px);top:50%;transform:translateY(-50%);font:600 9px/1.2 ui-monospace,monospace;letter-spacing:.06em;color:#ff9aa4;white-space:nowrap;font-style:normal;text-shadow:0 1px 2px #000;pointer-events:none}
+.ndt .ndt-guns{position:absolute;display:flex;gap:3px;padding:0;margin:0;border:0;background:none;touch-action:none;opacity:var(--o)}
+.ndt .ndt-guns i{position:relative;display:grid;place-items:center;width:30px;height:26px;border:1px solid #8ff0ff70;border-radius:5px;background:#03121acc;pointer-events:none}
+.ndt .ndt-guns i svg{width:26px;height:14px;fill:none;stroke:#e4fbff;stroke-width:1.6;stroke-linejoin:round}
+.ndt .ndt-guns i small{position:absolute;left:2px;top:0;font:600 7px/1 ui-monospace,monospace;opacity:.8}
+.ndt .ndt-guns i.cur{border-color:#fff;background:#19d8ff66;box-shadow:0 0 6px #19d8ff}
+.ndt .ndt-guns i.locked{opacity:.35;border-style:dashed}
+.ndt .ndt-use{border-radius:26px;display:flex;align-items:center;gap:8px;padding:0 16px 0 6px;max-width:200px;border-color:#ffd34a;color:#fff3c8;background:#1a1404d8;opacity:max(var(--o),.9);font:600 12px/1.25 system-ui,-apple-system,"PingFang TC","Noto Sans TC",sans-serif;letter-spacing:.01em;text-align:left}
 .ndt .ndt-use i{flex:none;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:#ffd34a;color:#1a1404}
 .ndt .ndt-use i svg{width:62%;height:62%}
 .ndt .ndt-use span{overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
@@ -46,7 +72,10 @@ body.nd-touch .mg-obj b{font-size:10px}
 body.nd-touch .mg-items li{font-size:11px;padding:3px 7px}
 body.nd-touch .mg-toast{top:34%;font-size:15px}
 body.nd-touch .mirage-hud{display:none!important}
+body.nd-touch .ndx-bar{display:none!important}
 `;
+
+import { ICON } from './hud.js';
 
 const svg = (d) => `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
 const G = {
@@ -62,6 +91,10 @@ const G = {
   opt: svg('<circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/>'),
   menu: svg('<path d="M5 7h14M5 12h14M5 17h14"/>'),
   lock: svg('<rect x="6" y="11" width="12" height="9" rx="1.6"/><path d="M9 11V8.2a3 3 0 0 1 6 0V11"/>'),
+  hack: svg('<path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4"/><path d="M9 12h6M12 9v6"/>'),
+  dash: svg('<path d="M3 12h11M10 7l5 5-5 5M18 5v14"/>'),
+  grenade: svg('<circle cx="12" cy="13.5" r="6"/><path d="M12 2.5v4M6 5l2.2 2.2M18 5l-2.2 2.2M9.5 13.5l1.7-2.5 1.7 3.5 1.6-2.5"/>'),
+  over: svg('<path d="M13 2.5 5 13.5h6l-1 8 8-11h-6z"/>'),
 };
 
 // the layout at a scale of 1 on a 844 x 390 screen: [id, side, a, b, r]. Side 'r': a is the centre's distance from
@@ -69,6 +102,10 @@ const G = {
 // round FIRE whose bounding squares do not overlap either (scripts/controls-check.mjs checks them at three sizes).
 const LAYOUT = [
   ['fire', 'r', 96, 92, 46],
+  ['dash', 'r', 232, 50, 22],
+  ['grenade', 'r', 232, 104, 22],
+  ['over', 'r', 232, 160, 24],
+  ['hack', 'r', 232, 226, 28],
   ['crouch', 'r', 172, 66, 26],
   ['reload', 'r', 172, 150, 26],
   ['aim', 'r', 104, 176, 32],
@@ -80,21 +117,26 @@ const LAYOUT = [
   ['opt', 'tr', 30, 30, 21],
   ['menu', 'tr', 82, 30, 21],
 ];
-const STICK = { a: 100, b: 96, r: 56 }, USE = { a: 152, b: 205, h: 46 }, EDGE = 10;
+const STICK = { a: 100, b: 96, r: 56 }, USE = { a: 268, b: 205, h: 46 }, GUNS = { b: 6 }, EDGE = 10;
+const KIT = ['hack', 'dash', 'grenade', 'over'], ARMS_IDS = ['sidearm', 'carbine', 'shotgun', 'rocket', 'gatling'];
 const TAP_S = 0.22, TAP_PX = 14;   // a quick tap: shorter than this and moved less than this toggles AIM / LEAN
 
 /**
  * @param o.T the language's table   o.input the engine's input   o.opts the player's settings (tSens, tOpacity,
  *   tScale, leftFire, sprintLock, sens)   o.parent the overlay's touch layer
- * @param o.on { reload(), crouch(), melee(), options() } the one-shot actions the game does itself
+ * @param o.on { reload(), crouch(), melee(), options(), select(id), cycle(dir) } the one-shot actions the game does itself
  * @param o.ready () => bool: the game has started (the title is gone)   o.paused () => bool
+ * @param o.kit the city kit (kit.js: hack, abilities)   o.weapon the arsenal (weapon.js: W, id, switchingTo)
  */
-export function createTouch({ T, input, opts, parent, on, ready, paused, onDispose }) {
+export function createTouch({ T, input, opts, parent, on, ready, paused, onDispose, kit = null, weapon = null }) {
   if (!document.getElementById('ndt-css')) { const s = document.createElement('style'); s.id = 'ndt-css'; s.textContent = CSS; document.head.appendChild(s); }
   const L = T.touch;
   const layer = document.createElement('div'); layer.className = 'ndt';
-  layer.innerHTML = LAYOUT.map(([id]) => `<button type="button" class="ndt-b ${id === 'fire' || id === 'fireL' ? 'fire' : ''}" data-b="${id}" aria-label="${L[id]}">${G[id.startsWith('fire') ? 'fire' : id]}${id === 'leanL' ? '<small>L</small>' : id === 'leanR' ? '<small>R</small>' : ''}</button>`).join('') +
-    `<button type="button" class="ndt-b ndt-use" data-b="use" hidden><i>${G.use}</i><span></span></button>
+  const inner = (id) => (id === 'leanL' ? '<small>L</small>' : id === 'leanR' ? '<small>R</small>' : id === 'hack' ? '<i><u></u><u></u><u></u></i><em></em>' : KIT.includes(id) ? '<b></b>' : '');
+  const cls = (id) => (id === 'fire' || id === 'fireL' ? 'fire' : id === 'hack' ? 'kit hack' : id === 'over' ? 'kit over' : KIT.includes(id) ? 'kit' : '');
+  layer.innerHTML = LAYOUT.map(([id]) => `<button type="button" class="ndt-b ${cls(id)}" data-b="${id}" aria-label="${L[id]}">${G[id.startsWith('fire') ? 'fire' : id]}${inner(id)}</button>`).join('') +
+    `<div class="ndt-guns" data-b="guns" role="toolbar" aria-label="${L.guns}">${ARMS_IDS.map((id, i) => `<i data-g="${id}"><small>${i + 1}</small>${ICON[id]}</i>`).join('')}</div>
+     <button type="button" class="ndt-b ndt-use" data-b="use" hidden><i>${G.use}</i><span></span></button>
      <div class="ndt-base"><div class="ndt-knob"></div></div><div class="ndt-lock" aria-hidden="true">${G.lock}</div>
      <div class="ndt-probe" style="position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)"></div>`;
   (parent || document.body).appendChild(layer);
@@ -121,6 +163,7 @@ export function createTouch({ T, input, opts, parent, on, ready, paused, onDispo
     }
     B.fireL.hidden = opts.leftFire === false;
     const u = B.use; u.style.right = `${(W - right + USE.a * k).toFixed(1)}px`; u.style.top = `${(bottom - USE.b * k - USE.h / 2).toFixed(1)}px`; u.style.height = `${USE.h}px`;
+    const gs = B.guns, gw = gs.offsetWidth || 162; gs.style.left = `${((W - gw) / 2).toFixed(1)}px`; gs.style.top = `${(H - Math.max(EDGE * 0.6, safe.b) - GUNS.b - 26).toFixed(1)}px`;
     R = STICK.r * k; rest = [left + STICK.a * k, bottom - STICK.b * k];
     if (!baseAt) showBase(rest);
     layer.style.setProperty('--o', String(+opts.tOpacity || 0.7));
@@ -195,12 +238,17 @@ export function createTouch({ T, input, opts, parent, on, ready, paused, onDispo
       case 'jump': input.hold('jump', true); break;
       case 'use': input.tap('interact'); break;
       case 'opt': on.options(); ptrs.delete(e.pointerId); b.classList.remove('on'); break;
+      case 'hack': kit?.hack.start(); break;
+      case 'dash': case 'grenade': kit?.abilities.use(role); break;
+      case 'over': kit?.abilities.use('overdrive'); break;
+      case 'guns': p.step = e.clientX; p.slot = gunAt(e.clientX, e.clientY); p.swiped = false; break;
       case 'menu': input.tap('menu'); ptrs.delete(e.pointerId); b.classList.remove('on'); break;
     }
   }
   function move(e) {
     const p = ptrs.get(e.pointerId); if (!p) return;
     if (p.role === 'stick') stickMove({ x: e.clientX, y: e.clientY });
+    else if (p.role === 'guns') { const dx = e.clientX - p.step; if (Math.abs(dx) > 26) { on.cycle?.(Math.sign(dx)); p.step = e.clientX; p.swiped = true; } }
     else if (p.role === 'look' || p.role === 'fire' || p.role === 'fireL' || p.role === 'aim') turn(p, e);
     p.x = e.clientX; p.y = e.clientY;
   }
@@ -215,6 +263,8 @@ export function createTouch({ T, input, opts, parent, on, ready, paused, onDispo
       case 'aim': st.aimHold = false; if (tap) st.aimLatch = !st.aimLatch; break;
       case 'leanL': case 'leanR': { const d = leanOf(p.role); st.leanHold = 0; if (tap) st.leanLatch = st.leanLatch === d ? 0 : d; break; }
       case 'jump': input.hold('jump', false); break;
+      case 'hack': kit?.hack.cancel(); break;
+      case 'guns': if (!p.swiped && p.slot && e.type === 'pointerup') on.select?.(p.slot); break;
     }
     paint();
   }
@@ -223,6 +273,27 @@ export function createTouch({ T, input, opts, parent, on, ready, paused, onDispo
   layer.addEventListener('pointerup', up);
   layer.addEventListener('pointercancel', up);
   layer.addEventListener('lostpointercapture', (e) => { if (ptrs.has(e.pointerId)) up(e); });
+  /** the slot under a point of the strip */
+  const gunAt = (x, y) => { for (const el of B.guns.children) { const r = el.getBoundingClientRect(); if (x >= r.left - 2 && x <= r.right + 2 && y >= r.top - 6 && y <= r.bottom + 6) return el.dataset.g; } return null; };
+  const shown = new Map(), held = (role) => [...ptrs.values()].some((q) => q.role === role);
+  const put = (el, k, v) => { let c = shown.get(el); if (!c) shown.set(el, (c = {})); if (c[k] === v) return; c[k] = v; if (k === 'text') el.textContent = v; else if (k === 'class') el.className = v; else el.style.setProperty(k, v); };
+  /** the kit's buttons and the gun strip, from the game's state (once a step) */
+  function paintKit() {
+    if (kit) {
+      const h = kit.hack, a = kit.abilities, t = h.held ? h.target() : null, why = h.held ? (t ? t.refusal : T.xt.noTarget) : (h.charges <= 0 && !h.free ? T.xt.noCharge : '');
+      put(B.hack, 'class', `ndt-b kit hack${why ? ' dim' : ''}${h.held ? ' on' : ''}`);
+      put(B.hack, '--hp', `${Math.round((h.held ? h.progress : 0) * 100)}%`);
+      put(B.hack.querySelector('em'), 'text', why);
+      [...B.hack.querySelectorAll('i u')].forEach((u, i) => put(u, 'class', i < h.charges || h.free ? 'on' : ''));
+      for (const n of ['dash', 'grenade']) {
+        const left = a.left(n), cd = a.cooldown(n) || 1;
+        put(B[n], 'class', `ndt-b kit${left <= 0 ? ' ready' : ''}${held(n) ? ' on' : ''}`); put(B[n], '--cd', `${Math.round(100 * left / cd)}%`); put(B[n].querySelector('b'), 'text', left > 0 ? String(Math.ceil(left)) : '');
+      }
+      put(B.over, 'class', `ndt-b kit over${a.charge >= 1 || a.active ? ' ready' : ''}${a.active ? ' active' : ''}${held('over') ? ' on' : ''}`); put(B.over, '--ch', `${Math.round(100 * (a.active ? 1 : a.charge))}%`);
+      put(B.over.querySelector('b'), 'text', a.active ? `${Math.ceil(kit.abilities.overLeft || 0)}` : '');
+    }
+    if (weapon) for (const el of B.guns.children) { const id = el.dataset.g, w = weapon.W[id]; put(el, 'class', `${id === (weapon.switchingTo || weapon.id) ? 'cur' : ''}${w.owned ? '' : ' locked'}`); }
+  }
   function paint() {
     B.aim.classList.toggle('lit', st.aimLatch);
     B.leanL.classList.toggle('lit', st.leanLatch === -1);
@@ -241,12 +312,14 @@ export function createTouch({ T, input, opts, parent, on, ready, paused, onDispo
     get slow() { return st.slow; },
     /** the settings changed: the layout again */
     apply() { layout(); },
+    /** once a step: the kit's cooldowns, the hack's ring and pips, the gun strip */
+    paint: paintKit,
     /** every finger let go and every latch off (a pause, a death, a load) */
     reset() {
       for (const p of ptrs.values()) p.el?.classList.remove('on');
       ptrs.clear(); Object.assign(st, { fire: 0, fireL: 0, aimHold: false, aimLatch: false, leanHold: 0, leanLatch: 0, armed: false });
       if (st.locked) st.locked = false;
-      endStick(); input.hold('jump', false); paint();
+      endStick(); input.hold('jump', false); paint(); kit?.hack.cancel();
     },
     /** USE: shown with its label while something can be used (null: hidden) */
     use(label) {

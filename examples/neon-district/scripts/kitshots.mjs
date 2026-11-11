@@ -2,7 +2,7 @@
 // Frames of the city as a weapon (kit.js): the scan view, a zone gone dark with its robots outlined, a turned kite at
 // work, the shield sentinel, the marksman's beam, the HUD with its cooldowns, the ammo marker, a comic hit word.
 //   node scripts/kitshots.mjs [dist] [--out out/kit] [--quality medium]
-// Driven with real keys where the player would use them (G held, 1, 2); the page's API places the view.
+// Driven with real keys where the player would use them (G held, Alt, H, B); the page's API places the view.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -69,14 +69,14 @@ await shot('marksman-beam');
 // 6. the HUD: dash and grenade cooling down, the overdrive part charged, a comic word, low ammunition
 await page.evaluate(() => { const m = window.__mirage; m.game.kit.abilities.gain(0.62); m.game.weapon.S.reserve = 10; });
 await place([10.2, 1.76, 0.9], [19, 2.6, -11]); await sleep(800);
-await page.keyboard.press('Digit1'); await sleep(300); await page.keyboard.press('Digit2'); await sleep(1500);
+await page.keyboard.press('AltLeft'); await sleep(300); await page.keyboard.press('KeyH'); await sleep(1500);
 await page.evaluate(() => { const m = window.__mirage; m.game.kit.story.pop('head', [18, 2.4, -9]); });
 await sleep(150);
 await shot('hud-cooldowns');
 console.log(await flags());
 // 7. overdrive: everything marked through walls
 await page.evaluate(() => { const m = window.__mirage; m.game.kit.abilities.gain(1); });
-await page.keyboard.press('Digit3'); await sleep(600);
+await page.keyboard.press('KeyB'); await sleep(600);
 await place([12, 1.76, -12], [16, 1.5, -25]); await sleep(900);
 await shot('overdrive');
 console.log('errors', errors);

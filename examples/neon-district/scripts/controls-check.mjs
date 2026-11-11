@@ -3,15 +3,22 @@
 //   title  without ?start=1: the title is up, the game paused and harmless, the camera flies; the keys change the
 //          mode and the difficulty (kept in the settings), Enter on DEPLOY starts the holdout on the relay roof
 //   holdout  ?start=1&mode=holdout&assist=1 for 40 s, a scripted gunner on the roof: a wave cleared or under way
-//   keys   C crouches, X leans, O opens the options panel (and a setting applies)
+//   keys   C crouches, X leans, O opens the options panel (and a setting applies); the guns: 1-3 select, 4 is locked,
+//          0 unlocks 4 and 5 with a full load (kept in the settings), 0 again within a minute does not refill, 5
+//          selects the gatling, the mouse wheel cycles, the sidearm fires 30 rounds and never runs dry; the hit-stop
+//          and shake options are kept
 //   pad    a standard-mapping gamepad (an injected Gamepad API shim): the d-pad works the title, A deploys, the stick walks, the right trigger fires, the
-//          left trigger aims, the right bumper reloads, Start opens the menu and B closes it
+//          left trigger aims, the right bumper reloads, Start opens the menu and B closes it, Y cycles the guns,
+//          both sticks clicked together unlock slots 4 and 5 (and do not strike)
 //   touch  an emulated phone held sideways (844 x 390, touch events with several fingers at once): the title fits, a
 //          tap on DEPLOY starts; at 844 x 390, 667 x 375 and 932 x 430 no control overlaps another or leaves the
 //          screen; a drag on the right turns; the floating stick walks; the sprint lock holds and ends; a finger on
 //          FIRE fires and turns; AIM tap toggles and hold aims; the stick and FIRE together; the left FIRE; RELOAD,
 //          CROUCH, LEAN (hold and toggle), MELEE, JUMP; USE appears at the relay door with its label and opens it;
-//          the options' touch settings are kept and applied. Then the same HUD in Chinese. Screenshots: out/touch-*.png
+//          the options' touch settings are kept and applied; HACK held (dimmed with a reason on nothing, the ring
+//          fills and the hack lands on a street lamp), DASH, GRENADE and OVERDRIVE with their cooldown / charge, the
+//          gun strip (a tap selects, a locked slot stays locked, a swipe cycles), the 0 field in the options unlocks;
+//          no world marker drawn on a button. Then the same HUD in Chinese. Screenshots: out/touch-*.png
 // usage: node scripts/controls-check.mjs [dist]      (build first: npm run build -w neon-district)
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -123,6 +130,36 @@ if (want('keys')) { // ---- keyboard extras: crouch, lean, the options panel
   await page.keyboard.press('KeyO'); await sleep(300);
   s = await more();
   check('keys', 'the field of view setting applies, O closes', !s.panel && !s.paused && s.fov === 80, `fov ${s.fov}`);
+  // the guns
+  const armsOf = () => page.evaluate(() => { const m = window.__mirage, w = m.game.weapon; return { id: w.id, unlocked: w.unlocked, rocket: { ...w.W.rocket }, gatling: { ...w.W.gatling }, sidearm: { mag: w.W.sidearm.mag, inf: w.W.sidearm.reserve === Infinity }, flags: { ...m.g.game.flags }, kept: JSON.parse(localStorage.getItem('mirage:neon-district:settings') || '{}').nd || {} }; });
+  await page.keyboard.press('Digit3'); await sleep(700);
+  let a = await armsOf();
+  const three = a.id;
+  await page.keyboard.press('Digit1'); await sleep(700);
+  a = await armsOf();
+  check('keys', '3 selects the shotgun, 1 the sidearm', three === 'shotgun' && a.id === 'sidearm', `${three}, ${a.id}`);
+  await page.keyboard.press('Digit4'); await sleep(600);
+  a = await armsOf();
+  check('keys', '4 is locked before the unlock', a.id === 'sidearm' && !a.rocket.owned, `in hand ${a.id}`);
+  await page.keyboard.press('Digit0'); await sleep(400);
+  a = await armsOf();
+  check('keys', '0 unlocks 4 and 5 with a full load, kept in the settings', a.unlocked && a.rocket.owned && a.rocket.mag === 1 && a.rocket.reserve === 6 && a.gatling.mag === 200 && a.gatling.reserve === 400 && a.kept.unlocked === true, JSON.stringify({ rocket: a.rocket, gatling: a.gatling, kept: a.kept.unlocked }));
+  await page.evaluate(() => { window.__mirage.game.weapon.W.gatling.reserve = 0; });
+  await page.keyboard.press('Digit0'); await sleep(300);
+  a = await armsOf();
+  check('keys', '0 again within a minute does not refill', a.gatling.reserve === 0, `gatling reserve ${a.gatling.reserve}`);
+  await page.keyboard.press('Digit5'); await sleep(700);
+  const five = (await armsOf()).id;
+  await page.mouse.move(640, 360); await page.mouse.wheel({ deltaY: 120 }); await sleep(700);
+  const w1 = (await armsOf()).id;
+  await page.mouse.wheel({ deltaY: -120 }); await sleep(700);
+  const w2 = (await armsOf()).id;
+  check('keys', '5 selects the gatling; the wheel cycles (down: on, up: back)', five === 'gatling' && w1 === 'sidearm' && w2 === 'gatling', `${five} -> ${w1} -> ${w2}`);
+  await page.keyboard.press('Digit1'); await sleep(700);
+  for (let i = 0; i < 30; i++) { await page.keyboard.down('KeyF'); await sleep(40); await page.keyboard.up('KeyF'); await sleep(i % 12 === 11 ? 1500 : 140); }
+  await sleep(1500);
+  a = await armsOf();
+  check('keys', 'the sidearm fires 30 rounds and never runs dry', (a.flags.shots_sidearm || 0) >= 28 && a.sidearm.inf && a.sidearm.mag > 0, `shots ${a.flags.shots_sidearm}, magazine ${a.sidearm.mag}, reserve endless ${a.sidearm.inf}`);
   check('keys', 'no console errors', errors.length === 0, errors[0] || '');
   await b.close();
 }
@@ -156,6 +193,14 @@ if (want('pad')) { // ---- gamepad
   await padSet(page, { buttons: { 1: 1 } }); await sleep(200); await padSet(page, { buttons: { 1: 0 } }); await sleep(300);
   s = await state(page);
   check('pad', 'B closes it', !s.paused);
+  const gun = () => page.evaluate(() => { const w = window.__mirage.game.weapon; return { id: w.switchingTo || w.id, unlocked: w.unlocked, jab: w.S.jab, inv: !!document.querySelector('.mg-dialog[open], dialog[open]') }; });
+  const g0 = await gun();
+  await padTap(page, 3); await sleep(500);
+  const g1 = await gun();
+  check('pad', 'Y cycles the guns (and opens no bag)', g0.id === 'carbine' && g1.id === 'shotgun' && !g1.inv, `${g0.id} -> ${g1.id}`);
+  await padSet(page, { buttons: { 10: 1, 11: 1 } }); await sleep(250); await padSet(page, { buttons: { 10: 0, 11: 0 } }); await sleep(300);
+  const g2 = await gun();
+  check('pad', 'both sticks clicked together unlock 4 and 5 (no strike)', g2.unlocked && g2.jab === 0, `unlocked ${g2.unlocked}, jab ${g2.jab}`);
   check('pad', 'no console errors', errors.length === 0, errors[0] || '');
   await b.close();
 }
@@ -328,6 +373,63 @@ if (want('touch')) {
     `rows ${rows.join(',')}, fits ${fit}, kept ${JSON.stringify(kept)}, FIRE ${C.fire[2].toFixed(0)} -> ${big[2].toFixed(0)} px`);
   const L = await layoutOf(page);
   check('touch', 'at the largest button size still nothing overlaps at 844 x 390', !L.out.length && !L.over.length, JSON.stringify({ out: L.out, over: L.over }));
+  await page.screenshot({ path: path.join(here, '../out/touch-en-125.png') }).catch(() => {});
+  // the kit: HACK, DASH, GRENADE, OVERDRIVE
+  for (const id of ['hack', 'dash', 'grenade', 'over']) C[id] = await centre(page, id);
+  const kitOf = () => page.evaluate(() => { const m = window.__mirage, k = m.game.kit, q = (id) => document.querySelector(`.ndt [data-b="${id}"]`);
+    return { held: k.hack.held, prog: k.hack.progress, hacks: m.g.game.flags.hacks || 0, dim: q('hack').classList.contains('dim'), why: q('hack').querySelector('em').textContent, pips: q('hack').querySelectorAll('i u.on').length,
+      dash: k.abilities.left('dash'), dashes: m.g.game.flags.dashes || 0, nade: k.abilities.left('grenade'), cd: getComputedStyle(q('dash')).getPropertyValue('--cd'), over: k.abilities.active, overReady: q('over').classList.contains('ready'), overs: m.g.game.flags.overdrives || 0 }; });
+  await toSpawn(page); await page.evaluate(() => window.__mirage.play.lookAt([-22, 40, 0])); await sleep(300);
+  await f.down(5, C.hack[0], C.hack[1]); await sleep(400);
+  let k1 = await kitOf();
+  await f.up(5); await sleep(200);
+  check('touch', 'HACK held on nothing: dimmed, with the reason', k1.held && k1.dim && k1.why.length > 0 && k1.pips === 3, JSON.stringify({ held: k1.held, dim: k1.dim, why: k1.why, pips: k1.pips }));
+  await page.evaluate(() => window.__mirage.play.place([-14.5, 1.62, 8.4], [-17, 5.0, 7.85], 'walk')); await sleep(500);
+  await f.down(5, C.hack[0], C.hack[1]); await sleep(450);
+  k1 = await kitOf(); await sleep(700);
+  const k2 = await kitOf();
+  await f.up(5); await sleep(300);
+  check('touch', 'HACK held on a street lamp: the ring fills, the hack lands', k1.prog > 0.2 && !k1.dim && k2.hacks >= 1, `ring ${k1.prog.toFixed(2)}, hacks ${k2.hacks}, pips ${k2.pips}`);
+  await f.tap(5, C.dash); await sleep(300);
+  k1 = await kitOf();
+  check('touch', 'DASH dashes, its sweep shows the cooldown', k1.dashes >= 1 && k1.dash > 3 && parseFloat(k1.cd) > 40, `dashes ${k1.dashes}, left ${k1.dash.toFixed(1)} s, sweep ${k1.cd}`);
+  await f.tap(5, C.grenade); await sleep(300);
+  k1 = await kitOf();
+  check('touch', 'GRENADE throws, cooling down', k1.nade > 10, `left ${k1.nade.toFixed(1)} s`);
+  await page.evaluate(() => window.__mirage.game.kit.abilities.gain(1)); await sleep(200);
+  const ready = (await kitOf()).overReady;
+  await f.tap(5, C.over); await sleep(300);
+  k1 = await kitOf();
+  check('touch', 'OVERDRIVE: its ring full and lit, a tap starts it', ready && k1.over && k1.overs >= 1, `ready ${ready}, active ${k1.over}`);
+  // the gun strip: a tap selects, a locked slot stays locked, a swipe cycles
+  const slot = (id) => page.evaluate((id) => { const r = document.querySelector(`.ndt-guns [data-g="${id}"]`).getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, id);
+  const held = () => page.evaluate(() => window.__mirage.game.weapon.switchingTo || window.__mirage.game.weapon.id);
+  await f.tap(6, await slot('sidearm')); await sleep(700);
+  const t1 = await held();
+  await f.tap(6, await slot('rocket')); await sleep(700);
+  const t2 = await held();
+  const sp = await slot('carbine');
+  await f.down(6, sp[0] - 30, sp[1]); await f.drag(6, sp[0] - 30, sp[1], 64, 0, 200, 6); await f.up(6); await sleep(700);
+  const t3 = await held();
+  check('touch', 'the gun strip: a tap selects, a locked slot stays, a swipe cycles', t1 === 'sidearm' && t2 === 'sidearm' && t3 !== 'sidearm', `${t1}, locked tap -> ${t2}, swipe -> ${t3}`);
+  // the 0 field in the options
+  await f.tap(2, C.opt); await sleep(300);
+  await page.evaluate(() => { const i = document.querySelector('.nd-opt [data-c=code]'); i.value = '0'; i.dispatchEvent(new Event('input')); });
+  await sleep(200);
+  await f.tap(2, C.opt); await sleep(300);
+  await f.tap(6, await slot('rocket')); await sleep(800);
+  const t4 = await page.evaluate(() => ({ id: window.__mirage.game.weapon.id, unlocked: window.__mirage.game.weapon.unlocked, locked: document.querySelector('.ndt-guns [data-g="rocket"]').classList.contains('locked') }));
+  check('touch', 'the options\' code field: 0 unlocks, the strip\'s slot 4 opens and selects', t4.unlocked && !t4.locked && t4.id === 'rocket', JSON.stringify(t4));
+  // world markers keep off the buttons: turn round the spawn, the objective's marker never sits on a control
+  await toSpawn(page);
+  let onButton = 0, shown = 0;
+  for (let i = 0; i < 16; i++) {
+    const r = await page.evaluate((i) => { const m = window.__mirage; m.play.yaw = i * Math.PI / 8; m.play.pitch = -0.35 + (i % 4) * 0.15; return true; }, i); void r;
+    await sleep(120);
+    const hit = await page.evaluate(() => { const el = document.querySelector('.nd-mark'); if (!el || el.hidden) return null; const b = el.getBoundingClientRect(), op = +getComputedStyle(el).opacity; const rs = window.__mirage.game.touch.rects(); return { op, on: rs.filter(([n]) => n !== 'stick' && n !== 'lock').some(([, l, t, r, bb]) => b.left < r && l < b.right && b.top < bb && t < b.bottom) }; });
+    if (hit) { shown++; if (hit.on && hit.op > 0.3) onButton++; }
+  }
+  check('touch', 'no world marker drawn on a button (it moves above it or fades)', shown > 0 && onButton === 0, `shown in ${shown} of 16 views, on a button ${onButton}`);
   check('touch', 'no console errors', errors.length === 0, errors[0] || '');
   await b.close();
 }

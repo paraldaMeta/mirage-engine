@@ -13,11 +13,18 @@ node examples/neon-district/scripts/measure.mjs --ab                   # frame t
 node examples/neon-district/scripts/controls-check.mjs                 # title, holdout, keys, gamepad and touch, with real events (ONLY=touch: one part)
 node examples/neon-district/scripts/gameshots.mjs                      # frames of the running game, a contact sheet
 node examples/neon-district/scripts/kitshots.mjs                       # the hacks, abilities and new jobs in frames (out/kit)
+node examples/neon-district/scripts/weaponshots.mjs                    # every gun at the hip and aimed, night and dusk, a rocket, the touch HUD (out/weapons)
+node examples/neon-district/scripts/sfx-check.mjs                      # the guns' sounds measured (envelope, tail per room, spectrum): no build needed
 ```
 
-The playtest takes about nine minutes: it plays the route (152 steps: every wall, door and stair on it, the hacks, the abilities, the ammunition, the
-fights, the pass, the relay door, the uplink and its wave) and a view with rain never comes to rest, which the tool
-waits for before each of its 17 screenshots.
+The playtest takes about ten minutes: it plays the route (177 steps: every wall, door and stair on it, the hacks, the abilities, the ammunition, the
+fights, the pass, the relay door, the uplink and its wave; and the guns: the 0 unlock, a rocket into a shield
+sentinel (a splash kill that breaks its shield), the shotgun on a sentinel up close (both stood in front of the player
+by the test hook `?drill=1` at the spawn, before the route: J the street's shield sentinel 8 m ahead, K a sentinel
+4 m ahead, so they do not depend on where the route's robots happen to be; the second stunned, neither drops a cell), before the uplink
+completes the gatling sweeps the wave, then on
+the roof every slot fired, the sidearm past its magazine and on, the gatling spun up until it overheats) and a view
+with rain never comes to rest, which the tool waits for before each of its 24 screenshots.
 
 Everything is made in code. There is no texture, model or sound file in the folder: surfaces are GLSL hooks,
 signs are text drawn into a canvas with the system's own font (so the glyph shapes follow the machine: the
@@ -42,9 +49,10 @@ the first click. Nothing was taken from another project.
   options (alley: a breaker, two vents, two signs; street: lamps, cars, vents, signs, a kite; bar: a breaker, two
   signs; plaza: four lamps, vents, signs, kites, the mender; server room: its breaker and the robots themselves; roof:
   its breaker, the parapet sign, the wave's kites). The first fight teaches it with a radio line and a prompt.
-- **Abilities** (`game/abilities.js`): **dash** (1; 5 m the way you move, 0.35 s in which every shot misses, 5 s),
-  **EMP grenade** (2; an arc, stuns robots within 5 m for 4 s, 12 s), **overdrive** (3; charged by damage dealt, kills
-  and hacks; 8 s of everything marked through walls, fire 1.7 x as fast, reloads in half the time, free hacks).
+- **Abilities** (`game/abilities.js`): **dash** (Alt; 5 m the way you move, 0.35 s in which every shot misses, 5 s),
+  **EMP grenade** (H; an arc, stuns robots within 5 m for 4 s, 12 s), **overdrive** (B; charged by damage dealt, kills
+  and hacks; 8 s of everything marked through walls, fire 1.7 x as fast, reloads in half the time, free hacks; every
+  gun: the gatling spins up faster too). The keys were 1 2 3; those are the guns' slots now.
 - **Enemy jobs** (`game/enemies.js`, `game/drones.js`), on the two rigs, each with its own accent and tell: the
   **shield sentinel** (amber; a curved shield that stops rounds from the front: flank it, EMP it, hack it, or shoot
   the lit emitter on its lower rim), the **marksman** (violet; holds the relay's roof over the plaza; a beam tightens
@@ -68,19 +76,94 @@ the first click. Nothing was taken from another project.
   voice (a synthesised blip). Comic hit words pop on head shots, shield breaks, EMPs and overloads (the options
   panel turns them off). All of it in English and Traditional Chinese (`game/text.js`, the `xt` tables).
 
-Keys and buttons of the kit (the touch layer is wired separately, through the API in `game/kit.js`):
+Keys and buttons of the kit (the touch layer's buttons use the API in `game/kit.js`):
 
-| | keyboard / mouse | gamepad |
-|---|---|---|
-| hack (hold) | G | B |
-| dash · EMP grenade · overdrive | 1 · 2 · 3 (mouse back / forward: dash / grenade) | d-pad left · d-pad right · d-pad up |
+| | keyboard / mouse | gamepad | touch |
+|---|---|---|---|
+| hack (hold) | G | B | HACK, held (its pips, the ring filling; dimmed with the reason when nothing can be hacked) |
+| dash · EMP grenade · overdrive | Alt · H · B (mouse back / forward: dash / grenade) | d-pad left · d-pad right · d-pad up | DASH · GRENADE (cooldown sweeps) · OVERDRIVE (a charge ring) |
+
+## The arsenal
+
+Five guns from one table (`game/arms.js`), each with its own view model (`game/viewmodels.js`: extruded profiles,
+lathes, rounded boxes, the gloved hands modelled once round the carbine and moved onto each gun's grip and support),
+rounds, crosshair, recoil pattern, muzzle flash, tracer or projectile, casings and sounds (`game/weapon.js`).
+
+| slot | gun | kind | magazine / reserve (max) | rate | damage | reload | what it is for |
+|---|---|---|---|---|---|---|---|
+| 1 | P-9 sidearm | semi-auto, hit-scan | 12 / endless | 0.16 s (held: 0.3 s) | 21 | 1.25 s | never dry: you are never weaponless |
+| 2 | K-7 carbine | automatic, hit-scan | 24 / 96 (168) | 0.095 s | 22 | 1.7 s | the all-rounder (the first gun, as before) |
+| 3 | M-12 shotgun | pump, 9 pellets | 6 / 18 (36) | 0.82 s | 12 a pellet, 30 % past 22 m | 0.42 s + 0.5 s a shell | up close; a pellet within 8 m does 3.2 x to a shield |
+| 4 | RL-4 rocket launcher (locked) | a projectile, 34 m/s, aimed from the tube at the crosshair's point, a 0.9 m proximity fuse | 1 / 4 (6) | 1 s | 220, splash 5.5 m with falloff | 2.6 s | breaks every shield in the blast; hurts you too (35 %) |
+| 5 | G-6 gatling (locked) | spin-up 0.7 s, then 24 a second | 200 / 200 (400) | 0.042 s | 11 | 3 s | a heat gauge: full, it vents until 30 %; you walk at half pace while it spins |
+
+- **The unlock.** `0` (pad: both sticks clicked together; touch: the options panel's code field, type 0) gives slots
+  4 and 5 with a full load, a toast, a radio line and a sound; kept in the settings (`game.settings.nd.unlocked`), so
+  they are there on the next visit. Again: a refill of both, at most once a minute (a toast says how long to wait).
+- **Switching.** 1-5, the mouse wheel, pad Y (which cycles; the engine's Y for the bag is taken off it, the bag stays on
+  I), the touch strip (tap a slot, swipe across it). Holster 0.2 s, the next one up in 0.33 s.
+- **Ammunition** (`game/ammo.js`). A cell or a crate is units of ammunition (24 / 48), given to the gun in hand or, if
+  it is full or the sidearm, to the emptiest; `per` in the table converts (a cell: 24 carbine rounds, 6 shells, 1
+  rocket, 60 gatling rounds); a crate gives half as much again to the other guns. The low-ammo marker counts the gun in
+  hand (with the sidearm in hand, the emptiest real gun). The last round in a magazine starts the reload by itself.
+- **Overdrive** works for all of them (fire 1.7 x as fast, reloads and shell inserts in half the time, a faster
+  spin-up); the EMP, the hacks and the stock work as before. The kill feed and the hit markers are per target, also
+  for pellets and splash.
+- **Feel.** A patterned climb per gun (a vertical climb that rises through a burst, a fixed side pattern, a little
+  noise) that comes back after the burst (a good part of it springs back during one) unless the player pulled down
+  against it (what the player turns down is paid off the debt); the gun kicks back and rolls; a short field-of-view punch (1-4 degrees); spread that blooms and
+  shows in the crosshair (the crosshair's gap is the spread's angle at the current lens); a screen shake by gun and a
+  much larger one for a blast, falling off over 34 m; a muzzle lamp of 20-60 (a clustered lamp of 10-14 m) for 0.04 s
+  that lights the walls round the player; casings (brass, the shotgun's red hulls) that fall, bounce and tinkle where
+  they land; a hit-stop of 55 ms on a kill (the robots freeze; options); a hurt that flinches the view away from the
+  shot, a larger arrow toward it, a stronger red edge, the colour going out of the world below 30 health (a CSS
+  saturate on the canvas) and a heartbeat below 25; a landing thump with a dip of the view; a walk bob on the camera
+  tied to speed. All camera offsets are applied once a frame after play has written the camera, so they never move
+  the aim. Options: camera shake 0-1.5, vibration 0-1, hit-stop on / off; with `prefers-reduced-motion` the shake
+  starts at 0.3 and the hit-stop off.
+- **Haptics** (`game/feel.js`). The pad's `vibrationActuator.playEffect('dual-rumble', ...)` on every shot (by gun,
+  70 ms apart at most for automatic fire), a hit taken, a blast (by distance), an empty magazine, a reload done, a
+  landing, a kill, the heartbeat. A phone's `navigator.vibrate` per gun on fire (110 ms apart at most for automatic
+  fire), a hit, a blast, a reload done, an empty magazine. The vibration option shortens the phone's pulses and scales
+  the rumble's magnitudes.
+
+**The sound** (`game/gunsound.js`, rendered offline in JS into buffers and handed to the mixer with `audio.add`, a
+few ms of work a step after the first gesture, the carbine first). A shot is five layers: a 2-3 ms broadband snap
+through a high band, a band-passed crack with a fast decay, a thump falling from about 150 to 50 Hz, the mechanism's
+short metallic resonances (slide, bolt), and a low-passed body; then the room the player stands in, from the audio
+engine's zones: the alley a tight slapback (echoes 31 ms apart off its two walls), the street and the plaza a long
+diffuse tail with late reflections off far facades (rt60 1.8 s), the bar and the relay a short boxy room (rt60 0.3 s, a
+lift at 260 Hz). Light tanh saturation, then a look-ahead peak limiter at -0.6 dBFS. Three or four variants a sound
+(+-3 % pitch, +-1 dB, up to 1.5 ms between layers). The pistol is snappy (bright, short), the carbine cracks (a second
+lower crack, the bolt's ring), the shotgun booms (a slow, deep thump and body; the pump's two clacks 0.3 s later), the
+gatling is a 1.6 s loop of 25 overlapping rounds a second with its room folded in, a motor whine whose rate follows the
+spin and a spin-down, the rocket a whoosh (noise faded across four bands) and a blast with a sub that falls from 58 to
+27 Hz, a roaring body and 46 pieces of debris over 1.6 s. Also: dry-fire clicks, magazine out / in, bolt, slide, pump,
+a shell going in, the rocket loading, brass and hull casings (2-3 variants), impacts by surface (concrete, metal and
+glass from the collider's material; robot armour), the whizz of a sentinel's round passing within 1.5 m, the sentinels'
+rifles near and far (beyond 16 m a duller, quieter version with more of the street in it), a heartbeat, a landing.
+`scripts/sfx-check.mjs` renders every one in headless Chrome, plays it through an OfflineAudioContext and measures
+it: peak 0.80-0.99 and no sample at full scale, attack under 5 ms, the tail ordered indoor < alley < open for every gun
+(the alley 0.4-1.1 s, the street over 1.1 s), the spectral centroid of the first 43 ms in each gun's band (the
+shotgun and the blast darker than the carbine), the share under 200 Hz, the variants differing. The bands were set
+around what the synthesis was designed to do: the check guards the character, it does not prove it sounds right.
+
+What is rough here: nobody has listened to it. The sounds were designed by numbers and checked by analysis; how
+they sound to a human ear, on speakers or a phone, is untested. The rumble and the phone buzz are called and counted
+but never felt (no pad or phone here). The view models are good from the player's seat and crude from anywhere else
+(they are only ever seen from the eye); the hands are the carbine's hands moved onto each grip, so the pistol's
+support hand and the gatling's front hand are approximations. The rocket has no sound in flight (the mixer's 3D
+loops cannot move); a blast's splash is blocked by a wall only on a straight line from its centre. The hit-stop
+freezes the robots and their animation, not the engine's clock (the robots' step runs at 8 % for 55 ms). The touch
+buttons follow the layout rule but were only tried in an emulated phone. The rocket's self-damage is a fifth of
+that in the easy mode.
 
 What is rough: the bar's paper lanterns and bottle neon and every LED wall are shared emissive materials, so a dark
 zone leaves them glowing (a street lamp's panel gets a dark cover instead); the bar's baked irradiance probes keep a
 little of the lamps' bounce in the dark. The marksman's beam is a stretched box, not a volumetric beam. Robots do
 not hear the steam or the alarm of a car beyond the radius; a lured sentinel looks round the car, then goes home.
 Banter is timed with the page clock, not the game's (a pause does not hold a pair mid-line). The holdout's wave
-composition is checked only for its first waves by the scripted test. Tests: `?reserve=N` starts with N rounds in
+composition is checked only for its first waves by the scripted test. Tests: `?drill=1` (see the playtest above); `?reserve=N` starts with N rounds in
 reserve (the playtest starts low so a drop, the marker and a crate are certain); the assist mode's floor on the
 reserve is now one magazine (it was two), low enough for the marker to show.
 
@@ -135,20 +218,26 @@ reserve is now one magazine (it was two), low enough for the marker to show.
 | the title: choose, change, select | ↑ ↓ / Tab / W S, ← → / A D, Enter or Space (O: options) | d-pad or left stick, A (Start deploys, B closes the options) | tap a row or its arrows |
 | move, look | WASD, mouse (click captures the pointer) | left stick, right stick | a floating stick: it appears where the left thumb lands in the lower left; drag anywhere on the right that is not a button to look (slower down the sight, slower again over a target) |
 | fire | left button (or F) | right trigger | the big FIRE low right, or the smaller one on the left above the stick; a finger on either fires **and** turns the view as it drags |
+| guns | 1 sidearm · 2 carbine · 3 shotgun · 4 rocket launcher · 5 gatling, the mouse wheel | Y cycles | the strip at the bottom centre: tap a slot, swipe across it |
+| unlock slots 4 and 5 (again: a refill, once a minute) | 0 | both sticks clicked together | the options panel's code field: type 0 |
+| hack, dash, EMP grenade, overdrive | G (hold), Alt, H, B | B (hold), d-pad left, right, up | HACK (hold), DASH, GRENADE, OVERDRIVE: a column left of RELOAD / CROUCH |
 | aim | right button (or Q), held | left trigger, held | AIM above FIRE: held, aims while held (and turns as it drags); a quick tap toggles |
 | reload, strike, crouch, jump | R, V, C, Space | right bumper, right stick click, none, A | the small buttons in an arc round FIRE (circular arrow, down arrow, up arrow) and the blade above them |
 | lean | Z / X, held | none | L and R beside the left FIRE: held, or a quick tap toggles |
 | run | Shift | LB | push the stick past its rim; pushed far up it locks (a padlock above the stick lights; let go and the run holds; a touch on the stick ends it) |
 | use | E | X | a hand and the label, centre right, only while something can be used (a door, the pass, the uplink) |
-| options (sensitivity, field of view, inverted look, full screen, language; on touch also touch look sensitivity, button opacity and size, the left FIRE on / off, the sprint lock on / off) | O | none | the gear, top right |
+| options (sensitivity, field of view, inverted look, full screen, language, camera shake, vibration, hit-stop, the code field; on touch also touch look sensitivity, button opacity and size, the left FIRE on / off, the sprint lock on / off) | O | none | the gear, top right |
 | menu | Esc | Start | ☰, top right |
 
 Touch is laid out the way mobile battle-royale shooters lay theirs out (the genre's conventions only; the glyphs are
 drawn in `game/touch.js`). Every finger is tracked by its own pointer id, so moving, looking and firing go together.
 On touch the HUD moves out from under the thumbs: the objective top left, the compass top centre with the uplink bar
 and the radio under it, the gun and its rounds over the health bar at the bottom centre; the engine's quality and
-frame-rate corner is hidden there. Ammunition and med packs are taken by walking over them (all inputs). A hit taken
-and a magazine running dry buzz the phone where `navigator.vibrate` exists (Android Chrome; iOS Safari has none).
+frame-rate corner is hidden there; the gun strip sits under the health bar and the rounds over it. World markers (the
+objective's, the ammo waypoint, robots marked through walls) keep off the buttons: one that would sit on a control
+moves above it, and fades if it still would. Ammunition and med packs are taken by walking over them (all inputs).
+Shots, hits, blasts, reloads and a magazine running dry buzz the phone where `navigator.vibrate` exists (Android
+Chrome; iOS Safari has none).
 **What was tested, and how:** only in headless Chrome emulating a phone held sideways (844 x 390, 667 x 375 and
 932 x 430, touch events with several fingers through the DevTools protocol, `scripts/controls-check.mjs`), not on a
 real phone: thumb reach, the feel of the look speed and the aim assist, the vibration, safe-area insets on a notched
@@ -249,13 +338,14 @@ code (Rapier's WASM is 2.2 MB of it); there are no assets.
 - **Lighting.** Lamps do not light particles (steam is tinted by hand) and only 16 of 76 cast shadows. Reflections
   are screen space: what is off screen falls back to two box probes or the sky. The probe volume covers one room.
   The volumetric pass scatters 8 lamps. There is no ray tracing and no path-traced reference.
-- **Weapon feel.** One gun, hit-scan, no projectiles, no penetration, no animation of the hands beyond the reload
-  tilt; the view model is in the world's depth range and pulls back from walls instead of having its own.
-- **Sound.** Everything is synthesised from noise and sines in a few lines each. No reverb zones or occlusion
-  (the engine's audio engine has both; not wired here), no recorded material.
+- **Weapon feel.** Five guns (one projectile), no penetration, no animation of the fingers (the hands move as a whole:
+  the reload, the pump); the view model is in the world's depth range and pulls back from walls instead of having its
+  own.
+- **Sound.** Everything is synthesised; the guns are layered and put in the room the player stands in, but there is
+  no recorded material and no occlusion, and nobody has listened to it critically (see The arsenal).
 - **Movement.** Crouching lowers the eye and slows the walk but the body's collider keeps its height; there is no
   slide, no mantle, no sprint stamina. Leaning and crouching are keyboard only.
-- **Scope.** One gun, six enemy jobs on two rigs and a drone, five minutes.
+- **Scope.** Five guns, six enemy jobs on two rigs and a drone, five minutes.
 
 ## What the example works around (engine gaps)
 
@@ -268,7 +358,9 @@ code (Rapier's WASM is 2.2 MB of it); there are no assets.
    camera's lens in `world.ctx.onUpdate`, after play wrote its own.
 4. **The action map has no fire / aim / reload and no mouse buttons.** The game listens for them itself, so the
    pause menu cannot rebind them.
-5. **The mixer cannot be given a sound.** The game's sounds are written into `audio.buffers` after the first gesture.
+5. **The mixer can be given a sound now** (`audio.add`), and the game uses it. What it still lacks: a loop's handle
+   has no gain or rate (the gatling's motor sets `h.src.playbackRate` itself) and a 3D loop cannot move (the rocket is
+   silent in flight).
 6. **`physics.ray` has no normal.** The weapon calls Rapier's `castRayAndGetNormal` through `physics.world`.
 7. **Particles take no local lamps** (documented in `docs/vfx.md`): steam is unlit and tinted by hand.
 8. **`startGame`'s character has no crouch, lean or look sensitivity.** The game lowers and shifts the camera itself
@@ -278,6 +370,9 @@ code (Rapier's WASM is 2.2 MB of it); there are no assets.
     redrawn shadow tile is a capture that re-bins all 160 lamps: +5 ms a frame while a sentinel walks past a shadowed
     lamp (18.9 against 13.0 ms). The example sets `captures: false`, so pool lamps do not light environment captures.
 12. **`ui.message` has no callback.** The death screen listens for the dialog's `close`.
+16. **The pad's buttons are one global table** (`PAD` in `@miragekit/game`): to give Y to the guns the game empties
+    `PAD.inventory` for the page. **No time scale**: `game.tick` has none, so the hit-stop slows only the game's own
+    robots' step. **No haptics in the engine**: the rumble goes straight to the Gamepad API (`game/feel.js`).
 9. **A jump of the view rewinds the particles for good.** `play.place` (tools, viewpoints) sets the scene clock to
    0; the pools reset, and a looping emitter spawned at a later step waits for that step again. The reset pass
    also draws into the state textures it still has bound (Chrome: "Feedback loop formed between Framebuffer and
