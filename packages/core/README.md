@@ -364,6 +364,20 @@ is (ambient volumes handle rooms); no local lamps; not together with `gi` over t
 `world.lighting.bounce.info` / `.strength` / `.bake()`; settings `BOUNCE_DEFAULTS`; details and measurements in
 [docs/lighting.md](../../docs/lighting.md).
 
+## Planar reflection (opt-in, experimental): `lighting: { planar }`
+
+`createWorldRenderer({ ..., lighting: { planar: { y: 0 } } })`: flat wet ground mirrors what screen-space reflections
+cannot, the lamp above the frame and the sky behind the camera. Each moving frame (and each still sub-frame) the scene
+is drawn once more from the camera mirrored in the plane `y` (oblique near plane at the plane, `scale` 0.5 x the
+frame, the world's own materials, lights and fog, no post, no `mgNoCapture` particles, no recursion); the shadow maps
+drawn by that pass are reused by the scene pass. Lit surfaces within `fade` (0.25 m) of the plane, facing up and no
+rougher than `roughMax` (0.35) read it instead of the probe / sky reflection, distorted by their normal (ripples,
+relief) and blurred and stretched with roughness; it sits over screen-space reflections. `every: N` redraws it every
+Nth moving frame. hello-courtyard 1440 x 900 `?wet=0.8&planar=1`: +0.4 ms (SSR: +0.5). Without `planar` nothing of it
+is built and stills are byte-identical. Limits: one horizontal plane; a second draw of the scene; per-view culling
+hooks run for the view only; double fog over the eye-to-puddle stretch; not in XR. `world.lighting.planar.info`;
+settings `PLANAR_DEFAULTS`; details in [docs/lighting.md](../../docs/lighting.md).
+
 ## Materials: `world.mat`
 
 `mat.std(params, hooks)`, `mat.phys(params, hooks)`, `mat.patch(material, hooks)`, `mat.depth(hooks)` (a shadow

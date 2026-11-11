@@ -115,7 +115,28 @@ export interface LightingOption {
   lights?: boolean | Partial<LightsSettings>;
   /** Screen-space reflections, indirect light and contact shadows (screen.js); the strengths are post settings (ssr2, ssgi, contact). */
   screen?: boolean | Partial<ScreenSettings>;
+  /** A planar reflection of one horizontal plane (planar.js; experimental): flat wet ground mirrors what is off screen. */
+  planar?: boolean | Partial<PlanarSettings> | null;
 }
+export interface PlanarSettings {
+  /** Metres: the plane's height. */
+  y: number;
+  /** The mirror target's size as a share of the frame (0.1..1). */
+  scale: number;
+  /** Surfaces rougher than this keep their probe / sky reflection (the mirror fades in below it). */
+  roughMax: number;
+  /** Metres above / below the plane over which the mirror fades out. */
+  fade: number;
+  /** Metres: the mirror pass's near plane sits this far above the plane. */
+  clip: number;
+  /** three.js layers the mirror pass draws; null = the view camera's. */
+  layers: number[] | null;
+  /** Moving frames redraw the mirror every Nth frame (stills: every sub-frame). */
+  every: number;
+}
+/** The planar reflection's counters: whether this frame reads a mirror, its size (px), draw calls and CPU ms of the
+ *  last mirror pass, how many were drawn, kept (`every` > 1) and skipped (eye under the plane). */
+export interface PlanarInfo { on: boolean; size: [number, number]; calls: number; ms: number; renders: number; kept: number; skipped: number }
 export interface ScreenSettings {
   /** Size of the traced buffers on moving frames, as a share of the render size. */
   scale: number;
@@ -128,6 +149,8 @@ export interface ScreenSettings {
 export interface LightingFeature { cfg?: unknown; info: Record<string, unknown>; invalidate?(): void }
 export interface Lighting {
   screen: LightingFeature | null;
+  /** `cfg` is live (y, fade, roughMax, every are read each sub-frame); `texture` is the last mirror. */
+  planar: { cfg: PlanarSettings; info: PlanarInfo; readonly texture: THREE.Texture | null; camera: THREE.PerspectiveCamera; invalidate(): void } | null;
   csm: LightingFeature | null; gi: (LightingFeature & { bake(): void }) | null; probes: LightingFeature | null; lights: LightingFeature | null;
   /** `bake(true)` now, `bake(false)` over the next frames; `prepare()` draws the height field again; `strength` 0..1. */
   bounce: (LightingFeature & { bake(now?: boolean): unknown; prepare(): unknown; strength: number; readonly busy: boolean; /** Switch the factor off (while capturing); returns the restore function. */ suspend(): () => void }) | null;
@@ -148,6 +171,7 @@ export const BOUNCE_DEFAULTS: Omit<BounceSettings, 'min' | 'max' | 'keep'>;
 export const LIGHTS_DEFAULTS: LightsSettings;
 export const PROBE_DEFAULTS: { fade: number; intensity: number };
 export const SCREEN_DEFAULTS: ScreenSettings;
+export const PLANAR_DEFAULTS: PlanarSettings;
 /** The post settings of the screen-space passes, all off. */
 export const SCREEN_POST: { ssr2: number; ssrRough: number; ssrDist: number; ssrThick: number; ssgi: number; ssgiRange: number; ssgiRays: number; contact: number; contactLen: number };
 /** What createWorldRenderer({ lighting }) builds; `world` is the renderer's internals (renderer, scene, sun, ...). */
