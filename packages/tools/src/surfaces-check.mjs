@@ -17,7 +17,9 @@
 //     a car's paint, a grate, little);
 //   - materials that differ only by numbers share a program: five concretes with other colours, ages and seeds add
 //     one program per mode;
-//   - bake time: the twelve kinds a city street uses, baked from cold (compiles included), synced, in under 1 s.
+//   - bake time: the twelve kinds a city street uses, baked from cold (compiles included), synced, in under 1 s;
+//     the same in tier 'low' takes about a quarter of the memory;
+//   - the opt-in paths compile: edge wear from the box (edges: 'box'), glass through the transmission pass.
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -53,6 +55,9 @@ const compiled = await page.evaluate((only) => {
       scene.add(new THREE.Mesh(geo, m)); out.materials++;
     }
   }
+  // the opt-in paths: edge wear from the box (unbevelled meshes), glass through the transmission pass
+  if (!only || only.split(',').includes('paintedMetal')) { scene.add(new THREE.Mesh(geo, lib.material(SURFACES.paintedMetal(), { mapping: 'tri', edges: 'box' }))); out.materials++; }
+  if (!only || only.split(',').includes('glass')) for (const v of SURFACE_KINDS.glass.variants) { scene.add(new THREE.Mesh(geo, lib.material(SURFACES.glass({ variant: v }), { transmission: true }))); out.materials++; }
   window.__mirage.setWetness(0.6);
   R.compile(scene, world.camera);
   R.setRenderTarget(null); R.render(scene, world.camera);
@@ -152,9 +157,17 @@ const R3 = await page.evaluate(() => {
   gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px); R.setRenderTarget(null);
   const ms = performance.now() - t0, st = fresh.stats();
   fresh.dispose();
-  return { added, ms, mb: st.bytes / 1048576, n: street.length };
+  // the low-memory tier: the same street, every set at half its size
+  const low = createSurfaces(world, { mode: 'baked', tier: 'low' });
+  const t1 = performance.now();
+  for (const k of street) { const s = low.bake(SURFACES[k]({ seed: 900 + k.length })); R.setRenderTarget(s.target); }
+  gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px); R.setRenderTarget(null);
+  const msLow = performance.now() - t1, stLow = low.stats();
+  low.dispose();
+  return { added, ms, mb: st.bytes / 1048576, n: street.length, msLow, mbLow: stLow.bytes / 1048576 };
 });
-console.log(`programs: ten concretes (two variants, five numbers each, two modes) added ${R3.added}; a street's ${R3.n} kinds baked in ${R3.ms.toFixed(0)} ms, ${R3.mb.toFixed(0)} MB`);
+console.log(`programs: ten concretes (two variants, five numbers each, two modes) added ${R3.added}; a street's ${R3.n} kinds baked in ${R3.ms.toFixed(0)} ms, ${R3.mb.toFixed(0)} MB; tier 'low' ${R3.msLow.toFixed(0)} ms, ${R3.mbLow.toFixed(0)} MB`);
+if (!(R3.mbLow < R3.mb * 0.3)) fail(`tier 'low' took ${R3.mbLow.toFixed(0)} MB (expected about a quarter of ${R3.mb.toFixed(0)})`);
 if (R3.added !== 2) fail(`ten concrete materials added ${R3.added} programs (expected 2: one per mode)`);
 if (R3.ms > 1000) fail(`baking ${R3.n} kinds took ${R3.ms.toFixed(0)} ms (budget 1000)`);
 if (errors.length) fail('page errors:\n' + [...new Set(errors)].slice(0, 4).join('\n---\n'));

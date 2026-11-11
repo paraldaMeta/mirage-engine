@@ -652,8 +652,10 @@ MsS ms_paintedMetal(vec2 u){
     float bx = mod(q.x, sp) - 0.5 * sp;
     float by = min(abs(q.y - 0.035), abs(q.y - (s.y - 0.035)));
     bolt = 1.0 - smoothstep(0.0085, 0.0095 + msFP, length(vec2(bx, by)));
-    // the bloom round a fixing: ragged (its radius pushed by noise), not round every fixing
-    float dw = length(vec2(bx, by)) * (0.7 + 0.8 * (msFbm(u + 3.3, 35.0, 3) * 0.5 + 0.5));
+    // the bloom round a fixing: ragged (its radius pushed by noise), drawn out below it (what runs off), not round
+    // every fixing
+    float ry = abs(q.y - 0.035) < abs(q.y - (s.y - 0.035)) ? q.y - 0.035 : q.y - (s.y - 0.035);
+    float dw = length(vec2(bx * (1.0 + 2.0 * max(-ry, 0.0) / 0.05), ry * (ry < 0.0 ? 0.3 : 1.0))) * (0.55 + 1.1 * (msFbm(msWarp(u, 40.0, 0.004) + 3.3, 35.0, 3) * 0.5 + 0.5));
     near = (1.0 - smoothstep(0.008, 0.045, dw)) * step(0.35, bh0(g.zw + floor(q.x / sp) * 0.137));
   }
   // rust: patches at every scale (a 30 cm cluster, 5 cm islands, 1 cm specks), the edges warped and cut crisp; new

@@ -79,6 +79,15 @@ assert.ok(Object.values(METALS).every((c) => c.length === 3 && Math.max(...c) > 
   assert.ok(dbg.output.includes('vec3(msR)'), 'debug output');
   const g = surfaceHooks(SURFACES.glass(), {});
   assert.ok(g.output.includes('outgoingLight /= a'), 'glass: premultiplied, Fresnel alpha');
+  const bx = surfaceHooks(SURFACES.paintedMetal(), { edges: 'box', edgeWidth: 0.05 });
+  assert.ok(bx.vertexWorld.includes('msBP = position') && typeof bx.attach === 'function' && bx.uniforms.msBoxS.value.w === 0.05, 'edge wear from the box: the local position, the bounds per draw');
+  const gt = surfaceHooks(SURFACES.glass({ variant: 'tinted' }), { transmission: true });
+  assert.ok(gt.output.includes('transmitted.rgb') && gt.fragmentDecl.includes('msTrans'), 'glass with transmission: the per-pixel share at the output');
+  assert.deepEqual(SURFACES.corrugated({ gravity: [-1, 0] }).uniforms.D.slice(0, 2), [-1, 0], 'gravity: an axis of the plane');
+  assert.deepEqual(SURFACES.paintedMetal({ gravity: [0.3, -0.9] }).uniforms.D.slice(2), [0, -1], 'gravity: snapped to the nearest axis');
+  const wv = SURFACES.wood({ along: 'v', board: [0.2, 1.2] }), wu = SURFACES.wood({ board: [0.2, 1.2] });
+  assert.ok(wv.uniforms.B[3] === 1 && wu.uniforms.B[3] === 0 && wv.quantum[0] === wu.quantum[1] && wv.quantum[1] === wu.quantum[0], 'wood: boards along v, the breaker module turned with them');
+  assert.ok(SURFACES.paving({ variant: 'hex' }).quantum[1] > 0 && SURFACES.render({ spall: 0.5 }).uniforms.B[0] === 0.5, 'paving hex, render spall');
   const cp = surfaceHooks(SURFACES.carPaint({ variant: 'metallic' }), {});
   assert.ok(cp.emissive.includes('clearcoatNormal'), 'car paint: the clear coat has its own orange peel');
 }
