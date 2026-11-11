@@ -1,4 +1,4 @@
-// machines: the district's civilian robots, for streetlife.js (not a module itself). Service machines in soft liveries
+// Mirage original code. kit/cyber's civilian robots: buildMachines(ctx, spec). Service machines in soft liveries
 // (off-white, mint, peach, butter, sky, lilac), round shells, dark joints, a face screen with glyph eyes that change
 // slowly, a lit ID band: nothing like the sentinels (black armour, slit visors, rifles).
 //   android   a slim biped: egg torso, a capsule head (a face screen, ear discs, an antenna with a lit bead), arms in two

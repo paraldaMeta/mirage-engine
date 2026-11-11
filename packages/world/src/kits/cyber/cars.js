@@ -1,4 +1,6 @@
-// cars: the three parked cars of plan.cars, as the scene's material showcase (built by street.js, not a module).
+// Mirage original code. kit/cyber's parked cars, a material showcase: parkedCars(ctx, P, batch, [[x, z, rotY]...],
+// proxyBox(size, matrix, rotY), { lamp(ctx, { pos, color, intensity, range }) }) returns their anchors; `lamp` is how
+// the host lights the under-glow and the tail light (none without it), `proxyBox` its collision volume per car.
 // Three designs of an invented marque, KESTREL MOTOR WORKS (no real badges or names):
 //  - 0 the KMW "Slab": an angular pickup of folded flat brushed-steel planes meeting at hard creases, a wedge
 //    roofline over a sloped bed cover, trapezoid arches in black cladding, a single full-width light bar each end;
@@ -15,9 +17,8 @@
 // The game reads only the anchors (pos, rotY) and the car's volume: each keeps the old car's collision boxes.
 import * as THREE from 'three';
 import { withWet } from '@miragekit/core';
-import { lamp } from './lib.js';
 import { rainBeads } from './rain-beads.js';
-import { uvByHeight } from './props-kit.js';
+import { uvByHeight } from './kit.js';
 
 // ---------------------------------------------------------------------------------------------------------------
 // loft: stations [{ x, p: [[y, z], ...] }] (half rings, z >= 0, from the top centre outward and down); the part
@@ -66,7 +67,7 @@ function cap(st, s, dir) {
 const ST = (list) => list.map(([x, p]) => ({ x, p }));
 
 // ---- the three designs: stations, which parts are glass, the wheels, the lights
-const DESIGNS = [
+export const CAR_DESIGNS = [
   { // the Slab: [top, roof half width], [shoulder y, half width], [low, half width]
     name: 'slab', low: 0.82, wheel: { r: 0.38, w: 0.29, z: 0.8, spokes: 6 }, flat: true,
     st: ST([[2.36, [[1.0, 0], [1.0, 0.7], [0.95, 0.86], [0.82, 0.86]]], [2.3, [[1.04, 0], [1.04, 0.76], [0.98, 0.93], [0.82, 0.93]]],
@@ -98,7 +99,7 @@ const DESIGNS = [
 ];
 
 // ---------------------------------------------------------------------------------------------------------------
-function carMaterials(ctx) {
+export function carMaterials(ctx) {
   if (ctx.shared.carMats) return ctx.shared.carMats;
   const { mat } = ctx;
   const wet = (h) => withWet(h, { porosity: 0, puddles: 0, band: 0.1 });
@@ -125,14 +126,14 @@ function carMaterials(ctx) {
 }
 
 /** Build the cars into `pb` (the street's props batch: decor) and their own batch; returns the anchors */
-export function parkedCars(ctx, P, pb, list, proxyBox) {
+export function parkedCars(ctx, P, pb, list, proxyBox = () => {}, { lamp = () => null } = {}) {
   const { geom, root } = ctx, CM = carMaterials(ctx), { mats, put, R } = P;
   const cb = new geom.MeshBatch();   // the car bodies: steel, pearl, glass
   const anchors = [];
   const PAINT = [[1, 1, 1], [0.06, 0.34, 0.42], [0.85, 0.55, 0.25]];
   const GLOW = [[0.1, 0.85, 1.0], [1.0, 0.16, 0.5], [1.0, 0.6, 0.2]];
   list.forEach(([x, z, rot], ci) => {
-    const Dz = DESIGNS[ci % DESIGNS.length], m = geom.compose([x, 0, z], [0, rot, 0]), at = (p, r = [0, 0, 0], s = 1) => m.clone().multiply(geom.compose(p, r, s));
+    const Dz = CAR_DESIGNS[ci % CAR_DESIGNS.length], m = geom.compose([x, 0, z], [0, rot, 0]), at = (p, r = [0, 0, 0], s = 1) => m.clone().multiply(geom.compose(p, r, s));
     const body = Dz.name === 'slab' ? CM.steel : CM.pearl, paint = PAINT[ci % 3], st = Dz.st, last = st.length - 1;
     const glassOf = (i0, s0) => Dz.glass.some(([g0, g1, a, b]) => i0 >= g0 && i0 < g1 && s0 >= a && s0 < b);
     // ---- the body: each facet band of the loft, steel / paint or glass; tone varies a little panel to panel

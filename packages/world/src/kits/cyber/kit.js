@@ -1,4 +1,4 @@
-// props-kit: what the close-up props share (not a module itself). One canvas atlas for every printed thing a player
+// Mirage original code. kit/cyber's shared props kit (propKit(ctx), cached on ctx.shared.props). One canvas atlas for every printed thing a player
 // can read from a metre away (drink labels in English / Traditional Chinese / kana, price tags, stickers, warning
 // labels, stencils, number plates, menus, lantern paper, drive bays, keyboards, tyre walls), and five materials
 // that read it: painted / plastic (`paint`), metal (`metal`), lit (`glow`, intensity in the vertex colour, so one

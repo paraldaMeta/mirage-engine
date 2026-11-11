@@ -1,12 +1,12 @@
-// props-lights: the visible fittings of the district's lights (not a module). The light itself stays the lamp()
-// its module already declares; these are what a player sees of it from a metre: a paper lantern (a ribbed lathe of
+// Mirage original code. kit/cyber's light fixtures: the visible fittings of lights. The light itself is the host's
+// (a lamp-pool entry or a PointLight it declares); these are what a player sees of it from a metre: a paper lantern (a ribbed lathe of
 // printed paper between lacquered caps, bamboo hoops, a cord and a tassel; brighter where it faces you), a string
 // bulb (a pear of glass on a socket with a hot filament), a street lamp head (a housing with cooling fins, a visor,
 // a recessed lens with a reflector pattern, on a bracket), a caged bulkhead, a tube fixture (a channel, a diffuser,
 // end caps, hangers), a floodlight on a yoke, a rotating beacon, a signal head with hoods. Each adds to a MeshBatch
 // through the props kit (one draw per material for everything a module builds). Emissive parts are small and hot.
 import * as THREE from 'three';
-import { uvByHeight } from './props-kit.js';
+import { uvByHeight } from './kit.js';
 
 const LAQ = [0.04, 0.012, 0.01], IRON = [0.05, 0.05, 0.055];
 const lathe = (pts, seg) => { const g = new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(Math.max(r, 1e-4), y)), seg); g.computeVertexNormals(); return g; };

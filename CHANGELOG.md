@@ -5,6 +5,13 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
 ## Unreleased
 
 **New**
+- @miragekit/world: the cyber kit, `@miragekit/world/kits/cyber` (experimental, opt-in subpath, world README "The
+  cyber kit"): the street props of examples/neon-district as a library anyone can import. 61 exports,
+  all made in code (geometry, and one canvas atlas for every printed label; no model or image files): products and
+  shop goods, light fixtures, street furniture, three parked cars with rain, animated civilian robots, corrugated
+  sheet, worn paint, shop interiors behind glass, text atlases. 1,937 lines moved out of the example; 106 KB minified,
+  39 KB gzip. The example now imports them: its built scene (917 meshes, 440,898 triangles, every geometry and
+  material) hashes the same before and after. Checked by `packages/world/cyber.check.mjs` (in `npm test`).
 - @miragekit/core: the wet layer learns where water goes and how it looks in rain (ported from the rainy ship deck
   of the owner's Oman project, `withWet` options, all opt-in): `wear` (a GLSL float: ruts, a trodden path, joints,
   round drains; the water gathers there, `wearDepth` 0.016 m) and `shelter` (a number, a GLSL float or a `{ value }`

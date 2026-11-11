@@ -7,9 +7,7 @@ import * as THREE from 'three';
 import { materials } from './materials.js';
 import { decor } from './lib.js';
 import { detail, thin, worn, textAtlas, atlasQuad } from './kit.js';
-import { propKit } from './props-kit.js';
-import { beacon } from './props-lights.js';
-import { junctionBox, bag as sack, crate } from './props-street.js';
+import { propKit, beacon, junctionBox, bag as sack, crate } from '@miragekit/world/kits/cyber';
 
 export default {
   name: 'grime',
