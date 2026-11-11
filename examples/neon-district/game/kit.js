@@ -27,6 +27,8 @@ export function setupKit({ ctx, shared, vfx, Q, T, player, weapon, enemies, dron
   const abilities = createAbilities({ world, game, player, enemies, drones, vfx, sfx, physics, root, weapon, hack, overlay, onPop });
   const ammo = createAmmo({ world, game, plan, weapon, player, vfx, sfx, lamps, root, stats, hud, T, overlay });
   story = createStory({ game, enemies, hud, overlay, sfx, player, T, hack, opts, holdout });
+  // one thing in the middle of the screen at a time: the radio waits while a story card is up (the cold open)
+  hud.holdRadio(() => overlay.cardOn); overlay.busy(() => hud.radioOn);   // and a prompt waits for the card and the radio
   drones.allies = enemies;
   game.add({ id: 'abilities', save: () => ({}), load: () => abilities.reset() });
 

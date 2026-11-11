@@ -45,6 +45,25 @@ const CSS = `
 @media (max-width:640px){.mg-obj{font-size:13px}.mg-hud{flex-direction:column}}
 `;
 
+/** Every string the overlay shows, in English (the overlay's text before tables existed). A game passes its own,
+ *  whole or in part: createUI({ ..., strings: { resume: 'Reprendre' } }), startGame(world, { ui: { strings } }) or,
+ *  at run time, ui.setStrings(table) (a language switch: the labels and the open menu follow). `{name}` is a
+ *  parameter. Keys a table leaves out keep the English. */
+export const UI_STRINGS = Object.freeze({
+  start: 'Start', startKey: 'Click', startHint: '{key}, tap or press any key to start',
+  carrying: 'Carrying', bag: 'Bag', use: 'Use', jump: 'Jump', menu: 'Menu', close: 'Close', continue: 'Continue', nothing: 'Nothing yet.',
+  paused: 'Paused', resume: 'Resume', save: 'Save', load: 'Load', controls: 'Controls', sound: 'Sound', restart: 'Restart', back: 'Back',
+  slot: 'Slot {n}: {text}', slotEmpty: 'empty', slotBroken: 'unreadable', saveHere: 'Save here', loadSlot: 'Load',
+  file: 'File', exportFile: 'Export to a file', importFile: 'Import a file',
+  saved: 'Saved to slot {n}.', savedToast: 'Saved (slot {n})', saveFailed: 'Could not save: {error}', loadedToast: 'Loaded slot {n}',
+  loadedFile: 'Loaded from file', notASave: 'Not a save of this game: {error}',
+  pressKey: 'press a key…', rebind: '{action}: {keys}. Press to change', defaults: 'Defaults',
+  padHelp: 'Gamepad: left stick move, right stick look, A jump, X use, Y bag, LB run, Start menu. Touch: stick, drag to look, buttons.',
+  'action.forward': 'forward', 'action.back': 'back', 'action.left': 'left', 'action.right': 'right', 'action.run': 'run', 'action.jump': 'jump',
+  'action.interact': 'interact', 'action.inventory': 'inventory', 'action.menu': 'menu',
+  'bus.master': 'master', 'bus.music': 'music', 'bus.sfx': 'sfx', 'bus.ambience': 'ambience',
+});
+
 // text that comes from saves, settings or game content goes into markup escaped (an imported save is untrusted)
 const esc = (v) => String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
@@ -58,24 +77,27 @@ export function createUI(options) {
   }
 }
 
-function mountUI({ game, input, audio, title = 'Mirage', subtitle = '', slots = 3, onSave, onLoad, onRestart, canvas } = {}, life) {
+function mountUI({ game, input, audio, title = 'Mirage', subtitle = '', slots = 3, onSave, onLoad, onRestart, canvas, strings } = {}, life) {
+  let S = { ...UI_STRINGS, ...(strings || {}) };
+  // a string of the table with its {name}s filled (raw text: the markup below escapes it)
+  const tx = (k, p) => String(S[k] ?? UI_STRINGS[k] ?? k).replace(/\{(\w+)\}/g, (m, n) => (p && n in p ? String(p[n]) : m));
   const root = document.createElement('div');
   root.className = 'mg-ui';
   root.innerHTML = `
-    <div class="mg-hud"><div class="mg-obj" role="status" aria-live="polite"></div><ul class="mg-items" aria-label="Carrying"></ul></div>
+    <div class="mg-hud"><div class="mg-obj" role="status" aria-live="polite"></div><ul class="mg-items"></ul></div>
     <div class="mg-cross" aria-hidden="true"></div>
     <div class="mg-prompt" role="status" aria-live="polite" hidden></div>
     <div class="mg-toast" role="status" aria-live="assertive"></div>
     <div class="mg-touch" hidden>
       <div class="mg-look" style="position:absolute;inset:0"></div>
       <div class="mg-stick" aria-hidden="true"><div class="mg-knob"></div></div>
-      <div class="mg-btns"><button data-a="inventory">Bag</button><button data-a="interact">Use</button><span></span><button data-a="jump">Jump</button></div>
-      <button class="mg-menubtn" data-a="menu" aria-label="Menu">☰</button>
+      <div class="mg-btns"><button data-a="inventory"></button><button data-a="interact"></button><span></span><button data-a="jump"></button></div>
+      <button class="mg-menubtn" data-a="menu">☰</button>
     </div>
-    <div class="mg-start" role="button" tabindex="0" aria-label="Start"><div><h1></h1><p class="sub"></p><p><kbd>Click</kbd>, tap or press any key to start</p></div></div>
-    <dialog class="mg-menu" aria-labelledby="mg-menu-h"><h2 id="mg-menu-h">Paused</h2><div class="mg-body"></div></dialog>
-    <dialog class="mg-inv" aria-labelledby="mg-inv-h"><h2 id="mg-inv-h">Carrying</h2><ul class="mg-list"></ul><button data-close>Close</button></dialog>
-    <dialog class="mg-msg" aria-labelledby="mg-msg-h"><h2 id="mg-msg-h"></h2><p class="mg-msg-p"></p><button data-close>Continue</button></dialog>`;
+    <div class="mg-start" role="button" tabindex="0"><div><h1></h1><p class="sub"></p><p class="mg-hint"></p></div></div>
+    <dialog class="mg-menu" aria-labelledby="mg-menu-h"><h2 id="mg-menu-h"></h2><div class="mg-body"></div></dialog>
+    <dialog class="mg-inv" aria-labelledby="mg-inv-h"><h2 id="mg-inv-h"></h2><ul class="mg-list"></ul><button data-close></button></dialog>
+    <dialog class="mg-msg" aria-labelledby="mg-msg-h"><h2 id="mg-msg-h"></h2><p class="mg-msg-p"></p><button data-close></button></dialog>`;
   if (!document.getElementById('mg-css')) {
     const style = document.createElement('style');
     style.textContent = CSS;
@@ -86,6 +108,18 @@ function mountUI({ game, input, audio, title = 'Mirage', subtitle = '', slots = 
   const $ = (s) => root.querySelector(s);
   const menu = $('.mg-menu'), inv = $('.mg-inv'), msg = $('.mg-msg'), start = $('.mg-start');
   $('.mg-start h1').textContent = title; $('.mg-start .sub').textContent = subtitle;
+  let msgButton = null;   // the open message's own button text (null: the table's "continue")
+  /** the fixed labels, from the table (again on setStrings) */
+  function labels() {
+    $('.mg-items').setAttribute('aria-label', tx('carrying'));
+    for (const [a, k] of [['inventory', 'bag'], ['interact', 'use'], ['jump', 'jump']]) $(`.mg-btns [data-a=${a}]`).textContent = tx(k);
+    $('.mg-menubtn').setAttribute('aria-label', tx('menu'));
+    start.setAttribute('aria-label', tx('start'));
+    $('.mg-hint').innerHTML = esc(tx('startHint')).replace('{key}', `<kbd>${esc(tx('startKey'))}</kbd>`);
+    $('#mg-inv-h').textContent = tx('carrying'); $('.mg-inv button').textContent = tx('close');
+    if (msgButton === null) $('.mg-msg button').textContent = tx('continue');
+  }
+  labels();
   const open = () => [menu, inv, msg].find((d) => d.open);
   let started = false, toastT = 0, panel = 'main';
   const wasEnabled = input.enabled;
@@ -180,21 +214,21 @@ function mountUI({ game, input, audio, title = 'Mirage', subtitle = '', slots = 
   function renderMenu() {
     stopRebind();
     const body = $('.mg-body');
-    $('#mg-menu-h').textContent = { main: 'Paused', save: 'Save', load: 'Load', controls: 'Controls', sound: 'Sound' }[panel];
-    const back = '<button class="alt" data-p="main">Back</button>';
+    $('#mg-menu-h').textContent = tx({ main: 'paused', save: 'save', load: 'load', controls: 'controls', sound: 'sound' }[panel]);
+    const back = `<button class="alt" data-p="main">${esc(tx('back'))}</button>`;
     if (panel === 'main') {
-      body.innerHTML = `<button data-do="resume">Resume</button><button data-p="save">Save</button><button data-p="load">Load</button>
-        <button data-p="controls">Controls</button><button data-p="sound">Sound</button><button class="alt" data-do="restart">Restart</button>`;
+      body.innerHTML = `<button data-do="resume">${esc(tx('resume'))}</button><button data-p="save">${esc(tx('save'))}</button><button data-p="load">${esc(tx('load'))}</button>
+        <button data-p="controls">${esc(tx('controls'))}</button><button data-p="sound">${esc(tx('sound'))}</button><button class="alt" data-do="restart">${esc(tx('restart'))}</button>`;
     } else if (panel === 'save' || panel === 'load') {
-      const rows = game.slots(slots).map((s) => `<div class="mg-row"><span>Slot ${s.slot}: ${s.at ? `${esc(new Date(s.at).toLocaleString())} · ${esc(s.summary || '')}` : s.broken ? 'unreadable' : 'empty'}</span>
-        <button data-${panel}="${s.slot}" ${panel === 'load' && !s.at ? 'disabled' : ''}>${panel === 'save' ? 'Save here' : 'Load'}</button></div>`).join('');
-      body.innerHTML = rows + (panel === 'save' ? '<h3>File</h3><button data-do="export">Export to a file</button>'
-        : '<h3>File</h3><label class="mg-file" tabindex="0">Import a file<input type="file" accept="application/json,.json"></label>') + `<p class="mg-note" role="status"></p>` + back;
+      const rows = game.slots(slots).map((s) => `<div class="mg-row"><span>${esc(tx('slot', { n: s.slot, text: s.at ? `${new Date(s.at).toLocaleString()} · ${s.summary || ''}` : tx(s.broken ? 'slotBroken' : 'slotEmpty') }))}</span>
+        <button data-${panel}="${s.slot}" ${panel === 'load' && !s.at ? 'disabled' : ''}>${esc(tx(panel === 'save' ? 'saveHere' : 'loadSlot'))}</button></div>`).join('');
+      body.innerHTML = rows + `<h3>${esc(tx('file'))}</h3>` + (panel === 'save' ? `<button data-do="export">${esc(tx('exportFile'))}</button>`
+        : `<label class="mg-file" tabindex="0">${esc(tx('importFile'))}<input type="file" accept="application/json,.json"></label>`) + `<p class="mg-note" role="status"></p>` + back;
     } else if (panel === 'controls') {
-      body.innerHTML = ACTIONS.map((a) => `<div class="mg-row"><span>${a}</span><button data-bind="${a}" aria-label="${a}: ${esc((input.bindings[a] || []).join(', '))}. Press to change">${esc((input.bindings[a] || []).map(keyName).join(' / ')) || '—'}</button></div>`).join('') +
-        '<p>Gamepad: left stick move, right stick look, A jump, X use, Y bag, LB run, Start menu. Touch: stick, drag to look, buttons.</p><button class="alt" data-do="defaults">Defaults</button>' + back;
+      body.innerHTML = ACTIONS.map((a) => `<div class="mg-row"><span>${esc(tx('action.' + a))}</span><button data-bind="${a}" aria-label="${esc(tx('rebind', { action: tx('action.' + a), keys: (input.bindings[a] || []).join(', ') }))}">${esc((input.bindings[a] || []).map(keyName).join(' / ')) || '—'}</button></div>`).join('') +
+        `<p>${esc(tx('padHelp'))}</p><button class="alt" data-do="defaults">${esc(tx('defaults'))}</button>` + back;
     } else if (panel === 'sound') {
-      body.innerHTML = ['master', 'music', 'sfx', 'ambience'].map((b) => `<div class="mg-row"><label for="mg-v-${b}"><span>${b}</span></label><input id="mg-v-${b}" type="range" min="0" max="1" step="0.05" value="${esc(audio.volumes[b])}" data-vol="${b}"></div>`).join('') + back;
+      body.innerHTML = ['master', 'music', 'sfx', 'ambience'].map((b) => `<div class="mg-row"><label for="mg-v-${b}"><span>${esc(tx('bus.' + b))}</span></label><input id="mg-v-${b}" type="range" min="0" max="1" step="0.05" value="${esc(audio.volumes[b])}" data-vol="${b}"></div>`).join('') + back;
     }
   }
   life.listen(menu, 'click', async (e) => {
@@ -204,9 +238,9 @@ function mountUI({ game, input, audio, title = 'Mirage', subtitle = '', slots = 
     if (t.dataset.do === 'resume') menu.close();
     if (t.dataset.do === 'restart' && onRestart) { menu.close(); onRestart(); }
     if (t.dataset.save) {
-      try { onSave(+t.dataset.save); renderMenu(); note(`Saved to slot ${t.dataset.save}.`); toast(`Saved (slot ${t.dataset.save})`); } catch (err) { note('Could not save: ' + (err.message || err)); }
+      try { onSave(+t.dataset.save); renderMenu(); note(tx('saved', { n: t.dataset.save })); toast(tx('savedToast', { n: t.dataset.save })); } catch (err) { note(tx('saveFailed', { error: err.message || err })); }
     }
-    if (t.dataset.load) { try { onLoad(+t.dataset.load); menu.close(); toast(`Loaded slot ${t.dataset.load}`); } catch (err) { note(String(err.message || err)); } }
+    if (t.dataset.load) { try { onLoad(+t.dataset.load); menu.close(); toast(tx('loadedToast', { n: t.dataset.load })); } catch (err) { note(String(err.message || err)); } }
     if (t.dataset.do === 'export') {
       const a = document.createElement('a');
       a.href = URL.createObjectURL(new Blob([onSave('export')], { type: 'application/json' }));
@@ -217,7 +251,7 @@ function mountUI({ game, input, audio, title = 'Mirage', subtitle = '', slots = 
     if (t.dataset.bind) {
       stopRebind();
       const mine = rebinding = new AbortController();
-      t.textContent = 'press a key…';
+      t.textContent = tx('pressKey');
       const code = await input.capture(mine.signal);
       if (rebinding === mine) rebinding = null;
       if (life.disposed) return;
@@ -233,17 +267,18 @@ function mountUI({ game, input, audio, title = 'Mirage', subtitle = '', slots = 
     try {
       const json = await e.target.files[0].text();
       if (life.disposed) return;
-      onLoad(json); menu.close(); toast('Loaded from file');
+      onLoad(json); menu.close(); toast(tx('loadedFile'));
     } catch (err) {
       const note = menu.querySelector('.mg-note');
-      if (!life.disposed && note) note.textContent = 'Not a save of this game: ' + (err.message || err);
+      if (!life.disposed && note) note.textContent = tx('notASave', { error: err.message || err });
     }
   });
 
   // ---- inventory panel, messages, HUD
+  const listItems = () => { $('.mg-list').innerHTML = game.inventory.items.map((i) => `<li><b>${esc(i.name)}</b>${i.text ? ' — ' + esc(i.text) : ''}</li>`).join('') || `<li>${esc(tx('nothing'))}</li>`; };
   function openInventory() {
     if (life.disposed) return;
-    $('.mg-list').innerHTML = game.inventory.items.map((i) => `<li><b>${esc(i.name)}</b>${i.text ? ' — ' + esc(i.text) : ''}</li>`).join('') || '<li>Nothing yet.</li>';
+    listItems();
     show(inv); $('.mg-inv button').focus();
   }
   // message() resolves when its dialog closes: the button, the menu key, another dialog taking its place, another
@@ -252,10 +287,11 @@ function mountUI({ game, input, audio, title = 'Mirage', subtitle = '', slots = 
   const endMessage = () => { const done = messageDone; messageDone = null; if (done) done(); };
   life.listen(msg, 'close', endMessage);
   life.defer(endMessage);
-  function message(h, p, button = 'Continue') {
+  function message(h, p, button) {
     if (life.disposed) return Promise.resolve();
     endMessage();
-    $('#mg-msg-h').textContent = h; $('.mg-msg-p').textContent = p; $('.mg-msg button').textContent = button; show(msg); $('.mg-msg button').focus();
+    msgButton = button == null ? null : String(button);
+    $('#mg-msg-h').textContent = h; $('.mg-msg-p').textContent = p; $('.mg-msg button').textContent = msgButton ?? tx('continue'); show(msg); $('.mg-msg button').focus();
     return new Promise((resolve) => { messageDone = resolve; });
   }
   function toast(s, ms = 2200) { const t = $('.mg-toast'); t.textContent = s; t.classList.add('on'); toastT = performance.now() + ms; }
@@ -266,6 +302,14 @@ function mountUI({ game, input, audio, title = 'Mirage', subtitle = '', slots = 
     const label = game.label(e), html = `<kbd>${esc(input.glyph('interact'))}</kbd>${esc(label)}`;
     if (p.hidden || p.innerHTML !== html) p.innerHTML = html;
     p.hidden = false;
+  }
+  /** another table (merged over UI_STRINGS, in place of the last one): the labels and an open menu or panel follow */
+  function setStrings(table) {
+    if (life.disposed) return;
+    S = { ...UI_STRINGS, ...(table || {}) };
+    labels();
+    if (menu.open && !rebinding) renderMenu();
+    if (inv.open) listItems();
   }
   const renderItems = () => { $('.mg-items').innerHTML = game.inventory.items.map((i) => `<li>${esc(i.name)}</li>`).join(''); };
   life.defer(game.on('inventory', renderItems));
@@ -288,5 +332,5 @@ function mountUI({ game, input, audio, title = 'Mirage', subtitle = '', slots = 
       if (r && r.type === 'range' && (input.padPressed(14) || input.padPressed(15))) { input.padPressed(15) ? r.stepUp() : r.stepDown(); r.dispatchEvent(new Event('input', { bubbles: true })); }
     }
   }
-  return { dispose: life.dispose, root, prompt, objective, toast, message, openMenu, openInventory, update, begin, setTouch, get started() { return started; }, get touch() { return touchOn; }, get open() { return open(); } };
+  return { dispose: life.dispose, root, prompt, objective, toast, message, openMenu, openInventory, update, begin, setTouch, setStrings, get strings() { return { ...S }; }, get started() { return started; }, get touch() { return touchOn; }, get open() { return open(); } };
 }

@@ -130,6 +130,26 @@ it returns draw commands and hit boxes, so it runs in Node. Painting uses Canvas
 native WebXR hosts `docs/xr.md` describes) `backend: 'glyphs'` rasterises into a `DataTexture` with
 `@miragekit/play`'s built-in glyph font, Latin only. It repaints only when a signal it read changed.
 
+## The default overlay in another language
+
+`createUI` (the overlay `startGame` makes when `ui` is absent) shows its start card, pause menu and panels, the
+inventory panel, the message dialog's button and the touch buttons from a table of strings. The default table,
+`UI_STRINGS` (exported by `@miragekit/game`), is the English it always had, so a game that passes nothing sees no
+change. A game passes its own, whole or in part (keys left out stay English); `{name}` marks a parameter:
+
+```js
+import { startGame, UI_STRINGS } from '@miragekit/game';
+console.log(Object.keys(UI_STRINGS));   // start, startHint, paused, resume, save, slot ('Slot {n}: {text}'), action.jump, bus.music, ...
+const g = await startGame(world, { built, ui: { strings: { paused: '一時停止', resume: '再開', back: '戻る' } } });
+g.ui.setStrings(JA);                    // a language switch at run time: the labels and an open menu follow at once
+g.ui.strings;                           // the table in use
+```
+
+`setStrings` replaces the previous table (merged over `UI_STRINGS` again). Texts a game passes itself
+(`ui.message(head, body, button)`, toasts, the objective) are the game's to translate. `examples/neon-district`
+feeds it Traditional Chinese, English and Japanese and switches with its options panel. Checked by
+`examples/demos/ui/ui-check.mjs --only menu` (snow-hut: the pause menu in another table, and back).
+
 ## The pause menu on the toolkit
 
 ```js

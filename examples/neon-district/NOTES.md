@@ -73,8 +73,9 @@ the first click. Nothing was taken from another project.
   handler admits it is the relay's own mind and you have just let it out, every sign on the street stutters, and a
   closing card has one last line. The holdout opens on a one-line epigraph instead. Idle sentinels trade deadpan
   pairs over their heads when you are near and unseen; alert, hurt, hacked, stunned and lured barks keep the same
-  voice (a synthesised blip). Comic hit words pop on head shots, shield breaks, EMPs and overloads (the options
-  panel turns them off). All of it in English and Traditional Chinese (`game/text.js`, the `xt` tables).
+  voice (a synthesised blip). Comic hit words can pop on head shots, shield breaks, EMPs and overloads: off by
+  default (the owner's playtest), the options panel turns them on. All of it in Traditional Chinese, English and
+  Japanese (`game/text.js`, the `xt` branch; see Languages below).
 
 Keys and buttons of the kit (the touch layer's buttons use the API in `game/kit.js`):
 
@@ -208,7 +209,7 @@ reserve is now one magazine (it was two), low enough for the marker to show.
 | HUD and menus | `@miragekit/game`'s overlay (objective, prompts, toasts, pause menu, save slots, rebinding, the touch layer) plus the example's own HUD and touch controls (the overlay's own stick and buttons hidden under them) | `game/hud.js`, `game/touch.js` |
 | sound | the mixer's buses and 3D placement, the engine's own pickup / door / chime, the example's synthesised set; the audio engine's reverb zones from `plan.audio.zones` (the bar, the relay, the open street) | `game/sfx.js`, `game/index.js` |
 | lightning | `vfx.beam` with `jitter` and `branches`, one clustered lamp 110 m up for the flash | `game/index.js` |
-| two languages | English and Traditional Chinese for everything the game itself shows (`?lang=`) | `game/text.js` |
+| three languages | Traditional Chinese, English and Japanese for everything the game shows, the engine's pause menu included (`createUI`'s `setStrings`) | `game/text.js` |
 | the test | `mirage-playtest` scenarios: the route, and the holdout's first waves | `scenarios/playtest.json`, `scenarios/holdout.json` |
 
 ## Controls
@@ -268,6 +269,46 @@ HUD's tally and the end card. For tests, `?mode=holdout` and `?difficulty=hard|b
 
 `?assist=1` is an easy mode (an eighth of the damage, health comes back in full, the reserve never runs dry); the playtest uses it, because its
 scripted player stands in the open and aims once per step.
+
+Full screen: DEPLOY asks for it (browsers allow it only from a click, key or tap), and a phone tries to lock
+landscape; the options' toggle is on by default and its "off" is kept (then DEPLOY no longer asks); `?fullscreen=0`
+for one visit (the headless checks). With `?start=1` the first click or tap asks. Left with Esc in play: the game
+pauses as before and the pause menu offers "Return to full screen". iPhone Safari has no element full screen: a
+one-line hint says to add the page to the Home Screen.
+
+## Languages
+
+Traditional Chinese (Taiwan usage), English and Japanese, for every line the game shows: title, HUD, objectives,
+radio, the robots' banter and barks, the story, hit words, options, weapons, toasts, touch labels, end cards, and
+the engine's own overlay (pause menu, its panels, the bag, the message button: `@miragekit/game`'s `UI_STRINGS`
+keys, passed with `g.ui.setStrings`) and `@miragekit/play`'s quality / fps corner (relabelled from here). The
+in-world signs are the plan's and stay as they are.
+
+- **Picking:** `?lang=en|zh|ja` for one visit; else the player's saved choice (`settings.ndLang`); else the
+  browser's first language: `ja-*` Japanese, any `zh-*` Traditional Chinese (`zh-CN` too: there is no Simplified
+  table), anything else English.
+- **Switching:** the title's LANGUAGE row and the options' language button cycle English, 繁體中文, 日本語. The switch
+  is live (no reload): `text.js` swaps the strings inside the one `T` object, so modules that kept a branch of it
+  (`T.xt` in the hack, the ammo, the story) read the new language; what was drawn once (the title, the HUD's
+  labels, the compass, the options panel, touch labels, the engine menu, the objective, the bag) is drawn again.
+  Lines already queued on the radio stay in the language they were said in.
+- **Tables:** `game/text.js` holds three full tables of one shape. English is the source of keys; at load the
+  others are compared with it (a missing, extra or different-kind key throws in the dev server, falls back to
+  English in a build). `node scripts/i18n-check.mjs` also fails on empty strings, Simplified-only characters in
+  `zh`, `ja` with no kana or kanji where English has words, `zh` with no Han, and engine keys the tables lack; it
+  prints strings more than 60 % wider than the English (CJK counted double) as places to look at.
+- **Glyphs:** `<html lang>` is `zh-Hant-TW`, `en` or `ja`, so the browser picks the right Han forms; the CSS stacks
+  take `--nd-cjk` (PingFang TC / Noto Sans TC for Chinese, Hiragino Sans / Noto Sans JP / Yu Gothic / Meiryo for
+  Japanese). Sentences wrap with `text-wrap: pretty`, Japanese by phrase (`word-break: auto-phrase`, Chrome).
+- **Japanese:** written for the game rather than translated word for word (katakana UI nouns, terse HUD labels, a
+  gruff handler, the robots deadpan and a little too polite). No native speaker has read it yet.
+- **Checks:** `scripts/controls-check.mjs` (`lang`): browser languages, `?lang=`, the cycle and its keeping, the
+  engine menu, and no English words left on the title, options, HUD, pause menu and panels, bag and end card in
+  `ja` and `zh`. `scripts/i18nshots.mjs` writes every screen in the three languages to `out/i18n/`.
+- **One thing in the middle at a time:** the cold open's card comes first, the radio waits for it, and a prompt
+  (the hack's teaching line) waits for the radio. On touch screens these sit in the strip above the buttons (the
+  card one line at a time), and nothing the HUD shows enters the stick's zone or a button (`tablet` in the
+  controls check, phones and tablets in both orientations).
 
 ## Measured
 

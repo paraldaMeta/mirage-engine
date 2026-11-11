@@ -21,12 +21,12 @@ import { createDrones } from './drones.js';
 import { createTitle } from './title.js';
 import { createTouch } from './touch.js';
 import { setupKit } from './kit.js';
-import { LANGS, pickLang } from './text.js';
+import { T, lang, setLang, nextLang, pickLang, onLang, LANG_ORDER, LANG_NAMES, TABLES } from './text.js';
 import { createAudioEngine, zonesFromPlan, PAD } from '@miragekit/game';
 
 export const VERSION = 1;
 const UPLINK_S = 40;
-export const lang = pickLang(new URLSearchParams(globalThis.location?.search || '')), T = LANGS[lang];
+export { T, lang };
 // the modes and the difficulty (kept in the settings; ?mode= and ?difficulty= set them for one visit)
 export const MODES = ['mission', 'holdout'], DIFFS = ['standard', 'hard', 'brutal'], TITLE_HOURS = ['night', 'dusk', 'day'];
 /** factors on the damage the player takes, the enemies' health and their accuracy */
@@ -38,6 +38,9 @@ const BREAK_S = 9;
 
 export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour }) {
   const { game, physics, audio, root, plan, anchors, world, onDispose, input } = ctx;
+  // the language: ?lang= for one visit, else the player's saved choice, else the browser's (text.js pickLang)
+  const want = pickLang(Q, game.settings.ndLang);
+  if (want !== lang) setLang(want);
   const M = shared.mats, { mat } = world, K = plan.levels;
   const sfx = createSfx(audio), assist = Q.get('assist') === '1';
   const stats = { shots: 0, hits: 0, heads: 0, kills: 0, deaths: 0 };
@@ -70,7 +73,9 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
   // touch: its own look sensitivity, the buttons' opacity and size, the left FIRE, the sprint lock
   // feel: camera shake (0-1.5), vibration (0-1), the hit-stop on kills; with prefers-reduced-motion a calmer default
   const calm = !!globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-  const opts = { sens: 1, fov: 62, invert: false, tSens: 1, tOpacity: 0.7, tScale: 1, leftFire: true, sprintLock: true, shake: calm ? 0.3 : 1, vibrate: 1, hitStop: !calm, unlocked: false, ...(game.settings.nd || {}) };
+  // the comic hit words are off unless the player turned them on (pops: true); full screen on deploy unless turned off
+  const opts = { sens: 1, fov: 62, invert: false, tSens: 1, tOpacity: 0.7, tScale: 1, leftFire: true, sprintLock: true, shake: calm ? 0.3 : 1, vibrate: 1, hitStop: !calm, unlocked: false, pops: false, fullscreen: true, ...(game.settings.nd || {}) };
+  if (opts.pops !== true) opts.pops = false;
   if (Q.get('fov')) opts.fov = Math.min(90, Math.max(50, +Q.get('fov')));
   if (Q.get('sens')) opts.sens = +Q.get('sens');
   const feel = createFeel({ opts, input, sfx, canvas: world.renderer.domElement, game });
@@ -127,10 +132,60 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
   function toggleOptions() {
     const open = hud.options({ values: { ...opts, lang, hour: hour() }, touch: !!touch, onHour: (h) => setHour(h),
       onChange: (k, v) => { if (k === 'code') { if (/0/.test(String(v))) weapon.unlock(); return; } opts[k] = v; if (k === 'fov') weapon.S.fov = v; saveOpts(); touch?.apply(); },
+      onFull: (on) => { opts.fullscreen = on; saveOpts(); return on ? enterFull(true) : exitFull(); },
       onClose: () => { if (!title.shown) game.pause(false); title.render(); },
-      onLang: () => { const u = new URL(location.href); u.searchParams.set('lang', lang === 'zh' ? 'en' : 'zh'); location.href = u.href; } });
+      onLang: () => switchLang(nextLang()) });
     if (open) { game.pause(true); touch?.reset(); if (document.pointerLockElement) document.exitPointerLock(); }
   }
+
+  // ---- the language at run time: the tables swap in place (text.js); what was drawn once is drawn again here
+  function switchLang(l) {
+    if (!TABLES[l]) return;
+    run.lang = l;   // before the listeners: the title redraws its LANGUAGE row from it
+    setLang(l);
+    game.settings.ndLang = l; game.saveSettings();
+    const u = new URL(location.href);   // the choice is kept: a ?lang= left in the address would override it on reload
+    if (u.searchParams.has('lang')) { u.searchParams.delete('lang'); history.replaceState(history.state, '', u.href); }
+  }
+  onDispose(onLang(() => {
+    hud.relang(); title?.relang(); touch?.relang(); kit?.story.relang();
+    if (g) { g.ui.setStrings?.({ ...T.engine }); g.ui.objective(...objective(game)); }
+    const it = game.inventory.items.find((i) => i.id === 'pass');
+    if (it) { it.name = T.passName; it.text = T.passText; game.emit('inventory', {}); }
+  }));
+
+  // ---- full screen: asked for on DEPLOY (a user gesture: browsers allow it nowhere else), kept off once the player
+  // turns it off, ?fullscreen=0 for one visit (the headless checks). A phone also tries to lock landscape. iPhone
+  // Safari has no element full screen: a one-line hint to add the page to the Home Screen instead.
+  const fullAllowed = () => Q.get('fullscreen') !== '0' && opts.fullscreen !== false;
+  const fs = { asked: 0, hinted: false, left: false };
+  function enterFull(force = false) {
+    if (!force && !fullAllowed()) return Promise.resolve(false);
+    const el = document.documentElement, req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (!req) {
+      if (!fs.hinted && /iPhone|iPod/.test(navigator.userAgent)) { fs.hinted = true; setTimeout(() => game.ui.toast(T.opt.fullHint, 5000), 400); }
+      return Promise.resolve(false);
+    }
+    if (document.fullscreenElement || document.webkitFullscreenElement) return Promise.resolve(true);
+    fs.asked++;
+    let p;
+    try { p = req.call(el, { navigationUI: 'hide' }); } catch { return Promise.resolve(false); }
+    return Promise.resolve(p).then(() => {
+      if (matchMedia('(pointer: coarse)').matches) screen.orientation?.lock?.('landscape')?.catch?.(() => {});
+      return true;
+    }, () => false);
+  }
+  function exitFull() { try { const p = document.fullscreenElement && document.exitFullscreen?.(); Promise.resolve(p).catch(() => {}); } catch { /* not in it */ } return Promise.resolve(false); }
+  // left with Esc while playing: the engine pauses (pointer lock goes with it); its menu offers the way back
+  listen(document, 'fullscreenchange', () => { fs.left = !document.fullscreenElement && fs.asked > 0 && opts.fullscreen !== false; });
+  const menuWatch = new MutationObserver(() => {
+    const body = document.querySelector('.mg-menu[open] .mg-body');
+    if (!body || !fs.left || document.fullscreenElement || body.querySelector('[data-nd=full]') || !body.querySelector('[data-do=resume]')) return;
+    const b = document.createElement('button'); b.dataset.nd = 'full'; b.textContent = T.opt.fullBack;
+    b.addEventListener('click', () => { enterFull(true).then((ok) => { if (ok) b.remove(); }); });
+    body.querySelector('[data-do=resume]').after(b);
+  });
+  onDispose(() => menuWatch.disconnect());
 
   // ---- the relay pass, on the bar's counter
   const pass = new THREE.Group();
@@ -140,7 +195,7 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
   let passT = 0;
   game.on('place', () => { passT = 0; });
   game.add({ id: 'pass', object: pass,
-    interact: { label: T.passLabel, reach: 2.6, use: (gm, e) => {
+    interact: { label: () => T.passLabel, reach: 2.6, use: (gm, e) => {
       gm.inventory.add({ id: 'pass', name: T.passName, text: T.passText });
       audio.play('pickup', { at: plan.bar.pass }); vfx.burst(FX.take, plan.bar.pass); gm.remove(e); game.ui.toast(T.passToast); hud.radio(T.radio.pass);
     } },
@@ -171,7 +226,7 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
   // ---- the uplink console on the roof
   const con = anchors.consoles[0];
   game.add({ id: 'uplink', pos: con.pos,
-    interact: { reach: 2.8, can: (gm) => !gm.flags.uplink, label: T.uplinkLabel,
+    interact: { reach: 2.8, can: (gm) => !gm.flags.uplink, label: () => T.uplinkLabel,
       use: (gm) => {
         gm.set('uplink', true); uplinkT = 0; sfx.play('nd_alarm', { gain: 0.6 });
         wake('wave'); game.ui.toast(T.uplinkToast); hud.radio(T.radio.hold);
@@ -420,11 +475,13 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
   }
 
   // ---- the title: the camera flies the district, the game waits paused, DEPLOY starts the chosen run
-  const title = createTitle({ T, lang, plan, world, values: run, choices: { mode: MODES, difficulty: DIFFS, hour: TITLE_HOURS }, best: bestOf, onDispose,
+  run.lang = lang;
+  const title = createTitle({ T, plan, world, values: run, choices: { mode: MODES, difficulty: DIFFS, hour: TITLE_HOURS, lang: LANG_ORDER }, names: { lang: LANG_NAMES }, best: bestOf, onDispose,
     optionsOpen: () => hud.optionsOpen, onOptions: toggleOptions,
-    onChange: (k, v) => { if (k === 'difficulty') Object.assign(tune, TUNE[v]); if (k === 'hour') setHour(v); saveRun(); },
+    onChange: (k, v) => { if (k === 'lang') { switchLang(v); return; } if (k === 'difficulty') Object.assign(tune, TUNE[v]); if (k === 'hour') setHour(v); saveRun(); },
     onFrame: () => { play.turn(0, 0, 0); relight(); weapon.holder.visible = false; },
-    onDeploy: (ev) => { begin(); g.ui.begin(ev); } });
+    onDeploy: (ev) => { enterFull(); begin(); g.ui.begin(ev); } });
+  onDispose(onLang((l) => { run.lang = l; }));
   /** the run as chosen: the difficulty's health on everyone, the holdout's roof or the mission's spawn */
   function begin() {
     Object.assign(tune, TUNE[run.difficulty]); enemies.retune(); drones.retune();
@@ -449,7 +506,7 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
   const kit = setupKit({ ctx, shared, vfx, Q, T, player, weapon, enemies, drones, hud, sfx, stats, opts, holdout: H, live });
 
   return {
-    player, weapon, enemies, drones, stats, hud, sfx, leaves, opts, toggleOptions, run, tune, title, holdout: H, kit, get touch() { return touch; },
+    player, weapon, enemies, drones, stats, hud, sfx, leaves, opts, toggleOptions, run, tune, title, holdout: H, kit, switchLang, fullscreen: fs, text: T, get lang() { return lang; }, get touch() { return touch; },
     /** once startGame has made the character and play */
     start(game_) {
       g = game_; play = g.play;
@@ -458,7 +515,14 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
       kit.start(g);
       vfx.setGround(play.grid);
       checkpoint('start', true);
-      if (Q.has('start')) begin();   // the tests: straight in (main.js starts the overlay)
+      hud.relang(); g.ui.setStrings?.({ ...T.engine });   // the corner of @miragekit/play (made by now); the engine's pause menu, panels and message button in the language
+      const menu = document.querySelector('.mg-menu');
+      if (menu) menuWatch.observe(menu, { childList: true, subtree: true, attributes: true, attributeFilter: ['open'] });
+      if (Q.has('start')) {   // the tests: straight in (main.js starts the overlay); full screen on the first click or tap
+        begin();
+        const first = () => { removeEventListener('pointerdown', first, true); enterFull(); };
+        addEventListener('pointerdown', first, true); onDispose(() => removeEventListener('pointerdown', first, true));
+      }
       else {
         if (!Q.get('time') && run.hour !== hour()) setHour(run.hour);
         game.pause(true); title.show(g);

@@ -279,7 +279,8 @@ Gaussian splats, `@miragekit/world/kits/splat` (opt-in subpath, world README "Ga
 | `ACTIONS` | stable | the action names |
 | `createAudio({ volumes })` | stable | Web Audio buses and the procedural sounds; `add(name, sound)` for your own (a buffer, variants, or a factory of the context), before or after `unlock()` |
 | `SURFACES` | stable | footstep surfaces: `stone`, `gravel`, `grass`, `wood` |
-| `createUI(opts)` | experimental | the HTML overlay (HUD, menus, touch controls) |
+| `createUI(opts)` | experimental | the HTML overlay (HUD, menus, touch controls); `opts.strings` / `ui.setStrings(table)`: its text in another language (`docs/ui.md`) |
+| `UI_STRINGS` | experimental | `createUI`'s text table in English: the keys a game's table may set |
 | `PAD` | experimental | default gamepad buttons per action |
 | `loadRapier()` | experimental | load the Rapier WASM ahead of `createPhysics` |
 | `createPhysicsKit(phys, { hz, maxSteps, interpolate, layers, profile })` | experimental | the physics kit (docs/physics.md): rigid bodies with box / ball / capsule / hull / mesh / compound colliders, materials, layers, CCD, sensors, contact events with impulse, ray / shape casts and overlaps, fixed step with interpolation, state hash; opt-in, `createPhysics` unchanged |

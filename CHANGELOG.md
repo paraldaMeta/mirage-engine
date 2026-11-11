@@ -26,6 +26,13 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
   (in `npm test`) and `examples/demos/destruct/destruct-check.mjs`.
 - @miragekit/core: `world.lampPool.scale(i, k)` dims or switches off one pool lamp without a rebuild (one record is
   rewritten; re-binning only when the set of lit lamps changes), `scaleOf(i)`, `lit` (lamps with power left).
+- @miragekit/game: `createUI`'s text is a table (`UI_STRINGS`, English, exported; experimental): `startGame(world,
+  { ui: { strings } })`, `createUI({ strings })` and, at run time, `ui.setStrings(table)` put the start card, pause
+  menu, panels, inventory, message button and touch buttons in another language (keys left out stay English; the
+  open menu re-renders). Nothing changes for a game that passes no table. `docs/ui.md`; checked by
+  `examples/demos/ui/ui-check.mjs --only menu`. examples/neon-district: Traditional Chinese, English and Japanese,
+  picked from the browser, switchable on the title and in the options (engine menu included), kept in the settings,
+  `?lang=en|zh|ja`; its three tables are checked against each other (`examples/neon-district/scripts/i18n-check.mjs`).
 - @miragekit/core: the wet layer learns where water goes and how it looks in rain (ported from the rainy ship deck
   of the owner's Oman project, `withWet` options, all opt-in): `wear` (a GLSL float: ruts, a trodden path, joints,
   round drains; the water gathers there, `wearDepth` 0.016 m) and `shelter` (a number, a GLSL float or a `{ value }`

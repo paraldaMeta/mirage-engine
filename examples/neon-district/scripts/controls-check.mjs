@@ -19,6 +19,16 @@
 //          fills and the hack lands on a street lamp), DASH, GRENADE and OVERDRIVE with their cooldown / charge, the
 //          gun strip (a tap selects, a locked slot stays locked, a swipe cycles), the 0 field in the options unlocks;
 //          no world marker drawn on a button. Then the same HUD in Chinese. Screenshots: out/touch-*.png
+//   lang   the browser's language picks it (ja-JP: Japanese; zh-TW, zh-HK and zh-CN: Traditional Chinese; else English),
+//          ?lang= sets it, the title's LANGUAGE row and the options' button cycle en -> zh -> ja and keep it, a
+//          reload keeps it, the engine's pause menu follows (also when switched with it open), and no English word
+//          is left on the title, options, HUD, pause menu and its panels, bag and end card in ja and zh
+//   fullscreen  DEPLOY asks for full screen (stubbed and refused: the run starts anyway), not with ?fullscreen=0
+//          nor when the player turned it off
+//   tablet at 844 x 390, 667 x 375, 1024 x 768, 1180 x 820, 1366 x 1024, 820 x 1180 (touch) and 1180 x 820, 1366 x
+//          1024 with a fine pointer and touch (an iPad with a keyboard case): no HUD element in the stick's zone or
+//          under a button, the kit's pips, cooldowns and overdrive charge on screen, the desktop bar hidden.
+//          Screenshots: out/i18n/*-tablet-*.png
 // usage: node scripts/controls-check.mjs [dist]      (build first: npm run build -w neon-district)
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -446,6 +456,180 @@ if (want('touch')) { // ---- the same HUD in Traditional Chinese: the screenshot
   await page.screenshot({ path: path.join(here, '../out/touch-zh-use.png') }).catch(() => {});
   check('touch-zh', 'the touch HUD in Chinese: nothing overlaps, USE shows its label whole', !L.out.length && !L.over.length && /上鎖/.test(s.use || '') && fit, `use "${s.use}", ${JSON.stringify({ out: L.out, over: L.over })}`);
   check('touch-zh', 'no console errors', errors.length === 0, errors[0] || '');
+  await b.close();
+}
+// ---- languages: picked from the browser, ?lang=, switched on the title and in the options (en -> zh -> ja), kept;
+// the engine's own pause menu follows; no English words left on the screens of zh and ja
+const KEY_WORDS = new Set(['Up', 'Down', 'Left', 'Right', 'Shift', 'Space', 'Enter', 'Esc', 'Start', 'Tab', 'Alt', 'Ctrl', 'fps', 'MIRAGE']);
+/** the visible text on the page (text nodes with a box, the selected option of a select), English words left in it */
+const englishLeft = (page) => page.evaluate((keys) => {
+  const words = [], walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT), seen = [];
+  const visible = (el) => { for (let e = el; e && e !== document.body; e = e.parentElement) { const cs = getComputedStyle(e); if (cs.display === 'none' || cs.visibility === 'hidden' || +cs.opacity < 0.05 || e.hidden) return false; } const r = el.getClientRects(); return r.length > 0 && r[0].width > 0; };
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) { const el = n.parentElement; if (!el || /^(STYLE|SCRIPT|OPTION)$/.test(el.tagName) || !n.textContent.trim() || !visible(el)) continue; seen.push(n.textContent.trim()); }
+  for (const s of document.querySelectorAll('select')) if (visible(s)) seen.push(s.selectedOptions[0]?.textContent || '');
+  for (const t of seen) for (const w of t.match(/[A-Za-z][A-Za-z0-9-]*/g) || []) {
+    if (keys.includes(w) || /^[A-Z0-9]{1,4}$/.test(w) || /^(K|P|M|RL|G)-\d+$/.test(w) || /^[A-Z]\d?$/.test(w) || /^(L3|R3|LS|RS|LT|RT|LB|RB|WASD|CAM|BGM)$/.test(w)) continue;
+    words.push(`${w} (in "${t.slice(0, 40)}")`);
+  }
+  return [...new Set(words)];
+}, [...KEY_WORDS]);
+const langState = (page) => page.evaluate(() => ({ html: document.documentElement.lang, lang: window.__mirage.game.lang, kept: JSON.parse(localStorage.getItem('mirage:neon-district:settings') || '{}').ndLang || null, title: document.querySelector('.nt-h')?.textContent || '', row: document.querySelector('.nt-row[data-id=lang] .v')?.textContent || '' }));
+if (want('lang')) {
+  const b = await launch({ w: 1280, h: 720, args: ['--autoplay-policy=no-user-gesture-required'] });
+  // the browser's language, on a fresh profile (nothing saved)
+  for (const [nav, wantLang] of [['ja-JP', 'ja'], ['zh-TW', 'zh'], ['zh-HK', 'zh'], ['zh-CN', 'zh'], ['fr-FR', 'en'], ['en-GB', 'en']]) {
+    const page = await b.newPage();
+    await page.evaluateOnNewDocument((l) => { Object.defineProperty(navigator, 'language', { get: () => l }); Object.defineProperty(navigator, 'languages', { get: () => [l] }); try { localStorage.clear(); } catch { /* */ } }, nav);
+    await page.goto(`${srv.url}?grain=0&quality=low&fullscreen=0&w=1280&h=720`, { waitUntil: 'load', timeout: 180000 });
+    await page.waitForFunction('window.__READY === true', { timeout: 180000, polling: 100 });
+    const s = await langState(page);
+    check('lang', `browser language ${nav} picks ${wantLang}`, s.lang === wantLang && s.html.startsWith(wantLang === 'zh' ? 'zh-Hant' : wantLang), `${s.lang}, <html lang="${s.html}">, title "${s.title}"`);
+    await page.close();
+  }
+  const { page, errors } = await open(b, 'w=1280&h=720&lang=en&fullscreen=0');
+  await page.evaluate(() => localStorage.removeItem('mirage:neon-district:settings'));
+  let s = await langState(page);
+  check('lang', '?lang=en: English, the title row shows English', s.lang === 'en' && s.html === 'en' && s.row === 'English' && /NEON/.test(s.title), JSON.stringify(s));
+  // the title: down to LANGUAGE, right three times: en -> zh -> ja -> en, each kept
+  for (let i = 0; i < 4; i++) await page.keyboard.press('ArrowDown');
+  const seq = [];
+  for (let i = 0; i < 3; i++) { await page.keyboard.press('ArrowRight'); await sleep(250); seq.push(await langState(page)); }
+  check('lang', 'the title switches en -> zh -> ja -> en and keeps each', seq.map((x) => x.lang).join() === 'zh,ja,en' && seq.map((x) => x.kept).join() === 'zh,ja,en' && seq[0].title === '霓虹街區' && seq[1].title === 'ネオン街区' && seq[1].html === 'ja' && seq[0].html === 'zh-Hant-TW',
+    seq.map((x) => `${x.lang}/${x.kept}/${x.html}/${x.title}`).join(' | '));
+  check('lang', 'the switch drops ?lang= from the address (the saved choice wins on reload)', !(await page.evaluate(() => location.search)).includes('lang='), await page.evaluate(() => location.search));
+  // the options: the button cycles too, and the panel redraws in the new language
+  await page.keyboard.press('KeyO'); await sleep(300);
+  const btn = async () => page.evaluate(() => { const b = document.querySelector('.nd-opt [data-b=lang]'); b.click(); return [document.querySelector('.nd-opt h2').textContent, document.querySelector('.nd-opt [data-b=lang]').textContent]; });
+  const o1 = await btn(); await sleep(150); const o2 = await btn(); await sleep(150); const o3 = await btn(); await sleep(150);
+  check('lang', 'the options\' language button cycles en -> zh -> ja -> en; the panel follows', o1.join() === '設定,繁體中文' && o2.join() === 'オプション,日本語' && o3.join() === 'Options,English', [o1, o2, o3].map((x) => x.join(' ')).join(' | '));
+  await btn(); await sleep(150); await btn(); await sleep(150);   // to Japanese again
+  await page.keyboard.press('KeyO'); await sleep(200);
+  // a reload keeps it; the run starts in it and the engine's pause menu is in it
+  await page.reload({ waitUntil: 'load' }); await page.waitForFunction('window.__READY === true', { timeout: 180000, polling: 100 }); await sleep(500);
+  s = await langState(page);
+  check('lang', 'a reload keeps the saved language', s.lang === 'ja' && s.kept === 'ja' && s.title === 'ネオン街区', JSON.stringify(s));
+  const titleWords = await englishLeft(page);
+  await page.keyboard.press('KeyO'); await sleep(300);
+  const optWords = await englishLeft(page);
+  await page.keyboard.press('KeyO'); await sleep(200);
+  await page.keyboard.press('ArrowUp'); await page.keyboard.press('ArrowUp'); await page.keyboard.press('ArrowUp'); await page.keyboard.press('ArrowUp'); await sleep(100);
+  await page.keyboard.press('Enter'); await sleep(1500);
+  const playWords = await englishLeft(page);
+  await page.evaluate(() => window.__mirage.g.ui.openMenu()); await sleep(300);
+  const menu = await page.evaluate(() => [document.querySelector('#mg-menu-h').textContent, document.querySelector('.mg-menu [data-do=resume]').textContent, document.querySelector('.mg-menu [data-p=sound]').textContent]);
+  check('lang', 'the engine\'s pause menu is in Japanese', menu.join() === 'ポーズ,再開,サウンド', menu.join(' / '));
+  const words = { title: titleWords, options: optWords, play: playWords, pause: await englishLeft(page) };
+  for (const p of ['save', 'load', 'controls', 'sound']) { await page.evaluate((p) => window.__mirage.g.ui.openMenu(p), p); await sleep(150); words['pause-' + p] = await englishLeft(page); }
+  await page.evaluate(() => document.querySelector('.mg-menu').close()); await sleep(200);
+  await page.evaluate(() => window.__mirage.g.ui.openInventory()); await sleep(200); words.bag = await englishLeft(page);
+  await page.evaluate(() => document.querySelector('.mg-inv').close()); await sleep(200);
+  await page.evaluate(() => { const m = window.__mirage, T = m.game.text; m.g.ui.message(T.doneTitle, T.doneBody({ diff: T.front.diffs.hard, rating: T.ratings[2], min: 6, sec: 4, kills: 37, acc: 44, shots: 412, heads: 9, deaths: 1 }), T.doneBtn); m.g.ui.toast(T.checkpoint); });
+  await sleep(300); words.endcard = await englishLeft(page);
+  // the same screens in Traditional Chinese, switched at run time (the open end card and the HUD follow)
+  await page.evaluate(() => window.__mirage.game.switchLang('zh')); await sleep(400);
+  const zh = { endcard: await englishLeft(page) };
+  await page.evaluate(() => document.querySelector('.mg-msg').close()); await sleep(200);
+  await page.evaluate(() => window.__mirage.g.ui.openMenu()); await sleep(200);
+  const zmenu = await page.evaluate(() => [document.querySelector('#mg-menu-h').textContent, document.querySelector('.mg-menu [data-do=resume]').textContent]);
+  check('lang', 'switched at run time: the open engine menu follows (zh)', zmenu.join() === '已暫停,繼續遊戲', zmenu.join(' / '));
+  for (const p of ['main', 'save', 'controls', 'sound']) { await page.evaluate((p) => window.__mirage.g.ui.openMenu(p), p); await sleep(150); zh['pause-' + p] = await englishLeft(page); }
+  await page.evaluate(() => document.querySelector('.mg-menu').close()); await sleep(200);
+  await page.evaluate(() => window.__mirage.game.toggleOptions()); await sleep(200); zh.options = await englishLeft(page);
+  await page.evaluate(() => window.__mirage.game.toggleOptions()); await sleep(300); zh.play = await englishLeft(page);
+  for (const [name, set] of [['ja', words], ['zh', zh]]) for (const [screen, w] of Object.entries(set)) check('lang', `${name} ${screen}: no English words on screen`, w.length === 0, w.slice(0, 6).join(', '));
+  check('lang', 'no console errors', errors.length === 0, errors[0] || '');
+  await b.close();
+}
+
+// ---- full screen on DEPLOY (a user gesture), unless ?fullscreen=0 or the player turned it off
+if (want('fullscreen')) {
+  const b = await launch({ w: 1280, h: 720, args: ['--autoplay-policy=no-user-gesture-required'] });
+  const deployCount = async (query, saved) => {
+    const page = await b.newPage();
+    await page.evaluateOnNewDocument((saved) => {
+      window.__fsCalls = 0;
+      Element.prototype.requestFullscreen = function () { window.__fsCalls++; return Promise.reject(new Error('stubbed')); };   // a refusal must not break anything
+      try { localStorage.removeItem('mirage:neon-district:settings'); if (saved) localStorage.setItem('mirage:neon-district:settings', JSON.stringify(saved)); } catch { /* */ }
+    }, saved || null);
+    const errors = []; page.on('pageerror', (e) => errors.push(e.message));
+    await page.goto(`${srv.url}?grain=0&quality=low&lang=en&w=1280&h=720&${query}`, { waitUntil: 'load', timeout: 180000 });
+    await page.waitForFunction('window.__READY === true', { timeout: 180000, polling: 100 }); await sleep(400);
+    await page.keyboard.press('Enter'); await sleep(1200);
+    const r = await page.evaluate(() => ({ calls: window.__fsCalls, started: window.__mirage.g.ui.started, paused: window.__mirage.g.game.paused }));
+    // left with Esc (as if): the pause menu offers the way back
+    await page.evaluate(() => { const m = window.__mirage; m.game.fullscreen.left = true; m.g.ui.openMenu(); });
+    await sleep(300);
+    r.back = await page.evaluate(() => document.querySelector('.mg-menu [data-nd=full]')?.textContent || null);
+    await page.close();
+    return { ...r, errors };
+  };
+  const a = await deployCount('');
+  check('fullscreen', 'DEPLOY asks for full screen (a refusal does not stop the run)', a.calls === 1 && a.started && !a.paused && !a.errors.length, JSON.stringify(a));
+  check('fullscreen', 'left full screen: the pause menu offers to return', a.back === 'Return to full screen', String(a.back));
+  const c = await deployCount('fullscreen=0');
+  check('fullscreen', '?fullscreen=0: DEPLOY does not ask', c.calls === 0 && c.started, JSON.stringify(c));
+  const d = await deployCount('', { nd: { fullscreen: false } });
+  check('fullscreen', 'the player turned it off (kept): DEPLOY does not ask', d.calls === 0 && d.started, JSON.stringify(d));
+  await b.close();
+}
+
+// ---- tablets and phones: nothing informational in the stick's zone or under a button; the kit's state is on screen
+const HUD_SEL = ['.nd-vit', '.nd-ammo', '.nd-tally', '.nd-up', '.nd-comp', '.nd-radio.on', '.nd-feed > div', '.nd-heat', '.nd-slots', '.ndx-bar', '.ndx-tstrip', '.ndx-hint', '.ndx-prompt', '.ndx-card.on p', '.mg-obj', '.mg-items li', '.mg-toast.on', '.ndx-tgt'];
+const hudClash = (page) => page.evaluate((sels) => {
+  const t = window.__mirage.game.touch, z = t.zone(), btns = t.rects().filter(([n]) => n !== 'stick' && n !== 'lock');
+  const shown = (el) => { for (let e = el; e && e !== document.body; e = e.parentElement) { const cs = getComputedStyle(e); if (cs.display === 'none' || cs.visibility === 'hidden' || +cs.opacity < 0.05 || e.hidden) return false; } return true; };
+  const hit = (a, b) => a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
+  const bad = [], seen = [];
+  for (const s of sels) for (const el of document.querySelectorAll(s)) {
+    if (!shown(el)) continue;
+    const r = el.getBoundingClientRect(); if (!r.width || !r.height) continue;
+    const box = [r.left, r.top, r.right, r.bottom]; seen.push(s);
+    if (hit(box, z)) bad.push(`${s} in the stick zone`);
+    for (const [n, l, tt, rr, bb] of btns) if (hit(box, [l, tt, rr, bb])) bad.push(`${s} under ${n}`);
+    if (r.left < 0 || r.top < 0 || r.right > innerWidth || r.bottom > innerHeight) bad.push(`${s} off screen`);
+  }
+  const strip = document.querySelector('.ndx-tstrip'), sr = strip.getBoundingClientRect(), hackPips = document.querySelectorAll('.ndt [data-b=hack] i u').length;
+  const kit = shown(strip) && sr.width > 0 && sr.right <= innerWidth && sr.left >= 0 && /\d|✓/.test(strip.textContent) && strip.querySelectorAll('.pi i').length === 3 && hackPips === 3;
+  return { bad: [...new Set(bad)], seen: [...new Set(seen)], kit, zone: z.map(Math.round), pointer: matchMedia('(pointer: coarse)').matches ? 'coarse' : 'fine' };
+}, HUD_SEL);
+if (want('tablet')) {
+  const b = await launch({ w: 1366, h: 1024, args: ['--autoplay-policy=no-user-gesture-required'] });
+  for (const [w, h, fine] of [[844, 390], [667, 375], [1024, 768], [1180, 820], [1366, 1024], [820, 1180], [1180, 820, true], [1366, 1024, true]]) {
+    for (const lang of fine ? ['en'] : ['ja', 'zh']) {
+      const page = await b.newPage(), errors = [];
+      page.on('pageerror', (e) => errors.push(e.message));
+      // fine: an iPad with a keyboard case: touch events, but the pointer reports fine (the touch layout comes with the first touch)
+      if (fine) {
+        await page.setViewport({ width: w, height: h, deviceScaleFactor: 1, isMobile: false, hasTouch: true, isLandscape: w > h });
+        const cdp = await page.createCDPSession();
+        await cdp.send('Emulation.setEmulatedMedia', { features: [{ name: 'pointer', value: 'fine' }, { name: 'any-pointer', value: 'fine' }, { name: 'hover', value: 'hover' }] }).catch(() => {});
+        // the scripts see a fine pointer too (what an iPad with a keyboard case reports): matchMedia says so
+        await page.evaluateOnNewDocument(() => { const mm = window.matchMedia.bind(window); window.matchMedia = (q) => (/pointer:\s*coarse/.test(q) ? { matches: false, media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} } : /pointer:\s*fine/.test(q) ? { ...mm(q), matches: true, media: q } : mm(q)); });
+      }
+      else await page.emulate({ viewport: { width: w, height: h, deviceScaleFactor: 1, isMobile: true, hasTouch: true, isLandscape: w > h }, userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Mobile Safari/537.36' });
+      await page.goto(`${srv.url}?grain=0&quality=low&fullscreen=0&reserve=0&lang=${lang}`, { waitUntil: 'load', timeout: 180000 });
+      await page.waitForFunction('window.__READY === true', { timeout: 180000, polling: 100 }); await sleep(500);
+      const onTitle = await page.evaluate(() => { const bar = document.querySelector('.ndx-bar'); return !bar || getComputedStyle(document.querySelector('.ndx')).display === 'none' || !bar.getClientRects().length; });
+      const go = await page.evaluate(() => { const r = document.querySelector('.nt-row.go').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
+      await page.touchscreen.tap(go[0], go[1]); await sleep(1500);
+      // a busy moment: the radio, a toast, the objective, out of ammunition (the hint), a hack target, then a prompt
+      await page.evaluate(() => { const m = window.__mirage, T = m.game.text; m.play.place([-13, 1.62, 6.2], [8, 2.6, 5], 'walk'); m.game.kit.overlay.card([], 0); m.game.hud.radio(T.xt.radio.teach); m.g.ui.toast(`${T.ammo} · ${T.arms.short.carbine} +48`); const S = m.game.weapon.S; S.mag = 0; S.reserve = 0; });
+      await sleep(1200);
+      const A = await hudClash(page);
+      await page.evaluate(() => { const m = window.__mirage; m.game.kit.overlay.busy(() => false); m.game.kit.overlay.prompt(m.game.text.xt.teach, 5); m.game.hud.feed('センチネル 撃破 · ヘッドショット', true); });
+      await sleep(400);
+      const B = await hudClash(page);
+      await page.evaluate(() => { const m = window.__mirage, o = m.game.kit.overlay; o.prompt('', 0); document.querySelector('.ndx-prompt').hidden = true; o.card(m.game.text.xt.story.cold, 9, true); });
+      await sleep(400);
+      const C = await hudClash(page);   // the cold open's card
+      const bad = [...new Set([...A.bad, ...B.bad, ...C.bad])];
+      check('tablet', `${w} x ${h}${fine ? ' (fine pointer + touch)' : ''} ${lang}: no HUD in the stick zone or under a button`, !bad.length, `${bad.slice(0, 5).join(', ')} (zone ${A.zone}, pointer ${A.pointer}, checked ${A.seen.length})`);
+      check('tablet', `${w} x ${h}${fine ? ' (fine pointer + touch)' : ''} ${lang}: charge pips, cooldowns and overdrive shown; the desktop bar hidden (title too)`, A.kit && onTitle && !A.seen.includes('.ndx-bar'), `kit ${A.kit}, title bar hidden ${onTitle}`);
+      await page.screenshot({ path: path.join(here, `../out/i18n/${lang}-tablet-${w}x${h}${fine ? '-fine' : ''}.png`) }).catch(() => {});
+      if (errors.length) check('tablet', `${w} x ${h} ${lang}: no console errors`, false, errors[0]);
+      await page.close();
+    }
+  }
   await b.close();
 }
 srv.close?.();

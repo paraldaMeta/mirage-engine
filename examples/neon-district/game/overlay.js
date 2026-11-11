@@ -41,20 +41,35 @@ const CSS = `
 .ndx-ult b{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px}
 .ndx-ult u{position:absolute;right:-2px;bottom:-2px;font-size:9px;text-decoration:none;opacity:.7}
 .ndx-ult.ready .fg{filter:drop-shadow(0 0 5px #ff3aa8)}.ndx-ult.ready b{color:#ff8ad0}
-.ndx-way{position:absolute;left:0;top:0;transform:translate(-50%,-50%);text-align:center;color:#ffb020;font-size:11px;letter-spacing:.1em;text-shadow:0 1px 3px #000}
+.ndx-way{position:absolute;left:0;top:0;transform:translate(-50%,-50%);white-space:nowrap;text-align:center;color:#ffb020;font-size:11px;letter-spacing:.1em;text-shadow:0 1px 3px #000}
 .ndx-way:before{content:"";display:block;width:0;height:0;margin:0 auto 3px;border:7px solid transparent;border-top:10px solid #ffb020;filter:drop-shadow(0 0 3px #ffb020)}
 .ndx-way.pulse{animation:ndxp .7s infinite alternate}@keyframes ndxp{to{transform:translate(-50%,-50%) scale(1.3);opacity:.6}}
 .ndx-ctick{position:absolute;top:max(12px,env(safe-area-inset-top));left:50%;width:0;height:0;margin-left:-5px;border:5px solid transparent;border-top:8px solid #ffb020}
-.ndx-hint{position:absolute;left:50%;bottom:max(150px,calc(env(safe-area-inset-bottom) + 150px));transform:translateX(-50%);padding:5px 12px;border:1px solid #ffb02088;background:#1c1004cc;color:#ffd080;font:600 12px system-ui,"PingFang TC","Noto Sans TC",sans-serif;letter-spacing:.04em;white-space:nowrap}
+.ndx-hint{position:absolute;left:50%;bottom:max(150px,calc(env(safe-area-inset-bottom) + 150px));transform:translateX(-50%);padding:5px 12px;border:1px solid #ffb02088;background:#1c1004cc;color:#ffd080;font:600 12px system-ui,var(--nd-cjk,"PingFang TC"),sans-serif;letter-spacing:.04em;white-space:nowrap}
 .ndx-prompt{position:absolute;left:50%;top:62%;transform:translateX(-50%);padding:6px 14px;border:1px solid #19d8ff;background:#04141cdd;letter-spacing:.14em;font-size:12px;box-shadow:0 0 12px #19d8ff55}
-.ndx-pop{position:absolute;left:0;top:0;transform:translate(-50%,-50%);font:italic 900 26px/1 Impact,"Arial Black","PingFang TC","Noto Sans TC",sans-serif;letter-spacing:.02em;color:#fff35a;-webkit-text-stroke:2px #1a0010;paint-order:stroke;text-shadow:3px 3px 0 #ff2a7a}
+.ndx-pop{position:absolute;left:0;top:0;transform:translate(-50%,-50%);font:italic 900 26px/1 Impact,"Arial Black",var(--nd-cjk,"PingFang TC"),sans-serif;letter-spacing:.02em;color:#fff35a;-webkit-text-stroke:2px #1a0010;paint-order:stroke;text-shadow:3px 3px 0 #ff2a7a}
 .ndx-pop.k-shield{color:#ffb020}.ndx-pop.k-emp{color:#7af0ff;text-shadow:3px 3px 0 #2050ff}.ndx-pop.k-overload{color:#ff8ad0;text-shadow:3px 3px 0 #6020ff}
-.ndx-say{position:absolute;left:0;top:0;transform:translate(-50%,-100%);max-width:260px;padding:3px 8px;background:#020a10c8;border-left:2px solid #50d8ff;font:500 12px/1.35 system-ui,"PingFang TC","Noto Sans TC",sans-serif;color:#cfefff;text-align:left}
+.ndx-say{position:absolute;left:0;top:0;transform:translate(-50%,-100%);max-width:260px;padding:3px 8px;background:#020a10c8;border-left:2px solid #50d8ff;font:500 12px/1.35 system-ui,var(--nd-cjk,"PingFang TC"),sans-serif;color:#cfefff;text-align:left}
 .ndx-say b{display:block;font:600 9px ui-monospace,monospace;letter-spacing:.14em;color:#50d8ff}
-.ndx-card{position:absolute;left:50%;top:30%;transform:translateX(-50%);width:min(620px,calc(100vw - 48px));text-align:center;font:500 17px/1.6 system-ui,"PingFang TC","Noto Sans TC",sans-serif;color:#e8f8ff;text-shadow:0 2px 8px #000;opacity:0;transition:opacity .8s}
+.ndx-card{position:absolute;left:50%;top:30%;transform:translateX(-50%);width:min(620px,calc(100vw - 48px));text-align:center;font:500 17px/1.6 system-ui,var(--nd-cjk,"PingFang TC"),sans-serif;color:#e8f8ff;text-shadow:0 2px 8px #000;opacity:0;transition:opacity .8s}
 .ndx-card.on{opacity:1}.ndx-card p{margin:0 0 .5em}.ndx-card p.dim{opacity:.7;font-size:14px}
 .nd-hit.shield:before,.nd-hit.shield:after{background:#ffb020}
 .nd-ammo.ndx-low b{color:#ffb020}.nd-ammo.ndx-dry b{color:#ff5a6a}
+/* the kit at a glance on a touch screen (the desktop bar's place is the stick's): a strip in the band above the ammo */
+.ndx-tstrip{position:absolute;display:none;left:calc(50% + (var(--ndt-band-l,0px) - var(--ndt-band-r,0px)) / 2);bottom:calc(max(8px,env(safe-area-inset-bottom)) + 104px);transform:translateX(-50%);align-items:center;gap:9px;padding:2px 8px;background:#04141c99;border:1px solid #6fe8ff40;font-size:10px;letter-spacing:.06em;white-space:nowrap;text-shadow:0 1px 2px #000}
+.ndx-tstrip i{display:inline-block;width:8px;height:8px;margin-left:3px;border:1px solid #19d8ff;transform:rotate(45deg);background:#04141c;vertical-align:0}.ndx-tstrip i.on{background:#19d8ff}
+.ndx-tstrip span{opacity:.6}.ndx-tstrip span.ready{opacity:1;color:#7af0ff}.ndx-tstrip span.ult.ready{color:#ff8ad0}
+body.nd-touch .ndx-tstrip{display:flex}
+body.nd-titling .ndx{display:none}
+/* touch: nothing in the stick's zone (lower left) or under a button; what is centred keeps to the free band */
+body.nd-touch .ndx-prompt,body.nd-touch .ndx-card{left:calc(min(30vw,280px) + max(18px,env(safe-area-inset-left)));right:max(116px,calc(env(safe-area-inset-right) + 116px));transform:none;width:auto}
+body.nd-touch .ndx-prompt{top:max(62px,calc(env(safe-area-inset-top) + 62px));white-space:normal;text-align:center;font-size:11px;letter-spacing:.08em}
+body.nd-touch .ndx-card{top:max(40px,calc(env(safe-area-inset-top) + 40px));font-size:13px;line-height:1.5}
+@media (max-width:700px){.ndx-tstrip .pl{display:none}.ndx-tstrip{gap:6px;padding:2px 6px}}
+body.nd-touch .ndx-card p.dim{font-size:12px}
+body.nd-touch .ndx-hint,body.nd-touch .ndx-tgt{left:var(--ndt-band-l,20%);right:var(--ndt-band-r,20%);transform:none;white-space:normal;text-align:center}
+body.nd-touch .ndx-hint{bottom:calc(max(8px,env(safe-area-inset-bottom)) + 128px);font-size:11px}
+@media (max-height:520px){.ndx-card{top:22%;font-size:14px;line-height:1.5}}
 `;
 
 export function createOverlay({ camera, onDispose, T, hudRoot }) {
@@ -63,11 +78,12 @@ export function createOverlay({ camera, onDispose, T, hudRoot }) {
   root.innerHTML = `<style>${CSS}</style><div class="ndx-scan"></div><div class="ndx-over"></div><div class="ndx-flash"></div>
     <div class="ndx-ring"><svg viewBox="0 0 64 64"><circle class="bg" cx="32" cy="32" r="28"/><circle class="fg" cx="32" cy="32" r="28"/></svg></div><div class="ndx-tgt"><span></span><em></em></div>
     <div class="ndx-bar">
-      <div class="ndx-pips"><span>${X.pips}</span><div><i><b></b></i><i><b></b></i><i><b></b></i></div><span class="ndx-gk">G</span></div>
+      <div class="ndx-pips"><span class="ndx-pl">${X.pips}</span><div><i><b></b></i><i><b></b></i><i><b></b></i></div><span class="ndx-gk">G</span></div>
       <div class="ndx-ab" data-a="dash"><svg viewBox="0 0 28 28"><path d="M4 14h13M12 8l6 6-6 6M20 6v16"/></svg><i></i><b></b><u>${X.keys.dash}</u></div>
       <div class="ndx-ab" data-a="grenade"><svg viewBox="0 0 28 28"><circle cx="14" cy="15" r="7"/><path d="M14 2v5M6 6l3 3M22 6l-3 3M11 15l2-3 2 4 2-3"/></svg><i></i><b></b><u>${X.keys.grenade}</u></div>
       <div class="ndx-ult"><svg viewBox="0 0 52 52"><circle class="bg" cx="26" cy="26" r="22"/><circle class="fg" cx="26" cy="26" r="22"/></svg><b>0%</b><u>${X.keys.over}</u></div>
     </div>
+    <div class="ndx-tstrip" aria-hidden="true"><b class="pl"></b><b class="pi"><i></i><i></i><i></i></b><span class="da"></span><span class="gr"></span><span class="ult"></span></div>
     <div class="ndx-ctick" hidden></div><div class="ndx-way" hidden></div><div class="ndx-hint" hidden></div><div class="ndx-prompt" hidden></div><div class="ndx-card"></div>`;
   document.body.appendChild(root);
   onDispose(() => root.remove());
@@ -80,7 +96,9 @@ export function createOverlay({ camera, onDispose, T, hudRoot }) {
   const pool = (cls, n) => Array.from({ length: n }, () => { const d = document.createElement('div'); d.className = cls; d.style.display = 'none'; root.appendChild(d); return d; });
   const holos = pool('ndx-holo', 28), marks = pool('ndx-mark', 20), popEls = pool('ndx-pop', 5), sayEls = pool('ndx-say', 3);
   const pops = [], says = [];
-  let flashT = 0, promptT = 0, cardT = 0, cardOn = false, under = () => null;
+  let flashT = 0, promptT = 0, cardT = 0, cardOn = false, cardLines = null, cardLen = 1, under = () => null, busy = () => false, pending = null;
+  const ts = { root: $('.ndx-tstrip') }; ts.label = ts.root.querySelector('.pl'); ts.pips = [...ts.root.querySelectorAll('.pi i')]; ts.dash = ts.root.querySelector('.da'); ts.gren = ts.root.querySelector('.gr'); ts.ult = ts.root.querySelector('.ult');
+  const tput = (el, k, v) => { if (el['_' + k] !== v) { el['_' + k] = v; if (k === 'text') el.textContent = v; else el.className = v; } };
   /** world point -> { x, y } in CSS px, or null when behind the camera */
   const v = [0, 0, 0];
   function project(p, out = {}) {
@@ -123,6 +141,7 @@ export function createOverlay({ camera, onDispose, T, hudRoot }) {
     },
     /** the bar: pips { n (whole), frac (of the next), max }; dash / grenade { left, cd }; over { charge 0..1, active } */
     bar({ charges, frac, dash, grenade, over, free }) {
+      tput($('.ndx-pl'), 'text', X.pips);
       pips.forEach((b, i) => { b.style.height = `${free ? 100 : i < charges ? 100 : i === charges ? Math.round(frac * 100) : 0}%`; });
       for (const [k, s] of [['dash', dash], ['grenade', grenade]]) {
         const el = abs[k]; el.querySelector('i').style.height = `${(100 * s.left / s.cd).toFixed(0)}%`;
@@ -132,6 +151,12 @@ export function createOverlay({ camera, onDispose, T, hudRoot }) {
       ultTx.textContent = over.active ? `${Math.ceil(over.left)}s` : `${Math.floor(over.charge * 100)}%`;
       ult.classList.toggle('ready', over.charge >= 1 || over.active);
       overEl.classList.toggle('on', over.active);
+      // the touch strip: the same state, compact (CSS shows it only with the touch layer)
+      tput(ts.label, 'text', X.pips);
+      ts.pips.forEach((el, i) => tput(el, 'class', free || i < charges ? 'on' : ''));
+      tput(ts.dash, 'text', `» ${dash.left > 0 ? Math.ceil(dash.left) : '✓'}`); tput(ts.dash, 'class', dash.left > 0 ? '' : 'ready');
+      tput(ts.gren, 'text', `✹ ${grenade.left > 0 ? Math.ceil(grenade.left) : '✓'}`); tput(ts.gren, 'class', grenade.left > 0 ? '' : 'ready');
+      tput(ts.ult, 'text', `↯ ${over.active ? Math.ceil(over.left) + 's' : Math.floor(over.charge * 100) + '%'}`); tput(ts.ult, 'class', 'ult' + (over.charge >= 1 || over.active ? ' ready' : ''));
     },
     /** the ammo: state 'ok' | 'low' | 'dry'; the nearest source { pos, label } or null; yaw for the compass tick */
     ammo(state, src, yaw) {
@@ -169,12 +194,16 @@ export function createOverlay({ camera, onDispose, T, hudRoot }) {
       says.push({ el, getPos, t: sec });
     },
     hint(text) { hint.hidden = !text; if (text) hint.textContent = text; },
-    prompt(text, sec = 6) { promptEl.hidden = false; promptEl.textContent = text; promptT = sec; },
+    /** a prompt in the middle of the screen; it waits while a story card or the radio (busy()) is showing */
+    prompt(text, sec = 6) { if (cardOn || busy()) { pending = [text, sec]; return; } promptEl.hidden = false; promptEl.textContent = text; promptT = sec; },
+    /** fn() true while the radio is speaking: a prompt waits for it */
+    busy(fn) { busy = fn; },
     flash(color = '#9ff4ff', k = 0.35) { flashEl.style.background = color; flashT = k; },
     /** the story's card: lines (the last can be dim), shown for sec seconds */
     card(lines, sec = 8, dimLast = false) {
       card.innerHTML = ''; lines.forEach((l, i) => { const p = document.createElement('p'); p.textContent = l; if (dimLast && i === lines.length - 1) p.className = 'dim'; card.appendChild(p); });
-      card.classList.add('on'); cardOn = true; cardT = sec;
+      card.classList.add('on'); cardOn = lines.length > 0; cardT = sec; cardLen = sec;
+      cardLines = lines.length > 1 ? [...card.children] : null;
     },
     get cardOn() { return cardOn; },
     /** once a display frame */
@@ -182,6 +211,12 @@ export function createOverlay({ camera, onDispose, T, hudRoot }) {
       flashT = Math.max(0, flashT - dt); flashEl.style.opacity = String(flashT.toFixed(3));
       if (promptT > 0 && (promptT -= dt) <= 0) promptEl.hidden = true;
       if (cardOn && (cardT -= dt) <= 0) { card.classList.remove('on'); cardOn = false; }
+      // on a touch screen the card sits in the strip above the buttons: one line at a time, an equal share of the time
+      if (cardOn && cardLines) {
+        const one = document.body.classList.contains('nd-touch'), k = Math.min(cardLines.length - 1, Math.floor((1 - cardT / cardLen) * cardLines.length));
+        cardLines.forEach((p, i) => { const h = one && i !== k; if (p.hidden !== h) p.hidden = h; });
+      }
+      if (pending && !cardOn && !busy()) { const [text, sec] = pending; pending = null; promptEl.hidden = false; promptEl.textContent = text; promptT = sec; }
       for (let i = pops.length - 1; i >= 0; i--) {
         const p = pops[i]; p.t += dt;
         if (p.t > 0.75 || !project(p.pos, P)) { p.el.style.display = 'none'; pops.splice(i, 1); continue; }
