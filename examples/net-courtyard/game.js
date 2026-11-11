@@ -1,7 +1,7 @@
 // net-courtyard's rules, imported by the page AND by the server (mirage-net --game game.js): one protocol, one list
 // of pickups, one spawn, so the two ends cannot disagree. The world is hello-courtyard's plan.
 import plan from '../hello-courtyard/plan.js';
-import { kitProtocol, installKit } from '@mirage/net/kit';
+import { kitProtocol, installKit } from '@miragekit/net/kit';
 
 export const protocol = kitProtocol({ bounds: plan.bounds, y: [-2, 12] });
 export const spawn = [plan.spawn.eye[0], 0, plan.spawn.eye[2]];

@@ -3,10 +3,10 @@
 // gamepad and touch, procedural sound, save / load (Esc or P: the menu).
 // URL: ?w=&h=  ?spp=N  ?grain=0  ?load=<slot> (load a save slot on start)  ?start=1 (skip the start screen)
 // WebXR: Enter VR / Enter AR buttons in a headset browser (docs/xr.md)
-import { createWorldRenderer, createTextures, pickQuality } from '@mirage/core';
-import { buildWorld } from '@mirage/world';
-import { startGame } from '@mirage/game';
-import { createXR, xrSupport } from '@mirage/play';
+import { createWorldRenderer, createTextures, pickQuality } from '@miragekit/core';
+import { buildWorld } from '@miragekit/world';
+import { startGame } from '@miragekit/game';
+import { createXR, xrSupport } from '@miragekit/play';
 import manifest from '../hello-courtyard/tex/manifest.json';
 import plan from './plan.js';
 import modules from './modules/index.js';
@@ -36,7 +36,7 @@ const S = { lawn: 'grass', hedge: 'grass', gravel: 'gravel', land: 'gravel', pla
 for (const [k, m] of Object.entries(shared.mats)) m.userData.surface = S[k] || 'stone';
 const { camera } = world;
 camera.aspect = W / H; camera.fov = 55; camera.near = 0.1; camera.far = 3000; camera.updateProjectionMatrix();
-if (Q.get('perf')) window.__big = (await import('@mirage/core/bigworld')).applyBigWorld(world, world.scene, Q.get('perf'));   // ?perf=chunk,lod,occ (docs/big-worlds.md)
+if (Q.get('perf')) window.__big = (await import('@miragekit/core/bigworld')).applyBigWorld(world, world.scene, Q.get('perf'));   // ?perf=chunk,lod,occ (docs/big-worlds.md)
 await tex.ready();
 async function mountQuest() {
   let quest;

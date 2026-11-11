@@ -1,11 +1,11 @@
 # Audio engine
 
-`createAudioEngine` (in `@mirage/game`, experimental, opt-in) adds sound files, a mixer with effects, 3D placement,
+`createAudioEngine` (in `@miragekit/game`, experimental, opt-in) adds sound files, a mixer with effects, 3D placement,
 reverb zones, occlusion, voice management, cues and adaptive music on top of Web Audio. `createAudio` (the three-bus
 mixer with code-made sounds) is unchanged: a page that never calls `createAudioEngine` loads and runs none of this.
 
 ```js
-import { startGame, createAudioEngine, createMusic, createAudioDebug, physicsOccluder } from '@mirage/game';
+import { startGame, createAudioEngine, createMusic, createAudioDebug, physicsOccluder } from '@miragekit/game';
 
 const g = await startGame(world, { ... });
 const engine = createAudioEngine({

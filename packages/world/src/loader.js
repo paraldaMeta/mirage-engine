@@ -1,7 +1,7 @@
 // Mirage original code. The module/anchor conventions follow the author's own earlier project (docs/NOTES.md there).
 import * as THREE from 'three';
-import { rng } from '@mirage/core';
-import { nextFrame, watchLongTasks } from '@mirage/core/stream';
+import { rng } from '@miragekit/core';
+import { nextFrame, watchLongTasks } from '@miragekit/core/stream';
 import { definePlan } from './plan.js';
 
 // ---------------------------------------------------------------------------

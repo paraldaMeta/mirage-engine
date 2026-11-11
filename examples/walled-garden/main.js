@@ -5,16 +5,16 @@
 //      ?spp=N  ?w=&h=  ?grain=0  ?broken=1  ?ui=0  ?npc=N (N travellers wander the terraces: npc.js)
 //      ?lawn=fur | fur-fins | tufts (turf on one lawn panel)
 //      XR (all opt-in, xr-demo.js): ?xrpost=1 ?xrbudget=1 ?xrprofile=auto ?xrposture=seated ?xrbounds=1 ?xrsmooth=1 ?xrdemo=1 ?xrar=1
-import { createWorldRenderer, createTextures, placeDate, pickQuality, postFromQuery } from '@mirage/core';
-import { buildWorld } from '@mirage/world';
-import { createPlay, createXR, xrSupport } from '@mirage/play';
+import { createWorldRenderer, createTextures, placeDate, pickQuality, postFromQuery } from '@miragekit/core';
+import { buildWorld } from '@miragekit/world';
+import { createPlay, createXR, xrSupport } from '@miragekit/play';
 import manifest from '../hello-courtyard/tex/manifest.json';
 import plan from './plan.js';
 import modules from './modules/index.js';
 import { npcDemo } from './npc.js';   // ?npc=N only (static: a dynamic import would split the bundle in two)
 import { addLamps } from './lamps.js';
 import { xrDemo } from './xr-demo.js';   // ?xrpost ?xrbudget ?xrprofile ?xrposture ?xrbounds ?xrdemo ?xrar (docs/xr.md)
-import { editable } from '@mirage/editor/runtime';
+import { editable } from '@miragekit/editor/runtime';
 import edits from './plan.edits.json';   // written by `npx mirage-editor examples/walled-garden --write` (docs/editor.md); {} = no edits
 
 const Q = new URLSearchParams(location.search);
@@ -54,7 +54,7 @@ if (NL) addLamps(world, { n: NL, min: [-20, 0.8, -18], max: [20, 2.6, 22], first
 const { camera } = world;
 camera.aspect = W / H; camera.fov = 55; camera.near = 0.1; camera.far = 3000; camera.updateProjectionMatrix();
 await tex.ready();
-if (Q.get('perf')) window.__big = (await import('@mirage/core/bigworld')).applyBigWorld(world, world.scene, Q.get('perf'));   // ?perf=chunk,lod,occ (docs/big-worlds.md)
+if (Q.get('perf')) window.__big = (await import('@miragekit/core/bigworld')).applyBigWorld(world, world.scene, Q.get('perf'));   // ?perf=chunk,lod,occ (docs/big-worlds.md)
 await ed.apply(world, built);
 await world.prepare();
 const spp = +Q.get('spp') || 6, mode = Q.get('mode') || 'walk';

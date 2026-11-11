@@ -1,9 +1,9 @@
-// A host program (a game) with its own renderer, camera and objects mounts the courtyard with @mirage/play's
+// A host program (a game) with its own renderer, camera and objects mounts the courtyard with @miragekit/play's
 // mountWorld: its objects go into the world's `root` (lit, shadowed and hazed with the world), its own
 // characters walk on the world's baked walk grid, and it renders with its own camera.
 import * as THREE from 'three';
-import { createTextures } from '@mirage/core';
-import { mountWorld } from '@mirage/play';
+import { createTextures } from '@miragekit/core';
+import { mountWorld } from '@miragekit/play';
 import manifest from './tex/manifest.json';
 import plan from './plan.js';
 import modules from './modules/index.js';

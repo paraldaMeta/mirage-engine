@@ -1,4 +1,4 @@
-import { addGrass, addTreeCanopies } from '@mirage/world/kits/vegetation';
+import { addGrass, addTreeCanopies } from '@miragekit/world/kits/vegetation';
 
 // Distance to the nearest trail segment, including its endpoints.
 function offTrail(x, z, trail) {

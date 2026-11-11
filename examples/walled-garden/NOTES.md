@@ -27,7 +27,7 @@ The stair footprints (`plan.footprints.stairsLower`, `stairsMiddle`) and 0.6 m e
 
 Not in the default build order: `modules({ lawn })` appends it only when the page asks (main.js reads `?lawn=`), so
 the garden without it is unchanged (9 views, 0 px against the base). Turf on `plan.lawns[0]` (lower east, inset
-0.5 m inside the hedge, 0.061 m up: on the panel) to compare @mirage/world's shell fur with its tuft cards: `tufts`
+0.5 m inside the hedge, 0.061 m up: on the panel) to compare @miragekit/world's shell fur with its tuft cards: `tufts`
 30 per m² (9,629, 0.11 m), `fur` 16 shells of 0.07 m at 900 strands per m², `fur-fins` the same plus fins every
 0.3 m. Numbers (draw calls, triangles, frame ms) and the look: packages/world/README.md, "Fur". Reads: `lawns`.
 

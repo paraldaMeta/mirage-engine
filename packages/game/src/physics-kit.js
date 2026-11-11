@@ -61,7 +61,7 @@ function gather(obj, inv, wantMesh) {
 
 export function createPhysicsKit(phys, { hz = 60, maxSteps = 5, interpolate: interp = true, layers: layerNames = ['default'], profile = false } = {}) {
   const R = phys.R, ext = phys.ext, info = phys.info;
-  if (!ext) throw new Error('createPhysicsKit: this createPhysics has no ext hooks (an older @mirage/game?)');
+  if (!ext) throw new Error('createPhysicsKit: this createPhysics has no ext hooks (an older @miragekit/game?)');
   const h = 1 / hz;
   const bodies = new Map();        // rigid-body handle -> Body
   const owner = new Map();         // collider handle -> Body

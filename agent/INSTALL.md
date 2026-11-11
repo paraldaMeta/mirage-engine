@@ -11,7 +11,7 @@ parallel, and to prove it works.
 | `mirage-module` | writing one module that follows the world protocol |
 | `mirage-parallel-build` | a lead running one worker agent per module; the coordination contract |
 | `mirage-playtest` | build → run → scripted inputs → screenshots + metrics → pass / fail → fix |
-| `mirage-game` | interactables, inventory, flags, doors, saves, input, sound, HUD (`@mirage/game`) |
+| `mirage-game` | interactables, inventory, flags, doors, saves, input, sound, HUD (`@miragekit/game`) |
 | `mirage-ship` | single file, budgets, deploy folder (uploads nothing), credits / licences |
 
 The skills run the tools in this repo (`packages/tools`), so the agent needs a clone of Mirage; worlds live in it

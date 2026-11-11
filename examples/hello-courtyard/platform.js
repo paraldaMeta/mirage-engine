@@ -4,8 +4,8 @@
 //   saves()                               the save storage a wrapper maps to its own folder (localStorage in a browser)
 //   mount({ world, play, canvas, game, audio, storage, ui })  context-loss recovery, the quality governor, visibility / audio / wake lock /
 //                                         fullscreen / safe area; all on window.__platform for the console and the checks
-import { probeDevice, createContextRecovery, createQualityGovernor } from '@mirage/core/platform';
-import { createPlatform, createSaveStorage } from '@mirage/game/platform';
+import { probeDevice, createContextRecovery, createQualityGovernor } from '@miragekit/core/platform';
+import { createPlatform, createSaveStorage } from '@miragekit/game/platform';
 
 export const probe = () => probeDevice();
 export const saves = () => createSaveStorage();

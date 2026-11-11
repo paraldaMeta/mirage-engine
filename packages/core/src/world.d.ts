@@ -23,7 +23,7 @@ export interface WorldRendererOptions {
   envIntensity?: number; envFade?: number; wind?: NonNullable<Parameters<typeof createEnv>[0]>['wind'];
   clouds?: number; fog?: Partial<{ density: number; groundDensity: number; height: number; air: number; level: number; color: number; glow: number }>;
   post?: Partial<PostSettings>; preserveDrawingBuffer?: boolean; mobile?: boolean; byteTargets?: boolean; shadowMapSize?: number; spp?: number;
-  /** A multisampled, XR-compatible context, so a WebXR session (@mirage/play/xr) gets MSAA. Pass `(await xrSupport()).vr`. */
+  /** A multisampled, XR-compatible context, so a WebXR session (@miragekit/play/xr) gets MSAA. Pass `(await xrSupport()).vr`. */
   xr?: boolean;
   /** Lamp shadows, screen-space reflections, volumetric light, mixed bloom (off by default). */
   light2?: Light2Option;
@@ -33,7 +33,7 @@ export interface WorldRendererOptions {
   softShadows?: SoftShadowOption;
   /** Realtime lighting features (off by default, each one opt-in): cascaded sun shadows, probe GI, reflection probes, clustered local lights. */
   lighting?: LightingOption;
-  /** Reduced motion from the start (off by default; @mirage/play follows prefers-reduced-motion): see setReducedMotion. */
+  /** Reduced motion from the start (off by default; @miragekit/play follows prefers-reduced-motion): see setReducedMotion. */
   reducedMotion?: boolean | Partial<ReducedMotionSettings>;
 }
 /** Scales 0..1: sway = the wind's strength while a frame renders (every mgWind / uWind sway), rain = the rain kit's fall speed. */
@@ -42,8 +42,8 @@ export interface ReducedMotionSettings { sway: number; rain: number }
 export function reducedMotionConfig(option?: boolean | Partial<ReducedMotionSettings> | null): ReducedMotionSettings | null;
 /** renderTransparent's result: RGBA8, straight (not premultiplied) alpha, top row first. */
 export interface TransparentStill { width: number; height: number; data: Uint8Array }
-/** cap: the app's own frame cap (fps; @mirage/play sets it from maxFps / the power saver) — the budget is never tighter. */
-export interface DynamicResSettings { target: number; min: number; step: number; cap?: number; /** a ceiling on the scale (unset = 1): the quality governor of `@mirage/core/platform` lowers it */ max?: number }
+/** cap: the app's own frame cap (fps; @miragekit/play sets it from maxFps / the power saver) — the budget is never tighter. */
+export interface DynamicResSettings { target: number; min: number; step: number; cap?: number; /** a ceiling on the scale (unset = 1): the quality governor of `@miragekit/core/platform` lowers it */ max?: number }
 /** The full dynamic-resolution settings for `true` / a partial object; null when off. */
 export function dynamicResConfig(option?: boolean | Partial<DynamicResSettings> | null): DynamicResSettings | null;
 export interface RenderFrameOptions {
@@ -101,14 +101,14 @@ export interface WorldRenderer {
   setReducedMotion(option?: boolean | Partial<ReducedMotionSettings> | null): ReducedMotionSettings | null;
   /** One plain draw of the scene into the current framebuffer (the XR path): no pipeline; the renderer's tone mapping grades. */
   renderDirect(seconds?: number, options?: { camera?: THREE.Camera; shadow?: ShadowRegion; fog?: number }): void;
-  /** XR post (@mirage/play xr-post): set the frame's state once (fog, time, updates, shadow fit), then call draw with the
+  /** XR post (@miragekit/play xr-post): set the frame's state once (fog, time, updates, shadow fit), then call draw with the
    *  frame's post settings; the caller draws each view through its own Pipeline. */
   renderViews(seconds: number, options: { camera?: THREE.Camera; shadow?: ShadowRegion; fog?: number; dt?: number; draw(post: PostSettings): void }): void;
   resize(width: number, height: number): void;
   /** Call after setTime() or prepare(). */
   captureEnv(instant?: boolean): void;
   setAmbientVolumes(volumes?: readonly AmbientVolume[]): void;
-  /** call after `webglcontextrestored`: re-bakes the sky, the image-based light and probe lighting (see `@mirage/core/platform`) */
+  /** call after `webglcontextrestored`: re-bakes the sky, the image-based light and probe lighting (see `@miragekit/core/platform`) */
   contextRestored(): void;
   /** Releases pipeline, environment light and scene geometries; an injected renderer stays owned by its host.
    * Does not stop external loops/listeners or generally release scene materials/textures. No reuse after disposal. */

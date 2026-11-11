@@ -1,4 +1,4 @@
-// Demo: the character mover and the navigation stack of @mirage/play on one yard.
+// Demo: the character mover and the navigation stack of @miragekit/play on one yard.
 // A lift up to a deck (with a ladder on its south face), a turntable, a sliding door in a long wall, three crates
 // Rapier owns, a crowd that avoids itself and you, and a guard that patrols, sees you, and comes over the fence by
 // an off-mesh jump link when you stand in the fenced yard.
@@ -8,11 +8,11 @@
 //      ?debug=1 (grid, links, paths, velocities, the guard's tree)   ?cam=first   ?door=manual (default: every 12 s)
 //      ?w=&h=  ?ui=0  ?grain=0  ?spp=N  ?quality=
 import * as THREE from 'three';
-import { createWorldRenderer } from '@mirage/core';
-import { buildWorld, definePlan } from '@mirage/world';
+import { createWorldRenderer } from '@miragekit/core';
+import { buildWorld, definePlan } from '@miragekit/world';
 import { bakeWalkGrid, createCharacter, createSolids, createMover, createFollowCamera, linkSolids, createNavGrid, carveSolids,
-  createCrowd, createSenses, createBehaviorTree, guard, createNavDebug, smoothPath } from '@mirage/play';
-import { createPhysics } from '@mirage/game';
+  createCrowd, createSenses, createBehaviorTree, guard, createNavDebug, smoothPath } from '@miragekit/play';
+import { createPhysics } from '@miragekit/game';
 
 const Q = new URLSearchParams(location.search);
 const W = +Q.get('w') || innerWidth, H = +Q.get('h') || innerHeight;

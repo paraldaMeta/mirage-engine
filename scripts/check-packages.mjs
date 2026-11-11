@@ -44,7 +44,7 @@ for (const name of PKGS) {
   if (pkg.version !== root.version) bad.push(`${at} version ${pkg.version}, the root is ${root.version}`);
   for (const [dep, range] of Object.entries({ ...pkg.dependencies, ...pkg.peerDependencies })) {
     if (dep === 'three' && !satisfies(three, range)) bad.push(`${at} three ${three} (installed) is outside its range "${range}"`);
-    if (dep.startsWith('@mirage/') && !satisfies(root.version, range)) bad.push(`${at} ${dep} "${range}" does not accept ${root.version}`);
+    if (dep.startsWith('@miragekit/') && !satisfies(root.version, range)) bad.push(`${at} ${dep} "${range}" does not accept ${root.version}`);
   }
   const entry = (t) => (typeof t === 'string' ? t : t?.default);
   for (const [sub, target] of Object.entries(pkg.exports || {})) {

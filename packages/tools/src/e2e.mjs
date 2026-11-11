@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 
 const args = process.argv.slice(2);
 const opt = (k) => (args.includes(k) ? args[args.indexOf(k) + 1] : null);
-// the project, not this package's place on disk (installed, that is node_modules/@mirage/tools)
+// the project, not this package's place on disk (installed, that is node_modules/@miragekit/tools)
 const ROOT = path.resolve(opt('--root') || '.');
 const only = opt('--only') ? opt('--only').split(',') : null;
 const TOOLS = path.dirname(fileURLToPath(import.meta.url));

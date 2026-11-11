@@ -1,11 +1,11 @@
 // Mirage original code. A UI panel drawn into a texture: for screens inside the world (a terminal, a shop sign) and
 // for XR, where there is no DOM over the picture. A small subset of the toolkit's widgets (panel, col, row, text,
 // button, toggle, slider, bar, spacer) is laid out by plain arithmetic into draw commands and painted with Canvas 2D,
-// or with the built-in glyph font of @mirage/play where a host draws no canvas text (Latin only there).
+// or with the built-in glyph font of @miragekit/play where a host draws no canvas text (Latin only there).
 // It shares the toolkit's signals, theme tokens, i18n (line breaking, right-to-left mirroring) and focus geometry;
 // the texture is repainted only when something it shows has changed.
 // ---------------------------------------------------------------------------
-// import { createCanvasUI, cv } from '@mirage/game/ui-canvas';
+// import { createCanvasUI, cv } from '@miragekit/game/ui-canvas';
 // const power = signal(true), level = signal(0.4);
 // const screen = createCanvasUI({ width: 512, height: 320, kit,           // kit: tokens and language; or { tokens, i18n }
 //   description: () => cv.panel({ title: 'Generator' },
@@ -22,7 +22,7 @@ import { effect, signal, read, untracked } from './ui-reactive.js';
 import { wrapText } from './ui-i18n.js';
 import { nextFocus } from './ui-nav.js';
 import { THEMES, parseColor } from './ui-kit.js';
-import { createImage, clearImage, fillRoundRect, drawText, textWidth, canvasTextWorks } from '@mirage/play/glyphs';
+import { createImage, clearImage, fillRoundRect, drawText, textWidth, canvasTextWorks } from '@miragekit/play/glyphs';
 
 const node = (type) => (props, ...children) => ({ type, props: props || {}, children: children.flat().filter(Boolean) });
 /** The canvas widgets (descriptions, like h()): values may be signals or functions.

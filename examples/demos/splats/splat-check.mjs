@@ -1,4 +1,4 @@
-// Check: the splat kit (@mirage/world/kits/splat) on the GPU, in the splats demo packaged as one HTML file and
+// Check: the splat kit (@miragekit/world/kits/splat) on the GPU, in the splats demo packaged as one HTML file and
 // served without COOP/COEP headers (no SharedArrayBuffer: the sort runs in a Blob worker all the same).
 //   node examples/demos/splats/splat-check.mjs [--quick]   (--quick: no 1M-splat timing)
 // 1. the kit's size: minified + gzip, three external (what an app pays for addSplats + loadSplats + effects)

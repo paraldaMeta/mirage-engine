@@ -7,12 +7,12 @@
 //      ?src=<url> (your own .glb with clips named idle / walk / run [/ jump] as the player)   ?decoders=1 (probe)
 //      ?mode=game | walk | orbit   ?time=golden (default: a June afternoon)   ?w=&h=  ?ui=0  ?grain=0  ?spp=N
 import * as THREE from 'three';
-import { createWorldRenderer, writeGLB } from '@mirage/core';
-import { createAssets } from '@mirage/core/assets';
-import { decoders } from '@mirage/core/assets-decoders';
-import { buildWorld, definePlan } from '@mirage/world';
+import { createWorldRenderer, writeGLB } from '@miragekit/core';
+import { createAssets } from '@miragekit/core/assets';
+import { decoders } from '@miragekit/core/assets-decoders';
+import { buildWorld, definePlan } from '@miragekit/world';
 import { createPlay, createCharacter, createWalker, createRigModel, createAnimator, rootMotionInput, createFootIK, solveLookAt,
-  retargetClip, createTimeline, createRigCharacter, RIG } from '@mirage/play';
+  retargetClip, createTimeline, createRigCharacter, RIG } from '@miragekit/play';
 
 const Q = new URLSearchParams(location.search), on = (k) => Q.get(k) !== '0';
 const W = +Q.get('w') || innerWidth, H = +Q.get('h') || innerHeight;

@@ -1,14 +1,14 @@
 # Importing models (glTF / GLB)
 
-Mirage worlds are built in code, and nothing here changes that. `@mirage/core/assets` (experimental, opt-in) is for
+Mirage worlds are built in code, and nothing here changes that. `@miragekit/core/assets` (experimental, opt-in) is for
 the things code is a poor tool for: a scanned statue, a rigged character, a prop from a modelling tool. It is a
 subpath, not in the index: a project that imports no models ships none of it (the three example bundles compared, hello-courtyard,
 garden-quest and walled-garden, grew by 27 bytes each on this branch, which is `createPlay`'s `character` option, and their stills did not change: see
 [animation.md](animation.md)).
 
 ```js
-import { createAssets } from '@mirage/core/assets';
-import { decoders } from '@mirage/core/assets-decoders';   // Vite: three's Draco / Basis files as bundled URLs
+import { createAssets } from '@miragekit/core/assets';
+import { decoders } from '@miragekit/core/assets-decoders';   // Vite: three's Draco / Basis files as bundled URLs
 
 const assets = createAssets(world, { decoders });
 const chair = await assets.load('/models/chair.glb', { collide: 'box' });
@@ -32,7 +32,7 @@ for its external files). The result is an `AssetModel`: `scene` (a template: nev
 | KTX2 / Basis | `KHR_texture_basisu` | `decoders.basis` | the transcoder starts the same way; **no KTX2 texture was decoded** |
 
 A decoder is created only when a file lists its extension in `extensionsUsed` (`gltfExtensions(buffer)` reads the
-list without loading), so plain files never fetch one. `@mirage/core/assets-decoders` is Vite `?url` imports of the
+list without loading), so plain files never fetch one. `@miragekit/core/assets-decoders` is Vite `?url` imports of the
 four decoder files in three; the single-file packager (`packages/tools/src/package.mjs`) inlines them as `data:`
 URLs: 3.48 MB of the anim demo's 4.58 MB file. Leave the import out and pass folder URLs
 (`{ draco: '/draco/', basis: '/basis/' }`) to host them yourself, or pass nothing if your files are uncompressed or
@@ -50,7 +50,7 @@ material (`ctx.mat.std(...)`) instead. ShaderMaterials are left alone.
 ## Collision
 
 The engine has one rule, and imports follow it: a visible, opaque, depth-writing mesh on layer 0 is solid, both in
-the walk grid (`bakeWalkGrid`, baked from the scene) and in Rapier (`@mirage/game` builds static colliders from the
+the walk grid (`bakeWalkGrid`, baked from the scene) and in Rapier (`@miragekit/game` builds static colliders from the
 same meshes; the walk-grid side is checked in the demo, the Rapier side follows from the shared rule and was
 not run here). `collide` says what a model contributes:
 
@@ -74,7 +74,7 @@ the counts) are there for tools and scene changes.
 
 ## Writing GLB
 
-`writeGLB(root, { clips, meshopt })` (in `@mirage/core`) writes an object tree as binary glTF: nodes, meshes,
+`writeGLB(root, { clips, meshopt })` (in `@miragekit/core`) writes an object tree as binary glTF: nodes, meshes,
 skins, standard-material factors, clips (a clip's `userData`, events included, goes to `extras`), and images when
 a map carries its file (`texture.userData.glb = { bytes, mimeType }`). `meshopt: true` compresses vertex streams
 with the repository's own encoder of the meshopt vertex codec. It exists so the checks can make real files without

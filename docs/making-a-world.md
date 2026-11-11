@@ -7,7 +7,7 @@ median of three parts 1.84 / 1.66 / 1.63). The contract behind it is [world-prot
 
 ## 1. Copy the skeleton
 
-A world is a folder in `examples/` (the workspace gives it `three`, `vite` and the `@mirage/*` packages; nothing to
+A world is a folder in `examples/` (the workspace gives it `three`, `vite` and the `@miragekit/*` packages; nothing to
 install).
 
 ```sh
@@ -153,8 +153,8 @@ Mirage is three.js with conventions; everything underneath stays reachable.
 | a plain three material | `new THREE.MeshStandardMaterial({ ... })` on any mesh | lit, shadowed and fogged like the rest (those patches are on three's shader chunks) and adopted by the opt-in lighting features; **not** dimmed by `ambientVolumes` and no wind or `PROC` surface. `ctx.mat.std(params)` with no hooks is the same material with those |
 | your own shader on three's lighting | `ctx.mat.patch(material, { albedo, roughness, normal, vertexWorld, ... })` | everything; the hook table is at the top of `packages/core/src/materials.js` |
 | a raw `ShaderMaterial` | add it to `ctx.root` | drawn, depth-tested and post-processed; fog, shadows, lights and ambient volumes only if you write them (include three's chunks and pass `fog: true` / `lights: true`). Use it for skies, screens and effects, not for walls |
-| a model from a file | `createAssets(world).load(url)` from `@mirage/core/assets` ([import.md](import.md)) | a cache with reference counts, colliders and Draco / meshopt / KTX2; three's `GLTFLoader` from `three/addons` still works, then disposal and collision are yours |
-| animation | `createAnimator(root, clips, ...)` from `@mirage/play` ([animation.md](animation.md)) | state machines, blend spaces, root motion on the fixed step; a bare `THREE.AnimationMixer` updated in `ctx.onUpdate((dt) => mixer.update(dt))` is fine for a spinning sign |
+| a model from a file | `createAssets(world).load(url)` from `@miragekit/core/assets` ([import.md](import.md)) | a cache with reference counts, colliders and Draco / meshopt / KTX2; three's `GLTFLoader` from `three/addons` still works, then disposal and collision are yours |
+| animation | `createAnimator(root, clips, ...)` from `@miragekit/play` ([animation.md](animation.md)) | state machines, blend spaces, root motion on the fixed step; a bare `THREE.AnimationMixer` updated in `ctx.onUpdate((dt) => mixer.update(dt))` is fine for a spinning sign |
 | to wait for something while building | `async build(ctx)` / `async finalize(ctx)` | modules build in order and each is awaited, so a slow fetch delays the ones after it; `anchors` and `ambientVolumes` callbacks are synchronous |
 | per-frame code | `const stop = ctx.onUpdate((dt, t) => { ... })` | called every rendered frame; `stop()` unsubscribes, and the world drops every subscription on dispose ([LIFECYCLE.md](LIFECYCLE.md)) |
 | the renderer, scene, camera | `world.renderer`, `world.scene`, `world.camera` | yours to read; changing the tone mapping or the render target fights the post chain ([post.md](post.md)) |

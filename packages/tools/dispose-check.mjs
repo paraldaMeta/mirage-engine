@@ -15,10 +15,10 @@ fs.mkdirSync(src, { recursive: true });
 fs.writeFileSync(path.join(src, 'index.html'), '<!doctype html><link rel="icon" href="data:,"><body style="margin:0"><canvas width="320" height="240"></canvas><script type="module" src="./main.js"></script>\n');
 fs.writeFileSync(path.join(src, 'main.js'), `
 import * as THREE from 'three';
-import { createWorldRenderer, createVfx } from '@mirage/core';
-import { buildWorld } from '@mirage/world';
-import { createPlay } from '@mirage/play';
-import { startGame } from '@mirage/game';
+import { createWorldRenderer, createVfx } from '@miragekit/core';
+import { buildWorld } from '@miragekit/world';
+import { createPlay } from '@miragekit/play';
+import { startGame } from '@miragekit/game';
 
 const canvas = document.querySelector('canvas');
 const stockChunks = JSON.stringify(THREE.ShaderChunk);   // three's own shader text, before any world

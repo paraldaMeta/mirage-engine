@@ -148,7 +148,7 @@ export function createWorldRenderer(config = {}) {
   }
   const mat = createMaterials(G);
   let updates = [];   // replaced, never mutated, by subscribe / unsubscribe: a callback may unsubscribe during the frame
-  // reduced motion (opt-in; @mirage/play follows prefers-reduced-motion): the wind's strength is scaled while a frame
+  // reduced motion (opt-in; @miragekit/play follows prefers-reduced-motion): the wind's strength is scaled while a frame
   // renders (every sway reads uWind.z: no shader changes, so with it off the images are the same), kits read
   // `motion` (the rain kit's fall speed), and the still path's shutter closes
   let reduced = reducedMotionConfig(config.reducedMotion);
@@ -550,7 +550,7 @@ export function createWorldRenderer(config = {}) {
     releaseChunks();
   }
 
-  /** after `webglcontextrestored` (three has re-made its state; @mirage/core/platform calls this): what lived only on
+  /** after `webglcontextrestored` (three has re-made its state; @miragekit/core/platform calls this): what lived only on
    *  the GPU is made again: the sky's air, the image-based light, the probe lighting; the histories start over */
   function contextRestored() {
     if (light) skyLut.bake();

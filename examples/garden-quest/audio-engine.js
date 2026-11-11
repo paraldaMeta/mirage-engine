@@ -2,7 +2,7 @@
 // (its buses become the engine's buses), and on top of it: the pavilion is a reverb zone that also turns the wind down
 // indoors, a wind chime hangs in the pavilion (a cue of four code-made notes) and is muffled by the walls (Rapier
 // rays), and the stat overlay shows voices and bus meters. Without the flag none of this is created.
-import { createAudioEngine, createAudioDebug, physicsOccluder } from '@mirage/game';
+import { createAudioEngine, createAudioDebug, physicsOccluder } from '@miragekit/game';
 
 function bell(ctx, freq) {
   const sr = ctx.sampleRate, b = ctx.createBuffer(1, Math.round(sr * 1.6), sr), d = b.getChannelData(0);

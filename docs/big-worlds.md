@@ -15,15 +15,15 @@ and WebGL2.
 | `impostor.js` | `bakeImpostor`, `impostorMaterial` | hemi-octahedral impostor atlas (albedo + normals), lit by the live sun |
 | `hiz.js` | `createOcclusion` | occlusion culling against the depth pyramid of the frame before (asynchronous readback, CPU test) |
 | `frame.js` | `onView` | the per-view hook the three above run on |
-| `@mirage/world` `partition.js` | `createPartition`, `createFloatingOrigin` | streaming cells with load / unload radii, an HLOD proxy for every cell that is out, floating-origin rebasing |
-| `bigworld.js` | `applyBigWorld` (`@mirage/core/bigworld`) | chunks + LOD + occlusion for a scene that is already built, in one call |
+| `@miragekit/world` `partition.js` | `createPartition`, `createFloatingOrigin` | streaming cells with load / unload radii, an HLOD proxy for every cell that is out, floating-origin rebasing |
+| `bigworld.js` | `applyBigWorld` (`@miragekit/core/bigworld`) | chunks + LOD + occlusion for a scene that is already built, in one call |
 
 Each module's header has its usage block and its limits.
 
 ## The short way: an existing world
 
 ```js
-import { applyBigWorld } from '@mirage/core/bigworld';
+import { applyBigWorld } from '@miragekit/core/bigworld';
 const big = applyBigWorld(world, world.scene, { chunk: true, lod: true, occ: true });   // after the build, before world.prepare()
 ```
 

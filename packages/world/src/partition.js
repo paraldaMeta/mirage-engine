@@ -5,7 +5,7 @@
 // scenes; it sits on createStreamer (stream.js): a cell is a streamed module, so builds, shader compiles and
 // uploads are spread over frames and cells that just left stay cached.
 //
-//   import { createPartition } from '@mirage/world/partition';
+//   import { createPartition } from '@miragekit/world/partition';
 //   const part = createPartition(world, {
 //     bounds: [x0, z0, x1, z1], size: 256,          // the grid: cells of `size` metres
 //     build(cell, ctx) { ctx.root.add(...) },       // a cell's content, in the cell's own space: its centre is (0, 0, 0)
@@ -27,8 +27,8 @@
 // its period divides `snap`; world.sun / shadow fitting follow the camera through renderFrame's `shadow` option
 // as before; physics colliders are the game's to rebase.
 import * as THREE from 'three';
-import { buildProxyAsync, createSimplifyWorkers } from '@mirage/core/autolod';
-import { disposeObject } from '@mirage/core/stream';
+import { buildProxyAsync, createSimplifyWorkers } from '@miragekit/core/autolod';
+import { disposeObject } from '@miragekit/core/stream';
 import { createStreamer } from './stream.js';
 
 export function createPartition(world, opts) {

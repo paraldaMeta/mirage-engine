@@ -1,13 +1,13 @@
-// Demo: Gaussian splats in a Mirage world (@mirage/world/kits/splat). A hill with a rock and a tree, made of splats
+// Demo: Gaussian splats in a Mirage world (@miragekit/world/kits/splat). A hill with a rock and a tree, made of splats
 // generated in code (hill.js), stands on a meadow next to a few ordinary meshes, in the world's light and air.
 // URL: ?n=300000 (splats)  ?src=<url> (.splat | .ply | SOG meta.json instead of the generated hill)
 //      ?fx=reveal | dissolve (animated)  ?light=0 (colours as captured)  ?mode=orbit | walk | fly  ?time=golden | HH:MM
 //      ?depth=1 (the depth pass for SSAO / TAA)  ?w=&h=  ?ui=0  ?spp=N
 import * as THREE from 'three';
-import { createWorldRenderer, placeDate } from '@mirage/core';
-import { buildWorld, definePlan } from '@mirage/world';
-import { addSplats, loadSplats, splatEffects } from '@mirage/world/kits/splat';
-import { createPlay } from '@mirage/play';
+import { createWorldRenderer, placeDate } from '@miragekit/core';
+import { buildWorld, definePlan } from '@miragekit/world';
+import { addSplats, loadSplats, splatEffects } from '@miragekit/world/kits/splat';
+import { createPlay } from '@miragekit/play';
 import { makeHill } from './hill.js';
 
 const Q = new URLSearchParams(location.search);

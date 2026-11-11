@@ -6,7 +6,7 @@
 //   2. the tick's cost against player count, and the largest room whose 99th percentile tick fits its budget.
 // usage: node scripts/bench.mjs [--runs 3] [--seconds 20] [--max 1024]
 import { readFileSync } from 'node:fs';
-import { createLoopbackNetwork, createRoom, createClient, deserializeGrid } from '@mirage/net';
+import { createLoopbackNetwork, createRoom, createClient, deserializeGrid } from '@miragekit/net';
 import * as game from '../game.js';
 
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i < 0 ? d : +process.argv[i + 1]; };

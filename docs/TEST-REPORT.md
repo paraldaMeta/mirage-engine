@@ -311,7 +311,7 @@ Worth knowing, not changed:
    them; `stop()` only stops the loop. A host that makes several plays in one page keeps them all listening. A
    `dispose()` would need an API decision.
 4. **Audio kept playing in a hidden tab:** suspended on `visibilitychange` in B21.
-5. **`AudioContext.resume()` promises are not handled** in `@mirage/game` audio's start path. A rejection (rare,
+5. **`AudioContext.resume()` promises are not handled** in `@miragekit/game` audio's start path. A rejection (rare,
    e.g. a permissions policy) would be an unhandled rejection. (B21's suspend / resume catches its own.)
 6. **Firefox warnings fail the playtest's `errors == 0`** (A2). Decide whether warnings count.
 7. **Flaky under load:** the garden-quest playthrough got stuck once on the way to the pavilion (at −0.58, 0.20,

@@ -4,7 +4,7 @@
 //
 //   const client = createClient({ protocol, grid, name: 'Ada' });     // grid: the SAME bytes the server loaded
 //   client.connect(transport);                                        // any transport; again later = reconnect + resync
-//   const play = createPlay(world, { plan, grid, walker: client.walker });   // @mirage/play drives it like its own walker
+//   const play = createPlay(world, { plan, grid, walker: client.walker });   // @miragekit/play drives it like its own walker
 //   each frame:  client.input.yaw = yaw;  client.update();            // (without createPlay: set client.input.x/z/run/jump)
 //   client.entities                      // Map id -> { id, name (type), state: { x, y, z, ... } } interpolated
 //   client.onSpawn = (e) => {}; client.onDespawn = (e) => {}; client.on('chat', (args) => {});
@@ -32,7 +32,7 @@ import { BitWriter, BitReader, seqDiff, cleanText, MSG } from './wire.js';
 import { createChannel } from './channel.js';
 import { pack, unpack, dequantise, encodeFull, decodeFull, decodeDelta } from './schema.js';
 import { SIM_HZ, quantiseInput, sameInput, writeInput, applyInput, saveWalker, restoreWalker } from './sim.js';
-import { createWalker } from '@mirage/play/walker';
+import { createWalker } from '@miragekit/play/walker';
 
 const STEP_MS = 1000 / SIM_HZ, REDUNDANT = 16, TAU = Math.PI * 2;
 
@@ -61,7 +61,7 @@ export function createClient(o = {}) {
     /** the transport in use (its `kind`: websocket, relay, webrtc, loopback) */
     get transport() { return transport; },
   };
-  // what @mirage/play sees: the walker's shape, with the smoothed position. play calls update(dt, motion) while walking.
+  // what @miragekit/play sees: the walker's shape, with the smoothed position. play calls update(dt, motion) while walking.
   const view = api.walker = {
     pos: walker.pos.slice(), vy: 0, onGround: false, blocked: false, body: walker.body, fits: walker.fits,
     update(dt, m = {}) { api.input.x = m.x || 0; api.input.z = m.z || 0; api.input.run = !!m.run; api.input.jump = !!m.jump; playAt = now(); update(); return view; },

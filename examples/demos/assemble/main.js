@@ -1,10 +1,10 @@
 // Demo: "the world assembles itself". examples/walled-garden's six modules (plus its deliberately broken one) are
-// built by @mirage/world as usual; then each module's objects rise out of the ground in build order while the
+// built by @miragekit/world as usual; then each module's objects rise out of the ground in build order while the
 // loader's own report scrolls by: triangles, build time, anchors, and the broken module skipped without taking
 // the world down. The camera circles the garden. One file (code + the courtyard's five CC0 texture sets).
 // URL: ?step=1.6 (seconds per module)  ?w=&h=
-import { createWorldRenderer, createTextures } from '@mirage/core';
-import { buildWorld } from '@mirage/world';
+import { createWorldRenderer, createTextures } from '@miragekit/core';
+import { buildWorld } from '@miragekit/world';
 import manifest from '../../hello-courtyard/tex/manifest.json';
 import plan from '../../walled-garden/plan.js';
 import modules from '../../walled-garden/modules/index.js';

@@ -1,9 +1,9 @@
 // Mirage original code.
 // ---------------------------------------------------------------------------
-// Platform layer, renderer side (opt-in: nothing in the engine imports this file; `@mirage/core/platform`).
-// The page side (visibility, audio, wake lock, fullscreen, safe area, saves, PWA) is `@mirage/game/platform`.
+// Platform layer, renderer side (opt-in: nothing in the engine imports this file; `@miragekit/core/platform`).
+// The page side (visibility, audio, wake lock, fullscreen, safe area, saves, PWA) is `@miragekit/game/platform`.
 //
-//   import { probeDevice, createContextRecovery, createQualityGovernor } from '@mirage/core/platform';
+//   import { probeDevice, createContextRecovery, createQualityGovernor } from '@miragekit/core/platform';
 //   const caps = await probeDevice();                       // { mobile, os, gpu, tier 0..3, maxTextureSize, floatTargets, ... , quality, settings }
 //   const world = createWorldRenderer({ quality: caps.quality, dynamicRes: caps.settings.dynamicRes, ... });
 //   const recovery = createContextRecovery(world, { play, onLost, onRestored });   // WebGL context lost -> the world comes back

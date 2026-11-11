@@ -4,7 +4,7 @@
 // renderers use (Greene's hierarchical Z; Unreal's and Unity's "HZB" culling); in WebGL2 the test runs on the CPU
 // from a small, asynchronous readback, because there are no indirect draws to consume a GPU-side result.
 //
-//   import { createOcclusion } from '@mirage/core/hiz';
+//   import { createOcclusion } from '@miragekit/core/hiz';
 //   const occ = createOcclusion(world, { margin: 1, cutMetres: 3, cutDegrees: 12, confirm: 2 });
 //   occ.add(built.root);            // every mesh under it (best after chunkObject: a chunk is something a wall can hide)
 //   occ.stats                       // { objects, tested, hidden, hiddenTriangles, age, cuts, readbacks, ms }

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { PROC } from '@mirage/core';
+import { PROC } from '@miragekit/core';
 
 // One folded, compound leaf card. Its silhouette is cut in the mesh so it can share an opaque instance batch.
 function leafSprig() {

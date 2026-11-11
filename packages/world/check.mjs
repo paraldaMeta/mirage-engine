@@ -1,7 +1,7 @@
 // Node checks of the world protocol: plan validation, shapes, the loader's order, anchors, failure isolation, rng.
 import * as THREE from 'three';
 import { definePlan, contains, along, pathLength, buildWorld } from './src/index.js';
-import { rng } from '@mirage/core';
+import { rng } from '@miragekit/core';
 
 import { okQuiet as ok } from '../../scripts/soft-assert.mjs';   // reports every failure with a count, not only the first
 const plan = definePlan({ name: 't', bounds: [-10, -10, 10, 10], regions: { a: { rect: [0, 0, 2, 2] }, c: { circle: [0, 0, 1] }, p: { poly: [[0, 0], [4, 0], [0, 4]] } }, paths: { m: { points: [[0, 0], [3, 4], [3, 10]] } } });
@@ -118,7 +118,7 @@ ok(out.modules.walls.r === rng('t/walls').float(), 'per-module rng');
 // ---------------------------------------------------------------------------------------------------------------
 {
   const { addRain } = await import('./src/kits/rain.js');
-  const { createMaterials, createEnv, WET, setRain } = await import('@mirage/core');
+  const { createMaterials, createEnv, WET, setRain } = await import('@miragekit/core');
   const rctx = () => ({ root: new THREE.Group(), mat: createMaterials(createEnv({}).G) });
   const before = WET.uRain.value;
   const r1 = addRain(rctx(), { count: 500 }), r2 = addRain(rctx(), { count: 500 });
@@ -145,7 +145,7 @@ ok(out.modules.walls.r === rng('t/walls').float(), 'per-module rng');
 }
 // rain under reduced motion (world.setReducedMotion writes ctx.motion): slower streaks; without it, the speed as given
 {
-  const { addRain } = await import('./src/kits/rain.js'), { createMaterials, createEnv } = await import('@mirage/core');
+  const { addRain } = await import('./src/kits/rain.js'), { createMaterials, createEnv } = await import('@miragekit/core');
   const rG = createEnv({}).G, motion = { rain: 1 }, rd = { getRenderTarget: () => ({ height: 900 }) }, cam = new THREE.PerspectiveCamera(48, 1.6, 0.1, 100);
   const r = addRain({ root: new THREE.Group(), mat: createMaterials(rG), G: rG, motion }, { count: 4, speed: 8.5 });
   const sp = () => { r.onBeforeRender(rd, null, cam); return r.material.userData.hooks.uniforms.uRainShape.value.x; };
@@ -155,7 +155,7 @@ ok(out.modules.walls.r === rng('t/walls').float(), 'per-module rng');
 }
 // fur kit: one mesh (instanced shells), options checked, seeded, fins on request
 {
-  const { addFur } = await import('./src/kits/fur.js'), { createMaterials, createEnv } = await import('@mirage/core');
+  const { addFur } = await import('./src/kits/fur.js'), { createMaterials, createEnv } = await import('@miragekit/core');
   const fctx = (seed = 'f') => ({ root: new THREE.Group(), mat: createMaterials(createEnv({}).G), rng: (n) => rng(seed + '/' + n) });
   const c = fctx(), f = addFur(c, { rect: [0, 0, 4, 2], shells: 12, segments: [4, 2], heightAt: (x) => x * 0.1 });
   ok(c.root.children.length === 1 && f.fins === null && f.shells.geometry.isInstancedBufferGeometry && f.shells.geometry.instanceCount === 12, 'fur: one mesh, the shells as instances');

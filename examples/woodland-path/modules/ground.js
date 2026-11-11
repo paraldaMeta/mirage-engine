@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { along, pathLength } from '@mirage/world';
+import { along, pathLength } from '@miragekit/world';
 
 export default {
   name: 'ground',

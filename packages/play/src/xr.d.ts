@@ -1,8 +1,8 @@
 import type * as THREE from 'three';
 import type { Play } from './play.js';
 import type { WalkerLike } from './walker.js';
-import type { XYZ } from '@mirage/world';
-import type { WorldRenderer } from '@mirage/core';
+import type { XYZ } from '@miragekit/world';
+import type { WorldRenderer } from '@miragekit/core';
 import type { XRPost, XRPostOptions } from './xr-post.js';
 import type { XRProfile, XRProfileId, XRLevel, XRGovernorOptions } from './xr-quality.js';
 import type { XRInteraction, XRInteractionState } from './xr-interact.js';
@@ -18,7 +18,7 @@ export const XR_FIT: { GAIN: number; VEIL: number; VEIL_SAT: number };
 /** Fill XR_GRADE (or `out`) from a world's post settings, its light and the measured mean radiance (rgb) of the view. */
 export function setGrade(world: WorldRenderer, options?: { mean?: readonly [number, number, number] | null; out?: Float32Array }): Float32Array;
 
-/** The parts of a started game (@mirage/game startGame's result) the XR mode uses: interact, prompts, messages. */
+/** The parts of a started game (@miragekit/game startGame's result) the XR mode uses: interact, prompts, messages. */
 export interface XRGameLike {
   readonly near: { id: string } | null;
   game: { label(entity: any): string; where(entity: any): readonly [number, number, number] };

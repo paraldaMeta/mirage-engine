@@ -1,5 +1,5 @@
 import type * as THREE from 'three';
-import type { LRUCache, UploadBudget } from '@mirage/core/stream';
+import type { LRUCache, UploadBudget } from '@miragekit/core/stream';
 import type { PlanInput, Bounds } from './plan.js';
 import type { ModuleContext, WorldHost } from './loader.js';
 export interface StreamedModule<P extends PlanInput = PlanInput> {

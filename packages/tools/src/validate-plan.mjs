@@ -7,8 +7,8 @@
 import { readFile } from 'node:fs/promises';
 import { extname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { definePlan } from '@mirage/world/plan';
-import { planIssues } from '@mirage/world/plan-validation';
+import { definePlan } from '@miragekit/world/plan';
+import { planIssues } from '@miragekit/world/plan-validation';
 import { diag, fromPlanIssues, lintPlan, formatDiagnostic } from './diagnostics.mjs';
 
 const json = process.argv.includes('--json');

@@ -12,9 +12,9 @@
 最终的类型依赖打包方式尚未冻结。以下是模块文件，不是完整的渲染器启动代码：
 
 ```ts
-import { definePlan, type WorldModule } from '@mirage/world';
-import { addTerrain } from '@mirage/world/kits/terrain';
-import { addGrass } from '@mirage/world/kits/vegetation';
+import { definePlan, type WorldModule } from '@miragekit/world';
+import { addTerrain } from '@miragekit/world/kits/terrain';
+import { addGrass } from '@miragekit/world/kits/vegetation';
 
 export const plan = definePlan({
   name: 'trail', bounds: [-8, -8, 8, 8],
@@ -80,6 +80,6 @@ npm run test:types -- --out "$HOME/mirage-type-review/run-001"
 
 游戏运行时继续使用 `@dimforge/rapier3d-compat@0.19.3`。原包的 ESM 声明使用无扩展名的文件和目录导入，在 NodeNext 下遇到上游记录的解析问题。[上游问题 #369](https://github.com/dimforge/rapier.js/issues/369)
 
-Mirage 的物理声明通过包内 `#rapier` 条件入口取类型。NodeNext 在局部 CommonJS 声明作用域读取同版本官方 .d.ts，Bundler 直接读取 npm 依赖的声明。两条路径都提供真实的 World、Collider、RigidBody 和控制器类型。使用 NodeNext 时可从 `@mirage/game/physics` 导入这些类型，运行时经 `await loadRapier()` 取构造器。该适配只覆盖 Mirage 的入口；直接导入上游包仍由其自身的清单决定解析方式。[声明来源与许可证](../packages/game/types/rapier/README.md)
+Mirage 的物理声明通过包内 `#rapier` 条件入口取类型。NodeNext 在局部 CommonJS 声明作用域读取同版本官方 .d.ts，Bundler 直接读取 npm 依赖的声明。两条路径都提供真实的 World、Collider、RigidBody 和控制器类型。使用 NodeNext 时可从 `@miragekit/game/physics` 导入这些类型，运行时经 `await loadRapier()` 取构造器。该适配只覆盖 Mirage 的入口；直接导入上游包仍由其自身的清单决定解析方式。[声明来源与许可证](../packages/game/types/rapier/README.md)
 
 异机门槛要求已安装的游戏包所带声明与实际 Rapier 依赖逐文件哈希一致，两种严格编译均以 0 退出。Bundler 另检查物理句柄可直接赋给原包类型；NodeNext 通过 loadRapier 的构造器和物理句柄检查类型。证据保存在 `summary.json` 的 `rapier` 字段、`nodenext.log` 和 `bundler.log`。当前等待首次异机结果。

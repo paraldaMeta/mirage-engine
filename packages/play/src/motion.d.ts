@@ -1,4 +1,4 @@
-import type { ReducedMotionSettings } from '@mirage/core/world';
+import type { ReducedMotionSettings } from '@miragekit/core/world';
 
 export declare const REDUCED_MOTION_QUERY: '(prefers-reduced-motion: reduce)';
 /** 'auto' (default: media.matches), true, false or settings -> the value for world.setReducedMotion. */

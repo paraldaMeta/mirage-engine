@@ -1,6 +1,6 @@
 // Mirage original code. A Gaussian splat test asset made in code (no capture): a grassy hill with a lichen-grey
 // rock and a broad-leaved tree on it, ~13 m across, its foot at y = 0 around the origin. Seeded: the same count and
-// seed give the same splats on every machine. Returns the kit's data shape (@mirage/world/kits/splat).
+// seed give the same splats on every machine. Returns the kit's data shape (@miragekit/world/kits/splat).
 
 function mulberry(seed) {
   let a = seed >>> 0;

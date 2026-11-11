@@ -4,8 +4,8 @@
 // ARIA role and state, takes its colours from theme tokens and its words from the kit's i18n, lays out with
 // logical properties (so it mirrors in right-to-left) and animates transform / opacity only.
 // ---------------------------------------------------------------------------
-// import { createUIKit, h, signal, stack } from '@mirage/game/ui-kit';
-// import { Button, Slider, Toggle, Bar, modals, toasts, dialogue } from '@mirage/game/ui-widgets';
+// import { createUIKit, h, signal, stack } from '@miragekit/game/ui-kit';
+// import { Button, Slider, Toggle, Bar, modals, toasts, dialogue } from '@miragekit/game/ui-widgets';
 // const kit = createUIKit({ input });
 // const volume = signal(0.8), hp = signal(80);
 // kit.mount(h(Bar, { value: hp, max: 100, tone: 'health', label: kit.tx('ui.health') }));

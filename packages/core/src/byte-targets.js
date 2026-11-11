@@ -5,7 +5,7 @@
 // pipeline draws a black canvas. The world renderer calls this once (world.js); on such a context every render
 // target is made 8-bit the first time it is bound, so the picture comes back: clamped at 1 before the tone curve
 // (flat highlights, banding in the dark) instead of nothing. Where float targets exist this does nothing at all.
-//   import { byteTargets } from '@mirage/core/byte-targets';
+//   import { byteTargets } from '@miragekit/core/byte-targets';
 //   byteTargets(renderer)            // -> true when the fallback was installed
 //   byteTargets(renderer, true)      // install it anyway (to look at it on a desktop: ?bytetargets=1 in hello-courtyard)
 // Not covered: what stores numbers rather than colour in a float target (GPU particles, probe GI, Hi-Z occlusion,

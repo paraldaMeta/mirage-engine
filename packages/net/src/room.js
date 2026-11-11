@@ -37,7 +37,7 @@ import { createChannel } from './channel.js';
 import { PLAYER, pack, unpack, quantise, dequantise, encodeFull, decodeFull, encodeDelta, differs } from './schema.js';
 import { SIM_HZ, readInput, applyInput, yawOf, rayCapsule } from './sim.js';
 import { gridRay } from './grid.js';
-import { createWalker, BODY } from '@mirage/play/walker';
+import { createWalker, BODY } from '@miragekit/play/walker';
 
 const MAX_PACKET = 1200, QUEUE = 60, TOKENS = 24, STRIKES = 8, HELLO_MS = 5000, MAX_REWIND = 400, HISTORY_MS = 1000;
 const enc = new TextEncoder(), dec = new TextDecoder();

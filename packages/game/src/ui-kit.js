@@ -4,7 +4,7 @@
 // function, and each one is bound by its own effect to one text node, attribute, class or style property, so a
 // change writes exactly that and an unchanged frame writes nothing (no diffing, no re-render of a subtree).
 // ---------------------------------------------------------------------------
-// import { createUIKit, h, signal, stack, anchor, each, show } from '@mirage/game/ui-kit';
+// import { createUIKit, h, signal, stack, anchor, each, show } from '@miragekit/game/ui-kit';
 // const kit = createUIKit({ input, i18n, theme: 'dark' });          // one root over the page; kit.dispose()
 // const hp = signal(80);
 // kit.mount(anchor({ at: 'top-start' }, stack({ gap: 0.5 },

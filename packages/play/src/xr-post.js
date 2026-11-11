@@ -23,7 +23,7 @@
 // ponytail: no multiview (three 0.186 has no OVR_multiview2 path: the scene is drawn once per eye), and the dynamic
 // scale reallocates the pipeline's targets when it steps (a few discrete steps, with hysteresis in xr-quality.js).
 import * as THREE from 'three';
-import { Pipeline } from '@mirage/core';
+import { Pipeline } from '@miragekit/core';
 
 const VS = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }';
 

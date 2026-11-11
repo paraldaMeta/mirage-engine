@@ -22,7 +22,7 @@ Nine seeded jars at `plan.points.jarsNorthWest` / `jarsGate`; in finalize a lant
 every `lamps` anchor; with detail, soot on the wall above the anchors that have `wall`.
 
 ## detail (close-range relief, optional)
-`@mirage/core` `relief.js`, on by default here; **`?nodetail`** turns it off (main.js and embed.js pass
+`@miragekit/core` `relief.js`, on by default here; **`?nodetail`** turns it off (main.js and embed.js pass
 `shared.detail`; off, every material and every wall compiles and builds exactly as before: same hooks, same
 geometry). The relief's reach follows the quality: low off, medium 5.6 m, high 8 m (`setRelief`).
 - **Materials** (`modules/materials.js`): one parallax step and the relief's own shadow toward the key light on
@@ -96,8 +96,8 @@ posts' feet, the arch-shaped patch of low sun on the north wall has the same sof
 ## wet (wet surfaces, puddles, rain; optional)
 `?wet=0..1` (`&rain=0..1`): `modules/materials.js` re-patches the paving (porosity 0.5, joints fill first through the
 photo set's height `mgS.h` about its hMean, 1.4 cm per unit), the land (0.8, puddles 0.8), the plaster (0.85, no
-puddles, damp band 0.45 m) and the ashlar (0.45, `mgS.h`) with `withWet` (@mirage/core wet.js); `&rain` adds
-`addRain` (@mirage/world/kits/rain) to the scene. Without either flag nothing is re-patched or added. Planks, clay,
+puddles, damp band 0.45 m) and the ashlar (0.45, `mgS.h`) with `withWet` (@miragekit/core wet.js); `&rain` adds
+`addRain` (@miragekit/world/kits/rain) to the scene. Without either flag nothing is re-patched or added. Planks, clay,
 iron and the basin's water stay as they are; the pergola and the arcade do not shelter the ground (no occlusion).
 `window.__mirage.wet` = `{ setWetness, setRain, rain }` for tools.
 - **Off path** (built `dist/` of this branch against the base commit's, 1440 × 900, 6 sub-frames, 5 views: golden
@@ -126,6 +126,6 @@ hero@golden, basin@12:00, pergola@21:00, gate@17:22 (1280 x 720, 8 sub-frames).
   most). Moving from sky to shade and back the EV eases (darkening 2.5/s, brightening 1/s); the same still frame
   meters the same EV before and after 360 moving frames.
 - **dynamicRes**: at 2560 x 1440 with a 240 fps target the scale steps 0.9, 0.8, 0.7 and holds; still frames render
-  at 2560 x 1440. Under @mirage/play the output size stays put, so a still view settles (the review caught a loop).
+  at 2560 x 1440. Under @miragekit/play the output size stays put, so a still view settles (the review caught a loop).
 - **All on** (light2 + aoLit + ae + soft shadows), 1280 x 720 walking: about +0.7 ms by day, +1.1 ms at night over
   off (2.6-3.3 ms); wet 0.7 + rain on top: +0.1-0.2 ms.

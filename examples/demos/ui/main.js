@@ -1,4 +1,4 @@
-// Demo: the UI toolkit of @mirage/game (docs/ui.md) end to end: a HUD (health, stamina, minimap, objectives, a
+// Demo: the UI toolkit of @miragekit/game (docs/ui.md) end to end: a HUD (health, stamina, minimap, objectives, a
 // prompt with the device's glyph), world-space labels / markers / a health bar, a screen in the world drawn into a
 // texture, an inventory with drag and drop, a dialogue with choices, a quick wheel and a settings menu (language,
 // theme, text size, motion, key rebinding). Keyboard, gamepad and touch play the same flow.
@@ -11,14 +11,14 @@
 // The scene is plain three.js on purpose: the page is about the overlay, and its frame cost must not drown in a
 // world's.
 import * as THREE from 'three';
-import { createInput } from '@mirage/game';
-import { createUIKit, createI18n, h, show, signal, memo, batch, stack, row, anchor, safeArea } from '@mirage/game/ui-kit';
+import { createInput } from '@miragekit/game';
+import { createUIKit, createI18n, h, show, signal, memo, batch, stack, row, anchor, safeArea } from '@miragekit/game/ui-kit';
 import { Bar, Button, Prompt, Slider, Toggle, Select, Tabs, TextInput, Tooltip, VirtualList, InventoryGrid, MinimapFrame, ObjectiveTracker, RebindList, Progress,
-  modals, toasts, dialogue, confirm, openRadial } from '@mirage/game/ui-widgets';
-import { createWorldUI } from '@mirage/game/ui-world';
-import { createCanvasUI, cv } from '@mirage/game/ui-canvas';
-import { TouchControls } from '@mirage/game/ui-menu';
-import { LOCALE_NAMES } from '@mirage/game/ui-locales';
+  modals, toasts, dialogue, confirm, openRadial } from '@miragekit/game/ui-widgets';
+import { createWorldUI } from '@miragekit/game/ui-world';
+import { createCanvasUI, cv } from '@miragekit/game/ui-canvas';
+import { TouchControls } from '@miragekit/game/ui-menu';
+import { LOCALE_NAMES } from '@miragekit/game/ui-locales';
 
 const Q = new URLSearchParams(location.search);
 const W = +Q.get('w') || innerWidth, H = +Q.get('h') || innerHeight, HUD = Q.get('hud') !== '0';

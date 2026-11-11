@@ -1,8 +1,8 @@
 // Mirage code; the embedding shape (shared renderer, host objects in the world's root, render with any camera)
 // adapted from the author's own earlier embed.js.
 import * as THREE from 'three';
-import { createWorldRenderer } from '@mirage/core';
-import { buildWorld } from '@mirage/world';
+import { createWorldRenderer } from '@miragekit/core';
+import { buildWorld } from '@miragekit/world';
 import { bakeWalkGrid } from './walkgrid.js';
 import { createWalker } from './walker.js';
 

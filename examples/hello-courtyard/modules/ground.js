@@ -1,6 +1,6 @@
 // ground: the land around (flat by the walls, rising into hazy hills), the paving and the basin in the middle.
 import * as THREE from 'three';
-import { fbm2 } from '@mirage/core';
+import { fbm2 } from '@miragekit/core';
 import { materials } from './materials.js';
 
 export default {

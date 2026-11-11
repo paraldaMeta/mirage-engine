@@ -1,6 +1,6 @@
 import type * as THREE from 'three';
-import type { MaterialHooks, MaterialKit } from '@mirage/core/materials';
-import type { RandomStream } from '@mirage/core/rng';
+import type { MaterialHooks, MaterialKit } from '@miragekit/core/materials';
+import type { RandomStream } from '@miragekit/core/rng';
 
 export interface FurOptions {
   /** A ground patch [x0, z0, x1, z1] (metres); give this or `geometry`. */

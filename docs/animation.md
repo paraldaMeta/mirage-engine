@@ -1,13 +1,13 @@
 # Animation: controller, IK, retargeting, timeline
 
-All of this is in `@mirage/play`, experimental and opt-in: a world that does not call it runs none of it. It works
+All of this is in `@miragekit/play`, experimental and opt-in: a world that does not call it runs none of it. It works
 on any three.js skeleton and `AnimationClip`s, normally the `animations` of an imported model
 ([import.md](import.md)). To see it: `examples/demos/anim` (flags at the end).
 
 ## The animator
 
 ```js
-import { createAnimator, rootMotionInput } from '@mirage/play';
+import { createAnimator, rootMotionInput } from '@miragekit/play';
 
 const anim = createAnimator(model, clips, {
   parameters: { speed: 0, grounded: true, wave: 'trigger' },
@@ -60,7 +60,7 @@ rig character with foot IK and look-at 5.7 µs (median of 7 interleaved runs of 
 `anim.post` holds functions run after every pose write; IK goes there.
 
 ```js
-import { createFootIK, solveLookAt, solveTwoBone } from '@mirage/play';
+import { createFootIK, solveLookAt, solveTwoBone } from '@miragekit/play';
 const feet = createFootIK(model, { ground: (x, z, y) => grid.groundAt(x, z, y, 0.4), hips: 'Hips',
   legs: [['LeftUpLeg', 'LeftLeg', 'LeftFoot'], ['RightUpLeg', 'RightLeg', 'RightFoot']] });
 anim.post.push(() => { feet.update(anim.dt); solveLookAt([neck, head], target, { share: [0.35, 0.65], limit: 1.1 }); });
@@ -76,7 +76,7 @@ placement sees the previous frame's position (one frame of lag while moving, non
 ## Retargeting
 
 ```js
-import { retargetClip } from '@mirage/play';
+import { retargetClip } from '@miragekit/play';
 const walk = retargetClip(sourceClip, sourceModel, targetModel);   // both in their rest pose, matrices updated
 ```
 
@@ -91,7 +91,7 @@ the hips: name it as `rootMotion.bone`).
 ## Timeline
 
 ```js
-import { createTimeline } from '@mirage/play';
+import { createTimeline } from '@miragekit/play';
 const tl = createTimeline({ tracks: [
   { type: 'camera', target: camera, curve: 'smooth', keys: [{ t: 0, position: [0, 1.6, 6], lookAt: [0, 1, 0], fov: 50 }, { t: 4, position: [3, 1.2, 3], lookAt: [0, 1.2, 0], fov: 30, ease: 'inOut' }] },
   { type: 'transform', target: door, keys: [{ t: 1, rotation: [0, 0, 0] }, { t: 2, rotation: [0, 1.4, 0], ease: 'out' }] },
@@ -110,7 +110,7 @@ names a clip posed underneath one that keys only part of the body.
 ## An imported model as the player
 
 ```js
-import { createPlay, createRigCharacter } from '@mirage/play';
+import { createPlay, createRigCharacter } from '@miragekit/play';
 let hero;
 const play = createPlay(world, { plan, canvas, mode: 'game',
   character: () => (hero = createRigCharacter(assets.instantiate(model), model.animations)) });

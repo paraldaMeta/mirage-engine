@@ -1,7 +1,7 @@
 # The world protocol
 
 How a Mirage world is put together so that several agents (or people) can build it at once without stepping on
-each other. Package: `@mirage/world`. Examples: `examples/hello-courtyard` (4 modules), `examples/walled-garden`
+each other. Package: `@miragekit/world`. Examples: `examples/hello-courtyard` (4 modules), `examples/walled-garden`
 (6 modules).
 
 ```
@@ -16,7 +16,7 @@ main.js            createWorldRenderer -> buildWorld(world, { plan, modules }) -
 
 A plain object (JSON-able), checked by `definePlan()`; errors list every problem at once.
 
-Use the exported JSON Schema `@mirage/world/plan.schema.json` in an editor. From a workspace checkout,
+Use the exported JSON Schema `@miragekit/world/plan.schema.json` in an editor. From a workspace checkout,
 `node packages/tools/src/validate-plan.mjs examples/garden-quest/plan.js` checks the actual layout after
 its imports and computed coordinates have resolved. The same command accepts a JSON file. Both the engine
 and CLI also check that rectangle endpoints and walk heights are ordered. Extra fields on a world or a shape
@@ -103,7 +103,7 @@ entries in a module-only preview. Omit the declaration to use the original final
 | `seats` | the ground point under a bench's centre, facing `rotY` | |
 | `urns` | the ground point under a plinth | |
 
-## 4. Collision conventions (the walk grid, `@mirage/play`)
+## 4. Collision conventions (the walk grid, `@miragekit/play`)
 
 The walk grid is baked from the real geometry seen from above, so modules declare nothing for ordinary solids.
 

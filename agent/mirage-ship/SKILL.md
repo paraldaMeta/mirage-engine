@@ -24,7 +24,7 @@ The shipped file must pass the same scenario as `dist/` (it runs from file://, n
 | | budget | typical |
 |---|---|---|
 | single file, code-only world | ≤ 5 MB | 0.8–1 MB code (three.js + Mirage) |
-| + `@mirage/game` | ≤ 5 MB | + 2.24 MB (Rapier WASM, inlined) |
+| + `@miragekit/game` | ≤ 5 MB | + 2.24 MB (Rapier WASM, inlined) |
 | + photo textures | say so in the README | ~1.3 MB per five 1K WebP sets |
 | frame cost, walk, M-series | `plan.budget.frameMs` (8 ms) | 3–5 ms |
 | load to playable (warm) | ≤ 3 s | 1–2 s; a first load compiles shaders (5–8 s) |

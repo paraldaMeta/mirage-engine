@@ -3,7 +3,7 @@
 // ---------------------------------------------------------------------------
 // Retargeting: play a clip made for one humanoid skeleton on another.
 //
-//   import { humanoidMap, retargetClip } from '@mirage/play';
+//   import { humanoidMap, retargetClip } from '@miragekit/play';
 //   const map = humanoidMap(sourceRoot, targetRoot);            // { sourceBone: targetBone } by humanoid role
 //   const clip = retargetClip(walk, sourceRoot, targetRoot, { map });
 //   const anim = createAnimator(targetRoot, [clip], ...);

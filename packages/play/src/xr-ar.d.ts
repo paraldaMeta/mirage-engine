@@ -1,5 +1,5 @@
 import type * as THREE from 'three';
-import type { WorldRenderer } from '@mirage/core';
+import type { WorldRenderer } from '@miragekit/core';
 
 export interface XRAROptions {
   /** Ask for 'anchors': the placed world follows its anchor. Default true. */

@@ -379,7 +379,7 @@
     },
     "packages": [
       {
-        "name": "@mirage/core",
+        "name": "@miragekit/core",
         "version": "1.0.0",
         "file": "tarballs/mirage-core-1.0.0.tgz",
         "sha256": "9558ba6229beca7086bd6ffc8130c7b543edd47ae381dc5deca768fedd8ccb17",
@@ -428,7 +428,7 @@
         ]
       },
       {
-        "name": "@mirage/world",
+        "name": "@miragekit/world",
         "version": "1.0.0",
         "file": "tarballs/mirage-world-1.0.0.tgz",
         "sha256": "088533891b4ad133fe0e39c5529375fea2c91bded2ac3581d2244a3b5e5ee9ba",
@@ -455,7 +455,7 @@
         ]
       },
       {
-        "name": "@mirage/play",
+        "name": "@miragekit/play",
         "version": "1.0.0",
         "file": "tarballs/mirage-play-1.0.0.tgz",
         "sha256": "e4b6fefbbf782daaf7a0b6b15279000e5b68ef838d10cbebc489e8160c851186",
@@ -480,7 +480,7 @@
         ]
       },
       {
-        "name": "@mirage/game",
+        "name": "@miragekit/game",
         "version": "1.0.0",
         "file": "tarballs/mirage-game-1.0.0.tgz",
         "sha256": "93401263e20d0740e6d2e629bfac281fb4c702179218f451162591a958fee68a",

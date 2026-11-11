@@ -5,22 +5,22 @@ loads unless a game imports it. No dependencies: the DOM, `Intl`, and three for 
 
 | module | what it holds |
 |---|---|
-| `@mirage/game/ui-kit` | `createUIKit`, `h` / `each` / `show`, layout (`stack`, `row`, `grid`, `anchor`, `safeArea`), themes, colour maths |
-| `@mirage/game/ui-reactive` | `signal`, `computed`, `effect`, `batch`, `store`, `scope` |
-| `@mirage/game/ui-widgets` | the widget set and the modal, dialogue, toast and radial services |
-| `@mirage/game/ui-nav` | `createFocusNav`, `nextFocus`, `glyphFor` |
-| `@mirage/game/ui-i18n`, `ui-locales` | `createI18n`, `wrapText`; English, Traditional Chinese and Arabic tables |
-| `@mirage/game/ui-world` | `createWorldUI`: labels, markers, health bars at 3D points |
-| `@mirage/game/ui-canvas` | `createCanvasUI`: a panel drawn into a texture (screens in the world, XR) |
-| `@mirage/game/ui-menu` | `createKitUI`: the pause menu and start screen on the toolkit; `TouchControls` |
+| `@miragekit/game/ui-kit` | `createUIKit`, `h` / `each` / `show`, layout (`stack`, `row`, `grid`, `anchor`, `safeArea`), themes, colour maths |
+| `@miragekit/game/ui-reactive` | `signal`, `computed`, `effect`, `batch`, `store`, `scope` |
+| `@miragekit/game/ui-widgets` | the widget set and the modal, dialogue, toast and radial services |
+| `@miragekit/game/ui-nav` | `createFocusNav`, `nextFocus`, `glyphFor` |
+| `@miragekit/game/ui-i18n`, `ui-locales` | `createI18n`, `wrapText`; English, Traditional Chinese and Arabic tables |
+| `@miragekit/game/ui-world` | `createWorldUI`: labels, markers, health bars at 3D points |
+| `@miragekit/game/ui-canvas` | `createCanvasUI`: a panel drawn into a texture (screens in the world, XR) |
+| `@miragekit/game/ui-menu` | `createKitUI`: the pause menu and start screen on the toolkit; `TouchControls` |
 
-The six `create*` functions are also exported from `@mirage/game`.
+The six `create*` functions are also exported from `@miragekit/game`.
 
 ## A HUD in twenty lines
 
 ```js
-import { createUIKit, signal, h, anchor, stack } from '@mirage/game/ui-kit';
-import { Bar, Button, Prompt, modals, toasts } from '@mirage/game/ui-widgets';
+import { createUIKit, signal, h, anchor, stack } from '@miragekit/game/ui-kit';
+import { Bar, Button, Prompt, modals, toasts } from '@miragekit/game/ui-widgets';
 
 const kit = createUIKit({ input, theme: 'dark' });          // input: createInput's, for glyphs and the gamepad
 const hp = signal(80);
@@ -83,8 +83,8 @@ pressed, and follows a rebind after `kit.rebound()`. With touch, controls grow t
 ## Languages
 
 ```js
-import { createI18n } from '@mirage/game/ui-i18n';
-import { LOCALES } from '@mirage/game/ui-locales';
+import { createI18n } from '@miragekit/game/ui-i18n';
+import { LOCALES } from '@miragekit/game/ui-locales';
 const i18n = createI18n({ locale: 'zh-Hant', fallback: 'en', tables: LOCALES });
 i18n.add('en', { quest: { apples: '{count, plural, one {# apple} other {# apples}} for {name}' } });
 i18n.t('quest.apples', { count: 3, name: 'Mira' });
@@ -101,7 +101,7 @@ does the same breaking (`Intl.Segmenter`, no break before closing punctuation) f
 ## World-space UI
 
 ```js
-import { createWorldUI } from '@mirage/game/ui-world';
+import { createWorldUI } from '@miragekit/game/ui-world';
 const wui = createWorldUI({ kit, camera, occluders: [walls] });
 const m = wui.marker({ position: [4, 1.8, -2], icon: '◆', label: 'Well', showDistance: true, clamp: true });
 wui.healthBar({ object: enemy, offset: [0, 2, 0], value: enemyHp, max: 40 });
@@ -117,7 +117,7 @@ or behind.
 ## A panel in a texture
 
 ```js
-import { createCanvasUI, cv } from '@mirage/game/ui-canvas';
+import { createCanvasUI, cv } from '@miragekit/game/ui-canvas';
 const panel = createCanvasUI({ width: 512, height: 320, kit, description: () => cv.panel({ title: 'Door' },
   cv.toggle({ label: 'Locked', value: locked }), cv.slider({ label: 'Volume', value: vol, min: 0, max: 1 }),
   cv.button({ label: 'Open', onPress: open })) });
@@ -128,12 +128,12 @@ scene.add(panel.mesh({ width: 0.8 }));
 The subset is `panel`, `col`, `row`, `text`, `button`, `toggle`, `slider`, `bar`, `spacer`. `layoutCanvas` is pure:
 it returns draw commands and hit boxes, so it runs in Node. Painting uses Canvas 2D; where that draws no text (the
 native WebXR hosts `docs/xr.md` describes) `backend: 'glyphs'` rasterises into a `DataTexture` with
-`@mirage/play`'s built-in glyph font, Latin only. It repaints only when a signal it read changed.
+`@miragekit/play`'s built-in glyph font, Latin only. It repaints only when a signal it read changed.
 
 ## The pause menu on the toolkit
 
 ```js
-import { createKitUI } from '@mirage/game/ui-menu';
+import { createKitUI } from '@miragekit/game/ui-menu';
 const g = await startGame(world, { built, ui: (o) => createKitUI({ ...o, locale: 'zh-Hant' }) });
 ```
 

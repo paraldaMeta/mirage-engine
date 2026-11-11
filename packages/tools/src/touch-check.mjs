@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Touch screens (B8): a phone-sized page with touch emulation, driven by real touch events (CDP), play's loop on
-// 60 Hz timestamps. Plain @mirage/play: a finger on the left half walks (dragged a little) and runs (dragged far),
-// one on the right half turns the view. A game (@mirage/game's overlay): tap to start, the overlay's stick walks
+// 60 Hz timestamps. Plain @miragekit/play: a finger on the left half walks (dragged a little) and runs (dragged far),
+// one on the right half turns the view. A game (@miragekit/game's overlay): tap to start, the overlay's stick walks
 // and, pushed out past its rim, runs. Fails when a finger does not move or turn the player, when running is not
 // faster than walking, or on console errors.
 //   node packages/tools/src/touch-check.mjs <dist dir>... [--frames 40]

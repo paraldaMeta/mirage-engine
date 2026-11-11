@@ -2,7 +2,7 @@
 // Ready effects in the effect description format (vfx-data.js): plain JSON, so each is also a worked example to copy
 // and change. Metres and seconds; an effect's +Y is "up" unless the instance is turned (spawn's `direction`).
 //
-//   import { createVfx, VFX_LIBRARY } from '@mirage/core';
+//   import { createVfx, VFX_LIBRARY } from '@miragekit/core';
 //   const vfx = createVfx(world);
 //   vfx.spawn(VFX_LIBRARY.fire, { position: [0, 0, 0] });        // loops until handle.stop()
 //   vfx.burst(VFX_LIBRARY.dust, foot);                            // one-shots: dust, sparks, splash, magic, explosion

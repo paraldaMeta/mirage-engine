@@ -10,12 +10,12 @@
 //
 // serve: one port with the folder (--dir), /net/grid.bin, /net/rooms and the WebSocket lobby at /net. --game is a
 //   module of YOURS that exports { protocol, setup(room), spawn, tickRate } (the same file the page imports, so the
-//   two cannot disagree); without it the rooms run @mirage/net's kit with no pickups. One persistent room is opened
+//   two cannot disagree); without it the rooms run @miragekit/net's kit with no pickups. One persistent room is opened
 //   (--room / --code); players can create and host more.
 //   --latency and friends delay, drop, repeat and reorder every room packet in BOTH directions (so --latency 150
 //   is a 300 ms round trip): play against a bad network without leaving the machine.
 //
-// bake: opens the built page in headless Chrome (@mirage/tools), reads the walk grid the GPU baked
+// bake: opens the built page in headless Chrome (@miragekit/tools), reads the walk grid the GPU baked
 //   (window.__mirage.play.grid, which every Mirage example exposes) and writes it in the serialised form the server
 //   and every client then load. Bake again when the world's solids change.
 //
@@ -42,7 +42,7 @@ if (cmd === 'bake') {
   const dir = rest[0], out = flags.out;
   if (!dir || !out) die('bake needs <dist dir> and --out file');
   let chrome;
-  try { chrome = await import('@mirage/tools/src/chrome.mjs'); } catch (e) { die('bake needs @mirage/tools (and a local Chrome): ' + e.message); }
+  try { chrome = await import('@miragekit/tools/src/chrome.mjs'); } catch (e) { die('bake needs @miragekit/tools (and a local Chrome): ' + e.message); }
   const { serializeGrid } = await import('../src/grid.js');
   const site = await chrome.serve(resolve(dir)), browser = await chrome.launch({ w: 640, h: 400 });
   try {

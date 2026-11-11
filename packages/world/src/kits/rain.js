@@ -1,6 +1,6 @@
 // Mirage original code.
 import * as THREE from 'three';
-import { WET, setRain, rng } from '@mirage/core';
+import { WET, setRain, rng } from '@miragekit/core';
 
 // Falling rain around the camera: `count` thin streaks in a box that follows the eye (one instanced draw call).
 // Each streak keeps a fixed place in the world and falls with time (G.uTime), wrapped into the box, so a still frame

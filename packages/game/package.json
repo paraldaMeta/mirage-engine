@@ -1,5 +1,5 @@
 {
-  "name": "@mirage/game",
+  "name": "@miragekit/game",
   "version": "1.0.0",
   "description": "Mirage game layer: entities and systems, Rapier physics (lazy WASM) with a kinematic character controller and doors, an action-mapped input (keyboard, mouse, gamepad, touch), a Web Audio mixer with procedural sounds, interactables, inventory, flags, events, save/load, pause and an accessible HTML overlay.",
   "license": "MIT",
@@ -62,9 +62,9 @@
   },
   "peerDependencies": {
     "three": ">=0.186.1 <0.187.0",
-    "@mirage/core": "^1.0.0",
-    "@mirage/world": "^1.0.0",
-    "@mirage/play": "^1.0.0"
+    "@miragekit/core": "^1.0.0",
+    "@miragekit/world": "^1.0.0",
+    "@miragekit/play": "^1.0.0"
   },
   "engines": {
     "node": ">=22"

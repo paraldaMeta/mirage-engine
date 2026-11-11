@@ -7,11 +7,11 @@
 //      ?w=&h=  ?mode=walk
 // Measures, into window.__mirage.timing: textures ready, build, prepare (warm), bake, the first frame (its CPU time
 // and the time until the GPU is done with it, through a 1-px readback).
-import { createWorldRenderer, createTextures, createUploadBudget } from '@mirage/core';
-import { createKTX2Loader } from '@mirage/core/ktx2';   // a subpath: bundles that never import it never contain KTX2Loader
-import { buildWorld } from '@mirage/world';
-import { createStreamer } from '@mirage/world';
-import { createPlay, bakeWalkGrid, bakeWalkGridAsync } from '@mirage/play';
+import { createWorldRenderer, createTextures, createUploadBudget } from '@miragekit/core';
+import { createKTX2Loader } from '@miragekit/core/ktx2';   // a subpath: bundles that never import it never contain KTX2Loader
+import { buildWorld } from '@miragekit/world';
+import { createStreamer } from '@miragekit/world';
+import { createPlay, bakeWalkGrid, bakeWalkGridAsync } from '@miragekit/play';
 import manifest from '../../hello-courtyard/tex/manifest.json';
 import courtPlan from '../../hello-courtyard/plan.js';
 import courtModules from '../../hello-courtyard/modules/index.js';

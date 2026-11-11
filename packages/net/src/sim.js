@@ -2,7 +2,7 @@
 // ---------------------------------------------------------------------------
 // The movement both ends run. The client predicts with it, the server decides with it, and a correction replays it:
 // it has to give the same numbers everywhere, so an input is quantised BEFORE either end uses it and a step is always
-// 1/60 s (the engine's own fixed step, @mirage/game simulation.js). The walker is @mirage/play's, unchanged: pure
+// 1/60 s (the engine's own fixed step, @miragekit/game simulation.js). The walker is @miragekit/play's, unchanged: pure
 // JavaScript over the walk grid's arrays, the same in Node and in a page.
 //
 //   const inp = quantiseInput({ x, z, run, jump, yaw });   // x, z: wanted direction in the world, length <= 1

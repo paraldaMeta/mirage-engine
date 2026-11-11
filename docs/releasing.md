@@ -1,7 +1,8 @@
 # Releasing
 
-The checklist for a release of the `@mirage/*` packages. 1.0.0 is tagged (`v1.0.0`, a GitHub release, 2026-11-11) and **not
-published to npm**: the package names there are not settled (CHANGELOG), so sections 2 to 4 have not been run. Every step that leaves this machine
+The checklist for a release of the `@miragekit/*` packages. 1.0.0 is tagged (`v1.0.0`, a GitHub release, 2026-11-11) and **not
+published to npm**. The packages are named `@miragekit/*` (`@mirage` and `@mirage-engine` belong to others on npm); sections
+2 to 4 have not been run yet. Every step that leaves this machine
 (push, tag, publish, visibility) is the owner's, by hand or by approving the workflow; agents stop before it.
 The historic first-release notes are in [RELEASE.md](RELEASE.md).
 
@@ -31,32 +32,21 @@ net, editor, tools.
 Publish from GitHub Actions, not from a laptop, so every tarball carries an npm provenance statement: a signed
 link from the package version to the commit and the workflow run that built it. npm shows it on the package page
 and `npm audit signatures` verifies it. It needs a public repository, a GitHub-hosted runner, and either npm
-trusted publishing for the package (no token at all) or an `NPM_TOKEN` secret limited to publishing `@mirage/*`.
+trusted publishing for the package (no token at all) or an `NPM_TOKEN` secret limited to publishing `@miragekit/*`.
 
-The job, to be added as `.github/workflows/release.yml` when the names are settled. It is not in the repository
-yet, so nothing can publish by accident:
+The job is [`.github/workflows/release.yml`](../.github/workflows/release.yml). It runs when a GitHub release is
+published (the tag must equal the packages' version), or by hand from the Actions tab as a dry run (`npm publish
+--dry-run`, the default). It waits in the protected `npm` environment for the owner's approval, runs `npm test` and
+`npm run test:pack`, then publishes the seven packages in peer-dependency order with `--provenance`.
 
-```yaml
-on:
-  release:
-    types: [published]
-permissions:
-  contents: read
-jobs:
-  publish:
-    runs-on: ubuntu-latest
-    environment: npm            # a protected environment: the owner approves each run
-    permissions:
-      contents: read
-      id-token: write           # the OIDC token provenance is signed with: the only write scope, only in this job
-    steps:
-      - uses: actions/checkout@<full commit SHA>
-      - uses: actions/setup-node@<full commit SHA>
-        with: { node-version: 22, registry-url: 'https://registry.npmjs.org' }
-      - run: npm ci
-      - run: npm test && npm run test:pack
-      - run: npm publish --provenance --access public -w packages/core -w packages/world -w packages/play -w packages/game -w packages/net -w packages/tools
-```
+What the owner sets up once (none of it can be done from the repository):
+- [ ] On npmjs.com, create the organisation `miragekit` (free for public packages).
+- [ ] In the GitHub repository settings, create the environment `npm` with yourself as required reviewer.
+- [ ] First publish: npm can only link a trusted publisher to a package that exists, so add an `NPM_TOKEN` secret to
+      the `npm` environment (a granular token: publish, `@miragekit` only, short expiry) and publish 1.0.x.
+- [ ] Then, for each of the seven packages on npmjs.com: Settings -> Trusted publishing -> GitHub Actions,
+      repository `paraldaMeta/mirage-engine`, workflow `release.yml`, environment `npm`; delete the token.
+
 
 `scripts/checks/workflows.check.mjs` reports any job that asks for a write scope, so adding this file means
 allowing exactly `id-token: write` there in the same commit, where a reviewer sees it.
@@ -66,8 +56,8 @@ allowing exactly `id-token: write` there in the same commit, where a reviewer se
 
 ## 4. After
 
-- [ ] `npm view @mirage/core@X.Y.Z dist.attestations` shows a provenance entry; in an empty folder,
-      `npm i @mirage/core three && npm audit signatures` passes.
+- [ ] `npm view @miragekit/core@X.Y.Z dist.attestations` shows a provenance entry; in an empty folder,
+      `npm i @miragekit/core three && npm audit signatures` passes.
 - [ ] A world made from the published packages builds: copy the skeleton outside the repository, `npm i`,
       `npm run build`, `npm run playtest` ([making-a-world.md](making-a-world.md)).
 - [ ] If something is wrong: `npm deprecate` the version with a message and publish a patch. Do not unpublish.

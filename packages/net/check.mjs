@@ -1,4 +1,4 @@
-// Node checks of @mirage/net on a virtual clock: wire, loopback, channel, schema, grid, determinism, a room with
+// Node checks of @miragekit/net on a virtual clock: wire, loopback, channel, schema, grid, determinism, a room with
 // clients under latency, jitter, loss, duplication and reordering (prediction, interpolation, interest, events,
 // lag compensation, reconnect, late join, anti-cheat, hostile input, migration). No sockets here: server.check.mjs.
 import { BitWriter, BitReader, seqDiff, cleanText, MSG } from './src/wire.js';
@@ -9,8 +9,8 @@ import { bakeGridCPU, boxTriangles, serializeGrid, deserializeGrid, gridRay } fr
 import { quantiseInput, applyInput, writeInput, readInput } from './src/sim.js';
 import { createRoom } from './src/room.js';
 import { createClient } from './src/client.js';
-import { createWalker } from '@mirage/play/walker';
-import { rng } from '@mirage/core/rng';
+import { createWalker } from '@miragekit/play/walker';
+import { rng } from '@miragekit/core/rng';
 
 import { ok } from '../../scripts/soft-assert.mjs';   // reports every failure with a count, not only the first
 const throws = (fn) => { try { fn(); return false; } catch { return true; } };

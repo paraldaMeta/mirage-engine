@@ -1,5 +1,5 @@
-// Mirage original code. Types for '@mirage/net' (the browser-safe index) and, at the end, '@mirage/net/server'.
-import type { WalkGrid, WalkerLike } from '@mirage/play';
+// Mirage original code. Types for '@miragekit/net' (the browser-safe index) and, at the end, '@miragekit/net/server'.
+import type { WalkGrid, WalkerLike } from '@miragekit/play';
 
 /** A datagram pipe: every transport (loopback, WebSocket, relay, WebRTC) has this shape. */
 export interface Transport {

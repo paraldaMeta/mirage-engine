@@ -1,4 +1,4 @@
-// Mirage original code. Writers for the three splat formats the kit reads (@mirage/world/kits/splat), used to save
+// Mirage original code. Writers for the three splat formats the kit reads (@miragekit/world/kits/splat), used to save
 // the procedural test asset: antimatter15's .splat, an uncompressed 3DGS .ply (SH0 only) and SOG version 2
 // (meta.json + lossless webp textures: 16-bit means split low / high, 256-entry codebooks for the log-scales and
 // the SH0 colour, smallest-three quaternions).

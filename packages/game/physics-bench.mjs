@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { createPhysics } from './src/physics.js';
 import { createPhysicsKit } from './src/physics-kit.js';
 import { createRagdoll } from './src/ragdoll.js';
-import { createRigModel } from '@mirage/play/rig-model';
+import { createRigModel } from '@miragekit/play/rig-model';
 
 const rounds = +process.argv[2] || 3, STEPS = 600, M = new THREE.MeshBasicMaterial();
 const med = (a) => { const s = [...a].sort((x, y) => x - y); return s[s.length >> 1]; };

@@ -1,5 +1,5 @@
 // The site plan of <name>: every position more than one module needs (metres; +X east, +Y up, +Z south).
-// Modules read from here and never measure each other. Checked by definePlan() (@mirage/world).
+// Modules read from here and never measure each other. Checked by definePlan() (@miragekit/world).
 export default {
   name: '<name>',
   // seed: '<name>',                    // default: name. Every module's ctx.R derives from it.

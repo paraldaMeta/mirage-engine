@@ -1,8 +1,8 @@
 import * as THREE from 'three';
-import { fbm2, geom } from '@mirage/core';
-import { addTerrain } from '@mirage/world/kits/terrain';
-import { addWater } from '@mirage/world/kits/water';
-import { addGrass, addTreeCanopies } from '@mirage/world/kits/vegetation';
+import { fbm2, geom } from '@miragekit/core';
+import { addTerrain } from '@miragekit/world/kits/terrain';
+import { addWater } from '@miragekit/world/kits/water';
+import { addGrass, addTreeCanopies } from '@miragekit/world/kits/vegetation';
 import { channelX } from './plan.js';
 
 const bed = {

@@ -31,7 +31,7 @@ Chinese; the dated ones are records of what was done and are not kept current.
 | [big-worlds.md](big-worlds.md) | chunking, LOD, instancing, occlusion, streaming |
 | [import.md](import.md) | glTF / GLB models, compressed formats, reference counting |
 | [export.md](export.md) | GLB, USDZ and the other ways out |
-| [multiplayer.md](multiplayer.md) | `@mirage/net`: rooms, the server, prediction |
+| [multiplayer.md](multiplayer.md) | `@miragekit/net`: rooms, the server, prediction |
 | [xr.md](xr.md) | WebXR: a world in a headset |
 
 ## Engineering

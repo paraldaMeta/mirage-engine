@@ -1,5 +1,5 @@
 import type * as THREE from 'three';
-import type { XYZ } from '@mirage/world';
+import type { XYZ } from '@miragekit/world';
 import type { GameMessages } from './ui.js';
 
 export interface InventoryItem { id: string; name: string; text?: string; [field: string]: unknown }

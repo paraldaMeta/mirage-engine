@@ -4,7 +4,7 @@
 // No framework: native <dialog> (modal, focus kept inside, labelled), real <button>s and <input type=range>, an
 // aria-live region for prompts and toasts; gamepad d-pad / A / B move focus, press and close inside dialogs.
 // ---------------------------------------------------------------------------
-import { createLifetime } from '@mirage/core/lifetime';
+import { createLifetime } from '@miragekit/core/lifetime';
 import { ACTIONS, keyName } from './input.js';
 
 const CSS = `

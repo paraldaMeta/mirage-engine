@@ -3,8 +3,8 @@
 // ---------------------------------------------------------------------------
 // Opt-in model import: glTF / GLB files (with Draco, meshopt and KTX2 payloads) as engine citizens.
 //
-//   import { createAssets } from '@mirage/core/assets';       // a subpath, not in the index: see below
-//   import { decoders } from '@mirage/core/assets-decoders';  // Vite projects: decoder files as bundled URLs
+//   import { createAssets } from '@miragekit/core/assets';       // a subpath, not in the index: see below
+//   import { decoders } from '@miragekit/core/assets-decoders';  // Vite projects: decoder files as bundled URLs
 //   const assets = createAssets(world, { decoders });
 //   const chair = await assets.load('/models/chair.glb', { collide: 'box' });
 //   scene.add(assets.instantiate(chair));                     // a clone sharing geometry, materials, textures
@@ -24,7 +24,7 @@
 //   'box'   the meshes are passed through; one box proxy around the model stands in (cheap, good for props)
 //   'hull'  as 'box' with the convex hull of the vertices
 //   false   (default for skinned models) nothing: a figure that moves must not be baked into the grid
-// Proxies follow the convention of @mirage/world's colliderFor: layer 2, userData.collider, never drawn.
+// Proxies follow the convention of @miragekit/world's colliderFor: layer 2, userData.collider, never drawn.
 //
 // Why a subpath: three's GLTFLoader and the decoders are imported dynamically, and a bundler emits a dynamic
 // import's chunk even when the function around it is unused; kept out of the index, a project that imports no
@@ -34,7 +34,7 @@ import * as THREE from 'three';
 import { patch } from './materials.js';
 import { objectBytes, texturesOf } from './stream.js';
 
-const COLLIDE_LAYER = 2;   // LAYER.COLLIDE in @mirage/world (core cannot import it)
+const COLLIDE_LAYER = 2;   // LAYER.COLLIDE in @miragekit/world (core cannot import it)
 const DECODER_FILES = { draco: ['draco_wasm_wrapper.js', 'draco_decoder.wasm', 'draco_decoder.js'], basis: ['basis_transcoder.js', 'basis_transcoder.wasm'] };
 let proxyMaterial = null;
 const colliderMaterial = () => (proxyMaterial ||= new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false }));

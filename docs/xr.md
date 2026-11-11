@@ -1,12 +1,12 @@
 # WebXR: a mirage world in a headset
 
-`createXR(play)` (in `@mirage/play`, experimental) lets any world be entered in a VR headset (`immersive-vr`) or set
+`createXR(play)` (in `@miragekit/play`, experimental) lets any world be entered in a VR headset (`immersive-vr`) or set
 on a floor or table as a model (`immersive-ar`). All seven examples opt in: open one in a headset browser (Meta
 Quest Browser, Android Chrome with a headset, Pico, Wolvic) and press **Enter VR** or **Enter AR**.
 
 ```js
-import { createWorldRenderer } from '@mirage/core';
-import { createPlay, createXR, xrSupport } from '@mirage/play';
+import { createWorldRenderer } from '@miragekit/core';
+import { createPlay, createXR, xrSupport } from '@miragekit/play';
 
 const xrs = await xrSupport();                                   // { vr, ar }: ask before creating the world
 const world = createWorldRenderer({ ..., xr: xrs.vr || xrs.ar }); // a multisampled, XR-compatible context
@@ -160,7 +160,7 @@ node packages/tools/src/xr-check.mjs <an unminified dist> --alloc-only          
 node packages/tools/src/xr-fit.mjs examples/*/dist        # refit XR_FIT
 ```
 
-`mirage-xr-check` injects Meta's Immersive Web Emulation Runtime (`iwer`, MIT, a devDependency of @mirage/tools)
+`mirage-xr-check` injects Meta's Immersive Web Emulation Runtime (`iwer`, MIT, a devDependency of @miragekit/tools)
 into the page before its scripts, emulating a Meta Quest 3 with controllers in headless Chrome. Per world it checks:
 the page's context is multisampled; Enter VR from the button; walks with the left stick (the desktop scenarios' own
 expectations where they exist: hello-courtyard's east wall stops at x ≈ 6.9, the gate passes, the basin rim stops;
@@ -257,7 +257,7 @@ original WebXR shim: two views, controllers, hands, hit test, anchors, planes, l
 is proved is the page's side of the WebXR contract, not a compositor, a mobile GPU or real tracking.
 
 ```js
-const ix = createXRInteraction({ physics: g.physics });   // optional: @mirage/game physics for real throws
+const ix = createXRInteraction({ physics: g.physics });   // optional: @miragekit/game physics for real throws
 const xr = createXR(play, {
   post: { msaa: 4, ao: true, bloom: true },   // the post chain per eye (VR)
   budget: true,                               // degrade quality before dropping frames
@@ -336,7 +336,7 @@ flags, a haptic pulse), which `createXR` builds from controllers (squeeze grabs,
 (a fist grabs, a pinch selects, the index tip pokes).
 
 - `ix.grabbable(obj, { body, radius, twoHanded, scale })`: near grab within reach, else along the ray; with a
-  Rapier body (`@mirage/game` physics) the held body is kinematic and is thrown with the hand's mean velocity over
+  Rapier body (`@miragekit/game` physics) the held body is kinematic and is thrown with the hand's mean velocity over
   the last 0.1 s; without physics it flies a ballistic arc to `ground(x, z)`. A second hand turns and scales.
 - `ix.snapZone({ position, radius, accepts, onSnap })`, `ix.pokeable(obj, { onPress })`.
 - `ix.panel(ui, ui.mesh())`: a canvas panel ([ui.md](ui.md)) by ray + trigger / pinch, or by a fingertip through

@@ -3,7 +3,7 @@
 // ---------------------------------------------------------------------------
 // A small sequencer: camera moves, object transforms, animation clips, audio cues and events on one clock.
 //
-//   import { createTimeline } from '@mirage/play';
+//   import { createTimeline } from '@miragekit/play';
 //   const tl = createTimeline({ duration: 8, tracks: [
 //     { type: 'camera', target: world.camera, keys: [
 //       { t: 0, position: [0, 2, 6], lookAt: [0, 1, 0], fov: 50 }, { t: 4, position: [5, 2, 3], lookAt: [0, 1, 0], fov: 35, ease: 'inOut' }] },

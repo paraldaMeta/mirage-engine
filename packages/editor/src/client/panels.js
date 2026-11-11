@@ -162,7 +162,7 @@ export function createPanels(app, { top, left, right, bottom, schema }) {
     if (env.time === undefined && env.date === undefined) body.append(note('The world keeps the time its page set until you move the slider.'));
     body.append(head('Weather'));
     for (const k of ['wet', 'rain']) { const f = { path: k, label: k, type: 'number', min: 0, max: 1, step: 0.01, optional: true }; body.append(fieldRow(f, env[k], set(k, f), ctx)); }
-    body.append(note('wet and rain drive @mirage/core/wet: they show on materials the world built with wet surfaces.'));
+    body.append(note('wet and rain drive @miragekit/core/wet: they show on materials the world built with wet surfaces.'));
     body.append(head('Post (docs/post.md)'));
     for (const [k, v] of Object.entries(world.post || {})) {
       const key = 'post.' + k, f = k === 'tonemap' ? { type: 'enum', options: ['agx', 'aces', 'neutral'] } : typeof v === 'number' ? { type: 'number', step: 0.01 } : null;
@@ -191,7 +191,7 @@ export function createPanels(app, { top, left, right, bottom, schema }) {
   let assetsAsked = false;
   async function loadAssets() {
     try { assets = await (await fetch('/__editor/assets')).json(); } catch (e) { app.log('warning', 'assets: ' + e.message); }
-    try { vfxNames = Object.keys((await import('@mirage/core/vfx-library')).VFX_LIBRARY); } catch { vfxNames = []; }
+    try { vfxNames = Object.keys((await import('@miragekit/core/vfx-library')).VFX_LIBRARY); } catch { vfxNames = []; }
     if (Lft.current === 'Assets') Lft.show('Assets');
   }
   const kb = (n) => (n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' kB');
@@ -234,7 +234,7 @@ export function createPanels(app, { top, left, right, bottom, schema }) {
     body.append(box);
   }
 
-  // ---- timeline editor (createTimeline of @mirage/play): tracks of keys on placed objects, scenery nodes, the camera
+  // ---- timeline editor (createTimeline of @miragekit/play): tracks of keys on placed objects, scenery nodes, the camera
   const TL = { name: null, time: 0, track: 0, key: -1, head: null, clock: null };
   const tlDef = () => (TL.name && doc.layer.timelines[TL.name]) || null;
   const tlSave = (label, def, o) => app.exec(label, [{ section: 'timelines', key: TL.name, value: def }], o);
@@ -258,7 +258,7 @@ export function createPanels(app, { top, left, right, bottom, schema }) {
     const bar = h('div', { class: 'mg-row', style: { gridTemplateColumns: '1fr', display: 'flex', flexWrap: 'wrap' } }, names.length ? pickTl : null,
       btn('New', 'tl-new', () => { let i = 1, n = 'timeline'; while (doc.layer.timelines[n]) n = 'timeline-' + (++i); TL.name = n; TL.time = 0; tlSave('New timeline', { duration: 4, loop: false, tracks: [] }); }));
     body.append(bar);
-    if (!d) { body.append(note('No timeline yet. New makes one; then select a placed object or a scenery node and add a track for it. Timelines are saved with the layer and built with createTimeline (@mirage/play).')); return; }
+    if (!d) { body.append(note('No timeline yet. New makes one; then select a placed object or a scenery node and add a track for it. Timelines are saved with the layer and built with createTimeline (@miragekit/play).')); return; }
     const dur = h('input', { class: 'mg-in', style: { width: '54px' }, value: tlLength(d), title: 'duration (s)', 'data-cmd': 'tl-duration' });
     dur.addEventListener('change', () => { const v = +dur.value; if (v > 0) tlSave('Timeline duration', { ...d, duration: v }); });
     dur.addEventListener('keydown', (e) => e.stopPropagation());
@@ -308,7 +308,7 @@ export function createPanels(app, { top, left, right, bottom, schema }) {
   let animTimer = 0;
   function animatorTab(body) {
     const A = app.host.animators || {}, names = Object.keys(A);
-    if (!names.length) { body.append(note('The page handed over no animators. Pass them to attach({ animators: { hero: animator } }) (createAnimator of @mirage/play) to watch their states, blend weights and parameters here while the world runs. This is a viewer: states and transitions are edited in code.')); return; }
+    if (!names.length) { body.append(note('The page handed over no animators. Pass them to attach({ animators: { hero: animator } }) (createAnimator of @miragekit/play) to watch their states, blend weights and parameters here while the world runs. This is a viewer: states and transitions are edited in code.')); return; }
     const box = h('div', { class: 'mg-log' });
     const draw = () => {
       clear(box);

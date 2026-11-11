@@ -1,9 +1,9 @@
 // @ts-check
 // Compile only, including negative cases. This module is not a runnable demo.
-import { createWorldRenderer } from '@mirage/core';
-import { definePlan } from '@mirage/world';
-import { createPlay } from '@mirage/play';
-import { createGame } from '@mirage/game/game';
+import { createWorldRenderer } from '@miragekit/core';
+import { definePlan } from '@miragekit/world';
+import { createPlay } from '@miragekit/play';
+import { createGame } from '@miragekit/game/game';
 
 const world = createWorldRenderer({ quality: 'medium' });
 const plan = definePlan({ name: 'js-runtime', bounds: [-4, -4, 4, 4] });

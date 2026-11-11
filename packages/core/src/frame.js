@@ -4,7 +4,7 @@
 // or swaps there is what that render draws. Hooks chain (several systems, one scene) and run only for the camera
 // they were given: shadow maps, the walk-grid bake and probes use other cameras and see the scene as it was left.
 //
-//   import { onView } from '@mirage/core/frame';
+//   import { onView } from '@miragekit/core/frame';
 //   const off = onView(world.scene, world.camera, (camera, heightPx, renderer, target) => { ... });   off() removes it
 //   onView(scene, camera, before, after)     `after(camera, renderer)` runs when that render is done (undo what before did)
 export function onView(scene, camera, fn, after = null) {

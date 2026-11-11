@@ -1,6 +1,6 @@
 // Materials more than one module uses, made once per world (cached in ctx.shared.mats). Lead-owned.
 import * as THREE from 'three';
-import { PROC } from '@mirage/core';
+import { PROC } from '@miragekit/core';
 
 // snow: blue-white, soft large-scale undulation, fine crust bump; `lie` (GLSL float) = how much snow a face holds
 export const snowHooks = (lie = '1.0') => ({

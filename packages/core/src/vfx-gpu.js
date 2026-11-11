@@ -41,7 +41,7 @@ export function sampleMesh(geometry, count = 2048, seed = 7) {
   return { texture, count, data };
 }
 
-/** a height map for ground collision. `grid`: a walk grid from @mirage/play's bakeWalkGrid (nx, nz, x0, z0, cell,
+/** a height map for ground collision. `grid`: a walk grid from @miragekit/play's bakeWalkGrid (nx, nz, x0, z0, cell,
  *  groundAt), or { min: [x, z], size: [w, d], res: [nx, nz], heightAt(x, z) }. Cells with no ground hold -1e4. */
 export function heightTexture(renderer, grid) {
   const g = grid.groundAt ? { nx: grid.nx, nz: grid.nz, x0: grid.x0, z0: grid.z0, w: grid.nx * grid.cell, d: grid.nz * grid.cell, at: (x, z) => grid.groundAt(x, z) }

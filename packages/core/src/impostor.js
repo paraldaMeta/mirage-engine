@@ -6,7 +6,7 @@
 // The technique is the usual octahedral impostor (R. Brucks' description for Unreal is the common reference); the
 // code is ours.
 //
-//   import { bakeImpostor, impostorMaterial } from '@mirage/core/impostor';
+//   import { bakeImpostor, impostorMaterial } from '@miragekit/core/impostor';
 //   const imp = bakeImpostor(world, treeGroup, { frames: 8, tile: 128 });   // { albedo, normal, center, radius, frames, ... }
 //   const mesh = new THREE.InstancedMesh(imp.geometry, impostorMaterial(world, imp), n);   // instance matrices as for the tree
 //   createInstances(world, { source: treeGroup, matrices, impostor: imp })  // instancing.js: the last LOD

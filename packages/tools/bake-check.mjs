@@ -15,8 +15,8 @@ fs.mkdirSync(src, { recursive: true });
 fs.writeFileSync(path.join(src, 'index.html'), '<!doctype html><link rel="icon" href="data:,"><script type="module" src="./main.js"></script>\n');
 fs.writeFileSync(path.join(src, 'main.js'), `
 import * as THREE from 'three';
-import { buildWorld } from '@mirage/world';
-import { bakeWalkGrid, createWalker } from '@mirage/play';
+import { buildWorld } from '@miragekit/world';
+import { bakeWalkGrid, createWalker } from '@miragekit/play';
 
 const renderer = new THREE.WebGLRenderer();
 // kind: 'bare' | 'proxy' (the thin railing), 'object3d' | 'lod' | 'transparent' (a 0.4 m wall under that parent)

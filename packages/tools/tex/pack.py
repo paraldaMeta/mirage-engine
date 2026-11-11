@@ -1,6 +1,6 @@
 # Mirage texture packer. Adapted from the author's own earlier texture tools (fetch.py + pack.py), slimmed.
 # Fetches CC0 PBR sets from Poly Haven (official API, 1k JPG) and packs each into the two-texture layout that
-# @mirage/core's textures.js reads:
+# @miragekit/core's textures.js reads:
 #   <name>_c.webp  albedo (sRGB), ambient occlusion folded in at 50 %
 #   <name>_n.webp  R, G = tangent-space normal x, y (OpenGL, +Y up); B = height 0..1 (stretched, slightly blurred)
 # and writes manifest.json (tile size, linear mean albedo, roughness statistics, source and licence per set).

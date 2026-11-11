@@ -1,7 +1,7 @@
 // The garden's materials, made once per world (ctx.shared.mats) from the courtyard's CC0 texture sets plus
 // procedural surfaces (lawn, hedge, foliage, roof tiles, bark).
 import * as THREE from 'three';
-import { PROC } from '@mirage/core';
+import { PROC } from '@miragekit/core';
 
 const leafy = (dark, light, scale) => ({
   fragmentDecl: 'float gH;',

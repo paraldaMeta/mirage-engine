@@ -3,7 +3,7 @@
 // that follows the camera; the game advances `snow.time`).
 // Reads plan: ground, fence, snow. Offers: ctx.modules.ground.heightAt(x, z) (for pines). Anchors: none.
 import * as THREE from 'three';
-import { fbm2, PROC } from '@mirage/core';
+import { fbm2, PROC } from '@miragekit/core';
 import { materials, withSnow } from './materials.js';
 
 const ss = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };

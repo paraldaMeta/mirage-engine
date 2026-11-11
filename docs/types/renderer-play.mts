@@ -4,15 +4,15 @@ import { createWorldRenderer, Pipeline, DEFAULT_POST, createEnvLight, createText
   createSky, createSkyUniforms, createStars, skyState, lightAt, skyAt, placeDate, placeClock, dirFromAltAz,
   ATMO, ATMOSPHERE_GLSL, transmit, transmitAtGround, scatter, skyLightAt, FOG, installFog,
   deviceProfile, pickQuality, QUALITY_LEVELS, QUALITY_KEY, NOISE_GLSL, TEX_GLSL,
-  type WorldRenderer, type RenderFrameOptions } from '@mirage/core';
-import { createWorldRenderer as createSubpath } from '@mirage/core/world';
-import { Pipeline as SubPipeline } from '@mirage/core/post';
-import { julianDay, gmst, refraction, sunEquatorial, moonEquatorial, equatorialToWorld } from '@mirage/core/sky-time';
-import { brightStars } from '@mirage/core/stars';
-import { definePlan, buildWorld, type WorldModule } from '@mirage/world';
-import { createPlay, createCharacter, createWalker, makeGrid, bakeWalkGrid, mountWorld, BODY, MAXL } from '@mirage/play';
-import { frameGate } from '@mirage/play/play';
-import { buildCharacterModel } from '@mirage/play/character-model';
+  type WorldRenderer, type RenderFrameOptions } from '@miragekit/core';
+import { createWorldRenderer as createSubpath } from '@miragekit/core/world';
+import { Pipeline as SubPipeline } from '@miragekit/core/post';
+import { julianDay, gmst, refraction, sunEquatorial, moonEquatorial, equatorialToWorld } from '@miragekit/core/sky-time';
+import { brightStars } from '@miragekit/core/stars';
+import { definePlan, buildWorld, type WorldModule } from '@miragekit/world';
+import { createPlay, createCharacter, createWalker, makeGrid, bakeWalkGrid, mountWorld, BODY, MAXL } from '@miragekit/play';
+import { frameGate } from '@miragekit/play/play';
+import { buildCharacterModel } from '@miragekit/play/character-model';
 
 const sharedRenderer = new THREE.WebGLRenderer();
 const world: WorldRenderer = createWorldRenderer({ renderer: sharedRenderer, width: 960, height: 540,

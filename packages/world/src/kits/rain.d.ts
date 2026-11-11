@@ -1,5 +1,5 @@
 import type * as THREE from 'three';
-import type { MaterialKit } from '@mirage/core/materials';
+import type { MaterialKit } from '@miragekit/core/materials';
 
 export interface RainOptions {
   /** Streaks in the box (6000). */
@@ -16,7 +16,7 @@ export interface RainOptions {
   density?: number;
   /** Brightness multiplier (1). */
   gain?: number;
-  /** If given, calls setRain(intensity) (@mirage/core); otherwise the current rain level applies. */
+  /** If given, calls setRain(intensity) (@miragekit/core); otherwise the current rain level applies. */
   intensity?: number;
   /** rng stream name ('rain'). */
   seed?: string;

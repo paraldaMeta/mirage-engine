@@ -3,7 +3,7 @@
 //   window.miragePWA.canInstall / .install()        the browser's install prompt, held until you call it
 //   window.miragePWA.updateReady / .applyUpdate()   a new version is downloaded and waiting; apply = reload on it
 //   window.addEventListener('mirage:pwa', (e) => e.detail)   { type: 'ready' | 'install' | 'installed' | 'update', ... }
-// A game that wants its own flow can ignore this object and use @mirage/game/platform (registerServiceWorker,
+// A game that wants its own flow can ignore this object and use @miragekit/game/platform (registerServiceWorker,
 // createInstallPrompt) instead: registering the same worker twice is harmless.
 (() => {
   const tell = (detail) => window.dispatchEvent(new CustomEvent('mirage:pwa', { detail }));

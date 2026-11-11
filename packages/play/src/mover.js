@@ -2,7 +2,7 @@
 // ---------------------------------------------------------------------------
 // The full character mover: the walker's cylinder on the walk grid, plus what a game character needs. Same shape as
 // the walker ({ pos, vy, onGround, blocked, body, update, place, fits }), so createPlay({ walker: mover }) and
-// @mirage/net's applyInput take it as they are. Pure JS, no three, deterministic at a fixed step.
+// @miragekit/net's applyInput take it as they are. Pure JS, no three, deterministic at a fixed step.
 //
 //   const space = createSolids(grid);                        // optional: moving platforms, doors, crates, volumes
 //   const m = createMover(space, { pos: [x, y, z], body: { sprint: 6.5 } });

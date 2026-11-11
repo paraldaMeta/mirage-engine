@@ -1,12 +1,12 @@
 // Node checks of the diagnostics (no browser): the code table, the converters, and the walk-grid probes on hand-made
-// grids (each check fires on a broken case and stays quiet on a good one). `npm test -w @mirage/tools`
+// grids (each check fires on a broken case and stays quiet on a good one). `npm test -w @miragekit/tools`
 import assert from '../../scripts/soft-assert.mjs';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { CODES, diag, sortDiagnostics, fromPlanIssues, lintPlan, fromBuildReport, fromConsole, fromStep, fromWorldChecks,
   axisVerdict, srcLoc, narrowPlanFields, stuckWords, throughWords, budgetAtLoad, lightFix, markdownDiagnostics } from './src/diagnostics.mjs';
 import { classifyEye, freeSpot } from './src/world-checks.mjs';
-import { planIssues } from '@mirage/world/plan-validation';
+import { planIssues } from '@miragekit/world/plan-validation';
 import { makeGrid, MAXL } from '../play/src/walkgrid.js';
 
 // ---- the code table: stable shape, a concrete fix each, documented in docs/diagnostics.md

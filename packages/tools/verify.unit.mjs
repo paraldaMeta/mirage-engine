@@ -1,5 +1,5 @@
 // Mirage original code. Node checks of the verification helpers (no browser): PNG round trip, region SSIM, pixel
-// diffs, the playtest vocabulary, the Chrome capture flags. Part of `npm test -w @mirage/tools`.
+// diffs, the playtest vocabulary, the Chrome capture flags. Part of `npm test -w @miragekit/tools`.
 import assert from '../../scripts/soft-assert.mjs';
 import puppeteer from 'puppeteer-core';
 import { encodePNG, decodePNG, regionSSIM, ssimVerdict, pixelDiff, parseThresholds, boxed, sideBySide } from './src/imgcmp.mjs';

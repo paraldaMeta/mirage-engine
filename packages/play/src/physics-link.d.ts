@@ -13,5 +13,5 @@ export interface SolidLink {
   post(): void;
   dispose(): void;
 }
-/** `physics`: @mirage/game's createPhysics result, or any { R, world } (Rapier and its world) */
+/** `physics`: @miragekit/game's createPhysics result, or any { R, world } (Rapier and its world) */
 export function linkSolids(space: SolidSpace, physics: { R: any; world: any }): SolidLink;

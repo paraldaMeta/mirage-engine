@@ -1,5 +1,5 @@
 // Mirage original code. A WebXR device that is not there: the smallest navigator.xr that three's WebXRManager and
-// @mirage/play's createXR can run a whole session against, so headless Chrome draws both eyes into a real
+// @miragekit/play's createXR can run a whole session against, so headless Chrome draws both eyes into a real
 // framebuffer that a check can read back. Written for xr-stereo-check.mjs (which injects this file before the
 // page's scripts); no code from any emulator.
 // ---------------------------------------------------------------------------

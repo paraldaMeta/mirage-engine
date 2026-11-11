@@ -1,10 +1,10 @@
 // Mirage original code.
 // ---------------------------------------------------------------------------
-// One description, two collision worlds: createSolids' moving shapes mirrored into a Rapier world (@mirage/game's
-// createPhysics, or any { R, world }). Nothing is imported here: Rapier arrives as an argument, so @mirage/play
+// One description, two collision worlds: createSolids' moving shapes mirrored into a Rapier world (@miragekit/game's
+// createPhysics, or any { R, world }). Nothing is imported here: Rapier arrives as an argument, so @miragekit/play
 // still has no physics dependency.
 //
-//   const phys = await createPhysics(scene);                 // @mirage/game
+//   const phys = await createPhysics(scene);                 // @miragekit/game
 //   const link = linkSolids(space, phys);                    // a Rapier body + collider per solid, now and later
 //   link.addMover(mover);                                    // the character as a kinematic capsule: crates stop at it
 //   each fixed step:  link.pre(); phys.step(dt); link.post(); mover.update(dt, input);

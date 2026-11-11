@@ -1,7 +1,7 @@
 // Materials more than one module uses, made once per world (cached in ctx.shared.mats). Lead-owned: modules ask
 // for additions in NOTES.md; module-only materials stay in the module's own file.
 import * as THREE from 'three';
-import { PROC } from '@mirage/core';
+import { PROC } from '@miragekit/core';
 
 export function materials(ctx) {
   if (ctx.shared.mats) return ctx.shared.mats;

@@ -1,4 +1,4 @@
-// One runnable self-check for the non-trivial pure logic: `npm test -w @mirage/core`
+// One runnable self-check for the non-trivial pure logic: `npm test -w @miragekit/core`
 import assert from '../../scripts/soft-assert.mjs';
 import * as THREE from 'three';
 import { rng, skyAt, placeDate, skyState, lightAt, transmitAtGround, geom } from './src/index.js';

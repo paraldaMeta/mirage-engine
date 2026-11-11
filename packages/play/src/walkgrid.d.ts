@@ -1,5 +1,5 @@
 import type * as THREE from 'three';
-import type { Bounds } from '@mirage/world';
+import type { Bounds } from '@miragekit/world';
 export const MAXL: 4;
 export interface GridData { nx: number; nz: number; x0: number; z0: number; cell: number; floors: Float32Array; count: Uint8Array }
 export interface WalkGrid extends GridData {

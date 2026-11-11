@@ -3,11 +3,11 @@
 // ---------------------------------------------------------------------------
 // Opt-in KTX2 / Basis Universal textures for createTextures (manifest files ending in .ktx2):
 //
-//   import { createKTX2Loader } from '@mirage/core/ktx2';   // a subpath, not in the index: see below
+//   import { createKTX2Loader } from '@miragekit/core/ktx2';   // a subpath, not in the index: see below
 //   const ktx2 = await createKTX2Loader(world.renderer, { transcoderPath: '/basis/' });
 //   const tex = createTextures(world, { manifest, url, ktx2 });
 //
-// three's KTX2Loader is imported here dynamically and this file is not re-exported by @mirage/core's index (a bundler
+// three's KTX2Loader is imported here dynamically and this file is not re-exported by @miragekit/core's index (a bundler
 // emits a dynamic import's chunk even when the function around it is unused), so a bundle that never imports it does
 // not contain it
 // (nor its worker source); the Basis transcoder (basis_transcoder.js + .wasm, from

@@ -9,7 +9,7 @@
 //
 // The functions named *InPage run inside the page (page.evaluate serialises them): they use nothing from this
 // module's scope except what is passed in. classifyEye and freeSpot are pure (any grid with layers / support / idx,
-// e.g. makeGrid from @mirage/play/walkgrid) and are passed into the page as source text, so node tests run them too.
+// e.g. makeGrid from @miragekit/play/walkgrid) and are passed into the page as source text, so node tests run them too.
 
 const BODY = { eye: 1.62, head: 1.8, step: 0.4, radius: 0.28 };
 

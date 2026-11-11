@@ -61,11 +61,11 @@ node ../../packages/tools/src/package.mjs .                               # rele
 
 | 包 | 做什么 |
 |---|---|
-| [`@mirage/core`](packages/core) | 渲染：物理天空和写进每个材质的空气透视、太阳 / 月亮主光与拟合的软阴影、从建好的世界捕获的环境光、子帧累积（抗锯齿、软阴影、干净的 SSAO、景深）、移动时的时间抗锯齿、任意地点和时刻的昼夜、带 GLSL 噪声库的 `patch()` 材质注入、可选的 CC0 贴图层、固定种子随机数、几何工具、LOD |
-| [`@mirage/world`](packages/world) | 世界协议：总平面图校验、模块（`build` / `anchors` / `finalize` / `ambientVolumes`）、建造顺序、容错（报错的模块被跳过，世界照常加载）、每模块独立随机流、建造报告（[docs/world-protocol.md](docs/world-protocol.md)） |
-| [`@mirage/play`](packages/play) | 走、飞、等距游戏视角、环绕；由真实几何烘焙走动网格得到碰撞和地面；镜头停下后逐步精细化；嵌入宿主游戏的 API |
-| [`@mirage/game`](packages/game) | 最小游戏层：Rapier 物理（WASM 懒加载）、角色控制器、门、动作映射（键鼠、手柄、触屏）、程序化 Web Audio、实体与交互物、背包、带版本的存档读档、无障碍 HTML 界面层 |
-| [`@mirage/tools`](packages/tools) | 自测运行器、单文件打包、静帧快照和联系表、帧时间、静态部署目录（不上传） |
+| [`@miragekit/core`](packages/core) | 渲染：物理天空和写进每个材质的空气透视、太阳 / 月亮主光与拟合的软阴影、从建好的世界捕获的环境光、子帧累积（抗锯齿、软阴影、干净的 SSAO、景深）、移动时的时间抗锯齿、任意地点和时刻的昼夜、带 GLSL 噪声库的 `patch()` 材质注入、可选的 CC0 贴图层、固定种子随机数、几何工具、LOD |
+| [`@miragekit/world`](packages/world) | 世界协议：总平面图校验、模块（`build` / `anchors` / `finalize` / `ambientVolumes`）、建造顺序、容错（报错的模块被跳过，世界照常加载）、每模块独立随机流、建造报告（[docs/world-protocol.md](docs/world-protocol.md)） |
+| [`@miragekit/play`](packages/play) | 走、飞、等距游戏视角、环绕；由真实几何烘焙走动网格得到碰撞和地面；镜头停下后逐步精细化；嵌入宿主游戏的 API |
+| [`@miragekit/game`](packages/game) | 最小游戏层：Rapier 物理（WASM 懒加载）、角色控制器、门、动作映射（键鼠、手柄、触屏）、程序化 Web Audio、实体与交互物、背包、带版本的存档读档、无障碍 HTML 界面层 |
+| [`@miragekit/tools`](packages/tools) | 自测运行器、单文件打包、静帧快照和联系表、帧时间、静态部署目录（不上传） |
 | [`agent/`](agent) | 七个给 Agent 的技能、安装说明、校验器（`npm test` 会跑） |
 
 ## 示例

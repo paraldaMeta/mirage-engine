@@ -1,7 +1,7 @@
 // Node checks of the XR mode's opt-in parts that need no GPU: the frame-time governor and its ladders, the device
 // profiles, the per-eye post settings, height calibration, the play-area distance, the throw's velocity tracker, the
 // two-handed transform, the poke test, and the interaction flow with fake pointers: with a real Rapier body when
-// @mirage/game's physics loads here, else with a stub that records what a body is told.
+// @miragekit/game's physics loads here, else with a stub that records what a body is told.
 // (The GPU paths and the session flow are packages/tools/src/xr-stereo-check.mjs, against an emulated session.)
 import * as THREE from 'three';
 import { createXRGovernor, XR_LEVELS, XR_SCALE_LEVELS, XR_PROFILES, xrProfile, heightOffset, boundsDistance } from './src/xr-quality.js';

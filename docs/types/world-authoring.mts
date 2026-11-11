@@ -1,18 +1,18 @@
 // Compile only. These fixtures do not run or create a WebGL context.
 import * as THREE from 'three';
 import { definePlan, buildWorld, along, contains, bbox, pathLength, LAYER,
-  type PlanInput, type WorldModule, type WorldHost, type Shape } from '@mirage/world';
-import { definePlan as defineSubpath } from '@mirage/world/plan';
-import { buildWorld as buildSubpath } from '@mirage/world/loader';
-import { planProblems } from '@mirage/world/plan-validation';
-import { addTerrain } from '@mirage/world/kits/terrain';
-import { addWater } from '@mirage/world/kits/water';
-import { addGrass, addTreeCanopies } from '@mirage/world/kits/vegetation';
-import { createEnv, dirFromElevAz, elevAzOf } from '@mirage/core/env';
-import { createMaterials, patch, PROC } from '@mirage/core/materials';
-import { rng, hash32, sfc32, valueNoise2, fbm2 } from '@mirage/core/rng';
-import { MeshBatch, archPath, instances, compose, lathe, taperedTube, wall, mergeGeometries, RoundedBoxGeometry } from '@mirage/core/geom';
-import schema from '@mirage/world/plan.schema.json' with { type: 'json' };
+  type PlanInput, type WorldModule, type WorldHost, type Shape } from '@miragekit/world';
+import { definePlan as defineSubpath } from '@miragekit/world/plan';
+import { buildWorld as buildSubpath } from '@miragekit/world/loader';
+import { planProblems } from '@miragekit/world/plan-validation';
+import { addTerrain } from '@miragekit/world/kits/terrain';
+import { addWater } from '@miragekit/world/kits/water';
+import { addGrass, addTreeCanopies } from '@miragekit/world/kits/vegetation';
+import { createEnv, dirFromElevAz, elevAzOf } from '@miragekit/core/env';
+import { createMaterials, patch, PROC } from '@miragekit/core/materials';
+import { rng, hash32, sfc32, valueNoise2, fbm2 } from '@miragekit/core/rng';
+import { MeshBatch, archPath, instances, compose, lathe, taperedTube, wall, mergeGeometries, RoundedBoxGeometry } from '@miragekit/core/geom';
+import schema from '@miragekit/world/plan.schema.json' with { type: 'json' };
 
 const input = {
   name: 'typed-trail', bounds: [-8, -8, 8, 8], seed: null, walk: { yMin: -2 },

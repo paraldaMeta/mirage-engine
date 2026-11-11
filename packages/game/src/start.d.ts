@@ -1,7 +1,7 @@
 import type * as THREE from 'three';
-import type { WorldRenderer } from '@mirage/core';
-import type { BuildResult, PlanInput, DefinedPlan, Viewpoint, AnchorTable } from '@mirage/world';
-import type { Play, PlayOptions } from '@mirage/play/play';
+import type { WorldRenderer } from '@miragekit/core';
+import type { BuildResult, PlanInput, DefinedPlan, Viewpoint, AnchorTable } from '@miragekit/world';
+import type { Play, PlayOptions } from '@miragekit/play/play';
 import type { Game, Migrations, ExtendedSnapshot, LoadedSave, InteractableEntity } from './game.js';
 import type { Physics, PhysicsCharacter } from './physics.js';
 import type { Input } from './input.js';
@@ -17,11 +17,11 @@ export type StartGameOptions<P extends PlanInput> = Pick<PlayOptions<PhysicsChar
   /** Unlike createPlay, startGame requires an explicit spawn. */
   built: BuildResult<P> & { plan: { spawn: Viewpoint } };
   id?: string; version?: number; migrate?: Migrations;
-  /** Where saves go (default localStorage): createSaveStorage() of '@mirage/game/platform' inside a native wrapper. */
+  /** Where saves go (default localStorage): createSaveStorage() of '@miragekit/game/platform' inside a native wrapper. */
   storage?: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
   setup?: (context: GameSetup<P>) => void | Promise<void>;
   objective?: (game: Game) => readonly [string, string]; summary?: (game: Game) => string;
-  /** false: no overlay. A function: another overlay with createUI's contract (createKitUI from '@mirage/game/ui-menu'). */
+  /** false: no overlay. A function: another overlay with createUI's contract (createKitUI from '@miragekit/game/ui-menu'). */
   ui?: boolean | ((options: UIOptions) => GameUI); title?: string; subtitle?: string;
   /** The menu's Restart. Default: reload the page. */
   onRestart?: () => void;

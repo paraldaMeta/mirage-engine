@@ -3,8 +3,8 @@
 // ---------------------------------------------------------------------------
 // The play character as an imported rigged model: the same contract as createCharacter(), driven by the animator.
 //
-//   import { createAssets } from '@mirage/core/assets';
-//   import { createPlay, createRigCharacter } from '@mirage/play';
+//   import { createAssets } from '@miragekit/core/assets';
+//   import { createPlay, createRigCharacter } from '@miragekit/play';
 //   const model = await createAssets(world).load('hero.glb');
 //   let hero;
 //   const play = createPlay(world, { character: () => (hero = createRigCharacter(assets.instantiate(model), model.animations)) });

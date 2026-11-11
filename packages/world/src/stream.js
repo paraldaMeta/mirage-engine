@@ -1,8 +1,8 @@
 // Mirage original code. The load / unload by distance with a priority queue and an LRU of what was near follows the
 // tile streaming of NASA-AMMOS 3DTilesRendererJS (Apache-2.0); no code from it.
 import * as THREE from 'three';
-import { rng } from '@mirage/core';
-import { createJobQueue, createLRU, createUploadBudget, objectBytes, texturesOf, disposeObject, nextFrame } from '@mirage/core/stream';
+import { rng } from '@miragekit/core';
+import { createJobQueue, createLRU, createUploadBudget, objectBytes, texturesOf, disposeObject, nextFrame } from '@miragekit/core/stream';
 import { definePlan } from './plan.js';
 import { colliderFor } from './loader.js';
 

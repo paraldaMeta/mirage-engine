@@ -2,7 +2,7 @@
 // Visual effects: GPU particles described as plain data. Nothing here runs until createVfx is called, and a world
 // without it renders exactly as before.
 //
-//   import { createVfx, VFX_LIBRARY } from '@mirage/core';
+//   import { createVfx, VFX_LIBRARY } from '@miragekit/core';
 //   const vfx = createVfx(world);                          // hooks the world's clock; or { renderer, scene, camera }
 //   const fire = vfx.spawn(VFX_LIBRARY.fire, { position: [0, 0, 0] });      // a looping effect: a handle
 //   vfx.burst(VFX_LIBRARY.explosion, [4, 1, 0]);                            // a one-shot: allocates nothing

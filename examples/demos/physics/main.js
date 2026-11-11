@@ -1,4 +1,4 @@
-// Demo: the physics kit of @mirage/game in one yard. A box stack and three balls of different materials, a row
+// Demo: the physics kit of @miragekit/game in one yard. A box stack and three balls of different materials, a row
 // of joints, a ragdoll, a car, a pool, a moving platform, a trigger gate; debug draw and stats on top.
 // URL: ?show=stack,joints,ragdoll,vehicle,water,platform (default: all)   ?physics=0 (the yard alone: no Rapier at all)
 //      ?boxes=N (stack, default 36)   ?ragdolls=N (default 1)   ?fall=T (ragdoll at T seconds)   ?boom=T (explosion at T)
@@ -8,10 +8,10 @@
 // Keys: WASD / arrows drive, Space handbrake · R ragdoll / get up · P limp arm · T active ragdoll · E explosion
 //       B shoot a ball at the wall · C camera · G debug draw · drag to orbit, wheel to zoom
 import * as THREE from 'three';
-import { createWorldRenderer } from '@mirage/core';
-import { buildWorld, definePlan } from '@mirage/world';
-import { createRigModel, createAnimator } from '@mirage/play';
-import { createPhysics, createPhysicsKit, createJoints, createForces, createVehicle, createRagdoll, createPhysicsDebug } from '@mirage/game';
+import { createWorldRenderer } from '@miragekit/core';
+import { buildWorld, definePlan } from '@miragekit/world';
+import { createRigModel, createAnimator } from '@miragekit/play';
+import { createPhysics, createPhysicsKit, createJoints, createForces, createVehicle, createRagdoll, createPhysicsDebug } from '@miragekit/game';
 
 const Q = new URLSearchParams(location.search), num = (k, d) => (Q.get(k) == null ? d : +Q.get(k));
 const W = +Q.get('w') || innerWidth, H = +Q.get('h') || innerHeight, spp = num('spp', 2);

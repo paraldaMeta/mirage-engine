@@ -3,8 +3,8 @@
 import assert from '../../scripts/soft-assert.mjs';
 import * as THREE from 'three';
 import validator from 'gltf-validator';
-import { createEnv, createMaterials, writeGLB } from '@mirage/core';
-import { createAssets } from '@mirage/core/assets';
+import { createEnv, createMaterials, writeGLB } from '@miragekit/core';
+import { createAssets } from '@miragekit/core/assets';
 import { makeGrid, MAXL } from './src/walkgrid.js';
 import { createWalker } from './src/walker.js';
 import { createRigModel, RIG } from './src/rig-model.js';

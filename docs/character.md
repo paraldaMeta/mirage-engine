@@ -1,6 +1,6 @@
 # Character control
 
-Everything here is **opt-in and experimental**, in `@mirage/play`. `createWalker`, `createPlay` and every example
+Everything here is **opt-in and experimental**, in `@miragekit/play`. `createWalker`, `createPlay` and every example
 that does not import the new modules behave and render exactly as before (see "Off means off"). All of it is plain
 JS on the walk grid: no three import in the movement code, no physics dependency, the same result for the same
 inputs at a fixed step.
@@ -10,14 +10,14 @@ inputs at a fixed step.
 | `solids.js` | `createSolids`, `gridRay`, `volumeAt` | a walk grid with moving shapes composed in at query time: doors, lifts, turntables, crates; ladder and water volumes |
 | `mover.js` | `createMover`, `driveAnimator`, `MOVER`, `MODES` | the walker plus coyote time, jump buffering, variable jump height, sprint, crouch, slope slide, ladders, swimming, mantling, platforms, pushing |
 | `follow-camera.js` | `createFollowCamera` | third-person spring arm that shortens against the grid and its solids; first-person eye that follows a crouch |
-| `physics-link.js` | `linkSolids` | the same solids mirrored into a Rapier world (`@mirage/game` `createPhysics`, or any `{ R, world }`) |
+| `physics-link.js` | `linkSolids` | the same solids mirrored into a Rapier world (`@miragekit/game` `createPhysics`, or any `{ R, world }`) |
 
 Each module's header has its usage block and its limits. The demo is `examples/demos/charnav`.
 
 ## The loop
 
 ```js
-import { createSolids, createMover, createFollowCamera, linkSolids, driveAnimator } from '@mirage/play';
+import { createSolids, createMover, createFollowCamera, linkSolids, driveAnimator } from '@miragekit/play';
 
 const space = createSolids(grid);                                   // grid: bakeWalkGrid(...) or play.grid
 const lift  = space.add({ box: [1.2, 0.1, 1.2], pos: [4, 0.1, 0], kind: 'kinematic' });   // half extents, centre
@@ -39,7 +39,7 @@ driveAnimator(mover, animator);                                     // speed / g
 
 `space` IS a walk grid (it answers `support`, `groundAt`, the layers), so `createWalker(space)`, cameras and sight
 rays collide with the solids too. `createMover` has the walker's shape (`pos`, `vy`, `onGround`, `update`, `place`,
-`fits`), so `createPlay({ walker: mover })` and `@mirage/net`'s `applyInput` take it unchanged; `mover.intent =
+`fits`), so `createPlay({ walker: mover })` and `@miragekit/net`'s `applyInput` take it unchanged; `mover.intent =
 { crouch, sprint }` is merged into every input for hosts that only pass `x / z / run / jump`.
 
 ## The one rule for two collision worlds
@@ -82,7 +82,7 @@ Each one is off when its input or its data is absent. The numbers are the defaul
 
 `mover.mode` is one of `idle walk run sprint crouch jump fall slide climb swim mantle`. `driveAnimator(mover,
 animator)` sets `speed`, `vy`, `grounded`, `crouch`, `mode` (the index in `MODES`) and one 0 / 1 number per mode
-name on a `@mirage/core` animator, and triggers the mover's events (`jump`, `land`); anything with a chainable
+name on a `@miragekit/core` animator, and triggers the mover's events (`jump`, `land`); anything with a chainable
 `set(name, value)` and `trigger(name)` works.
 
 ## Cameras
@@ -99,7 +99,7 @@ eye 1.62 m standing, 0.95 m crouched.
 At a fixed step the mover is a pure function of its state and its inputs. `mover.save()` / `mover.restore(s)` hold
 everything a replay needs (timers for coyote and buffer, the jump edge, the mode, the platform it rides). The check
 restores a save taken at step 2500 (through JSON) and replays: the same 2500 steps, bit for bit; and runs 2000
-quantised inputs through `@mirage/net`'s `applyInput` on two movers: identical, and `saveWalker` / `restoreWalker`
+quantised inputs through `@miragekit/net`'s `applyInput` on two movers: identical, and `saveWalker` / `restoreWalker`
 apply. The net input still carries one jump bit: the mover takes the edge from the held
 state. Moving solids are part of the world state: a predicting client must have them at the same pose on the same
 tick (drive kinematic ones from the tick number, as the demo does; dynamic ones are the server's, corrected like

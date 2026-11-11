@@ -1,8 +1,8 @@
 // CPU-side layout and collision contract. The example's walk scenario checks the baked grid on the GPU.
 import assert from '../../scripts/soft-assert.mjs';
 import * as THREE from 'three';
-import { createEnv, createMaterials, geom, rng } from '@mirage/core';
-import { addGrass, addTreeCanopies } from '@mirage/world/kits/vegetation';
+import { createEnv, createMaterials, geom, rng } from '@miragekit/core';
+import { addGrass, addTreeCanopies } from '@miragekit/world/kits/vegetation';
 
 function layout(seed) {
   const ctx = { root: new THREE.Group(), geom, mat: createMaterials(createEnv().G), rng: name => rng(seed + '/' + name) };

@@ -1,12 +1,12 @@
 # Physics: bodies, joints, ragdolls, vehicles, forces
 
-All of this is in `@mirage/game`, on Rapier 0.19 (the same WASM `createPhysics` already loads), experimental and
+All of this is in `@miragekit/game`, on Rapier 0.19 (the same WASM `createPhysics` already loads), experimental and
 opt-in: a game that does not call `createPhysicsKit` runs none of it, and `createPhysics` (props, doors, the
 character) works as before. To see it: `examples/demos/physics` (flags at the end). Numbers on this page were
 measured on one machine (Apple silicon laptop, Node 22, headless Chrome); how is said next to each.
 
 ```js
-import { createPhysics, createPhysicsKit, createJoints, createForces, createVehicle, createRagdoll, createPhysicsDebug } from '@mirage/game';
+import { createPhysics, createPhysicsKit, createJoints, createForces, createVehicle, createRagdoll, createPhysicsDebug } from '@miragekit/game';
 
 const phys = await createPhysics(scene); phys.addStatic(world.scene);        // as before
 const kit = createPhysicsKit(phys, { hz: 60, layers: ['world', 'prop', 'debris', 'ragdoll'] });

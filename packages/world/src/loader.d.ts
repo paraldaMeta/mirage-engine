@@ -1,6 +1,6 @@
 import type * as THREE from 'three';
-import type { RandomStream } from '@mirage/core/rng';
-import type { WorldContext } from '@mirage/core/world';
+import type { RandomStream } from '@miragekit/core/rng';
+import type { WorldContext } from '@miragekit/core/world';
 import type { PlanInput, DefinedPlan, XYZ } from './plan.js';
 
 export interface AmbientVolume { min: XYZ; max: XYZ; factor?: number; soft?: number; [custom: string]: unknown }
@@ -11,7 +11,7 @@ export type ResolvedAnchor = Anchor & { from: string };
 export type AnchorTable = Record<string, ResolvedAnchor[] | undefined>;
 export interface Consumption { required?: readonly string[]; optional?: readonly string[] }
 export type CoreModuleContext = WorldContext;
-/** Minimal loader host, not a declaration of the full @mirage/core renderer API. */
+/** Minimal loader host, not a declaration of the full @miragekit/core renderer API. */
 export interface WorldHost<C extends object = CoreModuleContext> {
   scene: THREE.Object3D;
   ctx: C & { onUpdate(callback: (seconds: number) => void): unknown };

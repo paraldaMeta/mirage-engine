@@ -30,12 +30,12 @@ for (const d of dirs) {
   console.log(`  ok ${d} (description ${fm.description ? fm.description.length : 0} chars, body ${text.split('\n').length} lines)`);
 }
 if (!dirs.length) bad.push('no skills found');
-// the scaffold a new world is copied from must ask for the @mirage versions this repository has: npm resolves a
+// the scaffold a new world is copied from must ask for the @miragekit versions this repository has: npm resolves a
 // workspace dependency locally only when the version matches, otherwise it asks the registry (404 before publishing)
 const version = JSON.parse(fs.readFileSync(path.join(here, '../package.json'), 'utf8')).version;
 const skel = JSON.parse(fs.readFileSync(path.join(here, 'mirage-brief-to-plan/assets/skeleton/package.json'), 'utf8'));
 for (const [dep, want] of Object.entries(skel.dependencies || {})) {
-  if (dep.startsWith('@mirage/') && want !== version) bad.push(`skeleton package.json: ${dep} "${want}", the packages are ${version}`);
+  if (dep.startsWith('@miragekit/') && want !== version) bad.push(`skeleton package.json: ${dep} "${want}", the packages are ${version}`);
 }
 // ---- drift: what the skills teach must exist in the tools. Every MG code in CODES (and so in docs/diagnostics.md);
 // every --flag on a line that runs a tool (<name>.mjs or a mirage-<bin>) in that tool's source; every scenario field,

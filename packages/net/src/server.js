@@ -1,7 +1,7 @@
 // Mirage original code.
 // ---------------------------------------------------------------------------
 // The Node server: one HTTP port that serves a folder (the built example), the walk grid, and a WebSocket lobby at
-// /net. Node only (node:http, node:crypto, node:fs); import it as '@mirage/net/server', it is not in the index.
+// /net. Node only (node:http, node:crypto, node:fs); import it as '@miragekit/net/server', it is not in the index.
 //
 //   const srv = createServer({ protocol, grid: gridBytes, spawn: [0, 0, 5], dir: 'dist', setup: (room) => installKit(room) });
 //   const { url } = await srv.listen();        // 127.0.0.1 and a free port unless { host, port } say otherwise

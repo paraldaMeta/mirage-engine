@@ -3,22 +3,22 @@
 // URL: ?mode=orbit (default) | walk | fly | game   ?time=golden | HH:MM [&date=YYYY-MM-DD] [&lat=..&lon=..&tz=..]
 //      ?clock=N (N minutes per second)  ?spp=N  ?w=&h=  ?grain=0  ?dof=1  ?view=hero | corner | <viewpoint name>
 //      ?broken=1 (adds a module that throws)  ?ui=0  ?nodetail (no close-range relief, soft edges or soot: A/B)
-//      ?light2=1 lamp shadows, reflections, volumetric light, mixed bloom (@mirage/core light2.js);
+//      ?light2=1 lamp shadows, reflections, volumetric light, mixed bloom (@miragekit/core light2.js);
 //      &l2=nols,nossr,novol,nobloom switches single parts off
 //      ?aolit=1 AO on ambient light only  ?ae=1 auto exposure  ?dynres=1 | <fps> dynamic resolution (moving frames)
-//      ?soft=1 contact-hardening soft sun shadows (@mirage/core softshadow.js); &sunAngle=deg (0.53 = the real sun)
-//      ?wet=0..1 wet ground and masonry, puddles (@mirage/core wet.js)  &rain=0..1 ripples on the puddles and falling
-//      streaks (@mirage/world/kits/rain); without ?wet / ?rain nothing of either is built
+//      ?soft=1 contact-hardening soft sun shadows (@miragekit/core softshadow.js); &sunAngle=deg (0.53 = the real sun)
+//      ?wet=0..1 wet ground and masonry, puddles (@miragekit/core wet.js)  &rain=0..1 ripples on the puddles and falling
+//      streaks (@miragekit/world/kits/rain); without ?wet / ?rain nothing of either is built
 //      Enter VR / Enter AR appear in a WebXR browser: docs/xr.md
-import { createWorldRenderer, createTextures, placeDate, pickQuality, setRelief, setWetness, setRain, postFromQuery } from '@mirage/core';
-import { buildWorld } from '@mirage/world';
-import { addRain } from '@mirage/world/kits/rain';
-import { createPlay, createXR, xrSupport } from '@mirage/play';
+import { createWorldRenderer, createTextures, placeDate, pickQuality, setRelief, setWetness, setRain, postFromQuery } from '@miragekit/core';
+import { buildWorld } from '@miragekit/world';
+import { addRain } from '@miragekit/world/kits/rain';
+import { createPlay, createXR, xrSupport } from '@miragekit/play';
 import manifest from './tex/manifest.json';
 import plan from './plan.js';
 import modules from './modules/index.js';
 import { addLamps } from '../walled-garden/lamps.js';
-import { editable } from '@mirage/editor/runtime';
+import { editable } from '@miragekit/editor/runtime';
 import edits from './plan.edits.json';   // written by `npx mirage-editor examples/hello-courtyard --write` (docs/editor.md); {} = no edits
 
 const Q = new URLSearchParams(location.search);
@@ -73,7 +73,7 @@ if (NL) addLamps(world, { n: NL, min: [-8, 0.6, -8], max: [8, 2.6, 8], first: [[
 const { camera } = world;
 camera.aspect = W / H; camera.fov = 48; camera.near = 0.1; camera.far = 3000; camera.updateProjectionMatrix();
 await tex.ready();
-if (Q.get('perf')) window.__big = (await import('@mirage/core/bigworld')).applyBigWorld(world, world.scene, Q.get('perf'));   // ?perf=chunk,lod,occ (docs/big-worlds.md)
+if (Q.get('perf')) window.__big = (await import('@miragekit/core/bigworld')).applyBigWorld(world, world.scene, Q.get('perf'));   // ?perf=chunk,lod,occ (docs/big-worlds.md)
 await ed.apply(world, built);
 await world.prepare();
 const spp = +Q.get('spp') || 6;
