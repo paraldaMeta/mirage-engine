@@ -192,7 +192,9 @@ export function parkedCars(ctx, P, pb, list, proxyBox) {
     const lowerW = 2 * Dz.hw, bev = 0.045;
     const lower = new THREE.ExtrudeGeometry(sh, { depth: lowerW - 2 * bev, bevelEnabled: true, bevelThickness: bev, bevelSize: bev, bevelOffset: -bev, bevelSegments: 3, curveSegments: 24 });
     lower.translate(0, 0, -(lowerW - 2 * bev) / 2);
-    { const p = lower.attributes.position, uv = lower.attributes.uv; for (let i = 0; i < p.count; i++) uv.setXY(i, -p.getX(i), p.getY(i)); }   // the grain along the car
+    // the grain along the car; z folded into v so no face has a uv constant in one direction (the steel's anisotropy
+    // builds its tangent frame from the uv's derivatives: a degenerate one gave NaN)
+    { const p = lower.attributes.position, uv = lower.attributes.uv; for (let i = 0; i < p.count; i++) uv.setXY(i, -p.getX(i) + 0.31 * p.getZ(i), p.getY(i) + 0.73 * p.getZ(i)); }
     if (Dz.name === 'slab') {   // the pickup: steel above, black cladding below a crease (the arches' lips and the sills)
       add(cb, lower, CM.steel, m, [0.98, 0.98, 0.98]);
       const ext = (shape, d = 0.03) => new THREE.ExtrudeGeometry(shape, { depth: d, bevelEnabled: true, bevelThickness: 0.008, bevelSize: 0.008, bevelSegments: 1, curveSegments: 20 });
