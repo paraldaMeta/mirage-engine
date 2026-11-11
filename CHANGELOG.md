@@ -42,6 +42,22 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
   this machine, so no wrapper was built or run (the Rust main has never been compiled) and the scaffolds are
   checked for structure only; consoles are out of reach. Try: `?platform=1` on hello-courtyard and garden-quest,
   `?bytetargets=1` on hello-courtyard; `npm run test:ship`, `test:context-loss`, `test:mobile`.
+- Desktop (Electron) built and run for real (macOS only; `docs/platforms.md` section 4). `mirage-desktop-check
+  <scaffold> [--exe <packaged binary>]` (@mirage/tools; `npm run test:desktop`, skipped when Electron is absent)
+  launches the app with a throwaway profile and checks 21 things over DevTools: start, GPU, no Node in the page,
+  the bridge, saves as files, refused fetch / pop-up / navigation / permissions, frame intervals, blur, crash
+  reload, single instance, quit, save and window place after a restart. garden-quest with Electron 45.3.0 on an
+  M4 Pro: 21 of 21 pass as `electron .` and as the packaged `.app`; ready in 1050-1153 ms warm (3765 / 4270 ms on
+  the first start), frame interval median 8.33 ms (p95 9.02) at 120 Hz, a crashed page ready again in 806-896 ms.
+  Sizes: `.app` 274 MB unpacked, mac zip 118.0 MB, Windows NSIS x64 122.8 MB (cross-built, not run on Windows).
+  Scaffold fixes the run found: `postinstall: install-electron` (Electron 45 no longer fetches its binary on
+  install), `author` / `--author`, the window keeps the game's name, Electron fuses (no run-as-node, NODE_OPTIONS
+  or --inspect; asar only, integrity checked) with an ad-hoc re-sign after the flip (without it the unsigned app
+  was killed at start on Apple Silicon), a crashed page reloads once and a second crash within a minute quits with
+  a message, `--query` for the start URL, `npm run dist:win`. `createPlatform({ pauseOnBlur })` (@mirage/game/platform,
+  default off): Alt+Tab pauses or opens the menu; on in the examples' `?platform=1` only inside a wrapper. Flags off:
+  four stills on hello-courtyard and garden-quest byte-identical. Not done: Windows / Linux runs, signing and
+  notarization, Steam beyond the checklist, the second-crash dialog, a real OS focus change.
 - @mirage/play: XR towards parity, all opt-in and **exercised only in an emulated session** (no headset; `docs/xr.md`).
   `createXR(play, { post })` draws each eye through the engine's post chain (HDR + MSAA, AO, bloom, auto exposure,
   tone map, grade, LUT; TAA, motion blur, depth of field, chromatic aberration, grain and the lens vignette stay

@@ -14,8 +14,13 @@ release.
 node packages/tools/src/ship.mjs examples/garden-quest --target pwa --out ship/garden-pwa
     [--name "Garden Quest"] [--id studio.example.gardenquest] [--version 1.2.0] [--icon icon.png]
     [--orientation landscape|portrait|any] [--theme #101418] [--background #000000]
-    [--dist built-folder] [--isolated] [--json]
+    [--query platform=1] [--author "Studio"] [--dist built-folder] [--isolated] [--json]
 ```
+
+`--query` (desktop-electron) is the query string the window opens the game with, e.g. `platform=1` to mount the
+run-time layer below; only `key=value` pairs joined by `&` are accepted (no path, fragment or other origin, at most
+200 characters). `--author` is the publisher name installers show (default: the example's `package.json` author,
+else the name).
 
 It builds the example with Vite (`--base ./`, or takes `--dist`), then writes files. It uploads nothing, installs
 nothing, downloads nothing and signs nothing. The same input gives byte-identical output (checked).
@@ -25,7 +30,7 @@ nothing, downloads nothing and signs nothing. The same input gives byte-identica
 | `web` | the static build, `_headers` (Netlify / Cloudflare Pages form) and `headers.json` (the same rules for any host): `/assets/*` immutable for a year (hashed names), `*.html` / `sw.js` / the manifest `no-cache`; `HOSTING.txt`. `--isolated` adds COOP `same-origin` + COEP `require-corp`: the engine does not need them (no SharedArrayBuffer), and they break cross-origin embeds without CORP, so they are off by default. |
 | `pwa` | `web` plus `manifest.webmanifest`, icons made from one square PNG (192, 512, maskable 512 with the safe zone, apple-touch 180), `sw.js`, `pwa.js` (registration, install and update hooks) and the tags in every HTML file. |
 | `single` | one HTML file (the existing `mirage-package`). |
-| `desktop-electron` | an Electron project: `main.cjs`, `preload.cjs`, `package.json` with `electron-builder` config, icons, the build under `www/`. |
+| `desktop-electron` | an Electron project: `main.cjs`, `preload.cjs`, `package.json` with `electron-builder` config (fuses, `npm run dist:win`), icons, the build under `www/`. Built and run on macOS: section 4. |
 | `desktop-tauri` | a Tauri 2 project: `src-tauri/` (`tauri.conf.json`, `Cargo.toml`, `src/main.rs`, capabilities, icons), the bridge script, the build under `www/`. |
 | `ios`, `android` | a Capacitor 8 project: `capacitor.config.json`, the bridge script, `native/` settings (Info.plist additions and `PrivacyInfo.xcprivacy`, or AndroidManifest attributes) with `scripts/apply-native.mjs` to apply them after `npx cap add`, icon and splash sources under `assets/`. |
 
@@ -97,6 +102,10 @@ const platform = createPlatform({ canvas, play: g.play, game: g.game, audio: g.a
   insets are measured and written to `--mirage-safe-top/right/bottom/left` on `:root` (the UI toolkit's
   `safeArea` already reads `env()`; this adds numbers and an `insets` event). `inputmode` says `touch`, `pad` or
   `keyboard` from what the player last used. `storage.persist()` asks the browser not to evict saves.
+  `pauseOnBlur` (default `false`): a desktop window behind another one is still visible, so Alt+Tab or Cmd+Tab
+  pauses nothing by itself; `true` pauses the game when the window loses focus, a function is called instead (the
+  examples open the pause menu with it). Focus never resumes the game. The examples' `?platform=1` turns it on only
+  inside a wrapper (`window.mirageNative.window` exists), so a browser tab behaves as before.
 - **Saves** (`createSaveStorage`). The game's storage is synchronous; a native folder is not. It reads every save
   once at start, answers reads from memory and writes behind in order. A failed write is kept, listed in
   `errors` and retried on the next `flush()`.
@@ -145,10 +154,80 @@ These numbers say little about a phone: CPU throttling slows JavaScript only, th
 one, and on the small scene the spread is as large as the effect. They show that the CPU side of a `low` frame
 fits a 16.7 ms budget at 6x (worst p95 10.4 ms); GPU cost on a phone is **not measured**.
 
-Not run, because the toolchains are not on this machine (detected, not installed): Electron, Rust / Tauri,
-Capacitor, Xcode builds, Gradle. So: `main.rs` has never been compiled; `npx cap add` has never been run against
-these scaffolds; no installer, `.app`, `.ipa` or `.apk` was produced. The wrapper files are checked for structure
-and their CSP is checked in Chrome, nothing more. Expect to fix things on the first real build.
+Not run, because the toolchains are not on this machine (detected, not installed): Rust / Tauri, Capacitor,
+Xcode builds, Gradle. So: `main.rs` has never been compiled; `npx cap add` has never been run against these
+scaffolds; no `.ipa` or `.apk` was produced. Those wrapper files are checked for structure and their CSP is checked
+in Chrome, nothing more. Expect to fix things on the first real build. Electron is the exception: next section.
+
+### Electron, built and run (macOS only)
+
+On 2026-11-11, on one Mac (Apple M4 Pro, macOS 26, 120 Hz display), with Electron 45.3.0 and electron-builder
+26, garden-quest was shipped with `--target desktop-electron --query platform=1`, installed (`npm install` in the
+scaffold, about 30 s) and checked with `desktop-check` (below), first as `electron .`, then as the packaged app.
+
+| | `electron .` | packaged `.app` (unsigned, fuses set) |
+| --- | --- | --- |
+| desktop-check | 21 of 21 pass | 21 of 21 pass |
+| start to `window.__READY` | 3765 ms first run after install, 1153 ms after that; 1071 ms on the restart | 4270 ms first start of the new binary; 1050 ms on the restart |
+| GPU | ANGLE Metal, Apple M4 Pro | same |
+| frame interval while walking (4 s, the window paced by vsync) | median 8.34 ms, p95 8.86, worst 9.34 | median 8.33 ms, p95 9.02, worst 9.28 |
+| crashed page (`Page.crash`) back to ready | 806 ms | 896 ms |
+| quit through the bridge | exit 0 after 130 ms | exit 0 after 136 ms |
+
+| artefact | command | size |
+| --- | --- | --- |
+| `Garden Quest.app` (arm64) | `CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --mac --dir` (5 s) | 274 MB unpacked (the game's `www/` is 4.0 MB of it) |
+| `Garden Quest-1.0.0-arm64-mac.zip` | `... --mac zip` (34 s) | 118.0 MB; the app inside passes `codesign --verify --deep --strict` (ad hoc) |
+| `Garden Quest Setup 1.0.0.exe` (x64 NSIS) | `npx electron-builder --win nsis --x64` from the Mac, no Wine (22 s) | 122.8 MB; the unpacked app is 381 MB and its fuses read as set. **Not run on Windows.** |
+
+What the first real run found and fixed:
+- **Electron 45 no longer downloads its binary on `npm install`.** The scaffold's `postinstall` runs
+  `install-electron`, which fetches it and checks it against Electron's published SHA-256 sums.
+- **Fuses broke the unsigned Mac app.** Flipping a fuse edits the executable; the ad-hoc signature no longer
+  matched and Apple Silicon killed the app at start (SIGKILL, no window, no message). The fuse config now has
+  `resetAdHocDarwinSignature: true`, which re-signs ad hoc after the flip; a Developer ID signature still replaces
+  it when you sign.
+- The page's `<title>` replaced the window title; the window now keeps the game's name.
+- `package.json` had no `author` (electron-builder warns, installers show an empty publisher): `--author`.
+- Alt+Tab away from the window left the game running (the window stays visible): `pauseOnBlur`.
+
+Fuses, set by electron-builder when it packages (`build.electronFuses`): no `ELECTRON_RUN_AS_NODE`, no
+`NODE_OPTIONS`, no `--inspect`, code loaded only from `app.asar` and checked against the hash in the executable,
+cookie encryption on, no extra `file://` privileges. Checked: with `ELECTRON_RUN_AS_NODE=1` the plain Electron
+binary runs a Node script, the packaged app ignores the variable and starts the game. `--remote-debugging-port` is
+a Chromium switch and still works, which is what lets desktop-check drive the packaged app; a player can use it
+too, and it gives access to the page only, not to Node.
+
+A crashed page (out of memory, a GPU reset that took the renderer down) is reloaded once; a second crash within a
+minute shows a message and quits instead of looping. Only the first half was exercised (one `Page.crash`).
+
+#### desktop-check
+
+```
+node packages/tools/src/desktop-check.mjs <scaffold folder>                         # electron .
+node packages/tools/src/desktop-check.mjs <scaffold folder> --exe "dist/mac-arm64/Garden Quest.app/Contents/MacOS/Garden Quest"
+npm run test:desktop -- <scaffold folder>       # or MIRAGE_DESKTOP_APP=<folder> npm run test:desktop
+```
+
+It starts the app with a throwaway profile folder and a local DevTools port, drives it with puppeteer-core and
+checks, in order: it starts; the window opens where `window-state.json` says; the GPU renderer is not a software
+one; the page has no `require`, `process`, `module`, `Buffer` or `global`; `window.mirageNative` is the one bridge
+and the page cannot overwrite it; cross-origin isolation; saves round-trip and are files in `<profile>/saves`, a
+key like `../escape` stays inside; a foreign fetch, a pop-up and a navigation away are refused and camera,
+microphone, location and notifications are denied; frame intervals while walking; window blur pauses the game and
+opens the menu (with `?platform=1`); a crashed page is reloaded; a second copy hands over and exits 0; quit through
+the bridge writes the window state; a second launch finds the save and opens the window at the same place; no
+console error over all of it (the refusals it provokes on purpose are not counted). Without Electron in the folder,
+or with no folder at all, it prints `skipped` and exits 0: Electron is not a dependency of this repository.
+
+It opens a real window on the screen for about 15 s. Limits: blur is a synthetic `blur` event, not a real focus
+change from the OS; Electron has no DevTools call that moves its window, so the window state is seeded through the
+state file rather than by dragging; it was run on macOS only.
+
+Still not verified for the desktop: **Windows and Linux were not run** (the NSIS installer was built, never
+installed; no AppImage was built). **Signing and notarization were not done** (no certificate here; section 5).
+Real Alt+Tab, a second monitor, a laptop with two GPUs, fullscreen across Spaces and gamepads in the packaged app
+were not tried. Steam is documentation only (section 5): no Steamworks, no overlay test. Tauri was not built.
 
 ## 5. Store readiness: what the owner must do
 
@@ -169,7 +248,8 @@ or token belongs in the project folder or in git.
 - [ ] macOS: Apple Developer membership, a Developer ID Application certificate, hardened runtime, notarization
       (`notarytool`) and stapling. Kept in your keychain or CI secrets, never in the scaffold.
 - [ ] Mac App Store or Microsoft Store: sandbox entitlements / MSIX packaging are not generated.
-- [ ] Steam, itch, Epic: upload the built folder with their tools; Steamworks (achievements, cloud saves, overlay) is not integrated.
+- [ ] Steam, itch, Epic: upload the built folder with their tools; Steamworks (achievements, cloud saves, overlay) is not integrated, and the Steam overlay over an Electron window was not tried.
+- [ ] Run `desktop-check` against your own packaged app on every OS you ship for (it was run on macOS only).
 - [ ] Auto-update is not set up (electron-updater / the Tauri updater need your signing key and a feed).
 - [ ] Test on a machine with an integrated GPU and on one with old drivers.
 
