@@ -133,7 +133,7 @@ export function surfaceLib(ctx) {
   const lib = createSurfaces(world, { mode: 'auto' });
   // big: the ground and the walls you walk along; mid: large props and interiors; small: things a metre across
   // (measured, NOTES.md "Surfaces": high 1024 / 512 / 256 px, medium 512 / 256 / 256, low 256 / 128 / 128; the baked sets
-  // then come to about 55, 25 and 7 MB, the decal atlas's 2 MB included)
+  // then come to about 59, 28 and 9 MB, the decal atlas's 2 MB included)
   const SIZE = { high: { big: 1024, mid: 512, small: 256 }, medium: { big: 512, mid: 256, small: 256 }, low: { big: 256, mid: 128, small: 128 } }[tier] || { big: 512, mid: 256, small: 256 };
   const STEP = { wood: 'wood', bamboo: 'wood' };
   const surf = (spec, o = {}, x = {}) => {

@@ -751,7 +751,7 @@ decals a fourth, an atlas-mapped prop a fourth. So the third reflection probe (t
 (`?truckprobe=1`): every probe is one unit in every lit material.
 
 Memory (the baked sets, `shared.surf.lib.stats()`, 31 sets, ~80 ms of bakes at load): high 59 MB (1024 px for the
-asphalt and the street walls, 512 for floors and sheet, 256 for props), medium 27 MB (512 / 256 / 256), low 8.6 MB
+asphalt and the street walls, 512 for floors and sheet, 256 for props), medium 28 MB (512 / 256 / 256), low 8.6 MB
 (256 / 128 / 128). The decal atlas's 2 MB is in each.
 
 ## Light by the hour
@@ -771,7 +771,9 @@ numbers are scaled after the world writes them). `?rain=` / `?wet=` pin those tw
 
 - **Night** (23:10, rain): the key light is white: street lamps 5000 K LED (`0xffe4ce`, 18, 16 m), shop lights 3000-6000 K,
   sodium and tungsten windows and stalls; a saturated lamp (a sign, a screen) is an accent: `lib.lamp` keeps 55 % of its
-  power and 65 % of its reach outdoors (the lamp count is unchanged). The shadows keep their form from the sky glow of
+  power and 65 % of its reach outdoors (the lamp count is unchanged). With the accents reaching less, a view cell
+  holds fewer lamps: the pool keeps 20 per cell on low and 26 on medium (32 on high), with no visible change in the
+  standard views (same mean luminance to 0.001). The shadows keep their form from the sky glow of
   a lit city under low cloud (the image-based light x1.8) and a small warm-grey lift in the grade. Grade: -0.65 EV,
   saturation 0.88, AgX share 0.55 (highlights roll off to white), gentle curve; bloom 0.11 with a 0.32 radius; the
   volumetric cones take 35 % of their lamp's colour (lit rain, not coloured smoke).
