@@ -32,8 +32,10 @@ snapped to a whole number of modules), which is what makes the two paths give th
 - **procedural**: the recipe runs per pixel. Octaves and features finer than ~3 pixel footprints are not evaluated
   (`msLod`, from `dFdx` / `dFdy` of the world position): far pixels cost less and do not shimmer. The height becomes
   a normal through `mgBump`.
-- **baked** (default): the recipe is rendered once, on the GPU, into a tileable set: `c` = albedo with the cavity
-  folded in (sRGB) + roughness (A), `n` = normal xy + height + metalness; 512 or 1024 px, mipmapped, anisotropic.
+- **baked** (default): the recipe is rendered once, on the GPU, into a tileable set packed in two RGBA8 textures:
+  `c` = albedo with the cavity (AO) folded in (sRGB) + roughness (A), `n` = normal xy + height + metalness; 512 or
+  1024 px (the kind's `size`: what its finest baked feature needs), mipmapped, anisotropic. Eight bytes a texel is
+  the floor for this content without GPU compression; memory is traded by size (`tier: 'low'`, below).
   Materials sample it with the same mapping, a **repetition breaker** (patches of ~3 tiles take one of six offsets,
   whole pattern modules for patterned kinds, neighbours cross-fade along the height) and the same runtime layer.
   Deterministic (seeded); cached per kind, numbers and size; the bake programs are kept per kind (a second bake
@@ -46,6 +48,26 @@ exposes is the kind's: primer and steel under paint, steel under powder coat, pa
 and, opt-in, weathering decals and road paint. It reads one shared 256 x 256 noise texture (`noiseTexture()`,
 made once in JS) instead of hashing.
 
+**Edge wear** needs to know where the edges are. Three sources, per material (`edges`):
+- `'curvature'` (default): the change of the interpolated normal across the pixel (`fwidth(normal)` over
+  `fwidth(position)`). Rounded arrises (bevelled boxes, `RoundedBoxGeometry`, cylinders, lathed parts) wear; a
+  hard-edged box has no curvature inside a face and gets none (only a one-pixel line where two faces meet).
+- `'box'`: the distance to the edges of the drawn geometry's bounding box (in the object's space, times its scale;
+  `edgeWidth`, 0.03 m), read per draw. For unbevelled crates, containers, slabs, kerbs, walls: any box-like mesh.
+  Works together with the curvature (the larger wins). Instanced meshes use the geometry's box (instance scale not
+  read).
+- `'attribute'`: a vertex attribute `edge` 0..1 baked into the mesh (by a modeller, or from a dihedral-angle pass):
+  the mask is exactly what the asset says. The most precise; the only one for arbitrary shapes without bevels.
+
+**Glass** draws, by default, as a premultiplied transparent layer: Fresnel reflection, a tinted film, dirt and wire
+opaque; it cannot tint or blur what is behind it (blending only adds and scales). With `transmission: true` the
+material goes through three's transmission pass (supported by the engine: `light2` keeps it consistent with the
+screen-space reflections): the opaque scene behind is refracted, tinted by the pane's colour (`attenuationColor`,
+short attenuation distance for `tinted`) and blurred by its roughness (`frosted`); dirt, drops and wire stay opaque
+per pixel (the transmission share is applied at the output). It costs one extra render of the opaque scene per frame
+(shared by all transmissive materials, at the drawing-buffer size): use it on shop windows and windscreens near
+the camera, the default path on far facades.
+
 Everything goes through `patch()`: lighting, shadows, image-based light, fog, the wet layer, planar and
 screen-space reflections, probes and the lamp pool keep working. Materials of one kind that differ only by numbers
 share a program (the kind, the mapping, the path, wet or dry, decals and road paint make the program).
@@ -56,14 +78,24 @@ share a program (the kind, the mapping, the path, wet or dry, decals and road pa
 |---|---|
 | `SURFACES.<kind>(options)` | a spec. Common options: `variant`, `color` (linear `[r, g, b]` or a hex / CSS colour, sRGB), `roughness`, `scale` (pattern size), `seed`, `age` 0..1 (baked: bleed, erosion; live: streaks), `dirt` 0..1, `edgeWear` 0..1, `variation` 0..1 (macro), `dirtColor`, `tile` (m), `porosity`. Each kind adds its own (see `SURFACE_KINDS[kind].defaults`) |
 | `SURFACE_KINDS` | per kind: `family`, `variants`, `tile`, `depth`, `size`, `porosity`, `live`, `physical`, `refs` (the measured ranges below), `defaults` |
-| `createSurfaces(world, { mode, size, anisotropy })` | `{ material(spec, options), hooks(spec, options), bake(spec, size?), stats(), dispose() }` |
-| `lib.material(spec, options)` | a `MeshStandardMaterial` (`MeshPhysicalMaterial` for car paint, carbon fibre, fabric's sheen, oil). Options: `mapping` `'tri'` (default; objects) \| `'wall'` (u along the wall, v up, tops by the ground projection) \| `'ground'` \| `'grain'` (u along `grain: [x, y, z]` projected into each face: stairs, sloped faces, boards in any direction, one tap) \| `'uv'` (the mesh's uv x `uvScale` metres); `grain: 'x' \| 'y' \| 'z'` keeps that axis as u in the planar mappings; `space: 'world' \| 'object'` (object: the pattern rides on moving things); `mode`; `size`; `wet: true \| withWet options` (porosity, height from the kind); `ground` (m, the foot of dirt and damp); `breaker`; `edges`; `decals`; `paint` / `paintColor` / `paintWear` (asphalt road marking: a GLSL float mask); `params` (three material parameters) |
+| `createSurfaces(world, { mode, size, anisotropy, tier })` | `{ material(spec, options), hooks(spec, options), bake(spec, size?), stats(), dispose() }`; `tier: 'low'` bakes every set at half its kind's size (a quarter of the memory; phones) |
+| `lib.material(spec, options)` | a `MeshStandardMaterial` (`MeshPhysicalMaterial` for car paint, carbon fibre, fabric's sheen, oil). Options: `mapping` `'tri'` (default; objects) \| `'wall'` (u along the wall, v up, tops by the ground projection) \| `'ground'` \| `'grain'` (u along `grain: [x, y, z]` projected into each face: stairs, sloped faces, boards in any direction, one tap) \| `'uv'` (the mesh's uv x `uvScale` metres); `grain: 'x' \| 'y' \| 'z'` keeps that axis as u in the planar mappings; `space: 'world' \| 'object'` (object: the pattern rides on moving things); `mode`; `size`; `wet: true \| withWet options` (porosity, height from the kind); `ground` (m, the foot of dirt and damp); `breaker`; `edges: 'curvature' \| 'box' \| 'attribute'` and `edgeWidth` (see edge wear above); `transmission` / `thickness` (glass, see above); `decals`; `paint` / `paintColor` / `paintWear` (asphalt road marking: a GLSL float mask); `params` (three material parameters) |
 | `lib.hooks(spec, options)` | the same as hooks, to pass to `world.mat.std` / `phys` yourself |
 | `surfaceHooks(spec, options)` | the hooks without a library (`mode: 'baked'` needs `baked: { c, n }`); `debug: 'albedo' \| 'rough' \| 'height' \| 'metal'` writes that channel to the output |
 | `bakeSurface(renderer, spec, { size, anisotropy })` | `{ c, n, target, size, ms, bytes }` |
 | `bakeDecalAtlas(renderer, size)` | the decal masks (4 x 2: crack, crack network, rain rills, drip, soot plume, water stain with tide ring, rust leak, splash-back) |
 | `noiseTexture()` | the runtime layer's shared noise |
 | `METALS` | F0 of common metals (`SURFACES.metal({ metal: 'brass' })`) |
+
+### Options added in round 2 (defaults keep the round-1 numbers where noted)
+
+| kind | option | |
+|---|---|---|
+| `corrugated`, `paintedMetal` | `gravity: [0, -1]` | the fall in the surface's own (u, v) plane, snapped to an axis: rust runs, washes and streaks follow it. `[0, -1]` = down v (a wall under `'wall'` mapping); a sheet mapped with `grain: 'y'` (u up, horizontal ribs) takes `[-1, 0]` |
+| `wood` | `along: 'u' \| 'v'` | the boards' (and grain's) direction in the surface plane. `'u'` (default): along the mapping's u, i.e. the grain vector under `mapping: 'grain'`, horizontal on a wall; `'v'`: boards up a wall (cladding, fences). The repetition breaker's module turns with them |
+| `render` | `spall: 0` | 0..1: islands where the top coat broke off, a crisp torn step down to the darker scratch coat |
+| `paving` | variant `hex` | hexagonal pavers, `cell[0]` across the flats (0.27 m) |
+| `neon` | `electrodes: 0`, `supports: 0` | on a tube mapped with `'uv'` (uv.y along it, `uvScale` = its length): electrode caps at both ends (m) and support clips every `supports` m |
 
 ### Weathering decals (`decals`)
 
@@ -83,9 +115,9 @@ metallic paint at range). `npm test` (`packages/core/surfaces.check.mjs`) holds 
 |---|---|---|---|---|---|---|---|---|---|
 | `concrete` | masonry | cast, boardFormed, painted, precast | 2.4 | 6 | 0.8 | 0.18–0.42 | 0.75–0.95 | 0 | Portland cement concrete 0.20-0.40 (fresh grey ~0.35, weathered 0.20-0.30) |
 | `asphalt` | ground | fresh, worn, patched | 1.2 | 5 | 0.35 | 0.03–0.16 | 0.3–0.95 | 0 | binder 0.03-0.06; aggregate 0.10-0.30; worn surface overall 0.08-0.14; crack sealant (tar) glossy 0.3-0.4 |
-| `paving` | ground | slabs, setts, polished | 2.4 | 12 | 0.5 | 0.08–0.42 | 0.1–0.95 | 0 | concrete flags 0.25-0.35, granite setts 0.10-0.30, polished granite 0.08-0.40 (roughness 0.10-0.30) |
+| `paving` | ground | slabs, setts, polished, hex | 2.4 | 12 | 0.5 | 0.08–0.42 | 0.1–0.95 | 0 | concrete flags 0.25-0.35, granite setts 0.10-0.30, polished granite 0.08-0.40 (roughness 0.10-0.30) |
 | `brick` | masonry | common, engineering, painted, stock | 2.25 | 20 | 0.7 | 0.06–0.45 | 0.5–0.95 | 0 | red clay brick R 0.20-0.40; engineering blue 0.05-0.10 (dense, roughness ~0.6); London stock ~(0.40, 0.30, 0.17); lime mortar 0.35-0.55 |
-| `render` | masonry | smooth, pebbledash, roughcast | 2 | 4 | 0.75 | 0.3–0.8 | 0.75–0.95 | 0 | cement / lime render 0.40-0.75; painted white ~0.75 |
+| `render` | masonry | smooth, pebbledash, roughcast | 2 | 8 | 0.75 | 0.3–0.8 | 0.75–0.95 | 0 | cement / lime render 0.40-0.75; painted white ~0.75 |
 | `tile` | ceramic | subway, square, mosaic, floor | 1.2 | 4 | 0.1 | 0.03–0.85 | 0.04–0.95 | 0 | white glaze 0.70-0.85 (roughness 0.05-0.15); grout 0.30-0.60 (per pixel under auto) |
 | `corrugated` | metal | galvanised, painted, rusted | 1.52 | 18 | 0.1 | 0.05–0.7 | 0.25–0.95 | zinc 1 / paint 0 / rust 0 | zinc F0 ~(0.62, 0.64, 0.66); rust 0.10-0.35 (R) |
 | `paintedMetal` | metal | sheet, panels, enamel | 2 | 3 | 0.1 | 0.03–0.85 | 0.15–0.92 | paint 0 / bare steel 1 / rust 0 | paint as its pigment (white 0.70-0.85, black 0.03-0.05); bare steel F0 (0.53, 0.53, 0.54); red-oxide primer ~(0.25, 0.08, 0.05) |
@@ -127,43 +159,61 @@ also calibrated against scanned sets (see "Calibration" below).
 ## Cost: procedural against baked
 
 A wall 1.5 m away filling 1440 x 900, 30 frames x 5 rounds, median; base = a plain `MeshStandardMaterial` on the
-same quad; bakes synced by a readback (the first of a kind includes compiling its program). Apple M4 Pro (ANGLE /
-Metal), `node examples/demos/materials/bench.mjs`.
+same quad (0.07 ms in round 2, 0.09-0.27 in round 1: the machine was busier, compare the "+" columns); bakes synced
+by a readback. Apple M4 Pro (ANGLE / Metal), `node examples/demos/materials/bench.mjs`. Round 1 → round 2.
 
-| kind | base ms | procedural ms (+) | baked ms (+) | proc / baked (above base) | bake first / repeat ms | set px | MB |
-|---|---|---|---|---|---|---|---|
-| concrete | 0.16 | 3.27 (+3.11) | 0.61 (+0.45) | 7x | 15.6 / 7.9 | 1024 | 10.7 |
-| asphalt | 0.15 | 2.4 (+2.25) | 0.64 (+0.49) | 4.6x | 5.3 / 5 | 1024 | 10.7 |
-| paving | 0.12 | 2.31 (+2.2) | 0.6 (+0.49) | 4.5x | 6.5 / 4.1 | 1024 | 10.7 |
-| brick | 0.15 | 4.74 (+4.59) | 0.45 (+0.29) | 15.6x | 12.7 / 6.4 | 1024 | 10.7 |
-| render | 0.14 | 2.63 (+2.49) | 0.47 (+0.33) | 7.6x | 5.5 / 5.8 | 1024 | 10.7 |
-| tile | 0.27 | 1.18 (+0.91) | 0.83 (+0.55) | 1.6x | 9.4 / 4 | 1024 | 10.7 |
-| corrugated | 0.21 | 1.93 (+1.72) | 0.66 (+0.44) | 3.9x | 7.8 / 3.3 | 1024 | 10.7 |
-| paintedMetal | 0.13 | 3.39 (+3.26) | 0.51 (+0.39) | 8.4x | 8.3 / 4.7 | 1024 | 10.7 |
-| stainless | 0.09 | 0.62 (+0.53) | 0.47 (+0.38) | 1.4x | 5.1 / 4.1 | 1024 | 10.7 |
-| galvanised | 0.17 | 1.61 (+1.44) | 0.61 (+0.44) | 3.3x | 6.2 / 6.1 | 1024 | 10.7 |
-| castIron | 0.1 | 1.2 (+1.1) | 0.59 (+0.48) | 2.3x | 9 / 4.3 | 1024 | 10.7 |
-| aluminium | 0.16 | 0.98 (+0.81) | 0.59 (+0.42) | 1.9x | 7.8 / 4.1 | 1024 | 10.7 |
-| chrome | 0.16 | 0.79 (+0.63) | 0.76 (+0.6) | 1x | 2.2 / 2.4 | 512 | 2.7 |
-| metal | 0.12 | 0.79 (+0.67) | 0.65 (+0.53) | 1.3x | 4.2 / 3.9 | 512 | 2.7 |
-| powderCoat | 0.17 | 0.82 (+0.65) | 0.79 (+0.62) | 1x | 2.7 / 5.2 | 512 | 2.7 |
-| carPaint | 0.16 | 1.06 (+0.9) | 1.26 (+1.1) | 0.8x | 6.1 / 4.5 | 1024 | 10.7 |
-| plastic | 0.16 | 1.25 (+1.09) | 0.67 (+0.51) | 2.2x | 5.1 / 1.9 | 512 | 2.7 |
-| rubber | 0.19 | 0.9 (+0.72) | 0.62 (+0.43) | 1.7x | 8.2 / 3.7 | 512 | 2.7 |
-| fabric | 0.13 | 2.16 (+2.03) | 0.79 (+0.66) | 3.1x | 11.1 / 3.9 | 1024 | 10.7 |
-| paper | 0.13 | 0.73 (+0.6) | 0.4 (+0.27) | 2.2x | 6.4 / 3.4 | 1024 | 10.7 |
-| wood | 0.13 | 2.31 (+2.18) | 0.42 (+0.29) | 7.5x | 9.7 / 4.2 | 1024 | 10.7 |
-| bamboo | 0.13 | 0.6 (+0.48) | 0.6 (+0.47) | 1x | 7.9 / 3.7 | 1024 | 10.7 |
-| leather | 0.1 | 1.09 (+0.98) | 0.53 (+0.43) | 2.3x | 6.1 / 2.8 | 1024 | 10.7 |
-| carbonFibre | 0.09 | 0.4 (+0.32) | 0.48 (+0.4) | 0.8x | 6 / 1.7 | 512 | 2.7 |
-| ceramic | 0.09 | 0.81 (+0.72) | 0.47 (+0.38) | 1.9x | 4.1 / 2.1 | 512 | 2.7 |
-| roofing | 0.09 | 1.04 (+0.95) | 0.42 (+0.33) | 2.9x | 5.7 / 3.4 | 1024 | 10.7 |
+| kind | procedural + ms | baked + ms | bake repeat ms (r2) | set px | MB high / low |
+|---|---|---|---|---|---|
+| concrete | 3.11 → 4.12 | 0.45 → 0.22 | 4.9 | 1024 | 10.7 / 2.7 |
+| asphalt | 2.25 → 2.09 | 0.49 → 0.26 | 3.7 | 1024 | 10.7 / 2.7 |
+| paving | 2.2 → 2.44 | 0.49 → 0.22 | 3.4 | 1024 | 10.7 / 2.7 |
+| brick | 4.59 → 3.66 | 0.29 → 0.22 | 4.4 | 1024 | 10.7 / 2.7 |
+| render | 2.49 → 4.21 | 0.33 → 0.23 | 4.4 | 1024 | 10.7 / 2.7 |
+| tile | 0.91 → 0.35 | 0.55 → 0.2 | 2 | 1024 | 10.7 / 2.7 |
+| corrugated | 1.72 → 4.67 | 0.44 → 0.25 | 5 | 1024 | 10.7 / 2.7 |
+| paintedMetal | 3.26 → 6.4 | 0.39 → 0.23 | 6.2 | 1024 | 10.7 / 2.7 |
+| stainless (auto: per pixel) | 0.53 → 0.84 | 0.38 → 0.23 | 2.3 | 1024 | 10.7 / 2.7 |
+| galvanised | 1.44 → 1.5 | 0.44 → 0.24 | 1.2 | 1024 → 512 | 2.7 / 0.7 |
+| castIron | 1.1 → 0.51 | 0.48 → 0.28 | 2.3 | 1024 | 10.7 / 2.7 |
+| aluminium | 0.81 → 0.88 | 0.42 → 0.23 | 2.5 | 1024 | 10.7 / 2.7 |
+| chrome (auto: per pixel) | 0.63 → 0.33 | 0.6 → 0.23 | 1.1 | 512 | 2.7 / 0.7 |
+| metal (auto: per pixel) | 0.67 → 0.29 | 0.53 → 0.23 | 1 | 512 | 2.7 / 0.7 |
+| powderCoat | 0.65 → 0.37 | 0.62 → 0.28 | 1.4 | 512 | 2.7 / 0.7 |
+| carPaint (auto: per pixel) | 0.9 → 0.4 | 1.1 → 0.41 | 2.2 | 1024 | 10.7 / 2.7 |
+| plastic | 1.09 → 1.48 | 0.51 → 0.36 | 1.1 | 512 | 2.7 / 0.7 |
+| rubber (auto: now baked) | 0.72 → 0.82 | 0.43 → 0.23 | 1.1 | 512 | 2.7 / 0.7 |
+| fabric | 2.03 → 2.19 | 0.66 → 0.4 | 3.8 | 1024 | 10.7 / 2.7 |
+| paper | 0.6 → 0.48 | 0.27 → 0.34 | 1.2 | 1024 → 512 | 2.7 / 0.7 |
+| wood | 2.18 → 2.33 | 0.29 → 0.26 | 5 | 1024 | 10.7 / 2.7 |
+| bamboo (auto: per pixel) | 0.48 → 0.24 | 0.47 → 0.22 | 2.1 | 1024 | 10.7 / 2.7 |
+| leather | 0.98 → 1.66 | 0.43 → 0.36 | 3.1 | 1024 | 10.7 / 2.7 |
+| carbonFibre (auto: per pixel) | 0.32 → 0.16 | 0.4 → 0.27 | 1.1 | 512 | 2.7 / 0.7 |
+| ceramic | 0.72 → 0.44 | 0.38 → 0.23 | 1 | 512 | 2.7 / 0.7 |
+| roofing | 0.95 → 0.54 | 0.33 → 0.22 | 2.1 | 1024 | 10.7 / 2.7 |
 
-Read: the recipes with many octaves (brick, concrete, painted metal, render, asphalt) cost 2-4 ms per full screen
-per pixel and 0.3-0.5 ms baked (5-16x; the baked figure includes the grain layer and the runtime layer); simple patterns (tile, stainless, chrome, rubber, bamboo, carbon fibre, car
-paint) cost about as much either way, so `mode: 'auto'` (the default) runs those per pixel and bakes the rest. A
-street's twelve kinds bake in 40-70 ms from cold (`surfaces-check.mjs`). Memory: 10.7 MB per 1024 px set (2.7 MB at
-512): `size` trades it against sharpness at 0.5 m (a 1024 px set over 2.4 m is 2.3 mm a texel).
+Read: the baked path did not get dearer (0.2-0.4 ms a full screen, the grain layer and the runtime layer included;
+plastic gained a micro layer): round 2's extra structure is all inside the bake. The per-pixel recipes of the
+richest kinds got dearer (painted metal 6.4 ms, corrugated 4.7, render 4.2, concrete 4.1 a full screen): they are
+baked under `mode: 'auto'` (the default), which runs per pixel only the kinds about as cheap either way (tile,
+stainless, chrome, metal, carPaint, bamboo, carbonFibre; rubber moved to baked in round 2).
+
+**Bake time**: a street's twelve kinds (asphalt, concrete, paving, brick, corrugated, painted metal, stainless,
+powder coat, plastic, rubber, fabric, wood) from cold, compiles included, synced: 46-50 ms (`surfaces-check.mjs`;
+round 1: 40-70 ms); in tier `'low'` 9 ms once the programs exist.
+
+**Memory** (two RGBA8 textures with mips: 10.7 MB per 1024 px set, 2.7 MB at 512, 0.7 MB at 256):
+
+| the street's twelve kinds | tier `'high'` (default) | tier `'low'` |
+|---|---|---|
+| all baked (`mode: 'baked'`, measured) | 104 MB | 26 MB |
+| `mode: 'auto'` (stainless per pixel) | 96 MB | 24 MB |
+| per 1024 px kind / per 512 px kind | 10.7 / 2.7 MB | 2.7 / 0.7 MB |
+
+`size` guidance per kind is `SURFACE_KINDS[kind].size`: 1024 where the finest baked feature needs it over the tile
+(brick sand and arrises over 2.25 m, aggregate over 2.4 m, threads over 0.5 m, die lines over 0.6 m), 512 where it
+does not (galvanised spangle and paper fibres moved to 512 in round 2; chrome, metal, powder coat, plastic, rubber,
+carbon fibre, ceramic). Tier `'low'` halves every set (never under 256): close up the fine grain then comes from the
+runtime micro layer, at 5 m nothing changes. Use it on phones.
 
 ## Checks
 
@@ -174,33 +224,63 @@ street's twelve kinds bake in 40-70 ms from cold (`surfaces-check.mjs`). Memory:
   baked, dry and wet; a bake read back sits in its ranges (metalness 0 or 1 where the kind says so); baked ==
   procedural at the bake's scale through the real material path (albedo, roughness, height); a bake repeats byte for
   byte, another seed changes it; ten concretes with other numbers add one program per path; a street's twelve kinds
-  bake in under 1 s.
-- `node examples/demos/materials/shoot.mjs [--only kind] [--lights ..] [--views ..] [--wet ..]`: the gallery sheets
-  (out/gallery/, gitignored); `bench.mjs`: the table above.
+  bake in under 1 s, and in a quarter of the memory in tier `'low'`; the opt-in paths (edges `'box'`, glass with
+  `transmission`) compile.
+- `node examples/demos/materials/shoot.mjs [--only kind] [--lights ..] [--views ..] [--wet ..] [--opts '{..}']
+  [--matopts '{..}'] [--box] [--vs out/materials-r1.html]`: the gallery sheets (out/gallery/, gitignored); `--box` puts
+  an unbevelled cube in (edge wear with `edges: 'box'`), `--vs` shoots another build of the demo side by side;
+  `bench.mjs`: the table above.
 - `node examples/demos/materials/compare.mjs --ref <folder of scanned sets>`: calibration against photographed sets
   (out/compare/, gitignored; nothing of the photos enters the repository).
 
 ## Calibration against scanned sets
 
-Recipes were tuned against CC0 scans (Poly Haven, ambientCG) kept outside this repository: the flat tiles side by side at the scan's texel
-density, then both on the gallery objects under the same light, and numbers (albedo mean and spread per channel,
-luminance histogram, power by octave of luminance and of height, normal slope distribution, roughness). None of their
-pixels is in the library; the numbers are the targets the recipes were moved toward. Distances: Euclidean over the
-three channels (albedo), over the 16 bins (histogram of sqrt luminance), over the 7 octaves (normalised power).
+Recipes were tuned against CC0 scans (Poly Haven, ambientCG) kept outside this repository: the flat tiles side by
+side at the scan's texel density (albedo; normal xy with height in blue for both), then both on the gallery objects
+under the same light (5 m, 0.5 m on the cube, 0.5 m on the wall or ground), and numbers: albedo mean and spread per
+channel, luminance histogram, power by octave of luminance and of height, the normal's slope (p50 per texel, and the
+normal averaged over 16 x 16 texels: the relief that survives at a distance), roughness. None of their pixels is in
+the library; the numbers are the targets the recipes were moved toward. Distances: Euclidean over the three channels
+(albedo), over the 7 octaves (normalised power). `compare.mjs --tag r2 --prev r1` writes, per scan,
+`<scan>-rounds-tiles.png` and `<scan>-rounds-lit.png`: photo | round 1 | round 2.
 
-| scan (tile) | recipe | albedo mean scan / recipe | albedo dist | sd dist | histogram dist | lum. octaves dist | height octaves dist | slope p50 scan / recipe | roughness scan / recipe | verdict |
+Round 1 → round 2 (the scans' value first where there is one):
+
+| scan (tile) | recipe | albedo mean: scan / r1 → r2 | albedo dist | sd dist | lum. octaves dist | height octaves dist | slope p50: scan / r1 → r2 | slope at 16 texels: scan / r1 → r2 | roughness: scan / r2 | verdict |
 |---|---|---|---|---|---|---|---|---|---|---|
-| plaster_smooth (1 m) | `render:smooth` | 0.121 0.095 0.063 / 0.123 0.095 0.064 | 0.002 | 0.03 | 0.215 | 0.132 | 0.247 | 0.045 / 0.012 | 0.589 / 0.586 | close (tone, roughness, spectrum; the scan has more trowel relief) |
-| plaster_broken (1.5 m) | `render:roughcast` | 0.318 0.211 0.102 / 0.232 0.155 0.074 | 0.106 | 0.066 | 0.439 | 0.596 | 0.885 | 0.067 / 0.111 | 0.856 / 0.89 | not there yet (no broken-off render islands) |
-| brick_buff (1 m) | `brick:common` | 0.420 0.260 0.136 / 0.346 0.216 0.119 | 0.088 | 0.135 | 0.456 | 0.177 | 0.107 | 0.056 / 0.139 | 0.691 / 0.799 | close at 5 m; at 0.5 m the scan's flaky eroded faces are richer |
-| paving_hex (1.6 m) | `paving:slabs` | 0.402 0.330 0.237 / 0.373 0.300 0.209 | 0.05 | 0.044 | 0.314 | 0.261 | 0.096 | 0.055 / 0.121 | 0.872 / 0.874 | close in tone and grain (hexagons not modelled) |
-| flagstone (1.8 m) | `paving:setts` | 0.124 0.086 0.060 / 0.119 0.083 0.058 | 0.006 | 0.025 | 0.178 | 0.191 | 0.505 | 0.123 / 0.065 | 0.834 / 0.772 | close in tone (irregular flags not modelled: setts) |
-| wood_old (2 m) | `wood:planks` | 0.105 0.079 0.054 / 0.096 0.068 0.044 | 0.018 | 0.011 | 0.306 | 0.192 | 0.647 | 0.051 / 0.006 | 0.674 / 0.666 | close at 5 m; at 0.5 m fewer gouges and grain streaks |
-| wood_teak (0.55 m) | `wood:varnished` | 0.083 0.028 0.007 / 0.071 0.022 0.006 | 0.013 | 0.003 | 0.139 | 0.224 | 0.449 | 0.075 / 0.036 | 0.724 / 0.698 | close in tone and spectrum; less wear |
-| iron_rusty (1 m) | `paintedMetal:sheet` | 0.382 0.271 0.213 / 0.333 0.258 0.217 | 0.051 | 0.098 | 0.369 | 0.251 | 0.144 | 0.03 / 0.037 | 0.59 / 0.729 | close: coverage, colour, streaks; the scan's rust is more fragmented at mm scale |
-| canvas (0.5 m) | `fabric:canvas` | 0.533 0.529 0.517 / 0.479 0.475 0.464 | 0.093 | 0.052 | 0.385 | 0.513 | 0.404 | 0.294 / 0.225 | 0.531 / 0.549 | not there yet (weave relief weak, slubs regular) |
-| gravel (2.48 m) | `roofing:gravel` | 0.257 0.143 0.067 / 0.195 0.107 0.049 | 0.075 | 0.014 | 0.297 | 0.346 | 0.604 | 0.174 / 0.219 | 0.788 / 0.758 | close in tone; stones rounder and more uniform |
-| terracotta (2 m) | `tile:floor` | 0.190 0.113 0.046 / 0.195 0.116 0.052 | 0.008 | 0.026 | 0.055 | 0.258 | 0.577 | 0.02 / 0.006 | 0.686 / 0.698 | tone and histogram matched; the scan's tiles have more relief |
+| plaster_smooth (1 m) | `render:smooth` | 0.121 0.095 0.063 / 0.123 0.095 0.064 → 0.122 0.094 0.064 | 0.002 → 0.001 | 0.03 → 0.026 | 0.132 → 0.296 | 0.247 → 0.151 | 0.045 / 0.012 → 0.040 | 0.037 / 0.004 → 0.024 | 0.589 / 0.59 | close: swells, pits, stains, hairline cracks now there; our mottling sits at larger scales than the scan's (the luminance spectrum got worse) |
+| plaster_broken (1.5 m) | `render:smooth` + `spall` | 0.318 0.211 0.102 / 0.232 0.155 0.074 → 0.266 0.174 0.082 | 0.106 → 0.067 | 0.066 → 0.035 | 0.596 → 0.207 | 0.885 → 0.261 | 0.067 / 0.111 → 0.040 | 0.053 / 0.035 → 0.020 | 0.856 / 0.862 | close (was not there): broken-off islands with a torn step; the scan's islands are larger and more elongated, its coat more rubbed |
+| plaster_weathered (2 m) | `render:smooth` | 0.164 0.099 0.043 / 0.167 0.097 0.042 → 0.162 0.095 0.041 | 0.004 → 0.005 | 0.006 → 0.01 | 0.38 → 0.251 | 0.369 → 0.474 | 0.058 / 0.012 → 0.036 | 0.041 / 0.003 → 0.018 | 0.923 / 0.888 | close: tone exact; still less relief at 2..5 cm than the scan |
+| brick_buff (1 m) | `brick:common` | 0.420 0.260 0.136 / 0.346 0.216 0.119 → 0.443 0.278 0.154 | 0.088 → 0.035 | 0.135 → 0.098 | 0.177 → 0.214 | 0.107 → 0.056 | 0.056 / 0.139 → 0.148 | 0.014 / 0.040 → 0.053 | 0.691 / 0.817 | close: every brick its own box, colour, spalls, tilt, eroded corners, sandy smeared mortar; the scan's faces are more crinkled (torn sheets) and its joints narrower and dirtier; our arrises are steeper (slope too high) |
+| paving_hex (1.6 m) | `paving:hex` (was `slabs`) | 0.402 0.330 0.237 / 0.373 0.300 0.209 → 0.400 0.327 0.232 | 0.05 → 0.006 | 0.044 → 0.017 | 0.261 → 0.068 | 0.096 → 0.224 | 0.055 / 0.121 → 0.153 | 0.011 / 0.007 → 0.012 | 0.872 / 0.861 | matched in tone and spectrum; the joints are too even and clean (the scan's are smudged into the paver edges) |
+| flagstone (1.8 m) | `paving:setts` | 0.124 0.086 0.060 / unchanged | 0.006 | 0.025 | 0.191 | 0.505 | 0.123 / 0.065 | 0.070 / 0.060 | 0.834 / 0.772 | not reworked: irregular flags are not modelled (setts) |
+| wood_old (2 m) | `wood:planks`, `along: 'v'` | 0.105 0.079 0.054 / 0.096 0.068 0.044 → 0.089 0.067 0.048 | 0.018 → 0.021 | 0.011 → 0.011 | 0.192 → 0.164 | 0.647 → 0.629 | 0.051 / 0.006 → 0.036 | 0.042 / 0.006 → 0.018 | 0.674 / 0.665 | close: boards the right way, own flow round knots, streaks, checks, nails with halos, cupping; fewer dents and nail holes than the scan, a butt joint per board where the scan has none |
+| wood_teak (0.55 m) | `wood:varnished` | 0.083 0.028 0.007 / 0.071 0.022 0.006 → 0.060 0.019 0.005 | 0.013 → 0.024 | 0.003 → 0.007 | 0.224 → 0.125 | 0.449 → 0.255 | 0.075 / 0.036 → 0.098 | 0.011 / 0.006 → 0.039 | 0.724 / 0.70 | close: a little dark; less wear |
+| iron_rusty (1 m) | `paintedMetal:sheet` | 0.382 0.271 0.213 / 0.333 0.258 0.217 → 0.394 0.261 0.206 | 0.051 → 0.016 | 0.098 → 0.052 | 0.251 → 0.108 | 0.144 → 0.23 | 0.030 / 0.037 → 0.092 | 0.011 / 0.012 → 0.012 | 0.59 / 0.716 | close to matched at 5 m: fragmented rust at every scale, nucleating specks, gravity streaks; the scan's vertical streaking is stronger and its rust finer-grained; our relief is steeper per texel |
+| canvas (0.5 m) | `fabric:canvas` | 0.533 0.529 0.517 / 0.479 0.475 0.464 → 0.531 0.527 0.517 | 0.093 → 0.002 | 0.052 → 0.047 | 0.513 → 0.142 | 0.404 → 0.208 | 0.294 / 0.225 → 0.173 | 0.073 / 0.021 → 0.017 | 0.531 / 0.538 | close (was not there): irregular slubbed threads, crumple, creases; the scan's weave is coarser in relief (slope at 4 texels 0.21 against our 0.09) |
+| plaster_smooth as a proxy (1 m) | `concrete:cast` | 0.121 0.095 0.063 / 0.109 0.083 0.055 → 0.103 0.077 0.051 | 0.019 → 0.028 | 0.022 → 0.012 | 0.345 → 0.284 | 0.561 → 0.402 | 0.045 / 0.043 → 0.040 | 0.037 / 0.006 → 0.013 | 0.589 / 0.598 | relief scale and spread toward a trowelled cement surface (no concrete scan in the set) |
+| gravel (2.48 m), terracotta (2 m), brass_aged (0.6 m) | `roofing:gravel`, `tile:floor`, `metal:worn` | unchanged | 0.075, 0.008, 0.222 | | | | | | | not reworked in round 2 |
+
+### Round 2, surface by surface (what changed, what is still off)
+
+| kind | reference | changed | verdict, remaining gap |
+|---|---|---|---|
+| concrete | no scan (from knowledge; plaster_smooth as a relief proxy) | bug holes clustered by a slow density field, sizes spread (1..15 mm), outlines warped; pin pores; water marks with tide edges; panel offsets and tilt; the pour's bow; hairline cracks with age | close; still clean at 5 m under flat light (the stains are mild), no honeycombing or grout loss at panel joints |
+| asphalt | no scan | angular crushed stone (Voronoi faces of a warped plane) of three sieve sizes, a grey palette with pale, brown and dark stones, binder level by variant, voids, sand specks | close; no wheel-path polish or oil tracks in the bake (the runtime decals and road paint carry those) |
+| painted metal | iron_rusty | multi-scale thresholded rust with warped edges, nucleating specks round patches, crisp layered paint flakes, gravity streaks and washes, ragged blooms drawn out below fixings, pitting | close (see the table) |
+| corrugated | no scan (iron_rusty for the rust) | rust and stains run down the fall and gather in the wet channels (valleys when the ribs run down), at fixings and laps; chips on crests and laps; `gravity` option | close; no stencils (use decals or a map), no dents |
+| paving | paving_hex, flagstone | hex variant; per-slab stains and wear, dirt worked in at the edges, crisp spalled arrises, cracked slabs, chewing gum | hex matched in tone; flags still setts |
+| brick | brick_buff | per-brick box, size, corner radius, erosion, broken corners, palette, tilt, spalls, crinkled sanded face, smeared sandy mortar | close (see the table) |
+| render | plaster_smooth, plaster_broken, plaster_weathered | swells, pits with rims, stains, trowel arcs, sheen patches, sparse long cracks and a fine craze, broken-off coat (`spall`); depth 4 → 8 mm | close |
+| stainless | no scan | belt passes (bands of sheen), wandering hairlines, water spots and smudges (roughness) | close |
+| galvanised | no scan | each spangle crystal its own facet tilt (flashes apart), bright and dull crystals, grain boundaries; white rust as a powdery speck bloom | close |
+| aluminium | no scan | extruded: die nicks running the tile, stop marks across; weathering as soft dull clouds with white pits (was crisp grey blobs) | close |
+| glass | no scan | the transmission path (tint, blur, refraction) as an option; dirt, drops, wipers opaque per pixel | close with `transmission`; without it the limit above stands |
+| plastic, rubber, leather | no scan | micro scratches, smudges, dust in the texture; ozone cracks, scuffs, grit in grooves; folds, wear, polish | closer; plastic's spark-eroded stipple is below the 512 bake at 0.5 m (the micro layer stands in) |
+| wood | wood_old, wood_teak | per-board flow round knots, mineral streaks, checks, nail heads with rust halos at joists, grey weathering, cupping, `along` | close |
+| fabric | canvas | slubbed threads, crumple, pressed creases, flecks | close |
+| neon | no scan | a glass rim at the silhouette, dimmer on flat or large shapes, a soft per-hue cap; electrodes and supports on a uv-mapped tube | better; on a large emissive shape the scene's auto exposure still lifts it to pastel |
+| metals in the gallery | | the stage has a light rig (two windows behind the camera, a side window, three overhead strips) seen only by the image-based light | metals now differ by their micro-structure |
 
 ## Adding a surface
 
@@ -239,8 +319,8 @@ const lib = createSurfaces(ctx);
 const LINES = '...';   // the same centre / edge / zebra / stop masks as before, as one GLSL float expression
 asphalt: lib.material(SURFACES.asphalt({ variant: 'worn', cracks: 0.5, oil: 0.25 }),
   { mapping: 'ground', paint: LINES, wet: { puddles: 1.5, ripples: 1.3, specAA: 2.5, wear: RUTS } }),
-sheet: lib.material(SURFACES.corrugated({ variant: 'painted', color: [0.32, 0.34, 0.38], pitch: 0.22, profile: 'box', rust: 0.35 }),
-  { mapping: 'wall', grain: 'y', wet: { puddles: 0 } }),   // paint and rust dielectric; zinc where it wore through
+sheet: lib.material(SURFACES.corrugated({ variant: 'painted', color: [0.32, 0.34, 0.38], pitch: 0.22, profile: 'box', rust: 0.35, gravity: [-1, 0] }),
+  { mapping: 'wall', grain: 'y', wet: { puddles: 0 } }),   // u up (horizontal ribs): gravity down u; paint and rust dielectric
 concrete: lib.material(SURFACES.concrete({ variant: 'cast', panel: [2.4, 1.2], tieSpacing: 0.6, age: 0.6 }),
   { mapping: 'wall', wet: { puddles: 0, band: 0.5 }, decals: { damp: 0.6, rills: { top: 3.2, length: 1.4 } } }),
 ```
