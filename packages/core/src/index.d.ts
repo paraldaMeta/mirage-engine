@@ -22,6 +22,7 @@ export { createTextures, TEX_GLSL, TEX_RELIEF_GLSL, glslName } from './textures.
 export { createJobQueue, createLRU, createUploadBudget, textureBytes, objectBytes, texturesOf, disposeObject, watchLongTasks, nextFrame } from './stream.js';
 export { RELIEF, RELIEF_GLSL, RELIEF_LIGHT, setRelief, withRelief, renderHeight, renderShade } from './relief.js';
 export { WET, WET_GLSL, setWetness, setRain, withWet } from './wet.js';
+export { SURFACES, SURFACE_KINDS, METALS, surfaceHooks, bakeSurface, bakeDecalAtlas, createSurfaces, noiseTexture } from './surfaces.js';
 export { createEnvLight } from './envlight.js';
 export { deviceProfile, pickQuality, QUALITY_LEVELS, QUALITY_KEY } from './device.js';
 export { createVfx } from './vfx.js';
@@ -44,6 +45,7 @@ export type { EnvironmentLight } from './envlight.js';
 export type { Vfx, VfxOptions, VfxHandle, VfxPlace, VfxStats, VfxBeamOptions, VfxDecalOptions } from './vfx.js';
 export type { VfxEffect, VfxEmitter, VfxDefinedEffect } from './vfx-data.js';
 export type { WetOptions } from './wet.js';
+export type { SurfaceKind, SurfaceColor, SurfaceRefs, SurfaceKindInfo, SurfaceOptions, SurfaceSpec, SurfaceDecals, SurfaceHookOptions, SurfaceMaterialOptions, BakedSurface, SurfaceLibrary } from './surfaces.js';
 export type { Quality, DeviceProfile } from './device.js';
 export type { SoftShadowSettings, SoftShadowOption } from './softshadow.js';
 export { writeGLB } from './gltf-write.js';

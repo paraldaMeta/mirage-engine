@@ -74,7 +74,7 @@ function show({ s = 'concrete', light, wet = 0, view = 'far', mode = Q.get('mode
   if (light && light !== current?.light) world.setTime(TIMES[light]);
   const L = light || current?.light || Q.get('light') || 'studio';
   const night = L === 'night';
-  lampW.intensity = night ? 9 : 0; lampC.intensity = night ? 5 : 0;
+  lampW.intensity = night ? 5 * world.G.uLampGain.value : 0; lampC.intensity = night ? 3.5 * world.G.uLampGain.value : 0;
   setWetness(wet); setRain(0);
   const v = VIEWS[view] || VIEWS.far;
   camera.position.fromArray(v.eye); camera.lookAt(...v.look); camera.updateMatrixWorld();
@@ -94,11 +94,11 @@ benchScene.add(new THREE.HemisphereLight(0xbfd4ff, 0x404040, 0.6));
 const bsun = new THREE.DirectionalLight(0xffffff, 2.5); bsun.position.set(1, 2, 3); benchScene.add(bsun);
 const benchCam = new THREE.PerspectiveCamera(50, 1440 / 900, 0.05, 50); benchCam.position.set(0, 0, 1.5);
 const benchQuad = new THREE.Mesh(new THREE.PlaneGeometry(4, 3), neutral); benchScene.add(benchQuad);
-function bench({ s, mode, frames = 30, w = 1440, h = 900, wet = 0, opts = {} }) {
+function bench({ s, mode, frames = 30, w = 1440, h = 900, wet = 0, opts = {}, matOpts = {} }) {
   const gl = renderer.getContext(), px = new Uint8Array(4);
   const rt = new THREE.WebGLRenderTarget(w, h, { type: THREE.UnsignedByteType });
   let m = neutral;
-  if (s) { const [kind, variant] = s.split(':'); m = lib.material(SURFACES[kind]({ ...(variant ? { variant } : {}), ...opts }), { mapping: 'wall', mode, wet: wet > 0 }); }
+  if (s) { const [kind, variant] = s.split(':'); m = lib.material(SURFACES[kind]({ ...(variant ? { variant } : {}), ...opts }), { mapping: 'wall', mode, wet: wet > 0, ...matOpts }); }
   benchQuad.material = m;
   setWetness(wet);
   const draw = (n) => { renderer.setRenderTarget(rt); for (let i = 0; i < n; i++) renderer.render(benchScene, benchCam); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px); renderer.setRenderTarget(null); };
@@ -133,7 +133,7 @@ async function showRef({ c, n, tile, mean = [0.2, 0.2, 0.2], hMean = 0.5, rough 
   add(GEO.ground, mk('ground'), 0, 0.002, -0.1); add(GEO.wall, mk('wall'), 0, 1.0, -1.0); add(GEO.sphere, mk('tri'), -0.6, 0.3, 0.35); add(GEO.cube, mk('tri'), 0.55, 0.3, 0.15);
   if (light && light !== current?.light) world.setTime(TIMES[light]);
   const L = light || current?.light || 'studio';
-  lampW.intensity = L === 'night' ? 9 : 0; lampC.intensity = L === 'night' ? 5 : 0;
+  lampW.intensity = L === 'night' ? 5 * world.G.uLampGain.value : 0; lampC.intensity = L === 'night' ? 3.5 * world.G.uLampGain.value : 0;
   setWetness(wet);
   const v = VIEWS[view] || VIEWS.far;
   camera.position.fromArray(v.eye); camera.lookAt(...v.look); camera.updateMatrixWorld();

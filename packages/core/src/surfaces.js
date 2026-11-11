@@ -51,7 +51,7 @@ const KINDS = {
     edge: (o) => ({ rgb: [1.12, 1.1, 1.06], rough: 0.95, metal: 0, mode: 1, chip: 0.02 }),
   },
   asphalt: {
-    family: 'ground', variants: ['fresh', 'worn', 'patched'], tile: 1.2, depth: 0.008, size: 1024, porosity: 0.35,
+    family: 'ground', variants: ['fresh', 'worn', 'patched'], tile: 1.2, depth: 0.005, size: 1024, porosity: 0.35,
     refs: { albedo: [0.03, 0.16], rough: [0.3, 0.95], metal: 0, note: 'binder 0.03-0.06; aggregate 0.10-0.30; worn surface overall 0.08-0.14; crack sealant (tar) glossy 0.3-0.4' },
     defaults: { color: [0.042, 0.041, 0.04], roughness: 0.88, stone: [0.2, 0.2, 0.19], stoneSize: 0.011, patch: 1, cracks: 0.5, oil: 0, polish: 0.5 },
     pack: (o) => ({ A: [...o.color, o.roughness], B: [...o.stone, o.stoneSize], C: [o.patch, o.cracks, o.oil, o.polish], D: [0, 0, 0, 0] }),
@@ -419,37 +419,39 @@ void msAcc(inout MsS o, MsS s, float w){ o.a += s.a * w; o.r += s.r * w; o.h += 
 
 // the runtime layer: macro variation, dirt, streaks, edge wear (both paths)
 const FINISH_GLSL = /* glsl */ `
-// cheap 3D value noise for the runtime layer (its features are large: decimetres to metres)
-float msVN(vec3 p){ return mgValue3(p) * 2.0 - 1.0; }
+// the runtime layer's noise: four independent tileable fractal channels in one small texture (noiseTexture()), read
+// in a plane across the world's diagonal (no axis-aligned face sees it edge-on): a few taps instead of hashing
+uniform sampler2D msNoiseT;
+vec2 msNQ(vec3 p){ return vec2(dot(p, vec3(0.7071, 0.0, -0.7071)), dot(p, vec3(-0.4082, 0.8165, -0.4082))); }
+vec4 msN4(vec3 p, float f){ return texture(msNoiseT, msNQ(p) * (f * 0.125)) * 2.0 - 1.0; }
 void msFinish(inout MsS s, vec3 wp, vec3 wn, float fpw){
-  float v1 = 0.0, v2 = 0.0;
-  if (msW.w > 0.0 || msW.y > 0.0) {
-    v1 = 0.65 * msVN(wp * 0.23 + msX.y) + 0.35 * msVN(wp * 0.61 + 3.7);
-    v2 = msVN(wp * 1.7 + 3.1 + msX.y);
-  }
+  vec4 n1 = msN4(wp + msX.y, 0.23), n2 = msN4(wp + 3.1, 1.7);
+  float v1 = 0.65 * n1.r + 0.35 * n1.g, v2 = n2.b;
   if (msW.w > 0.0) {   // macro variation: hides the tile
-    s.a *= max(1.0 + msW.w * (0.24 * v1 + 0.08 * v2), 0.2);
-    s.r = clamp(s.r + msW.w * 0.05 * v1, 0.02, 1.0);
+    s.a *= max(1.0 + msW.w * (0.3 * v1 + 0.1 * v2), 0.2);
+    s.r = clamp(s.r + msW.w * 0.06 * v1, 0.02, 1.0);
   }
   if (msW.y > 0.0) {   // dirt: in the cavities, at the foot, on top faces; run-off streaks down walls with age
     float up = clamp(wn.y, 0.0, 1.0), wall = 1.0 - abs(wn.y);
     float foot = 1.0 - smoothstep(0.0, 0.45 + 0.4 * (v1 * 0.5 + 0.5), wp.y - msG.w);
     float cav = clamp((0.5 - s.h) * 2.2, 0.0, 1.0);
-    float d = msW.y * clamp(0.6 * cav * (0.7 + 0.3 * v2) + 0.55 * foot + 0.3 * up * smoothstep(-0.2, 0.6, v2), 0.0, 1.0);
-    if (wall > 0.05 && msW.x > 0.0) {
-      float st = 0.6 * msVN(wp * vec3(2.4, 0.16, 2.4) + 7.0) + 0.4 * msVN(wp * vec3(6.1, 0.4, 6.1) + 2.0);
-      d = clamp(d + 0.45 * msW.x * msW.y * smoothstep(-0.1, 0.6, st) * wall, 0.0, 1.0);
-    }
+    float d = msW.y * clamp(0.6 * cav * (0.7 + 0.3 * v2) + 0.55 * foot + 0.3 * up * smoothstep(-0.2, 0.6, n2.a), 0.0, 1.0);
+    vec3 T = vec3(-wn.z, 0.0, wn.x); float tl = length(T); T = tl > 1e-3 ? T / tl : vec3(1.0, 0.0, 0.0);
+    vec4 sn = texture(msNoiseT, vec2(dot(wp, T) * 0.3, wp.y * 0.02 + msX.y));
+    float st = sn.r * 0.6 + sn.g * 0.4;
+    d = clamp(d + 0.5 * msW.x * msW.y * smoothstep(0.45, 0.8, st) * wall, 0.0, 1.0);
     s.a = mix(s.a, msG.rgb * (0.85 + 0.3 * (v2 * 0.5 + 0.5)), d * 0.8);
     s.r = mix(s.r, 0.9, d * 0.75);
     s.m *= 1.0 - d;
   }
   if (msF.y >= 0.0 && msW.z > 0.0 && msEdgeK > 0.02) {   // edge wear, broken into chips
     float cs = msF.z;
-    float cn = 0.5 + 0.5 * (0.7 * msVN(wp / cs) + 0.3 * msVN(wp / (cs * 0.4) + 4.0));
-    cn = mix(0.5, cn, clamp(cs / (3.0 * fpw) - 0.5, 0.0, 1.0));
+    vec2 cq = msNQ(wp) / cs * 0.125;
+    float lod = log2(max(fpw / cs * 32.0, 1.0));
+    vec4 cnv = textureLod(msNoiseT, cq, lod);
+    float cn = 0.7 * cnv.r + 0.3 * cnv.a;
     float e = clamp(msEdgeK * msW.z * 1.6, 0.0, 1.0);
-    float ex = smoothstep(0.52, 0.56, e * 0.5 + (cn - 0.5) * 1.3 + 0.18);
+    float ex = smoothstep(0.52, 0.56, e * 0.5 + (cn - 0.5) * 1.6 + 0.18);
     if (msF.y < 0.5) { s.a = mix(s.a, msE.rgb, ex); s.m = mix(s.m, msF.x, ex); }
     else s.a = mix(s.a, s.a * msE.rgb, ex);
     s.r = mix(s.r, msE.a, ex);
@@ -457,6 +459,31 @@ void msFinish(inout MsS s, vec3 wp, vec3 wn, float fpw){
   }
 }
 `;
+
+// four tileable fractal value-noise channels (256 x 256, eight base cells per tile), made once in JS (deterministic)
+let NOISE_TEX = null;
+/** The runtime layer's shared noise texture (RGBA8, 256 x 256, repeat, mipmapped; four independent channels). */
+export function noiseTexture() {
+  if (NOISE_TEX) return NOISE_TEX;
+  const N = 256, data = new Uint8Array(N * N * 4);
+  const hash = (x, y, c) => { let h = Math.imul(x * 374761393 + y * 668265263 + c * 2147483647, 1274126177); h = Math.imul(h ^ (h >>> 13), 1103515245); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+  const fade = (t) => t * t * t * (t * (t * 6 - 15) + 10);
+  const val = (x, y, P, c) => {
+    const xi = Math.floor(x), yi = Math.floor(y), fx = fade(x - xi), fy = fade(y - yi);
+    const h = (i, j) => hash(((xi + i) % P + P) % P, ((yi + j) % P + P) % P, c);
+    return (h(0, 0) * (1 - fx) + h(1, 0) * fx) * (1 - fy) + (h(0, 1) * (1 - fx) + h(1, 1) * fx) * fy;
+  };
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) for (let c = 0; c < 4; c++) {
+    let s = 0, a = 0.5, tot = 0;
+    for (let o = 0, P = 8; o < 5; o++, P *= 2, a *= 0.5) { s += a * val(x / N * P + c * 0.37, y / N * P + c * 0.71, P, c * 7 + o); tot += a; }
+    const v = (s / tot - 0.5) * 1.9 + 0.5;   // contrast back what the octaves average away
+    data[4 * (y * N + x) + c] = Math.max(0, Math.min(255, Math.round(v * 255)));
+  }
+  const t = new THREE.DataTexture(data, N, N, THREE.RGBAFormat, THREE.UnsignedByteType);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.minFilter = THREE.LinearMipmapLinearFilter; t.magFilter = THREE.LinearFilter;
+  t.generateMipmaps = true; t.needsUpdate = true; t.name = 'surface-noise';
+  return (NOISE_TEX = t);
+}
 
 // decals placed by rules (DECAL_GLSL): only with options.decals (a define; uniforms msDa, msDb)
 const DECAL_GLSL = /* glsl */ `
@@ -550,7 +577,7 @@ export function surfaceHooks(spec, options = {}) {
   const G = [...U.G]; G[3] = +(o.ground ?? 0);
   const uniforms = {
     msX: { value: v4(U.X) }, msY: { value: v4(Y) }, msW: { value: v4(U.W) }, msA: { value: v4(U.A) }, msB: { value: v4(U.B) }, msC: { value: v4(U.C) },
-    msD: { value: v4(U.D) }, msE: { value: v4(U.E) }, msF: { value: v4(F) }, msG: { value: v4(G) }, msGrainV: { value: grainVec }, msUVScale: { value: +(o.uvScale ?? 1) },
+    msD: { value: v4(U.D) }, msE: { value: v4(U.E) }, msF: { value: v4(F) }, msG: { value: v4(G) }, msGrainV: { value: grainVec }, msUVScale: { value: +(o.uvScale ?? 1) }, msNoiseT: { value: noiseTexture() },
   };
   const mapIdx = { tri: 0, wall: 1, ground: 2, grain: 3, uv: 4 }[o.mapping];
   const objectSpace = o.space === 'object';
@@ -565,15 +592,22 @@ uniform sampler2D msTC; uniform sampler2D msTN;
 void msTap(vec2 uv, vec2 gx, vec2 gy, out vec4 c, out vec4 n){
   vec2 t = uv / msT, tx = gx / msT, ty = gy / msT;
   if (msF.w > 0.5) {
-    float v = mgValue2(t * 0.37 + msSeed) * 6.0, i = floor(v), f = fract(v);
+    // patches of ~3 tiles pick one of six offsets (whole pattern modules); neighbours cross-fade, the seam steered by
+    // the two heights; where one offset rules alone (most pixels) only its two taps are read
+    float v = textureGrad(msNoiseT, t * 0.046 + msSeed * 0.013, tx * 0.046, ty * 0.046).r * 6.0, i = floor(v), f = fract(v);
     vec2 oa = mgHash3(vec3(i, 7.0, msSeed)).xy * 17.0, ob = mgHash3(vec3(i + 1.0, 7.0, msSeed)).xy * 17.0;
     vec2 q = msY.zw / msT;
     oa = vec2(q.x > 0.0 ? floor(oa.x / q.x) * q.x : oa.x, q.y > 0.0 ? floor(oa.y / q.y) * q.y : oa.y);
     ob = vec2(q.x > 0.0 ? floor(ob.x / q.x) * q.x : ob.x, q.y > 0.0 ? floor(ob.y / q.y) * q.y : ob.y);
-    vec4 na = textureGrad(msTN, t + oa, tx, ty), nb = textureGrad(msTN, t + ob, tx, ty);
-    float w = smoothstep(0.35, 0.65, f + 0.5 * (nb.b - na.b));
-    c = mix(textureGrad(msTC, t + oa, tx, ty), textureGrad(msTC, t + ob, tx, ty), w);
-    n = mix(na, nb, w);
+    float w0 = smoothstep(0.25, 0.75, f);
+    if (w0 <= 0.0) { c = textureGrad(msTC, t + oa, tx, ty); n = textureGrad(msTN, t + oa, tx, ty); }
+    else if (w0 >= 1.0) { c = textureGrad(msTC, t + ob, tx, ty); n = textureGrad(msTN, t + ob, tx, ty); }
+    else {
+      vec4 na = textureGrad(msTN, t + oa, tx, ty), nb = textureGrad(msTN, t + ob, tx, ty);
+      float w = smoothstep(0.25, 0.75, f + 0.5 * (nb.b - na.b));
+      c = mix(textureGrad(msTC, t + oa, tx, ty), textureGrad(msTC, t + ob, tx, ty), w);
+      n = mix(na, nb, w);
+    }
   } else { c = textureGrad(msTC, t, tx, ty); n = textureGrad(msTN, t, tx, ty); }
 }`;
   }
@@ -624,7 +658,7 @@ void msTap(vec2 uv, vec2 gx, vec2 gy, out vec4 c, out vec4 n){
     metalness: 'metalnessFactor = msM;',
     normal: baked
       ? 'if (dot(msNWo, msNWo) > 0.0) { vec3 wn = normalize(mgWorldNormal); normal = normalize(normal + (viewMatrix * vec4(normalize(msNWo) - wn, 0.0)).xyz); }'
-      : `normal = mgBump(normal, msH * ${fmt(spec.depth)}, 1.0);`,
+      : 'normal = mgBump(normal, msH * msY.y, 1.0);',
     uniforms,
     vertexDecl: 'varying vec2 msUVraw;' + (objectSpace ? ' varying vec3 msOP; varying vec3 msON;' : '') + (o.edges === 'attribute' ? ' attribute float edge; varying float msEdgeV;' : ''),
     vertexWorld: 'msUVraw = uv;' + (objectSpace ? ` msOP = mgW4.xyz * vec3(length(modelMatrix[0].xyz), length(modelMatrix[1].xyz), length(modelMatrix[2].xyz));

@@ -53,6 +53,8 @@
     "./sky-time": { "types": "./src/sky-time.d.ts", "default": "./src/sky-time.js" },
     "./softshadow": { "types": "./src/softshadow.d.ts", "default": "./src/softshadow.js" },
     "./stars": { "types": "./src/stars.d.ts", "default": "./src/stars.js" },
+    "./surface-glsl": { "types": "./src/surface-glsl.d.ts", "default": "./src/surface-glsl.js" },
+    "./surfaces": { "types": "./src/surfaces.d.ts", "default": "./src/surfaces.js" },
     "./stream": { "types": "./src/stream.d.ts", "default": "./src/stream.js" },
     "./textures": { "types": "./src/textures.d.ts", "default": "./src/textures.js" },
     "./vfx": { "types": "./src/vfx.d.ts", "default": "./src/vfx.js" },
@@ -75,7 +77,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "node check.mjs && node wet.check.mjs && node lamppool.check.mjs && node assets.check.mjs && node postfx.check.mjs && node bigworld.check.mjs && node platform.check.mjs"
+    "test": "node check.mjs && node wet.check.mjs && node surfaces.check.mjs && node lamppool.check.mjs && node assets.check.mjs && node postfx.check.mjs && node bigworld.check.mjs && node platform.check.mjs"
   },
   "author": "灰叔 Racso",
   "types": "./src/index.d.ts"

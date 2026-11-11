@@ -125,7 +125,9 @@ MsS ms_concrete(vec2 u){
   // fine aggregate showing in the laitance: grains 1.5..5 mm of their own tone
   vec4 ag = msCell(u + 5.1, 160.0, 1.0);
   float agg = msD.x * (1.0 - smoothstep(0.18, 0.34, ag.x)) * step(0.45, ag.z) * msLod(0.005);
-  vec3 col = base * (0.9 + 0.12 * m1 + 0.08 * m2 + 0.07 * sand);
+  // cloudy laitance: soft darker and paler clouds 10..60 cm, a faint warm / cool drift between them
+  float cl = msFbm(u + 6.1, 2.6, 4);
+  vec3 col = base * (0.88 + 0.16 * m1 + 0.12 * cl + 0.08 * m2 + 0.07 * sand) * mix(vec3(1.0), vec3(1.03, 1.0, 0.95), 0.5 + 0.5 * m1);
   col = mix(col, base * (0.62 + 0.75 * ag.w) * vec3(1.05, 1.0, 0.93), agg * 0.75);
   col *= 1.0 + 0.1 * prim;
   float h = 0.6 + 0.07 * m2 + 0.05 * sand + 0.04 * agg - 0.5 * pore;
