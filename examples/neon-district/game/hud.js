@@ -122,6 +122,7 @@ export function createHud({ camera, onDispose, T }) {
         <label>${T.opt.time}<span><input type="range" data-k="hour" min="0" max="23.75" step="0.25" value="${hourValue(o.values.hour)}"><output>${hourText(hourValue(o.values.hour))}</output></span></label>
         <label>${T.opt.invert}<button data-b="invert">${o.values.invert ? T.opt.on : T.opt.off}</button></label>
         <label>${T.opt.full}<button data-b="full">${document.fullscreenElement ? T.opt.on : T.opt.off}</button></label>
+        <label>${T.opt.pops}<button data-b="pops">${o.values.pops === false ? T.opt.off : T.opt.on}</button></label>
         <label>${T.opt.lang}<button data-b="lang">${o.values.lang === 'zh' ? '繁體中文' : 'English'}</button></label>
         <label><span></span><button data-b="close">${T.opt.close}</button></label><p>${T.opt.hint}</p>`;
       root.appendChild(opt);
@@ -135,6 +136,7 @@ export function createHud({ camera, onDispose, T }) {
         else if (k === 'invert') { o.values.invert = !o.values.invert; b.textContent = o.values.invert ? T.opt.on : T.opt.off; o.onChange('invert', o.values.invert); }
         else if (k === 'full') { const p = document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.(); Promise.resolve(p).catch(() => {}).then(() => { b.textContent = document.fullscreenElement ? T.opt.on : T.opt.off; }); }
         else if (k === 'lang') o.onLang();
+        else if (k === 'pops') { o.values.pops = o.values.pops === false; b.textContent = o.values.pops ? T.opt.on : T.opt.off; o.onChange('pops', o.values.pops); }
       }); }
       opt.querySelector('input').focus();
       return true;

@@ -1,6 +1,6 @@
 {
  "title": "neon-district: the alley to the roof",
- "query": "start=1&grain=0&assist=1&quality=medium&lang=en",
+ "query": "start=1&grain=0&assist=1&quality=medium&lang=en&reserve=0",
  "w": 1280,
  "h": 720,
  "steps": [
@@ -12,6 +12,15 @@
     "onGround": "== true",
     "paused": "== false",
     "y": "~ 0.02 0.05"
+   }
+  },
+  {
+   "name": "ammo-marker-when-low",
+   "ms": 400,
+   "shot": false,
+   "expect": {
+    "flags.ammoLow": "== true",
+    "flags.ammoTarget": "== crate-alley"
    }
   },
   {
@@ -68,6 +77,42 @@
    "ms": 2000,
    "expect": {
     "flags.reloads": "== 1"
+   },
+   "shot": false
+  },
+  {
+   "name": "a-cell-after-the-kill",
+   "ms": 200,
+   "shot": false,
+   "expect": {
+    "flags.drops": ">= 1"
+   }
+  },
+  {
+   "name": "take-the-cell",
+   "lookAt": "lastcell",
+   "keys": [
+    "KeyW"
+   ],
+   "ms": 3500,
+   "expect": {
+    "flags.cellsTaken": ">= 1"
+   }
+  },
+  {
+   "name": "take-the-crate",
+   "walkTo": [
+    [
+     -21.2,
+     25.5
+    ],
+    [
+     -20.75,
+     27.2
+    ]
+   ],
+   "expect": {
+    "flags.cratesTaken": ">= 1"
    },
    "shot": false
   },
@@ -132,6 +177,50 @@
     "x": "> -15.5"
    },
    "shot": false
+  },
+  {
+   "name": "taught-at-the-first-fight",
+   "ms": 100,
+   "shot": false,
+   "expect": {
+    "flags.taught": "== true"
+   }
+  },
+  {
+   "name": "hack-the-street-lamp",
+   "lookAt": [
+    -17,
+    5.0,
+    7.85
+   ],
+   "keys": [
+    "KeyG"
+   ],
+   "ms": 1300,
+   "expect": {
+    "flags.hackLights": ">= 1",
+    "flags.darkNow": ">= 1"
+   }
+  },
+  {
+   "name": "hack-the-kite",
+   "lookAt": "d0",
+   "keys": [
+    "KeyG"
+   ],
+   "ms": 1500,
+   "expect": {
+    "flags.kitesTurned": ">= 1"
+   },
+   "shot": false
+  },
+  {
+   "name": "the-kite-at-work",
+   "lookAt": "d0",
+   "ms": 4000,
+   "expect": {
+    "flags.kiteHits": ">= 1"
+   }
   },
   {
    "name": "fire-at-g2-1",
@@ -258,6 +347,29 @@
    }
   },
   {
+   "name": "dash",
+   "place": {
+    "eye": [
+     0,
+     1.62,
+     6.2
+    ],
+    "look": [
+     -10,
+     1.62,
+     6.2
+    ],
+    "mode": "walk"
+   },
+   "tap": "Digit1",
+   "ms": 700,
+   "expect": {
+    "flags.dashes": ">= 1",
+    "dist": "> 3.5"
+   },
+   "shot": false
+  },
+  {
    "name": "bar-window-blocks",
    "place": {
     "eye": [
@@ -359,6 +471,14 @@
     "inventory": "has pass"
    },
    "shot": false
+  },
+  {
+   "name": "the-crate-refilled",
+   "ms": 100,
+   "shot": false,
+   "expect": {
+    "flags.crateRefills": ">= 1"
+   }
   },
   {
    "name": "to-the-plaza",
@@ -557,6 +677,24 @@
    "ms": 1800,
    "expect": {
     "flags.doorOpen": "== true"
+   }
+  },
+  {
+   "name": "emp-grenade",
+   "lookAt": "g9",
+   "tap": "Digit2",
+   "ms": 1800,
+   "expect": {
+    "flags.emps": ">= 1"
+   }
+  },
+  {
+   "name": "overdrive",
+   "tap": "Digit3",
+   "ms": 600,
+   "expect": {
+    "flags.overdrives": ">= 1",
+    "flags.marked": ">= 1"
    }
   },
   {

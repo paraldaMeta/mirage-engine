@@ -130,6 +130,11 @@ export default {
     { id: 'g8', at: [15, KERB, -17], face: 1.57, zone: 'plaza' },
     { id: 'g9', at: [10, FLOOR, -26], face: 1.57, zone: 'relay' },
     { id: 'g10', at: [19, FLOOR, -24], face: 3.14, zone: 'relay', kind: 'heavy' },
+    // the jobs (enemies.js): a shield sentinel by the amber car, a marksman on the relay's roof over the plaza, a
+    // shield sentinel in the server room
+    { id: 'g11', at: [3.5, 0, 7], face: -1.57, zone: 'street', kind: 'shield' },
+    { id: 'g12', at: [17.5, ROOF, -20.8], face: 0, zone: 'plaza', kind: 'marksman' },
+    { id: 'g13', at: [11, FLOOR, -27.6], face: 0, zone: 'relay', kind: 'shield' },
     // the last wave: they come up the stairs once the uplink runs
     { id: 'w0', at: [24.5, FLOOR, -22], face: 0, zone: 'wave' },
     { id: 'w1', at: [20, FLOOR, -26], face: 0, zone: 'wave' },
@@ -139,6 +144,7 @@ export default {
   drones: [
     { id: 'd0', at: [-4, 5.2, 6], zone: 'street' }, { id: 'd1', at: [19, 6.4, -3], zone: 'plaza' }, { id: 'd2', at: [25, 6, -15], zone: 'plaza' },
     { id: 'd3', at: [13, 10.5, -17], zone: 'wave' }, { id: 'd4', at: [19, 11, -16], zone: 'wave' },
+    { id: 'd5', at: [22, 6.5, -6], zone: 'plaza', kind: 'mender' },
   ],
   pickups: [
     { id: 'ammo0', kind: 'ammo', at: [-23.3, 0, 19.5] }, { id: 'med0', kind: 'med', at: [-27, KERB, 9.2] },
@@ -147,6 +153,21 @@ export default {
     { id: 'ammo3', kind: 'ammo', at: [7.2, FLOOR, -29] }, { id: 'med3', kind: 'med', at: [21.5, FLOOR, -29] },
     { id: 'ammo4', kind: 'ammo', at: [7.5, ROOF, -21.2] }, { id: 'med4', kind: 'med', at: [22, ROOF, -29] },
   ],
+  // ammunition crates (ammo.js): they refill 30 s after they are emptied; a light and a holo glyph over each
+  crates: [
+    { id: 'crate-alley', at: [-20.7, 0, 27.2] }, { id: 'crate-street', at: [-7.6, KERB, 9.35] }, { id: 'crate-plaza', at: [29, KERB, -8] },
+    { id: 'crate-relay', at: [21.6, FLOOR, -26.8] }, { id: 'crate-roof', at: [10.4, ROOF, -21.2] },
+  ],
+  // hack.js: breaker boxes that put a whole room or stretch out (every street lamp is also a light hack, every low
+  // sign an overload, every vent a steam cloud, every parked car an alarm). at: the box on the wall; face: its normal
+  hack: {
+    breakers: [
+      { id: 'alley', at: [-23.86, 1.5, 21], face: [1, 0, 0], rect: [-24, 10, -20, 32], y: [-1, 9] },
+      { id: 'bar', at: [-21.56, FLOOR + 1.5, -2], face: [1, 0, 0], rect: [-22, -9, -10, 2], y: [-1, 3.6] },
+      { id: 'relay', at: [6.56, FLOOR + 1.5, -23], face: [1, 0, 0], rect: [6, -30, 23, -20], y: [-1, 3.8] },
+      { id: 'roof', at: [23.24, ROOF + 1.4, -25], face: [-1, 0, 0], rect: [6, -30, 30, -20], y: [5, 12] },
+    ],
+  },
   checkpoints: [   // boxes [[min], [max]] the player crosses; the game saves there
     { id: 'street', box: [[-24, -1, 8], [-20, 4, 10.5]] },
     { id: 'plaza', box: [[4.5, -1, 2], [7.5, 4, 10]] },

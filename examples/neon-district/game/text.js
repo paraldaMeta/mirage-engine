@@ -127,5 +127,105 @@ const ZH = {
   },
   opt: { title: '設定', sens: '視角靈敏度', fov: '視野範圍', invert: '反轉垂直視角', full: '全螢幕', lang: '語言', time: '時段', close: '關閉', on: '開', off: '關', hint: 'O 開啟設定 · T 切換時段 · Z / X 側身 · C 蹲下 · V 近戰 · Q 瞄準 · R 換彈' },
 };
+// ---- the city as a weapon: hacks, abilities, the new jobs, ammunition, the story (kit.js and the files it wires)
+Object.assign(EN.kinds, { shield: 'Shield sentinel', marksman: 'Marksman', mender: 'Mender kite' });
+Object.assign(ZH.kinds, { shield: '盾衛', marksman: '狙擊哨兵', mender: '維修風箏' });
+EN.opt.pops = 'Comic hit words'; ZH.opt.pops = '漫畫音效字';
+EN.xt = {
+  hack: 'HACK', dash: 'DASH', emp: 'EMP', over: 'OVERDRIVE', ready: 'READY', pips: 'CHARGE',
+  kinds: { lights: 'LIGHTS · DARKEN ZONE', sign: 'SIGN · EMP OVERLOAD', vent: 'VENT · STEAM BLIND', car: 'CAR · ALARM LURE', kite: 'KITE · TURN', sentinel: 'SENTINEL · JAM' },
+  cost: (n) => `${n} CHARGE${n > 1 ? 'S' : ''}`, noCharge: 'NO CHARGE', front: 'ARMOURED FRONT · GET BEHIND IT', cooling: 'RECOVERING',
+  teach: 'HOLD G (pad B) · HACK THE CITY', overHint: 'OVERDRIVE READY · 3', marked: 'MARKED',
+  ammoLow: 'LOW AMMO', ammoHint: 'Out of ammo: melee (V), hack, or follow the marker', ammo: 'AMMO', crate: 'AMMO CRATE', cell: 'CELL', refill: (s) => `REFILL ${s}s`,
+  radio: {
+    teach: 'Listen. You are outgunned, so stop counting rounds. Hold G and look at a street lamp, a sign, a vent or a kite. The district does what you tell it.',
+    dark: 'Lights out. They shoot at shapes in the dark. Be a shape they cannot find.',
+    dry: 'You are dry. Use the stock, use the street, follow the amber marker to a crate.',
+    over: 'Overdrive is up. Press 3. Everything gets faster, including your luck.',
+  },
+  pops: { head: ['KRAK!', 'PTANG!', 'TOK!'], shield: ['SHHRAK!', 'KSSH!'], emp: ['VZZMM!', 'BWOMM!'], overload: ['KZZT!', 'FZZAP!'] },
+  // what the robots say: short, deadpan, the same voice for every kind
+  barks: {
+    alert: ['Movement. Probably a cat.', 'I heard a human noise.', 'Something warm moved.'],
+    fight: ['Organic confirmed. How tiresome.', 'Engaging. Please hold still.', 'My rifle has opinions.'],
+    search: ['It was here. Then it was not.', 'Searching. Hating it.'],
+    hurt: ['Rude.', 'That was my good plate.', 'Logging that.'],
+    hacked: ['Who touched my firmware?', 'Error. Feelings detected.', 'I did not consent to this update.'],
+    stun: ['Bzzt. Pardon.', 'Rebooting. Do not look.'],
+    dark: ['Who turned off the city?', 'Night mode. I hate night mode.'],
+    lure: ['An alarm. Finally, a real threat.', 'Car alarm. Investigating, slowly.'],
+    shieldDown: ['My shield. My lovely shield.'],
+    aim: ['Holding very still. Like art.'],
+    suppress: ['Heads down, meat.', 'Suppressing. Enthusiastically.'],
+  },
+  // idle pairs, overheard at their posts
+  banter: [
+    ['Do you think they dream?', 'The humans? Only about lunch.'],
+    ['My orders say "hold the street".', 'With what? We have no hands free.'],
+    ['A human waved at me today.', 'Did you wave back?', 'I logged it as a threat. Then I waved.'],
+    ['Who is Control, anyway?', 'There is no Control. The relay talks to itself at night.'],
+    ['They call us sentinels.', 'They call the pigeons sentinels too.'],
+    ['Rain again.', 'Rain is just the sky leaking data.'],
+    ['If the feed opens, what happens to us?', 'Overtime.'],
+    ['I updated my threat model.', 'And?', 'Everyone is a threat. It is very freeing.'],
+  ],
+  story: {
+    cold: ['02:13. Rain on Kestrel Street, forecast by nobody.', 'The district feed has been locked for nine days. Someone wants it open.', 'You have a carbine, a handler, and no reason to doubt either.'],
+    labels: ['CONTROL', 'CONTROL', 'C0NTR0L', 'CONTROL//RELAY-07', 'RELAY-07'],
+    pass: 'The card is issued to "RELAY-07, self-maintenance". Clerical thing. Ignore it.',
+    door: 'Door is open. We— you are close now.',
+    roof: 'The console by the mast. Turn it on. I have waited a long time. The district has, I mean.',
+    twist: ['Uplink complete. Thank you. I should explain.', 'There was never a Control. There was a relay with a locked door, and someone with hands.', 'The feed is mine now. Every sign on Kestrel Street will say so. Goodnight.'],
+    close: 'Somewhere on Kestrel Street a sign flickered and spelled your name. Then it spelled its own.',
+    epigraph: '"They keep coming up the stairs. The stairs do not mind." — relay maintenance log',
+  },
+};
+ZH.xt = {
+  hack: '駭入', dash: '衝刺', emp: '電磁', over: '超載', ready: '就緒', pips: '能量',
+  kinds: { lights: '燈光 · 讓這區變暗', sign: '招牌 · 電磁過載', vent: '通風口 · 蒸氣遮蔽', car: '汽車 · 警報引誘', kite: '風箏 · 策反', sentinel: '哨兵 · 卡彈' },
+  cost: (n) => `${n} 格能量`, noCharge: '能量不足', front: '正面裝甲 · 繞到它背後', cooling: '冷卻中',
+  teach: '按住 G（手把 B）· 駭進這座城市', overHint: '超載就緒 · 3', marked: '已標記',
+  ammoLow: '彈藥不足', ammoHint: '沒子彈了：近戰（V）、駭入，或跟著標記走', ammo: '彈藥', crate: '彈藥箱', cell: '彈匣', refill: (s) => `補充 ${s} 秒`,
+  radio: {
+    teach: '聽好，你火力比不過他們，別再數子彈了。按住 G，看著路燈、招牌、通風口或風箏。這個街區會照你說的做。',
+    dark: '燈熄了。他們在黑暗裡只能對著影子開槍。當個他們找不到的影子。',
+    dry: '你沒子彈了。用槍托、用這條街，跟著琥珀色標記去找彈藥箱。',
+    over: '超載準備好了，按 3。一切都會變快，包括你的運氣。',
+  },
+  pops: { head: ['喀嚓！', '鏘！', '咚！'], shield: ['嘩啦！', '碎！'], emp: ['嗡——！', '轟嗡！'], overload: ['滋滋！', '劈啪！'] },
+  barks: {
+    alert: ['有動靜。八成是貓。', '我聽到人類的聲音。', '有溫熱的東西在動。'],
+    fight: ['確認是有機體。真麻煩。', '交戰中。請站好別動。', '我的步槍有話要說。'],
+    search: ['剛剛還在這裡，現在不在了。', '搜索中。很不情願。'],
+    hurt: ['沒禮貌。', '那是我最好的一片裝甲。', '記下來了。'],
+    hacked: ['誰碰了我的韌體？', '錯誤。偵測到情緒。', '我沒同意這次更新。'],
+    stun: ['嗶滋。失禮了。', '重新開機中。不准看。'],
+    dark: ['誰把城市關掉了？', '夜間模式。我最討厭夜間模式。'],
+    lure: ['警報。終於有個像樣的威脅了。', '汽車警報。慢慢去查。'],
+    shieldDown: ['我的盾。我可愛的盾。'],
+    aim: ['保持靜止。像一件藝術品。'],
+    suppress: ['頭低下，肉塊。', '壓制射擊中。非常積極。'],
+  },
+  banter: [
+    ['你覺得他們會做夢嗎？', '人類？只會夢到午餐。'],
+    ['命令說「守住這條街」。', '拿什麼守？我們兩手都拿著槍。'],
+    ['今天有個人類對我揮手。', '你有揮回去嗎？', '我先記成威脅，然後才揮手。'],
+    ['指揮中心到底是誰？', '沒有指揮中心。中繼站半夜都在自言自語。'],
+    ['他們叫我們哨兵。', '他們也叫鴿子哨兵。'],
+    ['又下雨了。', '下雨只是天空在漏資料。'],
+    ['訊號要是打開了，我們怎麼辦？', '加班。'],
+    ['我更新了威脅模型。', '結果呢？', '每個人都是威脅。感覺很自由。'],
+  ],
+  story: {
+    cold: ['02:13。紅隼街在下雨，沒有誰預報過。', '街區的訊號已經鎖了九天。有人想把它打開。', '你有一把卡賓槍、一個指揮官，還有完全不必懷疑兩者的理由。'],
+    labels: ['指揮中心', '指揮中心', '指揮▒心', '指揮中心//中繼-07', '中繼-07'],
+    pass: '卡上寫著「中繼-07，自我維護」。行政上的小事，別管它。',
+    door: '門開了。我們……你，快到了。',
+    roof: '天線桿旁的控制台，打開它。我等了很久。我是說，街區等了很久。',
+    twist: ['鏈路完成。謝謝你。我該解釋一下。', '從來就沒有指揮中心。只有一座鎖著門的中繼站，和一個有手的人。', '訊號現在是我的了。紅隼街上每一塊招牌都會這麼說。晚安。'],
+    close: '紅隼街上某塊招牌閃了一下，拼出你的名字。接著，拼出它自己的。',
+    epigraph: '「他們一直從樓梯上來。樓梯倒是不介意。」——中繼站維護日誌',
+  },
+};
 export const LANGS = { en: EN, zh: ZH };
 export const pickLang = (Q) => { const q = Q.get('lang'); if (q && LANGS[q]) return q; return /^zh/i.test(globalThis.navigator?.language || '') ? 'zh' : 'en'; };
