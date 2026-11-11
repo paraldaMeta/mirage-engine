@@ -174,7 +174,9 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
     targets.noise(player.feet, A.id === 'shotgun' || A.id === 'rocket' ? 34 : 26);
     // recoil: a climb that rises through a burst, the gun's side pattern, a little noise; most of it comes back
     const P = A.recoil, k = (1 - 0.35 * S.ads) * (S.boost ? 0.85 : 1);
-    const climb = P.climb * (1 + Math.min(n, 10) * P.ramp) * k, side = (P.side[n % P.side.length] * P.climb * 0.7 + (R() - 0.5) * P.rand) * k;
+    // (the climb a burst has piled up is capped: without that a long burst, the gatling's above all, walked the view
+    // up to the vertical and pinned it there for as long as the trigger was held)
+    const climb = Math.min(P.climb * (1 + Math.min(n, 10) * P.ramp) * k, Math.max(0, (P.cap ?? 0.2) - S.debtP)), side = (P.side[n % P.side.length] * P.climb * 0.7 + (R() - 0.5) * P.rand) * k;
     play.pitch = Math.min(1.45, play.pitch + climb); play.yaw += side; S.debtP += climb; S.debtY += side;
     S.kick = Math.min(1.6, S.kick + 1); S.roll = Math.min(1.5, S.roll + 1); S.rollSign = R() < 0.5 ? -1 : 1; S.fovPunch = Math.min(P.fov * 1.6, S.fovPunch + P.fov);
     S.bloom = Math.min(A.spread.max, S.bloom + A.spread.bloom); S.flashT = 0.04;
