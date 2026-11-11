@@ -8,8 +8,9 @@ then holds the modules' own sections (the convention of `docs/world-protocol.md`
 ```
 npm run dev -w neon-district            # http://localhost:5194
 npm run build -w neon-district && npm run playtest -w neon-district     # the whole route, headless
+npm run playtest:holdout -w neon-district                               # the holdout's first waves, headless
 node examples/neon-district/scripts/measure.mjs --ab                   # frame time per quality and per feature
-node examples/neon-district/scripts/controls-check.mjs                 # gamepad and touch, with real events
+node examples/neon-district/scripts/controls-check.mjs                 # title, holdout, keys, gamepad and touch, with real events
 node examples/neon-district/scripts/gameshots.mjs                      # frames of the running game, a contact sheet
 ```
 
@@ -59,21 +60,46 @@ the first click. Nothing was taken from another project.
 | sentinels: seeing | `createSenses` (sight cones the walk grid occludes) | `game/enemies.js` |
 | kites (flying drones) | the walk grid as a volume: `airAt` to stay out of solids, `gridRay` for a line of fire | `game/drones.js` |
 | sentinels: bodies | `createRigModel` + `createAnimator`: a speed blend, a masked aim layer, an additive flinch, a fall | `game/enemies.js` |
+| the title screen | the camera on a closed Catmull-Rom spline through six of the plan's viewpoints (the orbit camera, so the scene clock is not reset), the game paused behind it; replaces the overlay's start card | `game/title.js` |
 | HUD and menus | `@miragekit/game`'s overlay (objective, prompts, toasts, pause menu, save slots, rebinding, touch stick) plus the example's own HUD | `game/hud.js` |
 | sound | the mixer's buses and 3D placement, the engine's own pickup / door / chime, the example's synthesised set; the audio engine's reverb zones from `plan.audio.zones` (the bar, the relay, the open street) | `game/sfx.js`, `game/index.js` |
 | lightning | `vfx.beam` with `jitter` and `branches`, one clustered lamp 110 m up for the flash | `game/index.js` |
 | two languages | English and Traditional Chinese for everything the game itself shows (`?lang=`) | `game/text.js` |
-| the test | a `mirage-playtest` scenario that plays the route | `scenarios/playtest.json` |
+| the test | `mirage-playtest` scenarios: the route, and the holdout's first waves | `scenarios/playtest.json`, `scenarios/holdout.json` |
 
 ## Controls
 
 | | keyboard / mouse | gamepad | touch |
 |---|---|---|---|
+| the title: choose, change, select | ↑ ↓ / Tab / W S, ← → / A D, Enter or Space (O: options) | d-pad or left stick, A (Start deploys, B closes the options) | tap a row or its arrows |
 | move, look | WASD, mouse (click captures the pointer) | left stick, right stick | stick bottom-left, drag elsewhere |
 | fire, aim, reload | left button (or F), right button (or Q), R | right trigger, left trigger, right bumper | FIRE (hold), AIM (toggle), RLD |
 | strike, lean, crouch | V, Z / X (hold), C | right stick click, none, none | none |
 | options (sensitivity, field of view, inverted look, full screen, language) | O | none | the options button |
 | run, jump, use, menu | Shift, Space, E, Esc | LB, A, X, Start | push the stick past its rim, Jump, Use, ☰ |
+
+## Modes and difficulty
+
+The game opens on a title: the camera flies a slow loop through the district (street west, the bar's front, the
+plaza, the monument, the roof vista, street east) while the game waits paused, the HUD and the view model hidden.
+Its menu picks, before DEPLOY:
+
+- **Mode.** MISSION is the route from the alley to the relay roof. HOLDOUT starts on the relay roof with the uplink
+  already running: endless waves, sentinels from the stair foot and the relay room, kites out of the air over the
+  plaza. Wave *n* brings 2 + *n* sentinels (wardens from the third wave), 1 + (*n* - 1) / 2 kites, and 7 % more health a
+  wave; nine seconds between waves, a radio line at each, the roof's ammunition and med pack back after each. The
+  enemy and kite lists are fixed pools: a wave revives the dead (`enemies.revive`, `drones.revive`) rather than
+  building new rigs, so a wave is at most 14 sentinels and 5 kites. The HUD shows the wave and how many are left; a
+  death ends the run with an end card (waves survived, kills, accuracy, rating, the best wave at that difficulty,
+  kept in the settings) and goes back to the title. No checkpoints in the holdout.
+- **Difficulty.** STANDARD is the game as built; HARD and BRUTAL multiply the damage the player takes (1.4, 2), the
+  enemies' health (1.3, 1.6) and their accuracy (1.15, 1.35; the cap on a shot's chance rises with it). `?assist=1`
+  works on top of any of them.
+- **Time.** Night, dusk or day, through `setHour` (the options' slider gives any other hour).
+
+Mode, difficulty and the title's hour are kept with the player's settings (`game.settings.ndRun`), and shown on the
+HUD's tally and the end card. For tests, `?mode=holdout` and `?difficulty=hard|brutal` set them for one visit;
+`?start=1` skips the title and goes straight in with them.
 
 `?assist=1` is an easy mode (an eighth of the damage, health comes back in full, the reserve never runs dry); the playtest uses it, because its
 scripted player stands in the open and aims once per step.
@@ -184,6 +210,12 @@ code (Rapier's WASM is 2.2 MB of it); there are no assets.
     scenario takes screenshots on 13 of its 140 steps only.
 11. **Moving casters must be top-level scene objects** (`userData.mgDynamic`) for the lamp shadow tiles to follow
     them, so the sentinels are added to `world.scene`, not to the game's group.
+14. **The overlay's start card cannot be replaced, only hidden.** Any key, the pad's A or Start, or a tap starts the
+    game from it, and `startGame` has no option for a front end of the game's own. The title hides `.mg-start` with
+    CSS, holds the keys in a window capture listener registered in `setup` (before the overlay's own), swaps
+    `g.ui.update` (which starts the game on A) while it is up, and calls `g.ui.begin()` itself on DEPLOY.
+15. **No camera path for menus.** The title flies the camera in play's orbit mode, writing the camera's position and
+    `play.controls.target` each frame: `play.place` would rewind the scene clock and the particles on every frame.
 
 ---
 
