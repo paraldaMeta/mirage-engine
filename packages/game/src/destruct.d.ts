@@ -199,7 +199,9 @@ export interface DestructiblesOptions {
   /** What a blast behind solid world keeps (default 0). */
   occludedBlast?: number;
   floor?: number | ((x: number, y: number, z: number) => number);
-  colliders?: { min: V3; max: V3 }[] | 'sensor';
+  colliders?: { min: V3; max: V3 }[];
+  /** Also a Rapier sensor per prop (kit.ray with sensors: true finds them; d.fromCollider maps back). */
+  sensors?: boolean;
   materials?: Partial<Record<string, Partial<DestructMaterial>>>;
   effects?: Record<string, object>;
   onBlast?(e: object, d: Destructibles): void;

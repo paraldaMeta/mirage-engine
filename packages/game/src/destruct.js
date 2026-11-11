@@ -310,7 +310,7 @@ export function createDestructibles(target = {}, options = {}) {
     items.push(it); byId.set(id, it); seen.push(0);
     computeAabb(it); insert(it);
     if (spec.solid) makeSolid(it);
-    else if (options.colliders === 'sensor') makeSolid(it, true);
+    else if (options.sensors) makeSolid(it, true);
     stats.items = items.length;
     return it;
   }
@@ -871,7 +871,7 @@ export function createDestructibles(target = {}, options = {}) {
     return _na;
   }
   function collideMover(it) {
-    const m = it.mover, list = options.colliders;
+    const m = it.mover, list = Array.isArray(options.colliders) ? options.colliders : null;
     const push = (mn, mx) => {
       const r = Math.max(m.r, 0.02);
       if (m.p[0] + r < mn[0] || m.p[0] - r > mx[0] || m.p[1] + m.hh < mn[1] || m.p[1] - m.hh > mx[1] || m.p[2] + r < mn[2] || m.p[2] - r > mx[2]) return;
@@ -1105,7 +1105,7 @@ export function createDestructibles(target = {}, options = {}) {
       if (it.alarmLoop) { try { it.alarmLoop.src?.stop(); } catch { /* ended */ } it.alarmLoop = null; }
       const wasBroken = it.broken;
       it.broken = false; it.health = it.max; it.stage = 0; it.alarmed = false; it.flicker = 0; it.lastHit = null; it.fallen = false;
-      if (wasBroken && it.spec.solid && it.solidHandle < 0) makeSolid(it);
+      if (wasBroken && (it.spec.solid || options.sensors) && it.solidHandle < 0) makeSolid(it, !it.spec.solid);
     }
     debris.clear(); marks.clear(); brokenPools.clear(); layers.clear();
     tally.count = tally.value = tally.casualties = 0; tally.byClass = {}; tally.byTag = {};

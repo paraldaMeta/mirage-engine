@@ -20,6 +20,8 @@ Chinese; the dated ones are records of what was done and are not kept current.
 | [lighting.md](lighting.md) | cascaded shadows, probe GI, reflection probes, many lights |
 | [post.md](post.md) | temporal AA, upscaling, lens, motion blur, bloom, grade, offline output |
 | [physics.md](physics.md) | rigid bodies, joints, ragdolls, vehicles, buoyancy, snapshots |
+| [destructibles.md](destructibles.md) | props that break when shot: material classes, behaviours, debris, lamps, saves |
+| [destructibles-neon-district.md](destructibles-neon-district.md) | adopting the destructibles in neon-district: per prop family |
 | [platforms.md](platforms.md) | mirage-ship targets: web, PWA, desktop and mobile wrappers; the platform layer |
 | [editor.md](editor.md) | mirage-editor: edit a live world in the browser, the plan edit layer, round-trip |
 | [character.md](character.md) | the mover: jumps, crouch, ladders, swimming, mantling, moving solids, follow camera |

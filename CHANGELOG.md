@@ -5,6 +5,27 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
 ## Unreleased
 
 **New**
+- @miragekit/game: destructibles (`createDestructibles`, also `@miragekit/game/destruct`; experimental, opt-in,
+  `docs/destructibles.md`). Props register over what is already drawn (a mesh, one instance of an `InstancedMesh` or
+  `BatchedMesh`, a vertex range of a merged mesh) with a hit volume (box, sphere, capsule or the drawn bounds), a
+  material class (glass, paper, wood, cardboard, plastic, thin / heavy metal, ceramic, liquid, electronics, fabric),
+  health, armour per damage kind, value, tags and `protected`. `hit({ ray })` finds them nearest first in a hash grid
+  and lets bullets through thin classes with less damage; `blast()` has falloff and cover (solid world through the
+  physics ray, heavy props a quarter) and a `cover()` for the game's own entities. Staged responses are data (cracks
+  that grow, holes, dents, an early dented state, flicker), breaking shows a broken state (a shattered pane rim, a
+  split crate, a dented panel, a flat tyre), throws pooled instanced debris (ballistic, bounce, spin, lie flat, fade),
+  particles through the vfx, procedural sounds, and switches its lamp pool lamps, lights and glow off. Behaviours:
+  explosive, spillLiquid (`surfaceAt`: slippery, conductive), ventSteam / sprayWater (`visibility()` for AI), dropLoot,
+  alarm (noise events), fall (a sign drops and crushes), chain (bulb strings pop in turn), burn. Movers: knocked cans
+  and bottles roll and sleep, an instance moving as a pooled copy and back. Actors: a slump, `'casualty'`, `'panic'`.
+  Tally by class and tag, `snapshot / restore / reset` (about 100 bytes), deterministic by seed, fixed step with
+  interpolation, budgets by `detail`. With a game it steps with its systems and saves as its entity. Nothing is made
+  until a prop breaks; an empty registry draws the same pixels as none. Node: 900 props under 1000 rounds a second,
+  0.7 ms a frame, debris and marks at their caps, heap flat; Chrome demo `examples/demos/destruct` (a shooting range)
+  idle cost inside the run-to-run spread, 7.5 ms a frame under the stress. Checked by `packages/game/destruct.check.mjs`
+  (in `npm test`) and `examples/demos/destruct/destruct-check.mjs`.
+- @miragekit/core: `world.lampPool.scale(i, k)` dims or switches off one pool lamp without a rebuild (one record is
+  rewritten; re-binning only when the set of lit lamps changes), `scaleOf(i)`, `lit` (lamps with power left).
 - @miragekit/core: the wet layer learns where water goes and how it looks in rain (ported from the rainy ship deck
   of the owner's Oman project, `withWet` options, all opt-in): `wear` (a GLSL float: ruts, a trodden path, joints,
   round drains; the water gathers there, `wearDepth` 0.016 m) and `shelter` (a number, a GLSL float or a `{ value }`
