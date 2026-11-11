@@ -1,7 +1,7 @@
 // Mirage original code. Techniques informed by Golden Temple by Leon Lin (MIT) — see NOTICE.
 export { createWorldRenderer } from './world.js';
 export { createEnv, GOLDEN, dirFromElevAz, elevAzOf, WIND_GLSL } from './env.js';
-export { createSky, createSkyUniforms, createSkyLut } from './sky.js';
+export { createSky, createSkyUniforms, createSkyLut, SKY_DUSK_DEFAULTS, skyDuskConfig } from './sky.js';
 export { ATMO, ATMOSPHERE_GLSL, transmit, transmitAtGround, scatter, skyLightAt } from './atmosphere.js';
 export { installFog, FOG } from './fog.js';
 export { skyState, lightAt } from './daynight.js';
@@ -30,7 +30,7 @@ export * as geom from './geom.js';
 
 export type { WorldRenderer, WorldRendererOptions, WorldContext, RenderFrameOptions, ConvergeResult, RenderCamera, ShadowRegion, AmbientVolume, XYZ } from './world.js';
 export type { EnvironmentUniforms } from './env.js';
-export type { SkyUniforms } from './sky.js';
+export type { SkyUniforms, SkyOption, SkyDuskOption, SkyDuskSettings } from './sky.js';
 export type { SkyTime, SkyState, LightState, FixedSun, CalendarTime } from './daynight.js';
 export type { Place, AstronomicalSky, SunPosition, MoonPosition } from './sky-time.js';
 export type { PostSettings } from './post.js';

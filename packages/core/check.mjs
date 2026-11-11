@@ -202,6 +202,25 @@ assert.deepEqual(dynamicResConfig({ target: 1000, min: 0, step: NaN }), { target
 }
 console.log('core check: ok');
 
+// ---------------------------------------------------------------- the dusk sky (sky.js, opt-in)
+// config parsing; off = the same uniforms and no dusk code compiled in (the shader text with the define is the only
+// difference); on = its uniforms, the define in the dome and in the bake, the cover default
+{
+  const SK = await import('./src/sky.js');
+  assert.equal(SK.skyDuskConfig(undefined), null, 'the dusk sky is off by default');
+  assert.equal(SK.skyDuskConfig({}), null);
+  assert.equal(SK.skyDuskConfig({ dusk: false }), null);
+  assert.deepEqual(SK.skyDuskConfig({ dusk: true }), { ...SK.SKY_DUSK_DEFAULTS }, 'true = the defaults');
+  const dc = SK.skyDuskConfig({ dusk: { haze: 99, night: -1, cover: 0.2, airglow: 'x' } });
+  assert.ok(dc.haze === 10 && dc.night === 0 && dc.cover === 0.2 && dc.airglow === SK.SKY_DUSK_DEFAULTS.airglow, 'clamped, bad numbers keep the default');
+  const off = SK.createSkyUniforms(), on = SK.createSkyUniforms({ dusk: true });
+  assert.deepEqual(Object.keys(off), Object.keys(SK.createSkyUniforms({})), 'no option = the old uniforms');
+  assert.ok(!('uDusk' in off) && on.uDusk.value.x === SK.SKY_DUSK_DEFAULTS.haze, 'the dusk uniforms only when on');
+  const domeOff = SK.createSky(off).material, domeOn = SK.createSky(on).material;
+  assert.ok(!('MG_SKY_DUSK' in (domeOff.defines || {})) && 'MG_SKY_DUSK' in domeOn.defines, 'MG_SKY_DUSK compiled in only when on');
+  assert.equal(domeOff.fragmentShader, domeOn.fragmentShader, 'one source text: the define picks the code');
+}
+
 // ---------------------------------------------------------------- soft sun shadows (softshadow.js, opt-in)
 // config parsing; nothing patched or written before install; a chunk mismatch warns and patches nothing; install
 // patches the sun's call once (idempotent), leaves spot / point / light2 paths alone; uniforms depend on k only
