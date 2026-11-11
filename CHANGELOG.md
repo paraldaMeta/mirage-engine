@@ -14,6 +14,16 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
   `mgDynamic` object that casts nothing (no visible mesh under it with castShadow): it cannot change a tile. The frame
   it stops casting still redraws the tiles near it, so its old shadow goes. neon-district's kites (which cast none
   now) had one lamp's six shadow faces redrawn every frame.
+- @miragekit/core: the clustered lamps' shadow tiles keep their static casters apart from the moving ones
+  (`lighting.lights.split`, on by default; a second depth atlas of the same size). A tile redrawn because an
+  `mgDynamic` object moved in range copies the cached static tile back and draws only the moving objects over it (the
+  nearer distance wins), instead of every caster round the lamp in six faces; the static part is drawn again when the
+  tile is made or resized, the light moves or `invalidate()` is called. The tile is the same (lighting-check compares
+  it with a full redraw). A static object that moves without `mgDynamic` is now not refreshed by a mover's redraw
+  (call `invalidate()`, or `split: false`). neon-district: 160 draws and 262 k triangles a frame less at the street
+  view, medium, while its robots walk.
+- @miragekit/tools: lighting-check's shadow-cache assertions run on moving frames (a still lays the atlas out afresh
+  since the stills fix, so "no redraw while nothing moves" failed on every still); it checks the split tile too.
 
 **Fixed**
 - @miragekit/core: stills depend less on the view drawn before them. The clustered lamps' shadow atlas (`lighting.lights`)
