@@ -52,6 +52,7 @@ const GEO = {
   ground: new THREE.PlaneGeometry(3.2, 2.4, 1, 1).rotateX(-Math.PI / 2),
   tube: new THREE.CylinderGeometry(0.012, 0.012, 1.4, 32, 1).rotateZ(Math.PI / 2),
   backdrop: new THREE.PlaneGeometry(2.6, 2.0),
+  box: new THREE.BoxGeometry(0.6, 0.6, 0.6),
 };
 // behind a glass pane: coloured stripes and a checker, to see the tint, the blur of frosting and the refraction
 const backdropMat = (() => {
@@ -78,7 +79,7 @@ function clear() {
   mats = [];
 }
 /** build one surface's test row. s: 'kind[:variant]', opts: extra spec options, wet 0..1, mode baked | procedural */
-function show({ s = 'concrete', light, wet = 0, view = 'far', mode = Q.get('mode') || 'baked', opts = {}, matOpts = {} } = {}) {
+function show({ s = 'concrete', light, wet = 0, view = 'far', mode = Q.get('mode') || 'baked', opts = {}, matOpts = {}, box = false } = {}) {
   clear();
   const [kind, variant] = s.split(':');
   const K = SURFACE_KINDS[kind];
@@ -93,7 +94,7 @@ function show({ s = 'concrete', light, wet = 0, view = 'far', mode = Q.get('mode
   add(GEO.ground, mk('ground'), 0, 0.002, -0.1);
   add(GEO.wall, mk('wall'), 0, 1.0, -1.0);
   add(GEO.sphere, mk('tri'), -0.6, 0.3, 0.35);
-  add(GEO.cube, mk('tri'), 0.55, 0.3, 0.15);
+  add(box ? GEO.box : GEO.cube, mk('tri'), 0.55, 0.3, 0.15);   // box: an unbevelled cube (edge wear by edges: 'box')
   // a tube, mapped along its length (uv.y, 1.4 m): the neon's electrode caps and support clips sit on it
   if (['neon', 'fluorescent'].includes(kind)) add(GEO.tube, kind === 'neon' ? (() => { const m = lib.material(SURFACES.neon({ ...opts, electrodes: opts.electrodes ?? 0.03, supports: opts.supports ?? 0.35 }), { mapping: 'uv', uvScale: 1.4 }); mats.push(m); return m; })() : mk('tri'), 0, 1.2, -0.5);
   if (light && light !== current?.light) { setRig(light); world.setTime(TIMES[light]); }

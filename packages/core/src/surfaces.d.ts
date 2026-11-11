@@ -66,7 +66,15 @@ export interface SurfaceHookOptions {
   uvScale?: number;
   ground?: number;
   breaker?: boolean;
-  edges?: 'curvature' | 'attribute';
+  /** where edge wear comes from: the surface's curvature (bevelled meshes), a vertex attribute `edge` 0..1, or 'box':
+   *  the distance to the edges of the drawn geometry's bounding box (unbevelled box-like meshes; with the curvature) */
+  edges?: 'curvature' | 'attribute' | 'box';
+  /** edges 'box': how far in from an edge the wear reaches (m, 0.03) */
+  edgeWidth?: number;
+  /** glass: through the transmission pass (refracts, tints and blurs what is behind; a MeshPhysicalMaterial) */
+  transmission?: boolean;
+  /** glass with transmission: the pane's thickness (m, 0.006) */
+  thickness?: number;
   decals?: SurfaceDecals;
   decalAtlas?: THREE.Texture;
   /** asphalt: a GLSL float 0..1, the road marking's mask */
@@ -101,6 +109,6 @@ export const METALS: Record<string, [number, number, number]>;
 export function surfaceHooks(spec: SurfaceSpec, options?: SurfaceHookOptions): MaterialHooks;
 export function bakeSurface(renderer: THREE.WebGLRenderer, spec: SurfaceSpec, options?: { size?: number; anisotropy?: number }): BakedSurface;
 export function bakeDecalAtlas(renderer: THREE.WebGLRenderer, size?: number): THREE.WebGLRenderTarget;
-export function createSurfaces(world: { renderer: THREE.WebGLRenderer; mat: MaterialKit }, options?: { mode?: 'auto' | 'procedural' | 'baked'; size?: number; anisotropy?: number }): SurfaceLibrary;
+export function createSurfaces(world: { renderer: THREE.WebGLRenderer; mat: MaterialKit }, options?: { mode?: 'auto' | 'procedural' | 'baked'; size?: number; anisotropy?: number; tier?: 'high' | 'low' }): SurfaceLibrary;
 /** The runtime layer's shared noise texture (RGBA8 256 x 256, four tileable fractal channels; made once in JS). */
 export function noiseTexture(): THREE.DataTexture;

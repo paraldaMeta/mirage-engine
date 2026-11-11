@@ -125,7 +125,7 @@ const KINDS = {
     edge: () => ({ rgb: [1.05, 1.05, 1.05], rough: 0.15, metal: 1, mode: 1, chip: 0.01 }),
   },
   galvanised: {
-    micro: [0.002, 0.03, 0.3, 0.05], family: 'metal', variants: ['new', 'weathered'], tile: 1.0, depth: 0.0006, size: 1024, porosity: 0.05,
+    micro: [0.002, 0.03, 0.3, 0.05], family: 'metal', variants: ['new', 'weathered'], tile: 1.0, depth: 0.0006, size: 512, porosity: 0.05,
     refs: { albedo: [0.4, 0.72], rough: [0.25, 0.95], metal: 'zinc 1 / white rust 0', note: 'zinc F0 ~(0.62, 0.64, 0.66); patina ~0.42; white rust ~0.6 dielectric' },
     defaults: { color: [0.62, 0.64, 0.66], roughness: 0.38, spangle: 0.014, whiteRust: 0.25 },
     pack: (o) => ({ A: [...o.color, o.roughness], B: [o.spangle, o.whiteRust, 0, 0], C: [0, 0, 0, 0], D: [0, 0, 0, 0] }),
@@ -224,7 +224,7 @@ const KINDS = {
     material: (o, v) => (v === 1 ? {} : { sheen: 1, sheenRoughness: v === 3 ? 0.5 : 0.8, sheenColor: new THREE.Color().setRGB(...o.color.map((c) => Math.min(1, c * 0.6 + 0.12))) }),
   },
   paper: {
-    micro: [0.0015, 0.04, 0.3, 0.03], family: 'fibre', variants: ['cardboard', 'boardEdge', 'paper'], tile: 0.5, depth: 0.0008, size: 1024, porosity: 0.95,
+    micro: [0.0015, 0.04, 0.3, 0.03], family: 'fibre', variants: ['cardboard', 'boardEdge', 'paper'], tile: 0.5, depth: 0.0008, size: 512, porosity: 0.95,
     refs: { albedo: [0.15, 0.85], rough: [0.7, 0.95], metal: 0, note: 'kraft board ~(0.42, 0.29, 0.16); white paper 0.70-0.85' },
     defaults: { color: [0.42, 0.29, 0.16], roughness: 0.88, flute: 0.008 },
     variantDefaults: { paper: { color: [0.78, 0.77, 0.73], roughness: 0.82 } },
@@ -588,7 +588,8 @@ export function surfaceHooks(spec, options = {}) {
   const objectSpace = o.space === 'object';
   const fn = 'ms_' + spec.kind;
   let decl = MS_COMMON + 'uniform vec3 msGrainV; uniform float msUVScale; varying vec2 msUVraw;\n' + (objectSpace ? 'varying vec3 msOP; varying vec3 msON;\n' : '')
-    + (o.edges === 'attribute' ? 'varying float msEdgeV;\n' : '') + FRAME_GLSL + FINISH_GLSL + (LIVE_GLSL[spec.kind] || KIND_GLSL[spec.kind]);
+    + (o.edges === 'attribute' ? 'varying float msEdgeV;\n' : '') + (o.edges === 'box' ? 'varying vec3 msBP; uniform vec3 msBoxLo; uniform vec3 msBoxHi; uniform vec4 msBoxS;\n' : '')
+    + FRAME_GLSL + FINISH_GLSL + (LIVE_GLSL[spec.kind] || KIND_GLSL[spec.kind]);
   if (baked) {
     uniforms.msTC = { value: o.baked.c }; uniforms.msTN = { value: o.baked.n };
     // close up, where a pixel is finer than the set's texel: the kind's grain as a runtime detail layer over the bake
@@ -635,6 +636,10 @@ void msTap(vec2 uv, vec2 gx, vec2 gy, out vec4 c, out vec4 n){
   float msFPW = max(length(dFdx(mgWorldPos)), length(dFdy(mgWorldPos)));
   msFP = msFPW / msX.w;
   ${o.edges === 'attribute' ? 'msEdgeK = msEdgeV;' : 'msEdgeK = smoothstep(4.0, 30.0, length(fwidth(msNWorld)) / max(length(fwidth(msPW)), 1e-5));'}
+  ${o.edges === 'box' ? `{ // the object's own box: distance to its edges (two of the three face pairs near), in metres; wear within msBoxS.w
+    vec3 bd = min(msBP - msBoxLo, msBoxHi - msBP) * msBoxS.xyz;
+    float e2 = max(min(bd.x, bd.y), min(max(bd.x, bd.y), bd.z));
+    msEdgeK = max(msEdgeK, 1.0 - smoothstep(0.0, msBoxS.w, e2)); }` : ''}
   msFrames(msP0, msWN, ${mapIdx});
   vec2 msU[3]; vec2 msGx[3]; vec2 msGy[3];
   vec3 msDX = dFdx(msP0) / msX.w, msDY = dFdy(msP0) / msX.w;
@@ -680,8 +685,8 @@ void msTap(vec2 uv, vec2 gx, vec2 gy, out vec4 c, out vec4 n){
       ? 'if (dot(msNWo, msNWo) > 0.0) { vec3 wn = normalize(mgWorldNormal); normal = normalize(normal + (viewMatrix * vec4(normalize(msNWo) - wn, 0.0)).xyz); }\nnormal = mgBump(normal, msMicroH * msY.y, 1.0);'
       : 'normal = mgBump(normal, msH * msY.y, 1.0);',
     uniforms,
-    vertexDecl: 'varying vec2 msUVraw;' + (objectSpace ? ' varying vec3 msOP; varying vec3 msON;' : '') + (o.edges === 'attribute' ? ' attribute float edge; varying float msEdgeV;' : ''),
-    vertexWorld: 'msUVraw = uv;' + (objectSpace ? ` msOP = mgW4.xyz * vec3(length(modelMatrix[0].xyz), length(modelMatrix[1].xyz), length(modelMatrix[2].xyz));
+    vertexDecl: 'varying vec2 msUVraw;' + (objectSpace ? ' varying vec3 msOP; varying vec3 msON;' : '') + (o.edges === 'attribute' ? ' attribute float edge; varying float msEdgeV;' : '') + (o.edges === 'box' ? ' varying vec3 msBP;' : ''),
+    vertexWorld: 'msUVraw = uv;' + (o.edges === 'box' ? ' msBP = position;' : '') + (objectSpace ? ` msOP = mgW4.xyz * vec3(length(modelMatrix[0].xyz), length(modelMatrix[1].xyz), length(modelMatrix[2].xyz));
       msON = vec3(0.0, 1.0, 0.0);
       #ifdef USE_INSTANCING
         msON = mat3(instanceMatrix) * normal;
@@ -720,6 +725,23 @@ void msTap(vec2 uv, vec2 gx, vec2 gy, out vec4 c, out vec4 n){
     uniforms.msDecalAtlas = { value: o.decalAtlas || null };
   }
   if (o.paint) uniforms.msPaint = { value: new THREE.Vector4(...lin(o.paintColor, [0.62, 0.6, 0.55]), +(o.paintWear ?? 0.6)) };
+  if (o.edges === 'box') {
+    // edge wear without bevels or attributes: the distance to the edges of the drawn geometry's bounding box (crates,
+    // containers, slabs, walls: any box-like mesh), refreshed per draw from the geometry and the object's scale
+    uniforms.msBoxLo = { value: new THREE.Vector3(-0.5, -0.5, -0.5) }; uniforms.msBoxHi = { value: new THREE.Vector3(0.5, 0.5, 0.5) };
+    uniforms.msBoxS = { value: new THREE.Vector4(1, 1, 1, +(o.edgeWidth ?? 0.03)) };
+    const sc = new THREE.Vector3();
+    h.attach = (m) => {
+      const prev = m.onBeforeRender;
+      m.onBeforeRender = function (r, s, c, geo, obj, grp) {
+        if (prev) prev.call(this, r, s, c, geo, obj, grp);
+        if (!geo.boundingBox) geo.computeBoundingBox();
+        uniforms.msBoxLo.value.copy(geo.boundingBox.min); uniforms.msBoxHi.value.copy(geo.boundingBox.max);
+        obj.getWorldScale(sc); uniforms.msBoxS.value.set(sc.x, sc.y, sc.z, +(o.edgeWidth ?? 0.03));
+        this.uniformsNeedUpdate = true;
+      };
+    };
+  }
   if (o.debug) {
     const out = { albedo: 'msAlb', rough: 'vec3(msR)', height: 'vec3(msH)', metal: 'vec3(msM)' }[o.debug];
     if (!out) throw new RangeError("surfaceHooks: debug must be 'albedo' | 'rough' | 'height' | 'metal'");
@@ -867,7 +889,8 @@ export function bakeDecalAtlas(renderer, size = 1024) {
 
 // ---- the library bound to a world -----------------------------------------------------------------------------------
 /**
- * createSurfaces(world, { mode = 'auto' | 'baked' | 'procedural', size, anisotropy }) -> {   ('auto': baked, except
+ * createSurfaces(world, { mode = 'auto' | 'baked' | 'procedural', size, anisotropy, tier = 'high' | 'low' }) -> {
+ *   (tier 'low': every set at half its kind's size, a quarter of the memory; 'auto': baked, except
  *   the kinds cheaper per pixel than their taps: tile, stainless, chrome, metal, carPaint, rubber, bamboo, carbonFibre)
  *   material(spec, options)  a ready MeshStandard / MeshPhysical material (options: see surfaceHooks, plus wet: true |
  *                            withWet options, mode, size, and three material parameters in `params`)
@@ -877,15 +900,18 @@ export function bakeDecalAtlas(renderer, size = 1024) {
  *   dispose()
  * }
  */
-export function createSurfaces(world, { mode = 'auto', size = 0, anisotropy = 8 } = {}) {
+export function createSurfaces(world, { mode = 'auto', size = 0, anisotropy = 8, tier = 'high' } = {}) {
   const renderer = world.renderer, kit = world.mat;
   const cache = new Map();
   let atlas = null, bakeMs = 0, made = 0;
   // 'auto': bake the kinds whose recipe costs more than its texture taps; the cheap ones (a grid, a few lines) run per pixel
   const pathOf = (spec, m) => (spec.live ? 'procedural' : m === 'auto' ? (KINDS[spec.kind].cheap ? 'procedural' : 'baked') : m);
+  // the set's size: an explicit one, else the kind's own (its detail needs it); tier 'low' halves it (a quarter of the
+  // memory: phones), never under 256
+  const sizeOf = (spec, sz) => sz || (tier === 'low' ? Math.max(256, (spec.size || 1024) >> 1) : spec.size || 1024);
   const bake = (spec, sz = size) => {
-    const key = spec.bakeKey + ':' + (sz || spec.size);
-    if (!cache.has(key)) { const b = bakeSurface(renderer, spec, { size: sz, anisotropy }); bakeMs += b.ms; cache.set(key, b); }
+    const N = sizeOf(spec, sz), key = spec.bakeKey + ':' + N;
+    if (!cache.has(key)) { const b = bakeSurface(renderer, spec, { size: N, anisotropy }); bakeMs += b.ms; cache.set(key, b); }
     return cache.get(key);
   };
   const hooks = (spec, o = {}) => {

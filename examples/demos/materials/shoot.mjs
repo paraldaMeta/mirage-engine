@@ -15,7 +15,7 @@ const html = path.join(here, 'out/materials.html'), outDir = path.join(here, 'ou
 if (!process.argv.includes('--no-package')) execFileSync('node', [path.join(root, 'packages/tools/src/package.mjs'), here, '--out', html], { stdio: ['ignore', 'ignore', 'inherit'] });
 fs.mkdirSync(outDir, { recursive: true });
 const W = +arg('w', 960), H = +arg('h', 600), SPP = +arg('spp', 8), MODE = arg('mode', 'baked');
-const OPTS = JSON.parse(arg('opts', '{}')), NAME = arg('name', '');
+const OPTS = JSON.parse(arg('opts', '{}')), MOPTS = JSON.parse(arg('matopts', '{}')), NAME = arg('name', '');
 const LIGHTS = arg('lights', 'studio,golden,night').split(','), VIEWS = arg('views', 'far,near,wall,ground').split(','), WETS = arg('wet', '0,0.8').split(',').map(Number);
 
 const b = await launch({ w: W, h: H });
@@ -32,7 +32,7 @@ const ONE = process.argv.includes('--one-sheet'), oneItems = [];
 for (const s of list) {
   const items = ONE ? oneItems : [];
   for (const light of LIGHTS) for (const wet of WETS) for (const view of VIEWS) {
-    const data = await page.evaluate((o) => { window.__mirage.show(o); return window.__mirage.still(); }, { s, light, wet, view, mode: MODE, opts: OPTS });
+    const data = await page.evaluate((o) => { window.__mirage.show(o); return window.__mirage.still(); }, { s, light, wet, view, mode: MODE, opts: OPTS, matOpts: MOPTS, box: process.argv.includes('--box') });
     items.push({ label: ONE ? `${s} ${light[0]}${wet ? ' wet' : ''} ${view}` : `${light} ${wet ? 'wet' : 'dry'} ${view}`, data });
   }
   if (ONE) continue;
