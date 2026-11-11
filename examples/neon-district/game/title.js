@@ -20,10 +20,10 @@ const CSS = `
 @keyframes nt-blink{50%{opacity:.15}}
 .nt-main{position:absolute;left:var(--pad);top:50%;transform:translateY(-52%);width:min(430px,calc(100vw - 2 * var(--pad)))}
 .nt-kicker{font-size:10px;letter-spacing:.32em;color:var(--mg);margin:0 0 10px;text-shadow:0 0 12px #ff3fd280}
-.nt-h{margin:0;font:800 66px/.9 ui-monospace,SFMono-Regular,Menlo,"PingFang TC","Noto Sans TC",monospace;letter-spacing:.02em;color:#f4feff;text-shadow:-2px 0 #ff3fd270,2px 0 #19d8ff70,0 0 30px #19d8ff3a}
+.nt-h{margin:0;font:800 66px/.9 ui-monospace,SFMono-Regular,Menlo,var(--nd-cjk,"PingFang TC"),monospace;letter-spacing:.02em;color:#f4feff;text-shadow:-2px 0 #ff3fd270,2px 0 #19d8ff70,0 0 30px #19d8ff3a}
 .nt-h span{display:block}
-.nt-h.zh{font-size:64px;letter-spacing:.12em;font-family:"PingFang TC","Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif;font-weight:700}
-.nt-p{margin:16px 0 24px;padding-left:12px;border-left:2px solid var(--mg);font:400 14px/1.5 system-ui,-apple-system,"PingFang TC","Noto Sans TC",sans-serif;color:#d8f6ffd0;max-width:30em}
+.nt-h.cjk{font-size:64px;letter-spacing:.12em;font-family:var(--nd-cjk,"PingFang TC"),system-ui,sans-serif;font-weight:700}
+.nt-p{margin:16px 0 24px;padding-left:12px;border-left:2px solid var(--mg);font:400 14px/1.5 system-ui,-apple-system,var(--nd-cjk,"PingFang TC"),sans-serif;color:#d8f6ffd0;max-width:30em}
 .nt-menu{display:flex;flex-direction:column;gap:5px;pointer-events:auto}
 .nt-row{position:relative;display:grid;grid-template-columns:118px 34px 1fr 34px;align-items:center;height:40px;border:1px solid #19d8ff1c;background:linear-gradient(90deg,#071823d0,#07182340);cursor:pointer;transition:background .15s,border-color .15s}
 .nt-row.on{border-color:#19d8ff70;background:linear-gradient(90deg,#19d8ff33,#19d8ff08)}
@@ -40,14 +40,14 @@ const CSS = `
 .nt-row.go .k:before{content:"";display:inline-block;margin-right:16px;border:7px solid transparent;border-left:11px solid #02080d;border-right:0;vertical-align:-1px}
 .nt-row.go.on{background:linear-gradient(90deg,#7af4ff,#19d8ffd0 62%,#19d8ff40);box-shadow:0 0 34px #19d8ff60}
 .nt-row:focus-within{outline:none}.nt-row button:focus-visible{outline:none}
-.nt-desc{margin:12px 0 0;min-height:2.9em;font:400 12px/1.45 system-ui,-apple-system,"PingFang TC","Noto Sans TC",sans-serif;color:#d8f6ffa8;max-width:32em}
+.nt-desc{margin:12px 0 0;min-height:2.9em;font:400 12px/1.45 system-ui,-apple-system,var(--nd-cjk,"PingFang TC"),sans-serif;color:#d8f6ffa8;max-width:32em}
 .nt-desc b{font:600 10px ui-monospace,monospace;letter-spacing:.2em;color:#ffd34a;margin-left:6px}
 .nt-legend{position:absolute;right:max(28px,env(safe-area-inset-right));bottom:max(24px,env(safe-area-inset-bottom));padding:12px 16px 10px;background:#02060ab8;border:1px solid #19d8ff2a;border-top:2px solid #19d8ff80;font-size:11px;letter-spacing:.04em}
 .nt-legend h3{margin:0 0 8px;font-size:10px;letter-spacing:.3em;color:var(--mg)}
 .nt-legend table{border-collapse:collapse}
 .nt-legend th{font-size:9px;letter-spacing:.24em;color:#7af0ffb0;text-align:left;font-weight:600;padding:0 14px 6px 0}
 .nt-legend td{padding:3px 14px 3px 0;color:#d8f6ffd8;white-space:nowrap;font-weight:500}
-.nt-legend td:first-child{color:#d8f6ff80;font:400 11px system-ui,-apple-system,"PingFang TC","Noto Sans TC",sans-serif}
+.nt-legend td:first-child{color:#d8f6ff80;font:400 11px system-ui,-apple-system,var(--nd-cjk,"PingFang TC"),sans-serif}
 .nt-legend tr+tr td{border-top:1px solid #19d8ff12}
 .nt-nav{position:absolute;left:var(--pad);bottom:max(22px,env(safe-area-inset-bottom));font-size:10px;letter-spacing:.2em;color:#7af0ff90}
 @media (max-height:520px){
@@ -56,7 +56,7 @@ const CSS = `
   .nt-main{top:max(30px,env(safe-area-inset-top));transform:none;width:min(390px,52vw)}
   .nt-kicker{display:none}
   .nt-h{font-size:30px}.nt-h span{display:inline}.nt-h span+span:before{content:" "}
-  .nt-h.zh{font-size:30px}
+  .nt-h.cjk{font-size:30px}
   .nt-p{margin:7px 0 10px;font-size:11.5px;line-height:1.35}
   .nt-menu{gap:3px}
   .nt-row{height:36px;grid-template-columns:96px 34px 1fr 34px}.nt-row .v{font-size:12.5px}
@@ -67,9 +67,11 @@ const CSS = `
   .nt-legend td{padding:2px 9px 2px 0}.nt-legend th{padding:0 9px 4px 0}.nt-legend td:first-child{font-size:10px}
   .nt-nav{display:none}
 }
+/* a small phone held sideways (667 x 375): six rows still fit, none under 34 px */
+@media (max-height:400px){.nt-row{height:34px}.nt-row.go{height:38px}.nt-p{margin:5px 0 8px}.nt-desc{margin-top:4px}}
 @media (max-width:700px) and (min-height:521px){.nt-legend{display:none}}
 /* a phone held sideways: no keyboard there, and its column would push the touch one off the screen */
-@media (pointer:coarse) and (max-height:520px){.nt-legend tr>:nth-child(2){display:none}}
+@media (pointer:coarse) and (max-height:520px){.nt-legend tr>:nth-child(2){display:none}.nt-legend td:last-child{white-space:normal;word-break:keep-all;overflow-wrap:anywhere}}
 body.nd-titling .mg-ui>:not(dialog):not(style),body.nd-titling .mirage-hud{display:none!important}
 body.nd-titling .nd>:not(.nd-opt):not(style){display:none!important}
 body.nd-titling .nd{z-index:40}
@@ -92,45 +94,67 @@ const SPEED = 2.6;   // metres a second along the eye's path
  * @param o.T the language's table; o.values { mode, difficulty, hour }; o.choices { mode: [], difficulty: [], hour: [] }
  * @param o.onChange (key, value)   o.onDeploy (event-like | undefined)   o.onOptions ()   o.optionsOpen () => bool
  */
-export function createTitle({ T, lang, plan, world, values, choices, best, onChange, onDeploy, onOptions, optionsOpen, onFrame, onDispose }) {
-  const F = T.front;
+export function createTitle({ T, plan, world, values, choices, names = {}, best, onChange, onDeploy, onOptions, optionsOpen, onFrame, onDispose }) {
+  const F = T.front;   // a live branch: a language switch changes its strings in place (text.js)
   const root = document.createElement('div');
   root.className = 'nt'; root.hidden = true;
-  root.setAttribute('role', 'dialog'); root.setAttribute('aria-label', T.title);
-  const head = lang === 'zh' ? `<span>${T.title}</span>` : T.title.split(' ').map((w) => `<span>${w}</span>`).join('');
+  root.setAttribute('role', 'dialog');
   const rows = [
-    { id: 'deploy', solo: true, go: true, label: F.deploy },
-    { id: 'mode', label: F.mode, list: choices.mode, name: (v) => F.modes[v] },
-    { id: 'difficulty', label: F.difficulty, list: choices.difficulty, name: (v) => F.diffs[v] },
-    { id: 'hour', label: F.hour, list: choices.hour, name: (v) => (T.hours[v] || v).toUpperCase() },
-    { id: 'options', solo: true, label: F.options },
+    { id: 'deploy', solo: true, go: true, label: () => F.deploy },
+    { id: 'mode', label: () => F.mode, list: choices.mode, name: (v) => F.modes[v] },
+    { id: 'difficulty', label: () => F.difficulty, list: choices.difficulty, name: (v) => F.diffs[v] },
+    { id: 'hour', label: () => F.hour, list: choices.hour, name: (v) => (T.hours[v] || v).toUpperCase() },
+    ...(choices.lang ? [{ id: 'lang', label: () => F.lang, list: choices.lang, name: (v) => (names.lang && names.lang[v]) || v }] : []),
+    { id: 'options', solo: true, label: () => F.options },
   ];
-  const legend = F.legend.map((r) => `<tr>${r.map((c) => `<td>${c || '—'}</td>`).join('')}</tr>`).join('');
   root.innerHTML = `<style>${CSS}</style><div class="nt-shade"></div><div class="nt-scan"></div>
-    <div class="nt-top"><span><i></i>${F.feed}</span><span class="nt-clock"></span></div>
+    <div class="nt-top"><span><i></i><span class="nt-feed"></span></span><span class="nt-clock"></span></div>
     <div class="nt-main">
-      <p class="nt-kicker">${F.kicker}</p>
-      <h1 class="nt-h${lang === 'zh' ? ' zh' : ''}">${head}</h1>
-      <p class="nt-p">${F.premise}</p>
+      <p class="nt-kicker"></p>
+      <h1 class="nt-h"></h1>
+      <p class="nt-p"></p>
       <div class="nt-menu" role="menu">${rows.map((r, i) => r.solo
-        ? `<div class="nt-row solo${r.go ? ' go' : ''}" data-i="${i}"><button class="k" role="menuitem" data-a="main">${r.label}</button></div>`
-        : `<div class="nt-row" data-i="${i}"><span class="k">${r.label}</span><button class="ar" data-a="-1" aria-label="${r.label} −">◀</button><button class="v" role="menuitem" data-a="main"></button><button class="ar" data-a="1" aria-label="${r.label} +">▶</button></div>`).join('')}</div>
+        ? `<div class="nt-row solo${r.go ? ' go' : ''}" data-i="${i}" data-id="${r.id}"><button class="k" role="menuitem" data-a="main"></button></div>`
+        : `<div class="nt-row" data-i="${i}" data-id="${r.id}"><span class="k"></span><button class="ar" data-a="-1">◀</button><button class="v" role="menuitem" data-a="main"></button><button class="ar" data-a="1">▶</button></div>`).join('')}</div>
       <p class="nt-desc" aria-live="polite"></p>
     </div>
-    <div class="nt-legend" aria-label="${F.controls}"><h3>${F.controls}</h3><table><tr><th></th><th>${F.keys}</th><th>${F.pad}</th><th>${F.touch}</th></tr>${legend}</table></div>
+    <div class="nt-legend"></div>
     <div class="nt-nav"></div>`;
   document.body.appendChild(root);
   const els = [...root.querySelectorAll('.nt-row')], desc = root.querySelector('.nt-desc'), nav = root.querySelector('.nt-nav'), clock = root.querySelector('.nt-clock');
   let sel = 0, shown = false, g = null, orig = null, t = 0, last = 0, stickT = 0, stickDir = 0, source = '';
   onDispose(() => { root.remove(); document.body.classList.remove('nd-titling'); });
+  const esc = (v) => String(v).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  /** every fixed text, in the current language (again after a switch) */
+  function texts() {
+    const cjk = /[぀-ヿ一-鿿]/.test(T.title);
+    root.setAttribute('aria-label', T.title);
+    root.querySelector('.nt-feed').textContent = F.feed;
+    root.querySelector('.nt-kicker').textContent = F.kicker;
+    const h = root.querySelector('.nt-h');
+    h.className = 'nt-h' + (cjk ? ' cjk' : '');
+    h.innerHTML = cjk ? `<span>${esc(T.title)}</span>` : T.title.split(' ').map((w) => `<span>${esc(w)}</span>`).join('');
+    root.querySelector('.nt-p').textContent = F.premise;
+    rows.forEach((r, i) => {
+      const el = els[i];
+      el.querySelector('.k').textContent = r.label();
+      for (const a of el.querySelectorAll('.ar')) a.setAttribute('aria-label', `${r.label()} ${a.dataset.a === '1' ? '+' : '−'}`);
+    });
+    const legend = F.legend.map((r) => `<tr>${r.map((c) => `<td>${esc(c || '—')}</td>`).join('')}</tr>`).join('');
+    const lg = root.querySelector('.nt-legend');
+    lg.setAttribute('aria-label', F.controls);
+    lg.innerHTML = `<h3>${esc(F.controls)}</h3><table><tr><th></th><th>${esc(F.keys)}</th><th>${esc(F.pad)}</th><th>${esc(F.touch)}</th></tr>${legend}</table>`;
+    const src = source; source = ''; if (src) hint(src);
+  }
+  texts();
 
   function render() {
     rows.forEach((r, i) => {
       els[i].classList.toggle('on', i === sel);
-      if (r.list) els[i].querySelector('.v').textContent = r.name(values[r.id]);
+      if (r.list) { const v = els[i].querySelector('.v'); v.textContent = r.name(values[r.id]); if (r.id === 'lang') v.lang = { en: 'en', zh: 'zh-Hant-TW', ja: 'ja' }[values.lang] || ''; }
     });
     const r = rows[sel];
-    const text = r.id === 'mode' ? F.modeText[values.mode] : r.id === 'difficulty' ? F.diffText[values.difficulty] : r.id === 'hour' ? F.hourText : r.id === 'options' ? F.optionsText : F.sum(F.modes[values.mode], F.diffs[values.difficulty], (T.hours[values.hour] || values.hour).toUpperCase());
+    const text = r.id === 'mode' ? F.modeText[values.mode] : r.id === 'difficulty' ? F.diffText[values.difficulty] : r.id === 'hour' ? F.hourText : r.id === 'options' ? F.optionsText : r.id === 'lang' ? F.langText : F.sum(F.modes[values.mode], F.diffs[values.difficulty], (T.hours[values.hour] || values.hour).toUpperCase());
     desc.textContent = text;
     const b = best();
     if (values.mode === 'holdout' && b > 0 && (r.id === 'mode' || r.id === 'deploy')) { const tag = document.createElement('b'); tag.textContent = F.best(b); desc.appendChild(tag); }
@@ -269,5 +293,7 @@ export function createTitle({ T, lang, plan, world, values, choices, best, onCha
     root.classList.add('out');
     setTimeout(() => { if (!shown) root.hidden = true; }, 480);
   }
-  return { show, hide, render, get shown() { return shown; }, get selected() { return rows[sel].id; }, root };
+  /** the language changed: every text again */
+  const relang = () => { texts(); render(); };
+  return { show, hide, render, relang, get shown() { return shown; }, get selected() { return rows[sel].id; }, root };
 }

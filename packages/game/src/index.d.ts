@@ -10,7 +10,7 @@ export { createPhysicsDebug } from './physics-debug.js';
 export { createGame } from './game.js';
 export { createInput, DEFAULT_BINDINGS, ACTIONS, PAD } from './input.js';
 export { createAudio, SURFACES } from './audio.js';
-export { createUI } from './ui.js';
+export { createUI, UI_STRINGS } from './ui.js';
 export { createAudioEngine, zonesFromPlan, zoneWeights } from './audio-engine.js';
 export { createMixer, EFFECT_TYPES } from './audio-mixer.js';
 export { createMusic } from './audio-music.js';
@@ -37,7 +37,7 @@ export type { Game, GameOptions, Entity, InteractableEntity, Interaction, Invent
   Snapshot, ExtendedSnapshot, LoadedSave, SaveSlot, SlotInfo, Migrations, GameEvents, EventData, System } from './game.js';
 export type { Action, Bindings, Input } from './input.js';
 export type { AudioMixer, AudioLoop, AudioOptions, AudioSoundSource, AudioBus, Sound, LoopSound, SingleBufferSound, Surface } from './audio.js';
-export type { GameUI, GameMessages, UIOptions, UISaveHandler } from './ui.js';
+export type { GameUI, GameMessages, UIOptions, UISaveHandler, UIStrings } from './ui.js';
 export type { AudioEngine, AudioEngineOptions, AudioEngineStats, Voice, PlayOptions, CueSpec, Stream, ZoneSpec, ZoneOptions, OcclusionOptions, PanningModel, Ears } from './audio-engine.js';
 export type { Mixer, Bus, BusSpec, Effect, EffectSpec, EffectType, Meter, Duck } from './audio-mixer.js';
 export type { Music, MusicOptions, MusicSection, TransitionOptions, Quantize } from './audio-music.js';
