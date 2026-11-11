@@ -290,9 +290,9 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
     dot.visible = a > 0.5;
     holder.updateMatrixWorld(true);
     muzzle.getWorldPosition(mz);
-    fill.position.copy(holder.position).addScaledVector(fwd.set(0.25, 0.12, -0.25).applyQuaternion(holder.quaternion), 1);
+    fill.position.copy(holder.position).addScaledVector(fwd.set(-0.14, 0.16, 0.02).applyQuaternion(holder.quaternion), 1);
     flash.position.copy(mz); const room = Math.pow(Math.max(world.gradeLook ? world.exposure * world.gradeLook.exposure : world.exposure, 1e-4), -0.9);   // these two do not go out by day
-    fill.intensity = 0.16 * room;
+    fill.intensity = 0.22 * room;
     flash.intensity = S.flashT > 0 ? flashGain * room * (0.6 + 0.4 * R()) * (1 - 0.6 * S.ads) : 0;
   }
   let last = -1;

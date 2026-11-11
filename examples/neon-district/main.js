@@ -30,9 +30,9 @@ const quality = Q.get('quality') || (await pickQuality()).quality;
 
 // ---- what each quality level turns on; a URL flag overrides one feature
 const TIER = {
-  low: { grade: 1, dusk: 1, pool: 1, bounce: 0, godrays: 0, flare: 0, ssr: 0, ssgi: 0, contact: 0, gi: 0, probes: 1, csm: 0, shadows: 0, vol: 0, taa2: 0, mb: 0, bloom2: 1, lut: 1, chroma: 0, upscale: 0.75, rain: 0.6, big: 0 },
-  medium: { grade: 1, dusk: 1, pool: 1, bounce: 1, godrays: 1, flare: 1, ssr: 1, ssgi: 0, contact: 0, gi: 1, probes: 1, csm: 0, shadows: 1, vol: 1, taa2: 1, mb: 0, bloom2: 1, lut: 1, chroma: 0.25, upscale: 1, rain: 1, big: 0 },
-  high: { grade: 1, dusk: 1, pool: 1, bounce: 1, godrays: 1, flare: 1, ssr: 1, ssgi: 1, contact: 1, gi: 1, probes: 1, csm: 1, shadows: 1, vol: 1, taa2: 1, mb: 0.35, bloom2: 1, lut: 1, chroma: 0.3, upscale: 1, rain: 1, big: 0 },
+  low: { grade: 1, dusk: 1, pool: 1, bounce: 0, godrays: 0, flare: 0, ssr: 0, ssgi: 0, contact: 0, gi: 0, probes: 1, csm: 0, shadows: 0, vol: 0, taa2: 0, mb: 0, bloom2: 1, lut: 1, chroma: 0, upscale: 0.75, rain: 0.6, big: 0, planar: 0, dirt: 0, streak: 0, sharp: 0 },
+  medium: { grade: 1, dusk: 1, pool: 1, bounce: 1, godrays: 1, flare: 1, ssr: 1, ssgi: 0, contact: 0, gi: 1, probes: 1, csm: 0, shadows: 1, vol: 1, taa2: 1, mb: 0, bloom2: 1, lut: 1, chroma: 0.25, upscale: 1, rain: 1, big: 0, planar: 2, dirt: 0.12, streak: 0.08, sharp: 0.35 },
+  high: { grade: 1, dusk: 1, pool: 1, bounce: 1, godrays: 1, flare: 1, ssr: 1, ssgi: 1, contact: 1, gi: 1, probes: 1, csm: 1, shadows: 1, vol: 1, taa2: 1, mb: 0.35, bloom2: 1, lut: 1, chroma: 0.3, upscale: 1, rain: 1, big: 0, planar: 1, dirt: 0.15, streak: 0.1, sharp: 0.4 },
 }[quality] || {};
 const F = (k) => (Q.has(k) ? (isNaN(+Q.get(k)) ? Q.get(k) : +Q.get(k)) : TIER[k]);
 const on = (k) => !!F(k);
@@ -52,6 +52,8 @@ const lighting = {
   bounce: on('bounce') && { spacing: 2 },                                                          // by day: light off the sunlit side of the street into the shade
   lights: { perCell: 0, perFrame: 1 },                                                            // clustered lamps, exact lists; one shadow tile redrawn a frame (sentinels walking past lamps)
   screen: on('ssr') || on('ssgi') || on('contact'),
+  // the wet street mirrors the signs above it, off screen or not (?planar=N: the mirror is redrawn every Nth frame)
+  planar: on('planar') && { y: 0, scale: 0.5, roughMax: 0.4, every: Math.max(1, Math.round(F('planar'))) },
   csm: on('csm') && { cascades: 3, stagger: true },
   gi: on('gi') && { min: [bar[0], 0, bar[1]], max: [bar[2], plan.bar.height, bar[3]], spacing: 1.3, fade: 0.5 },
   probes: on('probes') && [
@@ -73,9 +75,7 @@ const world = createWorldRenderer({
     golden: { exposure: 0.75, saturation: 1.15 },
     noon: { temperature: 0.8, tint: -0.04, saturation: 0.92, shadowTint: [1.0, 1.0, 0.95], hiTint: [1.08, 1.0, 0.84], exposure: 1.5 } },
   sky: on('dusk') ? { dusk: { haze: 3, night: 0.45 } } : undefined,
-  // captures off: with them the pool bins its lamps again for every face of every lamp shadow tile that is redrawn
-  // (a sentinel walking past a street lamp), which cost 5 ms a frame here
-  lampPool: on('pool') ? { perCell: 32, captures: false } : undefined,
+  lampPool: on('pool') ? { perCell: 32, ...(Q.has('captures') ? { captures: Q.get('captures') !== '0' } : {}) } : undefined,
   clouds: 0.85, shadow: { center: [0, 2, -6], radius: 46 }, envProbe: [-2, 5, 6], envIntensity: 0.6,
   fog: { groundDensity: 0.0045, height: 14, air: 0.0003, color: 1.3, glow: 1 },
   lighting,
@@ -85,6 +85,8 @@ const world = createWorldRenderer({
     taa2: F('taa2') ? 1 : 0, motionBlur: F('mb') || 0, bloomPyramid: F('bloom2') ? 1 : 0, chroma: F('chroma') || 0, ...(F('upscale') && F('upscale') < 1 ? { upscale: F('upscale') } : {}),
     ...(F('lut') && !on('grade') ? { lut: lutTexture(lut), lutStrength: 1 } : {}),                    // the code-made LUT stands in when the grade is off
     godrays: on('godrays') ? 0.9 : 0, flare: on('flare') ? 0.8 : 0,
+    // a dirty lens and anamorphic streaks off the signs; the threshold keeps sunlit ground out of both by day
+    lensDirt: F('dirt') || 0, lensDirtThreshold: 8, streak: F('streak') || 0, streakThreshold: 10, streakLength: 0.6, rcas: F('sharp') || 0,
     ssr2: on('ssr') ? 1 : 0, ssrRough: 0.5, ssgi: on('ssgi') ? 0.7 : 0, ssgiRange: 3, contact: on('contact') ? 1 : 0,
   },
 });
