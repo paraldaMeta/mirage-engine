@@ -306,23 +306,50 @@ MsS ms_paving(vec2 u){
   vec2 s = msCellSize, q = g.xy, c = q - 0.5 * s;
   float de = msEdgeD(g);
   vec3 ph = msCH(g.zw, 2.0), ph2 = msCH(g.zw, 6.0);
+  if (V > 2.5) {
+    // hexagonal pavers (cell.x = across the flats): a hex lattice snapped to the tile (an even number of rows)
+    float nx = max(1.0, floor(msT / msB.x + 0.5)), ny = max(2.0, 2.0 * floor(msT / (msB.x * 0.866) * 0.5 + 0.5));
+    vec2 hq = u / vec2(msT / nx, msT / ny) * vec2(1.7320508, 1.5);
+    vec2 rr = vec2(1.7320508, 3.0), hh = rr * 0.5;
+    vec2 a = mod(hq, rr) - hh, b = mod(hq - hh, rr) - hh;
+    vec2 gv = dot(a, a) < dot(b, b) ? a : b;
+    vec2 id = mod(floor((hq - gv) / vec2(0.8660254, 1.5) + 0.5), vec2(2.0 * nx, ny));
+    float R = 0.5 * (msT / nx / 1.7320508 + msT / ny / 1.5);
+    de = (0.8660254 - max(abs(gv.x), dot(abs(gv), vec2(0.5, 0.8660254)))) * R;
+    c = gv * R; ph = msCH(id, 2.0); ph2 = msCH(id, 6.0);
+    s = vec2(1.7320508 * R);
+  }
   float jw = msB.z * 0.5;
-  float m1 = msFbm(u, 1.0, 3), fines = msFbm(u + 3.0, 90.0, 2);
+  float m1 = msFbm(msWarp(u, 1.2, 0.08), 1.0, 4), fines = msFbm(u + 3.0, 90.0, 2);
   vec3 col; float h, r, ao = 1.0;
-  if (V < 0.5) {
-    // concrete flags: exposed fine aggregate, a slab-wide tilt (rocked slabs catch the light apart), chipped arrises
+  if (V < 0.5 || V > 2.5) {
+    // concrete flags / pavers: exposed fine aggregate, worn and stained each its own way, a tilt per slab (rocked slabs
+    // catch the light apart), chipped and spalled arrises, a few cracked slabs, chewing gum, dirt worked in at the edges
     vec4 ag = msCell(u + 1.7, 150.0, 1.0);
     float sp = (1.0 - smoothstep(0.22, 0.4, ag.x)) * msLod(0.006) * msD.y;
-    float stain = msFbm(u + ph.xy * 5.0, 3.5, 4), blot = smoothstep(0.25, 0.7, msFbm(u + ph.zx * 7.0, 1.6, 3));
-    col = msA.rgb * (0.84 + 0.28 * ph.x) * (0.9 + 0.1 * m1 + 0.1 * stain + 0.07 * fines) * (1.0 - 0.18 * blot);
-    col = mix(col, msA.rgb * (0.45 + 1.1 * ag.z) * mix(vec3(1.0), vec3(1.08, 1.0, 0.9), ag.w), sp * 0.7);
-    float chipN = msFbm(u + 7.0, 18.0, 3) * 0.5 + 0.5;
-    float chip = smoothstep(0.62 - 0.25 * msD.x, 0.66 - 0.25 * msD.x, chipN + (0.02 - min(de - jw, 0.02)) * 22.0 - 0.45) * step(jw, de);
+    float stain = msFbm(u + ph.xy * 5.0, 3.5, 4), blot = smoothstep(0.2, 0.65, msFbm(msWarp(u + ph.zx * 7.0, 4.0, 0.03), 1.6, 4));
+    float worn = smoothstep(0.3, 0.8, msFbm(u + ph.yz * 3.0, 2.5, 3) * 0.5 + 0.5);
+    float edgeDirt = 1.0 - smoothstep(jw, jw + 0.03 + 0.03 * ph.z, de);
+    col = msA.rgb * (0.8 + 0.34 * ph.x) * (0.88 + 0.16 * m1 + 0.14 * stain + 0.07 * fines) * (1.0 - 0.25 * blot) * (1.0 - 0.25 * edgeDirt * (0.5 + 0.5 * fines));
+    col = mix(col, msA.rgb * (0.45 + 1.1 * ag.z) * mix(vec3(1.0), vec3(1.08, 1.0, 0.9), ag.w), sp * (0.45 + 0.4 * worn));
+    float chipN = msFbm(u + 7.0, 18.0, 3) * 0.5 + 0.5 + 0.15 * msFbm(u + 1.0, 60.0, 2);
+    float chip = msCut(chipN + (0.025 - min(de - jw, 0.025)) * 20.0 - 0.45, 0.64 - 0.25 * msD.x, 0.01) * step(jw, de);
     float bevel = smoothstep(jw, jw + 0.004, de);
-    h = 0.62 + dot(c, (ph2.xy - 0.5)) * msC.a * 2.0 + 0.04 * fines + 0.04 * sp - 0.2 * chip;
+    // a cracked slab: one wandering line across it, its two halves a little apart in height
+    float crk = 0.0, side = 0.0;
+    if (ph2.z > 0.82) {
+      float ang = ph2.x * 6.2832; vec2 dir = vec2(cos(ang), sin(ang));
+      float dd = dot(c, vec2(-dir.y, dir.x)) + 0.012 * msFbm(u + ph.xy, 14.0, 3);
+      crk = msLine(dd, 0.0008 + 0.0008 * ph.y) * msLod(0.002); side = step(0.0, dd);
+    }
+    vec2 gum = msSpeck(u + 6.0, 9.0, 0.08 * msD.x, 0.12, 3.0);
+    h = 0.62 + dot(c, (ph2.xy - 0.5)) * msC.a * 2.0 + 0.06 * fines + 0.05 * sp - 0.22 * chip + 0.1 * m1 + 0.04 * side - 0.3 * crk + 0.05 * gum.x;
     h = mix(0.15, h, bevel);
-    col = mix(col, msA.rgb * 1.12, chip * 0.6);
-    r = msA.a + 0.06 * (ph.y - 0.5) + 0.04 * fines + 0.05 * chip;
+    col = mix(col, msA.rgb * 1.1 * (0.8 + 0.2 * fines), chip * 0.7);
+    col = mix(col, mix(vec3(0.12, 0.115, 0.11), vec3(0.42, 0.4, 0.38), gum.y), gum.x * 0.85);
+    col *= 1.0 - 0.6 * crk;
+    r = msA.a + 0.06 * (ph.y - 0.5) + 0.04 * fines + 0.05 * chip - 0.1 * worn * msD.y - 0.08 * blot - 0.25 * gum.x;
+    ao *= 1.0 - 0.5 * crk;
   } else if (V < 1.5) {
     // setts / cobbles: domed stones, tops polished smooth by wheels and feet, granite speckle
     float dome = sqrt(clamp(de / (0.35 * min(s.x, s.y)), 0.0, 1.0));
