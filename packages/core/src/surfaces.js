@@ -195,7 +195,7 @@ const KINDS = {
     edge: () => ({ rgb: [1, 1, 1], rough: 0.1, metal: 0, mode: -1, chip: 0.01 }),
   },
   plastic: {
-    family: 'polymer', variants: ['abs', 'textured', 'diffuser', 'hdpe'], tile: 0.5, depth: 0.0004, size: 512, porosity: 0.0,
+    micro: [0.0009, 0.015, 0.35, 0.05], family: 'polymer', variants: ['abs', 'textured', 'diffuser', 'hdpe'], tile: 0.5, depth: 0.0004, size: 512, porosity: 0.0,
     refs: { albedo: [0.02, 0.85], rough: [0.15, 0.7], metal: 0, note: 'pigmented plastics: black 0.03-0.05, white 0.60-0.80; ABS gloss 0.15-0.3, textured 0.45-0.65' },
     defaults: { color: [0.5, 0.06, 0.04], roughness: 0.25, texture: 0.0008, scuffs: 0.4, chalking: 0 },
     variantDefaults: { textured: { roughness: 0.55 }, diffuser: { color: [0.8, 0.8, 0.78], roughness: 0.3 }, hdpe: { roughness: 0.42, color: [0.07, 0.2, 0.09] } },
@@ -662,6 +662,10 @@ void msTap(vec2 uv, vec2 gx, vec2 gy, out vec4 c, out vec4 n){
     float g = (md.r * 0.7 + md.g * 0.3) * mk;
     msS.a *= 1.0 + msMi.y * g * 2.5; msS.r = clamp(msS.r + msMi.w * g * 2.0, 0.02, 1.0); msMicroH = msMi.z * g * 0.4;
   }\n`;
+  const trans = spec.kind === 'glass' && !!o.transmission;
+  // glass through the transmission pass: dirt and wire opaque, the clean pane transmits (tinted by its attenuation);
+  // the share per pixel is applied at the output (three mixes by its uniform; the diffuse before it is re-mixed)
+  if (trans) body += '  msTrans = clamp(1.0 - (msAlpha - msA.a) / max(1.0 - msA.a, 1e-3), 0.0, 1.0); if (msX.z > 1.5 && msX.z < 2.5) msTrans = 1.0 - 0.35 * (1.0 - msTrans); msS.a = mix(msS.a, msA.rgb, msTrans);\n';
   if (o.paint) body += `  msRoadPaint(msS, msPW.xz, ${o.paint});\n`;
   if (o.decals) body += '  msDecals(msS, msPW, msNWorld);\n';
   if (!live) body += '  msFinish(msS, msPW, msNWorld, msFPW);\n';
@@ -693,7 +697,15 @@ void msTap(vec2 uv, vec2 gx, vec2 gy, out vec4 c, out vec4 n){
     if (spec.kind === 'water') h.normal = 'normal = mgBump(normal, msH * 0.002, 1.0);';
     h.emissive = (h.emissive ? h.emissive + '\n' : '') + 'totalEmissiveRadiance += msEmit * max(uLampGain, msD.x);';
   }
-  if (spec.kind === 'glass') {
+  if (trans) {
+    h.fragmentDecl += 'float msTrans = 1.0;\n';
+    h.output = `#ifdef USE_TRANSMISSION
+{ vec3 mgD0 = reflectedLight.directDiffuse + reflectedLight.indirectDiffuse;
+  outgoingLight += mix(mgD0, transmitted.rgb, msTrans * material.transmission) - totalDiffuse;
+  material.transmissionAlpha = mix(1.0, material.transmissionAlpha, msTrans); }
+#endif`;
+  }
+  if (spec.kind === 'glass' && !trans) {
     h.output = /* glsl */ `{
       vec3 V = normalize(cameraPosition - mgWorldPos), N = normalize(mgWorldNormal);
       float F = 0.04 + 0.96 * pow(1.0 - abs(dot(N, V)), 5.0);
@@ -888,8 +900,14 @@ export function createSurfaces(world, { mode = 'auto', size = 0, anisotropy = 8 
   const material = (spec, o = {}) => {
     const h = hooks(spec, o);
     const base = { roughness: 1, metalness: 1, ...spec.material, ...(o.params || {}) };
-    if (spec.kind === 'glass') Object.assign(base, { transparent: true, premultipliedAlpha: true, depthWrite: false, metalness: 1, ...(o.params || {}) });
-    const m = spec.physical ? kit.phys(base, h) : kit.std(base, h);
+    const trans = spec.kind === 'glass' && !!o.transmission;
+    if (trans) {
+      // the transmission path (three's): the scene behind is refracted, tinted by the pane's attenuation and blurred
+      // by its roughness (frosted); costs a pass over the opaque scene per frame (shared by every transmissive material)
+      const tint = new THREE.Color().setRGB(...spec.options.color);
+      Object.assign(base, { transmission: 1, ior: 1.52, thickness: +(o.thickness ?? 0.006), attenuationColor: tint, attenuationDistance: spec.variant === 'tinted' ? 0.012 : 0.6, metalness: 1, ...(o.params || {}) });
+    } else if (spec.kind === 'glass') Object.assign(base, { transparent: true, premultipliedAlpha: true, depthWrite: false, metalness: 1, ...(o.params || {}) });
+    const m = spec.physical || trans ? kit.phys(base, h) : kit.std(base, h);
     m.name = `surface-${spec.kind}-${spec.variant}`;
     // footsteps (@miragekit/game reads userData.surface: 'stone' | 'gravel' | 'grass' | 'wood'); the spec beside it
     m.userData.surface = FOOTSTEP[KINDS[spec.kind].family] || 'stone';

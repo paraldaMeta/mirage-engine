@@ -725,12 +725,16 @@ MsS ms_stainless(vec2 u){
   float r = msA.a, h = 0.5;
   if (V < 0.5) {
     // brushed: many parallel hairlines of random length along the grain (u), a few deeper ones
-    float hair = msFbm2(u, vec2(3.0 / msB.x, 1400.0), 3);
-    float deep = msFbm2(u + 3.0, vec2(1.0 / msB.x, 260.0), 2);
+    // brushed: many parallel hairlines of random length along the grain (u), a few deeper ones; the belt's passes
+    // overlap in bands a few cm wide, each a little brighter or duller; the lines wander a hair off straight
+    vec2 ub = u + vec2(0.0, 0.0015 * msFbm(u + 7.0, 1.5, 2));
+    float hair = msFbm2(ub, vec2(3.0 / msB.x, 1400.0), 3);
+    float deep = msFbm2(ub + 3.0, vec2(1.0 / msB.x, 260.0), 2);
+    float pass = msFbm2(ub + 5.0, vec2(0.3, 22.0), 2);
     float k = msLod(0.0015);
     h = 0.5 + 0.3 * hair * k + 0.15 * deep;
-    r = msA.a * (0.8 + 0.5 * (hair * 0.5 + 0.5) * k + 0.2 * (deep * 0.5 + 0.5));
-    col *= 0.96 + 0.06 * hair * k;
+    r = msA.a * (0.8 + 0.5 * (hair * 0.5 + 0.5) * k + 0.2 * (deep * 0.5 + 0.5) + 0.25 * pass);
+    col *= (0.96 + 0.06 * hair * k) * (1.0 + 0.04 * pass);
   } else if (V < 1.5) {
     // polished: near mirror, polishing swirls only
     vec4 sw = msCell(u, 9.0, 1.0);
@@ -748,6 +752,12 @@ MsS ms_stainless(vec2 u){
   float sd = abs(dot(u - (floor(u * msP(4.0) / msT) + 0.5) * msT / msP(4.0), vec2(-dir.y, dir.x)));
   float scr = msLine(sd, 0.00012) * step(1.0 - msB.y, sc.w) * msLod(0.0008);
   r = mix(r, msA.a * 0.5, scr); h -= 0.2 * scr;
+  // water spots: dried rings (a duller rim, a clean centre), and smudges (fingers, wiping): roughness only
+  vec2 ws = msSpeck(u + 4.0, 30.0, 0.25 * msB.z, 0.45, 3.0);
+  vec2 wr = msSpeck(u + 4.0, 30.0, 0.25 * msB.z, 0.55, 3.0);
+  float ring = clamp(wr.x - ws.x, 0.0, 1.0);
+  float smudge = smoothstep(0.55, 0.85, msFbm(msWarp(u, 6.0, 0.02) + 9.0, 4.0, 3) * 0.5 + 0.5) * msB.z;
+  r += 0.06 * ring + 0.03 * ws.x + 0.08 * smudge;
   return MsS(col, clamp(r, 0.03, 1.0), clamp(h, 0.0, 1.0), 1.0, 1.0);
 }`,
 
@@ -758,19 +768,27 @@ MsS ms_galvanised(vec2 u){
   // spangle: zinc crystals 5..25 mm, each reflecting a little apart (brightness, roughness, a tilt)
   vec4 sp = msCell(u + 0.004 * vec2(msFbm(u, 60.0, 2), msFbm(u + 1.0, 60.0, 2)), 1.0 / msB.x, 1.0);
   float k = msLod(msB.x);
-  float dend = msFbm(u + sp.zw * 9.0, 300.0, 2) * msLod(0.002);
-  vec3 col = msA.rgb * mix(1.0, 0.82 + 0.3 * sp.z, k) * (0.97 + 0.04 * dend);
-  float r = msA.a + mix(0.0, 0.25 * (sp.w - 0.5), k) + 0.04 * dend;
-  float h = 0.5 + 0.2 * (sp.z - 0.5) * k + 0.25 * msLine((sp.y - sp.x) * msB.x * 0.5, 0.0002) * k + 0.05 * dend;
+  // each crystal a facet of its own tilt (a slow ramp of its own direction across it: it flashes at its own angle),
+  // dendrite feathering inside, the grain boundaries a fine groove; some crystals bright and smooth, some dull
+  float dend = msFbm2(u + sp.zw * 9.0, vec2(300.0, 120.0), 2) * msLod(0.002);
+  float facet = msFbm(u + sp.zw * 37.0, 0.5 / msB.x, 1);
+  float bright = step(0.5, sp.z);
+  vec3 col = msA.rgb * mix(1.0, mix(0.8 + 0.12 * sp.w, 1.02 + 0.06 * sp.w, bright), k) * (0.97 + 0.05 * dend);
+  float r = msA.a + mix(0.0, mix(0.12, -0.14, bright) + 0.08 * (sp.w - 0.5), k) + 0.05 * dend;
+  float h = 0.5 + 0.55 * facet * k - 0.3 * msLine((sp.y - sp.x) * msB.x * 0.5, 0.00025) * k + 0.06 * dend;
   float met = 1.0;
-  float m1 = msFbm(u, 1.5, 3), m2 = msFbm(u + 4.0, 11.0, 3);
+  float m1 = msFbm(msWarp(u, 2.0, 0.05), 1.5, 4), m2 = msFbm(u + 4.0, 11.0, 3);
   if (V > 0.5) {
-    // weathered: the zinc dulls to a grey carbonate patina, white rust gathers in spots
-    float pat = smoothstep(-0.3, 0.4, m1);
-    col = mix(col, vec3(0.42, 0.43, 0.44), pat * 0.7); r = mix(r, 0.62, pat);
+    // weathered: the zinc dulls to a grey carbonate patina in clouds, the spangle fading under it
+    float pat = smoothstep(-0.35, 0.35, m1);
+    col = mix(col, vec3(0.42, 0.43, 0.44) * (0.92 + 0.12 * m2), pat * 0.75); r = mix(r, 0.62 + 0.08 * m2, pat);
   }
-  float wr = smoothstep(0.75 - 0.35 * msB.y, 0.8 - 0.35 * msB.y, m2 * 0.5 + 0.5 + 0.25 * m1);
-  col = mix(col, vec3(0.62, 0.62, 0.6) * (0.85 + 0.2 * m2), wr); r = mix(r, 0.92, wr); met = 1.0 - wr;
+  // white rust: a powdery bloom in small clusters of specks, denser where water stood (a slow field), soft-edged
+  float wf = smoothstep(0.45, 0.8, m2 * 0.5 + 0.5 + 0.3 * m1);
+  vec2 ws = msSpeck(u + 2.0, 90.0, clamp(msB.y * (0.01 + 0.5 * wf * wf), 0.0, 1.0), 0.6, 1.0);
+  float wr = clamp(max(ws.x * (0.6 + 0.4 * ws.y), msB.y * smoothstep(0.75, 0.95, wf + 0.1 * msFbm(u, 40.0, 2)) * 0.7), 0.0, 1.0);
+  col = mix(col, vec3(0.64, 0.64, 0.62) * (0.88 + 0.16 * m2), wr); r = mix(r, 0.92, wr); met = 1.0 - step(0.5, wr);
+  h += 0.08 * ws.x;
   return MsS(col, clamp(r, 0.04, 1.0), clamp(h, 0.0, 1.0), met, 1.0);
 }`,
 
@@ -824,9 +842,14 @@ MsS ms_aluminium(vec2 u){
   vec3 col = msA.rgb * (0.97 + 0.03 * m1);
   float r = msA.a + 0.03 * fine, h = 0.5 + 0.1 * fine, ao = 1.0, met = 1.0;
   if (V > 0.5 && V < 1.5) {
-    // extruded: die lines along the length (u)
+    // extruded: die lines along the length (u): a dense fine set, a few deep ones that run the whole tile (a nick in
+    // the die), and stop marks across (the press paused): bands a few mm wide, a hair duller
     float die = msFbm2(u, vec2(0.6, 900.0), 3) * msLod(0.0012);
-    h = 0.5 + 0.25 * die; r = msA.a * (0.85 + 0.35 * (die * 0.5 + 0.5));
+    float deepL = msFbm2(u + 2.0, vec2(0.25, 140.0), 2);
+    float nick = (1.0 - smoothstep(0.0, 0.06, abs(deepL))) * msLod(0.002);
+    float stopM = msLine((fract(u.x / msSnap(0.45)) - 0.5) * msSnap(0.45) + 0.002 * msFbm(vec2(0.0, u.y), 3.0, 2), 0.003) * msLod(0.003);
+    h = 0.5 + 0.25 * die - 0.25 * nick + 0.05 * stopM; r = msA.a * (0.85 + 0.35 * (die * 0.5 + 0.5)) + 0.05 * stopM + 0.06 * nick;
+    col *= (1.0 - 0.06 * nick) * (1.0 - 0.04 * stopM);
   } else if (V > 1.5 && V < 2.5) {
     // tread plate: raised lozenges in a herringbone, tops polished by boots, grime between
     float p = msSnap(msB.x);
@@ -842,10 +865,12 @@ MsS ms_aluminium(vec2 u){
     float d = msFbm(u, 400.0, 2) * msLod(0.002);
     r = 0.5 + 0.08 * d; h = 0.5 + 0.3 * d;
   }
-  // oxide: grey bloom where it has weathered
-  float ox = smoothstep(0.6 - 0.4 * msB.y, 0.7 - 0.4 * msB.y, msFbm(u + 5.0, 3.0, 3) * 0.5 + 0.5);
-  ox = step(0.5, ox);
-  col = mix(col, vec3(0.5, 0.5, 0.5), ox * 0.6); r = mix(r, 0.75, ox); met = 1.0 - ox;
+  // weathering: the surface dulls in soft clouds (roughness, not colour), white pits of corrosion powder gather in them
+  float cloud = smoothstep(0.35, 0.8, msFbm(msWarp(u + 5.0, 3.0, 0.04), 3.0, 4) * 0.5 + 0.5) * msB.y * 2.0;
+  r = mix(r, max(r, 0.55), clamp(cloud, 0.0, 1.0));
+  vec2 pit = msSpeck(u + 1.0, 140.0, clamp(msB.y * (0.05 + 1.5 * cloud), 0.0, 0.9), 0.4, 2.0);
+  float ox = step(0.5, pit.x);
+  col = mix(col, vec3(0.62, 0.62, 0.6), ox); r = mix(r, 0.85, ox); met = 1.0 - ox; h -= 0.08 * pit.x;
   return MsS(col, clamp(r, 0.03, 1.0), clamp(h, 0.0, 1.0), met, ao);
 }`,
 
@@ -990,6 +1015,18 @@ MsS ms_plastic(vec2 u){
   vec2 rl = vec2(dot(lp, vec2(cos(a), sin(a))), dot(lp, vec2(-sin(a), cos(a))));
   float scuff = (1.0 - smoothstep(0.0003, 0.0012, abs(rl.y + 0.002 * sin(rl.x * 60.0)))) * (1.0 - smoothstep(0.02, 0.05 + 0.04 * sc.w, abs(rl.x))) * step(1.0 - msB.y, sc.w) * msLod(0.002);
   col = mix(col, col * 1.25 + 0.04, scuff); r = mix(r, 0.7, scuff);
+  // use: a dense field of hairline micro-scratches (any direction, a few mm long: seen as a haze in the highlight),
+  // smudges and wiped patches (roughness only), dust settled in the texture, a few dents
+  vec4 ms = msCell(u + 5.0, 45.0, 1.0);
+  float ma = ms.z * MS_PI; vec2 mcs = vec2(msT / msP(45.0));
+  vec2 ml = u - (floor(u / mcs) + 0.5) * mcs;
+  float mrl = dot(ml, vec2(-sin(ma), cos(ma))), mrx = dot(ml, vec2(cos(ma), sin(ma)));
+  float micro = msLine(mrl, 0.00005) * (1.0 - smoothstep(0.002, 0.008 * (0.5 + ms.w), abs(mrx))) * step(0.35, ms.w) * msLod(0.0006) * (0.3 + msB.y);
+  float smudge = smoothstep(0.5, 0.85, msFbm(msWarp(u + 3.0, 5.0, 0.03), 3.0, 4) * 0.5 + 0.5);
+  r = clamp(r + 0.18 * micro + 0.1 * smudge * (1.0 - 0.6 * step(0.4, msA.a)), 0.04, 1.0);
+  col *= 1.0 + 0.08 * micro;
+  float dust = (1.0 - h) * smoothstep(0.3, 0.8, msFbm(u + 6.0, 2.0, 3) * 0.5 + 0.5) * 0.5;
+  col = mix(col, vec3(0.32, 0.3, 0.27) * (0.4 + col), dust * 0.35); r = mix(r, 0.85, dust * 0.4);
   // chalking: sun-faded, a powdery bloom
   float ch = msB.z * (0.7 + 0.3 * m1);
   col = mix(col, mix(col, vec3(dot(col, vec3(0.33))) * 1.2 + 0.03, 0.6), ch); r = mix(r, 0.75, ch);
@@ -1030,6 +1067,16 @@ MsS ms_rubber(vec2 u){
     // moulded or extruded: faint extrusion lines along u
     h += 0.08 * msFbm2(u, vec2(0.5, 300.0), 2);
   }
+  // age: ozone cracking (short fine cracks across the stretch, on exposed faces), scuffs that polish and grey it,
+  // grit and dust in the grooves
+  vec4 oz = msCell2(u + 3.0, vec2(60.0, 20.0), 1.0);
+  float ozone = msLine((oz.y - oz.x) * msT / msP(60.0) * 0.5, 0.00012) * step(0.55, oz.z) * msLod(0.0015) * msW.x * smoothstep(0.4, 0.6, h);
+  vec4 sc = msCell(u + 7.0, 9.0, 1.0);
+  float scuff = (1.0 - smoothstep(0.15, 0.45, sc.x + 0.2 * msFbm2(u, vec2(80.0, 8.0), 2))) * step(0.7, sc.z) * msLod(0.01);
+  float grit = (1.0 - smoothstep(0.3, 0.5, h)) * smoothstep(0.4, 0.8, msFbm(u + 2.0, 30.0, 3) * 0.5 + 0.5);
+  col = mix(col, vec3(0.08, 0.075, 0.07), scuff * 0.5) * (1.0 - 0.4 * ozone);
+  col = mix(col, vec3(0.16, 0.14, 0.12), grit * 0.6);
+  r = mix(r, msA.a - 0.15, scuff * 0.6); r = mix(r, 0.95, grit * 0.5); h -= 0.15 * ozone;
   // bloom: the waxy grey film rubber grows as it ages, on exposed faces
   float bl = msB.z * smoothstep(0.3, 0.8, m1 * 0.5 + 0.5 + 0.3 * (h - 0.5));
   col = mix(col, vec3(0.13, 0.13, 0.14), bl * 0.6); r = mix(r, 0.95, bl * 0.5);
@@ -1239,6 +1286,15 @@ MsS ms_leather(vec2 u){
   float crease = smoothstep(0.0, 0.25, gr.y - gr.x);
   vec3 col = msA.rgb * (0.9 + 0.15 * m1) * mix(1.0, 0.88 + 0.18 * crease, k);
   float h = mix(0.5, 0.3 + 0.5 * crease, k), r = msA.a + mix(0.0, 0.08 * (1.0 - crease), k), ao = mix(1.0, 0.8 + 0.2 * crease, k);
+  // use: wrinkles where it flexes (long soft folds, a few deep), the finish worn paler and duller on the high spots,
+  // darker where hands and oil polish it, fine scuffs
+  float wrk = msRidge(msWarp(u, 6.0, 0.01) + 4.0, vec2(14.0, 4.0), 3);
+  float fold = smoothstep(0.75, 0.98, wrk);
+  float wear = smoothstep(0.55, 0.85, msFbm(u + 2.0, 3.0, 3) * 0.5 + 0.5 + 0.2 * fold) * (0.2 + 0.6 * msW.x);
+  float polish = smoothstep(0.5, 0.8, msFbm(u + 8.0, 2.0, 3) * 0.5 + 0.5) * (1.0 - wear);
+  h = h - 0.25 * fold + 0.06 * wrk; ao *= 1.0 - 0.3 * fold;
+  col = mix(col, col * vec3(1.15, 1.12, 1.08) + 0.005, wear * 0.35) * (1.0 - 0.06 * polish) * (1.0 - 0.12 * fold);
+  r = mix(r, r + 0.15, wear) - 0.12 * polish;
   if (V > 0.5 && V < 1.5) {
     // vinyl seat: a finer embossed grain, channels (pleats) with a stitch line either side
     float pw = msSnap(msB.y), py = fract(u.y / pw);
