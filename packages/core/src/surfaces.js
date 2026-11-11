@@ -79,10 +79,10 @@ const KINDS = {
     edge: () => ({ rgb: [1.1, 1.08, 1.05], rough: 0.95, metal: 0, mode: 1, chip: 0.02 }),
   },
   render: {
-    micro: [0.002, 0.05, 0.3, 0.04], family: 'masonry', variants: ['smooth', 'pebbledash', 'roughcast'], tile: 2.0, depth: 0.004, size: 1024, porosity: 0.75,
+    micro: [0.002, 0.05, 0.3, 0.04], family: 'masonry', variants: ['smooth', 'pebbledash', 'roughcast'], tile: 2.0, depth: 0.008, size: 1024, porosity: 0.75,
     refs: { albedo: [0.3, 0.8], rough: [0.75, 0.95], metal: 0, note: 'cement / lime render 0.40-0.75; painted white ~0.75' },
-    defaults: { color: [0.55, 0.52, 0.46], roughness: 0.88, cracks: 0.3, patches: 0, patchColor: [0.6, 0.58, 0.52] },
-    pack: (o) => ({ A: [...o.color, o.roughness], B: [0, o.cracks, o.patches, 0], C: [...o.patchColor, 0], D: [0, 0, 0, 0] }),
+    defaults: { color: [0.55, 0.52, 0.46], roughness: 0.88, cracks: 0.3, patches: 0, patchColor: [0.6, 0.58, 0.52], spall: 0 },
+    pack: (o) => ({ A: [...o.color, o.roughness], B: [o.spall, o.cracks, o.patches, 0], C: [...o.patchColor, 0], D: [0, 0, 0, 0] }),
     quantum: () => [0, 0],
     edge: () => ({ rgb: [0.85, 0.85, 0.85], rough: 0.95, metal: 0, mode: 1, chip: 0.03 }),
   },
@@ -232,10 +232,10 @@ const KINDS = {
   wood: {
     family: 'wood', variants: ['planks', 'plywood', 'painted', 'weathered', 'varnished', 'sawn'], tile: 1.2, depth: 0.004, size: 1024, porosity: 0.7,
     refs: { albedo: [0.02, 0.6], rough: [0.15, 0.92], metal: 0, note: 'pine 0.35-0.50, oak ~(0.30, 0.19, 0.10), old planks (scan) ~(0.10, 0.08, 0.05), teak (scan) ~(0.08, 0.03, 0.01), silvered ~0.30' },
-    defaults: { color: [0.36, 0.22, 0.12], roughness: 0.68, board: [0.14, 1.2], gap: 0.003, paint: [0.2, 0.32, 0.3], peel: 0.35, latewood: [0.62, 0.55, 0.5], knots: 0.35 },
+    defaults: { color: [0.36, 0.22, 0.12], roughness: 0.68, board: [0.14, 1.2], gap: 0.003, along: 'u', paint: [0.2, 0.32, 0.3], peel: 0.35, latewood: [0.62, 0.55, 0.5], knots: 0.35 },
     variantDefaults: { plywood: { color: [0.5, 0.36, 0.22], board: [1.2, 1.2], gap: 0.001, knots: 0.1 }, varnished: { color: [0.22, 0.1, 0.04], roughness: 0.22 }, weathered: { roughness: 0.86 }, sawn: { roughness: 0.88, color: [0.4, 0.29, 0.17] } },
-    pack: (o) => ({ A: [...o.color, o.roughness], B: [o.board[0], o.board[1], o.gap, 0], C: [...o.paint, o.peel], D: [...o.latewood, o.knots] }),
-    quantum: (o, T, v) => [v === 1 ? T : snap(T, o.board[1]), snap(T, o.board[0])],
+    pack: (o) => ({ A: [...o.color, o.roughness], B: [o.board[0], o.board[1], o.gap, o.along === 'v' ? 1 : 0], C: [...o.paint, o.peel], D: [...o.latewood, o.knots] }),
+    quantum: (o, T, v) => { const q = [v === 1 ? T : snap(T, o.board[1]), snap(T, o.board[0])]; return o.along === 'v' ? [q[1], q[0]] : q; },
     edge: (o, v) => ({ rgb: v === 2 ? [0.3, 0.28, 0.25] : [1.15, 1.12, 1.08], rough: 0.85, metal: 0, mode: v === 2 ? 0 : 1, chip: 0.02 }),
   },
   bamboo: {
