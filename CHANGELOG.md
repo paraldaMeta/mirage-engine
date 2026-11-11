@@ -14,7 +14,7 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
   LED panel, LCD, light box, paper lantern, water, oil sheen), each a tileable GLSL recipe with macro / meso /
   micro variation and a distance LOD, defaults in measured albedo / F0 and roughness ranges, metalness 0 or 1. Two
   paths behind one call: per pixel, or baked once on the GPU into a mipmapped, anisotropic texture set (seeded,
-  cached; a street's twelve kinds in 40-70 ms) sampled with a repetition breaker; baked costs 0.2-0.4 ms above a
+  cached; a street's twelve kinds in 40-70 ms) sampled with a repetition breaker; baked costs 0.3-0.6 ms above a
   plain material per 1440 x 900 screen against 0.5-4 ms per pixel (`mode: 'auto'` bakes where that pays). A live
   layer on both: world-space macro variation, dirt by cavity / foot / top, run-off, edge wear from curvature or an
   `edge` attribute, weathering decals by rule (rills, damp, leaks, stains, soot, cracks). Mappings `tri`, `wall`,
