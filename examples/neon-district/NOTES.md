@@ -318,8 +318,9 @@ brand, slogan, logo and motif here is invented for this district; nothing was co
   trails), a corporate transport circling with two searchlight cones; the HOKUTEN arcology (four setbacks to 230 m,
   a twin, three glazed sky-bridges, external lifts, a 64 m vertical name, red warning lights) built round the two
   skyline towers north of the relay; a ring of 150 far towers with tiny lit windows in the fog.
-- **Street life and grime** (`streetlife.js`, `grime.js`): people under the awnings, at the cart, the stall and the
-  machines (umbrellas with lit rims, visors, arm strips), five walking a loop east of the fight; a yakitori stall in a
+- **Street life and grime** (`streetlife.js`, `machines.js`, `grime.js`): the street life is civilian robots (see
+  streetlife below): androids under the awnings, at the cart, the stall and the vending machines, walkers and a parcel
+  courier on a loop east of the fight, vendors, a sweeper, a queue totem, two broken units; a yakitori stall in a
   shipping container under the gallery; vending rows in the alley and by the plaza; cables and junction boxes across
   the alley, a duct, dripping pipes, bags, crates, puddles for the planar mirror, striped barricades, wayfinding,
   district numbers, balcony laundry, dishes and grow-light plants (`facades.js`).
@@ -349,8 +350,7 @@ went from 196 k to 269 k; drawn per frame at street west (every pass: shadow til
 medium, 1316 k to 1480 k at high. Low still rises 0.6 to 2.7 ms: its share is the shaders and lamps, not the
 counts that `detail` thins (`?detail=0.4` at medium saved only 0.1 to 0.3 ms).
 
-What is still rough: people are low-poly silhouettes that read as mannequins up close and by day; walkers slide
-through each other at the loop's ends; the fake interiors are the same box for every shop (only the light and the
+What is still rough: the fake interiors are the same box for every shop (only the light and the
 goods change) and show no reflection of the street; the ticker's glyphs are canvas text, so the far half of the ring
 on the jellyfish reads mirrored; flying cars have no lights on the ground and their trails are straight; the
 arcology's lower half is hidden from the plaza by the skyline tower in front, and its faces use the shared window
@@ -492,8 +492,43 @@ materials, sky-bridges, lifts (instanced cabins on the clock), the vertical name
 
 ## streetlife
 
-`plan.streetlife`: people, walkers, vending rows, the stall. People are four instanced meshes (body, legs, accents,
-umbrellas) posed in onUpdate; the stall and the machines are solid (one proxy for the container).
+`plan.streetlife`: people, walkers, vending rows, the stall, and the machines' own posts (`cartVendor`, `sweeper`,
+`totem`, `broken`). The street's bystanders are robots, a civilian family built to read apart from the sentinels at a
+glance (black armour, slit visors, rifles): round shells in soft liveries (off-white, mint, peach, butter, sky, lilac,
+pink), dark mechanical struts at the joints, a capsule head with a face screen whose glyph eyes change slowly (ten
+expressions drawn into one canvas atlas with the printed decals: ID labels, aprons, a wet-floor sign, parcel labels,
+an out-of-order sticker, the totem's notices in English, 繁中 and kana), a lit ID band, no weapons (`machines.js`).
+- **androids** (`people`): slim bipeds with a battery pack and shoulder caps, some under an umbrella with a lit rim, some
+  in a rain-hat plate; neighbours closer than 1.7 m talk (heads turn to each other, one gestures while the other
+  listens, they take turns), the rest look about.
+- **walkers** (`walkers`): one loop (the first walker's), one pace (their mean), evenly spaced and turning on
+  half-circles at the ends, so nobody walks through anybody; the second walker is a wheeled parcel courier (a lit
+  box, headlamps, a whip mast with a pennant, wheels that roll with the distance).
+- **vendors**: on a ceiling rail in the yakitori container (turns skewers at the grill, slides to the pot and stirs),
+  on a pedestal behind the noodle cart (stirs, wipes the counter, looks at the customers); an apron panel each.
+- **sweeper** (`sweeper`): low and wide, butter-yellow, two spinning side brushes, a turning amber beacon, a wet-floor
+  sign on its back; up and down the north kerb east of the plaza's way in (not built at low detail).
+- **queue totem** (`totem`) by the clinic: a column, a pod with a lit band, a screen head paging through four notices
+  every 5 s, an arm that points at the door and waves now and then.
+- **broken units** (`broken`): sat against a wall (the alley, the north pavement), grimy, an out-of-order sticker, one
+  eye flickering, a servo that twitches.
+- **shop keepers**: drawn in the shop interiors' shader (`kit.js` `interiorMaterial`): an egg body on a column, a screen
+  head with blinking eyes, an antenna bead, a lit band, one arm wiping the counter. The interiors themselves now work:
+  the pane's normal comes from screen-space derivatives (the unlit material had no world normal, so every window
+  showed the box's floor).
+Cost: three THREE.BatchedMesh (shells, lights, umbrella canopies), so three draws a pass for every machine; parts move
+by instance matrices in the module's onUpdate, faces and notices change by swapping an instance's geometry; androids
+have three levels (about 930, 230 and 140 triangles: full within 9 m x detail², the one-offs swap to a far version
+past 26 m x detail²); per-instance frustum culling. Measured (machines vs the humans, triangles drawn per frame
+averaged over 12 frames, four views: street east, the stall, street west, the clinic): high 22.5 / 9.2 / 16.1 / 11.0 k
+vs 23.7 k each, 7-9 draws vs 12-14; medium 9.9 / 5.9 / 9.7 / 6.0 k vs 14.8 k, 5.5-7 draws vs 9.5-11; low 1.8 / 1.7 /
+2.2 / 1.7 k vs 3.1 k, 3-4 draws vs 5-6. No lamps added, no shadows (castShadow off, as before); decor, out of the walk
+grid (the grid's hash is unchanged).
+Still rough: the androids walk with straight legs (hip swing only, no knee) and their feet slide a little; the far
+versions pop at their distance; the broken units sit a little stiffly and the alley one is hard to see in its corner;
+the keepers are flat silhouettes in the interior shader (no parallax of their own); the courier's wheels do not steer
+round the loop's ends; a still frame that accumulates over a page change shows two totem notices at once (moving, it
+does not); umbrellas do not shed rain.
 
 | key | pos is | count |
 |---|---|---|

@@ -122,7 +122,10 @@ export function interiorMaterial(ctx, { W = 2.6, H = 2.3, D = 3.2, kind = 'shop'
     defines: kind === 'clinic' ? { ND_CLINIC: 1 } : {},
     output: /* glsl */ `{
       const float W = ${W.toFixed(2)}, H = ${H.toFixed(2)}, D = ${D.toFixed(2)};
-      vec3 n = normalize(mgWorldNormal), t = vec3(n.z, 0.0, -n.x);
+      // the pane's normal from the screen-space derivatives (an unlit material gets no world normal: up)
+      vec3 n = normalize(cross(dFdx(mgWorldPos), dFdy(mgWorldPos))); n.y = 0.0; n = normalize(n);
+      n *= sign(dot(n, cameraPosition - mgWorldPos) + 1e-6);
+      vec3 t = vec3(n.z, 0.0, -n.x);
       vec3 V = normalize(mgWorldPos - cameraPosition);
       vec3 d = vec3(dot(V, t), V.y, -dot(V, n));
       d = sign(d + 1e-6) * max(abs(d), vec3(1e-4));
@@ -167,12 +170,28 @@ export function interiorMaterial(ctx, { W = 2.6, H = 2.3, D = 3.2, kind = 'shop'
       float tc = (D * 0.38 - o.z) / d.z;
       vec3 cp = o + d * tc;
       if (tc < tt && cp.y < 1.0 && cp.x > W * 0.15 && cp.x < W * 0.85) { col = vec3(0.07, 0.07, 0.08) + tint * 1.4 * smoothstep(0.96, 1.0, cp.y); tt = tc; }
+      // the keeper is a shop robot: a pale egg body on a column, a wide screen head with two glyph eyes that blink, an
+      // antenna bead, a lit band, one arm wiping the counter; it sways a little on its column
       float tf = (D * 0.62 - o.z) / d.z;
       vec3 fp = o + d * tf;
-      float fx = W * (0.35 + 0.3 * fract(seed * 7.3));
-      float body = step(abs(fp.x - fx), 0.22 - 0.06 * smoothstep(1.35, 1.55, fp.y)) * step(fp.y, 1.5) * step(0.9, fp.y);
-      float head = step(length(vec2(fp.x - fx, (fp.y - 1.66) * 0.85)), 0.12);
-      if (tf < tt && (body + head) > 0.0) { col = vec3(0.015) + tint * 0.3 * head; tt = tf; }
+      float fx = W * (0.35 + 0.3 * fract(seed * 7.3)) + 0.05 * sin(uTime * 0.31 + seed * 40.0);
+      vec2 q = vec2(fp.x - fx, fp.y);
+      float torso = step(length(vec2(q.x / 0.2, (q.y - 1.2) / 0.25)), 1.0), column = step(abs(q.x), 0.05) * step(q.y, 1.0);
+      vec2 hq = vec2(q.x / 0.2, (q.y - 1.6) / 0.12); float head = step(length(max(abs(hq) - vec2(0.45, 0.2), 0.0)), 0.55);
+      float ant = step(abs(q.x - 0.08 - (q.y - 1.66) * 0.25), 0.007) * step(1.66, q.y) * step(q.y, 1.82), bead = step(length(q - vec2(0.12, 1.83)), 0.02);
+      float hx = 0.2 * sin(uTime * 1.4 + seed * 9.0);
+      vec2 a0 = vec2(0.17, 1.3), a1 = vec2(hx, 1.02), ab = a1 - a0; float arm = step(length(q - a0 - ab * clamp(dot(q - a0, ab) / dot(ab, ab), 0.0, 1.0)), 0.035);
+      float shape = max(max(torso, column), max(max(head, ant), arm));
+      if (tf < tt && shape > 0.0) {
+        float lit = 0.5 + 0.5 * smoothstep(1.0, 1.75, q.y);                                   // the shop's ceiling light from above
+        col = mix(vec3(0.42, 0.43, 0.46), vec3(0.06), column * (1.0 - torso)) * lit;
+        float blink = step(0.05, fract(uTime * 0.23 + seed * 3.0));
+        float screen = head * step(abs(hq.x), 0.85) * step(abs(hq.y), 0.62);
+        float eyes = screen * step(length(vec2(abs(q.x) - 0.065, (q.y - 1.6) * mix(8.0, 1.2, blink))), 0.03);
+        col = mix(col, vec3(0.02, 0.025, 0.03), screen);
+        col += (vec3(0.5, 1.0, 1.0) * 3.0 * eyes + tint * 2.5 * step(abs(q.y - 1.12), 0.012) * torso + vec3(1.0, 0.6, 0.3) * 3.0 * bead) / (tint * 1.3 + 0.05);
+        tt = tf;
+      }
       // light falls off into the room; the near part catches the window's own light
       col *= tint * (1.3 - 0.18 * hp.z) + 0.05;
       col *= 0.55 + 0.45 * smoothstep(0.0, 0.3, ndUv.y);

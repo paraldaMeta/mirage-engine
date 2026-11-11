@@ -207,6 +207,13 @@ export default {
       { x0: 12, x1: 23.6, z0: 8.75, z1: 9.35, speed: 1.4, phase: 0.7 }, { x0: 23.6, x1: 12, z0: 9.35, z1: 8.75, speed: 1.2, phase: 0.18 }, { x0: 23.6, x1: 12, z0: 9.35, z1: 8.75, speed: 1.05, phase: 0.55 }],
     vending: [[-20.42, 26.9, 0, 1.05, 3, -Math.PI / 2, 0x5ff7ff], [29.25, -3.35, 0, -1.05, 2, -Math.PI / 2, 0xffb347]],
     stall: { at: [7.27, -5.6], rotY: 0 },
+    // the machines' own posts: the noodle cart's vendor [x, z, rotY] (the stall's comes with the stall), a sweeper's beat
+    // along the north kerb [[x, z], [x, z]], the clinic's queue totem [x, z, rotY], units that broke down against a
+    // wall [x, z, rotY, y]
+    cartVendor: [24.28, -1.12, 0.12],
+    sweeper: [[25.4, 3.15], [30.6, 3.15]],
+    totem: [1.55, 9.45, Math.PI],
+    broken: [[-23.68, 15.2, Math.PI / 2, 0], [-26.4, 2.42, 0, KERB]],
   },
   // ---- grime (grime.js): cables across the alley [z, y, how many]; its duct; pipes that drip [x, z, top, [out x, z]];
   //      bag heaps [x, z, y, n]; crates [x, z, y, size, rotY]; puddles [x, z, sx, sz, rotY]; barricades [x, z, rotY];
