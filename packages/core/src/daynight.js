@@ -119,3 +119,88 @@ export function lightAt(state) {
     lamp: 1 - sm(-4, 6, h), night, skyLight: lum(b.sky.E) / Math.max(lum(skyLightAt(GOLDEN.elevation, SKY_I).E), 1e-6),
   };
 }
+
+// ---------------------------------------------------------------------------
+// The time-of-day grade (opt-in: createWorldRenderer({ grade: true | {...} }); off, nothing below runs). Techniques
+// ported from the Nizwa Golden Hour project's day-night grade (the author's own code): per-hour looks keyed by the
+// Sun's elevation, display-referred split toning, a black point and an S-curve on luma, an ACES / AgX blend, and a
+// darker night (the eye adapts less than the exposure model says, so night stays night while lamps keep their glow).
+//
+//   gradeConfig(option)              true | { strength, nightAdapt, lampTint, noon, golden, dusk, night } -> settings | null
+//   gradeAt(light, state, settings)  -> the look of this hour (a GradeLook: what post.js's grade variant applies)
+//
+// A look: exposure (EV), temperature / tint (added to the white balance), saturation / contrast (x), tonemapMix (AgX
+// share of an ACES / AgX blend; null keeps post.tonemap), shadowTint / hiTint (display-referred split toning, normalised
+// to luma 1), black (sRGB black point), curve (S-curve on luma, 0 = off), punch (0..1: the AgX branch of the blend
+// steeper and more saturated, Nizwa's AgX-punchy), clarity (local contrast), highlightWarmth (the bright end warmer),
+// lift (display-referred RGB lift of the darks), gamma (display gamma; > 1 opens the darks).
+// ---------------------------------------------------------------------------
+
+const ID_LOOK = Object.freeze({
+  exposure: 0, temperature: 0, tint: 0, saturation: 1, contrast: 1, tonemapMix: null,
+  shadowTint: [1, 1, 1], hiTint: [1, 1, 1], black: 0, curve: 0, punch: 0, clarity: 0, highlightWarmth: 0, lift: [0, 0, 0], gamma: 1,
+});
+/** The four hours a grade is keyed on. Partial overrides go in the grade option ({ golden: { saturation: 1.3 } }). */
+export const GRADE_PRESETS = Object.freeze({
+  noon: Object.freeze({ ...ID_LOOK, exposure: 0.4, temperature: 0.2, tint: 0.06, saturation: 1.12, contrast: 1.03, tonemapMix: 0.2, shadowTint: [0.98, 1, 1.03], hiTint: [1.02, 1, 0.97], black: 0.008, curve: 0.12, punch: 0.4, clarity: 0.1, highlightWarmth: 0 }),
+  golden: Object.freeze({ ...ID_LOOK, exposure: 0.45, temperature: 0.4, tint: 0.22, saturation: 1.25, contrast: 1.03, tonemapMix: 0.25, shadowTint: [1, 1, 1.02], hiTint: [1.1, 0.99, 0.88], black: 0.012, curve: 0.2, punch: 0.4, clarity: 0.15, highlightWarmth: 0.3 }),
+  dusk: Object.freeze({ ...ID_LOOK, temperature: 0.05, tint: 0.15, saturation: 1.05, tonemapMix: 0.35, shadowTint: [0.97, 1, 1.05], hiTint: [1.05, 1, 0.92], black: 0.006, curve: 0.16, punch: 0.4, clarity: 0.15, highlightWarmth: 0.1 }),
+  night: Object.freeze({ ...ID_LOOK, temperature: 0.2, tint: 0.25, saturation: 0.95, tonemapMix: 0.4, shadowTint: [0.99, 1, 1.03], hiTint: [1.04, 1, 0.94], black: 0.003, curve: 0.15, punch: 0.4, clarity: 0.1, highlightWarmth: 0, lift: [0.0011, 0.0014, 0.0028], gamma: 1.05 }),
+});
+// the elevations (degrees) the looks hold at; between two keys the look eases (smoothstep)
+const GRADE_KEYS = [[-12, 'night'], [-4, 'dusk'], [2, 'golden'], [10, 'golden'], [25, 'noon']];
+const GRADE_FIELDS = Object.keys(ID_LOOK);
+
+/** The grade option -> settings, or null when off. true = the presets as they are. */
+export function gradeConfig(option) {
+  if (!option) return null;
+  const o = option === true ? {} : option;
+  const n = (v, d, lo, hi) => (Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d);
+  const look = (name) => {
+    const over = o[name] || {}, L = { ...GRADE_PRESETS[name] };
+    for (const k of GRADE_FIELDS) {
+      const v = over[k];
+      if (v === undefined) continue;
+      if (Array.isArray(L[k])) { if (Array.isArray(v) && v.length === 3 && v.every(Number.isFinite)) L[k] = v.slice(); }
+      else if (k === 'tonemapMix') L[k] = v === null ? null : n(v, L[k], 0, 1);
+      else if (Number.isFinite(v)) L[k] = v;
+    }
+    return L;
+  };
+  return {
+    strength: n(o.strength, 1, 0, 1),
+    // how much of the eye's dark adaptation (lightAt's exposure above 1) the grade takes back: 0 = none (as without
+    // the grade), 1 = all of it (night renders at the golden hour's exposure)
+    nightAdapt: n(o.nightAdapt, 0.45, 0, 1),
+    // the highlights' tint as the lamps come on (light.lamp), on top of the look's hiTint
+    lampTint: Array.isArray(o.lampTint) && o.lampTint.length === 3 && o.lampTint.every(Number.isFinite) ? o.lampTint.slice() : [1.04, 1, 0.92],
+    noon: look('noon'), golden: look('golden'), dusk: look('dusk'), night: look('night'),
+  };
+}
+
+const lumaNorm = (c) => { const l = lum(c); return l > 1e-6 ? c.map((v) => v / l) : [1, 1, 1]; };
+/** The look for a light (lightAt) and its sky state (skyState), under grade settings (gradeConfig). Pure. Fields as in
+ *  GRADE_PRESETS, except exposure: a multiplier here (2^EV, times the night adaptation), and tints normalised to luma 1. */
+export function gradeAt(light, state, settings) {
+  const S = settings || gradeConfig(true), h = state.sun.elevation, s = S.strength;
+  let i = 0;
+  while (i < GRADE_KEYS.length - 1 && h > GRADE_KEYS[i + 1][0]) i++;
+  const [ea, na] = GRADE_KEYS[i], [eb, nb] = GRADE_KEYS[Math.min(i + 1, GRADE_KEYS.length - 1)];
+  const t = eb > ea ? sm(ea, eb, h) : 0, A = S[na], B = S[nb];
+  const mixv = (a, b) => (Array.isArray(a) ? a.map((v, k) => v + (b[k] - v) * t) : a + (b - a) * t);
+  const toward = (v, id) => (Array.isArray(v) ? v.map((x, k) => id[k] + (x - id[k]) * s) : id + (v - id) * s);
+  const o = {};
+  for (const k of GRADE_FIELDS) {
+    if (k === 'tonemapMix') {
+      // null on one side: the other side's value, toward ACES (0) on the null side
+      o[k] = A[k] === null && B[k] === null ? null : mixv(A[k] ?? 0, B[k] ?? 0) * s;
+      continue;
+    }
+    o[k] = toward(mixv(A[k], B[k]), ID_LOOK[k]);
+  }
+  const lt = S.lampTint.map((v) => 1 + (v - 1) * Math.min(1, Math.max(0, light.lamp)) * s);
+  o.shadowTint = lumaNorm(o.shadowTint);
+  o.hiTint = lumaNorm(o.hiTint.map((v, k) => v * lt[k]));
+  o.exposure = Math.pow(2, o.exposure) * Math.pow(Math.max(light.exposure, 1), -S.nightAdapt * s);
+  return o;
+}

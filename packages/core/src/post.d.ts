@@ -3,6 +3,7 @@ import type { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 import type { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import type { Light2Settings } from './light2.js';
 import type { PostFX } from './postfx.js';
+import type { GradeLook } from './daynight.js';
 export interface PostSettings {
   exposure: number; temperature: number; saturation: number; contrast: number; lift: number; vignette: number;
   tonemap: 'agx' | 'aces' | 'neutral'; sharpen: number; grain: number; bloom: number; bloomRadius: number;
@@ -39,6 +40,8 @@ export interface PostSettings {
   ssgi: number; ssgiRange: number; ssgiRays: number;
   /** Screen-space contact shadows of the sun: strength 0..1 and ray length (m). */
   contact: number; contactLen: number;
+  /** The time-of-day grade's look for this frame (daynight.js gradeAt; the world sets it with `grade`); unset = off. */
+  grade?: GradeLook | null;
 }
 export const DEFAULT_POST: PostSettings;
 export class Pipeline {
@@ -55,6 +58,11 @@ export class Pipeline {
   begin(): void;
   /** jitter: the light2 passes' pattern index (the sub-frame for stills, the TAA index while moving; default subframe). */
   add(scene: THREE.Scene, camera: THREE.Camera, weight: number, subframe: number, post: PostSettings, jitter?: number): void;
+  /** The time-of-day grade's variant of the grade (createWorldRenderer does this for `grade`; end() on the first
+   *  frame with post.grade). Without it the grade program is the plain one. */
+  useGrade(): void;
+  /** true once useGrade() ran. */
+  graded?: boolean;
   /** Turn on light2's passes (createWorldRenderer does this for `light2`). */
   useLight2(settings: Light2Settings, context: { sun: THREE.DirectionalLight; G: Record<string, THREE.IUniform> }): void;
   taa(inverseViewProjection: THREE.Matrix4, previousViewProjection: THREE.Matrix4, alpha: number): void;

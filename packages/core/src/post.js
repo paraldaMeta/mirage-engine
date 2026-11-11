@@ -24,6 +24,10 @@ import { SCREEN_POST } from './screen.js';
 // light2 (opt-in, light2.js; pp.useLight2(cfg, { sun, G })): lamp shadows drawn inside the scene render, then per
 // sub-frame screen-space reflections and volumetric light (half resolution, jittered by the index `jk` that add()
 // receives), mixed in by the accumulation; per frame the bloom is mixed in instead of added.
+//
+// time-of-day grade (opt-in, P.grade = daynight.js gradeAt(); pp.useGrade()): the grade's GRADE variant (split
+// toning, black point, S-curve, ACES / AgX-punchy blend, highlight warmth, display gamma and lift, clarity from a
+// 1/16-size local mean).
 // ---------------------------------------------------------------------------
 
 export const DEFAULT_POST = {
@@ -58,6 +62,60 @@ function CLEAR(fs) {
   swap('gl_FragColor = vec4(o, 1.0);', 'gl_FragColor = vec4(o, a);');
   return fs;
 }
+
+// The time-of-day grade's variant of the grade (opt-in: P.grade, a look from daynight.js gradeAt; useGrade()). Built
+// from the grade's own text, so the default program is untouched and a world without the grade renders exactly as
+// before. Every original line stays as it was (CLEAR and postfx.js patch the result in turn); the additions:
+//   clarity   (linear, exposed) local contrast against a 1/16-size local mean (tLocal), as a log ratio
+//   warmth    highlight warmth: the bright end leans warm, as film's halation does (uHiWarm)
+//   tone map  an ACES / AgX-punchy blend by uTmMix (< 0: post.tonemap as before); punch (uPunch) steepens and
+//             saturates the AgX branch; then a display gamma
+//   lift      a display-referred RGB lift of the darks
+//   split     shadow / highlight tints by display luma, then (sRGB) a black point and an S-curve on luma
+// Ported from the Nizwa Golden Hour project's grade (src/core/post.js, the author's own code; it descends from Golden
+// Temple's). Not ported: its lens flare and screen-space god rays (light2's volumetric shafts cover the latter).
+const AGX_PUNCHY = /* glsl */ `
+      // AgX (Troy Sobotka / Benjamin Wrensch fit) with the punchy look (Nizwa's agx / agxPunchy / agxEotf)
+      vec3 mgAgxContrast(vec3 x){ vec3 x2 = x * x, x4 = x2 * x2; return 15.5 * x4 * x2 - 40.14 * x4 * x + 31.96 * x4 - 6.868 * x2 * x + 0.4298 * x2 + 0.1191 * x - 0.00232; }
+      vec3 mgAgxPunchy(vec3 v, float punch){
+        const mat3 m = mat3(0.842479062253094, 0.0423282422610123, 0.0423756549057051, 0.0784335999999992, 0.878468636469772, 0.0784336, 0.0792237451477643, 0.0791661274605434, 0.879142973793104);
+        const mat3 mi = mat3(1.19687900512017, -0.0528968517574562, -0.0529716355144438, -0.0980208811401368, 1.15190312990417, -0.0980434501171241, -0.0990297440797205, -0.0989611768448433, 1.15107367264116);
+        const float mn = -12.47393, mx = 4.026069;
+        v = mgAgxContrast((clamp(log2(max(m * v, 1e-10)), mn, mx) - mn) / (mx - mn));
+        float l = dot(v, vec3(0.2126, 0.7152, 0.0722));
+        v = pow(max(v, 0.0), vec3(mix(1.0, 1.12, punch)));
+        v = l + mix(1.0, 1.2, punch) * (v - l);
+        return clamp(pow(max(mi * v, 0.0), vec3(2.2)), 0.0, 1.0);
+      }`;
+function GRADE(fs) {
+  const swap = (a, b) => { if (!fs.includes(a)) throw new Error('post: grade text changed, GRADE cannot patch it'); fs = fs.replace(a, b); };
+  const TM = 'c = uTM < 0.5 ? AgXToneMapping(c) : uTM < 1.5 ? ACESFilmicToneMapping(c) : NeutralToneMapping(c);';
+  swap('uniform sampler2D tAE; uniform float uUseAE;', 'uniform sampler2D tAE; uniform float uUseAE;\n      uniform sampler2D tLocal; uniform float uTmMix, uGamma, uBlack, uCurve, uPunch, uClarity, uHiWarm; uniform vec3 uShTint, uHiTint, uGLift;');
+  swap('#include <tonemapping_pars_fragment>', '#include <tonemapping_pars_fragment>' + AGX_PUNCHY);
+  swap(TM, [
+    'if (uClarity != 0.0) {',
+    '  float l0 = dot(c, vec3(0.2126, 0.7152, 0.0722)), lb = dot(texture2D(tLocal, vUv).rgb, vec3(0.2126, 0.7152, 0.0722)) * uExposure * (uUseAE > 0.5 ? exp2(texture2D(tAE, vec2(0.5)).r) : 1.0);',
+    '  c *= exp2(uClarity * 0.5 * clamp(log2((l0 + 0.02) / (lb + 0.02)), -2.0, 2.0));',
+    '}',
+    'if (uHiWarm > 0.0) c = mix(c, c * vec3(1.06, 0.98, 0.88), clamp(dot(c, vec3(0.2126, 0.7152, 0.0722)) * 0.25, 0.0, 1.0) * uHiWarm);',
+    `if (uTmMix < 0.0) ${TM}`,
+    'else c = mix(ACESFilmicToneMapping(c), mgAgxPunchy(c, uPunch), uTmMix);',
+    'if (uGamma != 1.0) c = pow(max(c, 0.0), vec3(1.0 / uGamma));',
+  ].join('\n        '));
+  swap('c = c + uLift * (1.0 - c);', 'c = c + uLift * (1.0 - c);\n        c = c + uGLift * (1.0 - c);');
+  swap('vec3 o = sRGBTransferOETF(vec4(c, 1.0)).rgb;', [
+    'c = clamp(c * mix(uShTint, uHiTint, smoothstep(0.02, 0.55, dot(c, vec3(0.2126, 0.7152, 0.0722)))), 0.0, 1.0);',
+    'vec3 o = sRGBTransferOETF(vec4(c, 1.0)).rgb;',
+    'if (uBlack > 0.0 || uCurve != 0.0) {',
+    '  o = max(o - uBlack, 0.0) / (1.0 - uBlack);',
+    '  float lo = max(dot(o, vec3(0.2126, 0.7152, 0.0722)), 1e-5), ls = clamp(lo, 0.0, 1.0);',
+    '  o = clamp(o * (mix(ls, ls * ls * (3.0 - 2.0 * ls), uCurve) / lo), 0.0, 1.0);',
+    '}',
+  ].join('\n        '));
+  return fs;
+}
+const GRADE_U = () => ({ tLocal: { value: null }, uTmMix: { value: -1 }, uGamma: { value: 1 }, uBlack: { value: 0 }, uCurve: { value: 0 }, uPunch: { value: 0 }, uClarity: { value: 0 }, uHiWarm: { value: 0 },
+  uShTint: { value: new THREE.Vector3(1, 1, 1) }, uHiTint: { value: new THREE.Vector3(1, 1, 1) }, uGLift: { value: new THREE.Vector3() } });
 
 const VS = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }';
 const quadMat = (fs, uniforms, extra) => new THREE.ShaderMaterial({ vertexShader: VS, fragmentShader: fs, uniforms, depthTest: false, depthWrite: false, ...extra });
@@ -181,7 +239,7 @@ export class Pipeline {
     // black background, tWhite over white (uClearK in linear HDR); both sums are linear in the background, so
     // alpha = 1 - (white - black) / K and the straight colour = black / alpha, graded as usual. Built from the grade's
     // own text (the default grade program is untouched); compiled on first use.
-    this._gradeClear = () => this.gradeClear || (this.gradeClear = quadMat(CLEAR(gradeFS), { ...gradeU(), tWhite: { value: null }, tBloom: { value: null }, uClearK: { value: 1 } }, { defines: { CLEAR: '' } }));
+    this._gradeClear = () => this.gradeClear || (this.gradeClear = quadMat(CLEAR(this._gradeFS), { ...this._gradeU(), tWhite: { value: null }, tBloom: { value: null }, uClearK: { value: 1 } }, { defines: { CLEAR: '' } }));
 
     // auto exposure (opt-in, P.autoExposure): meter the frame into a 32 x 18 grid of centre-weighted log luminances,
     // reduce it to one EV and adapt toward it (all on the GPU: no read-back). A still frame is metered on its own
@@ -250,6 +308,42 @@ export class Pipeline {
     this.l2 = { cfg, sun, G, lamps, ssrMat: this._ssrMat(), volMat: this._volMat(G) };
     for (const m of [this.l2.ssrMat, this.l2.volMat]) Object.assign(m.uniforms, this.sub);
     this._l2Targets();
+  }
+
+  /** The time-of-day grade (GRADE above): switch the grade (and the transparent still's, and postfx's LUT / chroma
+   *  variant) to the graded text. end() calls it on the first frame whose P.grade is set; createWorldRenderer calls it
+   *  up front for `grade`. Without it nothing changes. */
+  useGrade() {
+    if (this.graded) return;
+    this.graded = true;
+    const base = this._gradeU;
+    this._gradeFS = GRADE(this._gradeFS);
+    this._gradeU = () => ({ ...base(), ...GRADE_U() });
+    this.grade.dispose(); this.grade = quadMat(this._gradeFS, this._gradeU());
+    if (this.gradeClear) { this.gradeClear.dispose(); this.gradeClear = null; }
+    const fm = this.fx && this.fx.mats;
+    if (fm && fm.grade) { fm.grade.dispose(); delete fm.grade; }
+    // clarity: the frame's local mean, 1/16 size (16 bilinear taps over each 16 x 16 block, read back bilinear)
+    this.localMat = quadMat(/* glsl */ `
+      varying vec2 vUv; uniform sampler2D tColor; uniform vec2 uTexel;
+      void main(){
+        vec3 s = vec3(0.0);
+        for (int y = 0; y < 4; y++) for (int x = 0; x < 4; x++) s += texture2D(tColor, vUv + (vec2(x, y) * 4.0 - 6.0) * uTexel).rgb;
+        gl_FragColor = vec4(s / 16.0, 1.0);
+      }`, { tColor: { value: null }, uTexel: { value: new THREE.Vector2() } });
+  }
+
+  // clarity's local mean of accRT (after the bloom), in a target sized to the output
+  _local() {
+    const w = Math.max(1, Math.ceil(this.w / 16)), h = Math.max(1, Math.ceil(this.h / 16));
+    if (!this.localRT || this.localRT.width !== w || this.localRT.height !== h) {
+      if (this.localRT) this.localRT.dispose();
+      this.localRT = new THREE.WebGLRenderTarget(w, h, { type: THREE.HalfFloatType, depthBuffer: false });
+    }
+    const u = this.localMat.uniforms;
+    u.tColor.value = this.accRT.texture; u.uTexel.value.set(1 / this.w, 1 / this.h);
+    this._draw(this.localMat, this.localRT);
+    return this.localRT.texture;
   }
 
   _l2Targets() {
@@ -742,12 +836,14 @@ export class Pipeline {
       m.blending = THREE.CustomBlending; m.blendEquation = THREE.AddEquation;
       m.blendSrc = THREE.ConstantAlphaFactor; m.blendDst = THREE.OneMinusConstantAlphaFactor; m.blendAlpha = k;
       b.render(this.r, null, this.accRT, 0, false);
+      this._bloomMip = b.renderTargetsVertical[3];   // the grade's clarity reads this blur as its local mean
       expK = 1 + Math.max(0, P.bloom) * lift;
     } else if (P.bloom > 0) {
       const m = b.blendMaterial;
       if (m.blending !== THREE.AdditiveBlending) m.blending = THREE.AdditiveBlending;
       b.strength = P.bloom; b.radius = P.bloomRadius; b.threshold = 0;
       b.render(this.r, null, this.accRT, 0, false);
+      this._bloomMip = b.renderTargetsVertical[3];   // the grade's clarity reads this blur as its local mean
     }
     return expK;
   }
@@ -764,8 +860,10 @@ export class Pipeline {
     if (live && P.bokeh > 0) this._fx().bokeh(P, this._cam);
     if (live && P.motionBlur > 0) this._fx().motionBlur(P);
     if (live && P.rcas > 0) this._fx().rcas(P);
+    this._bloomMip = null;
     const expK = P.bloomPyramid > 0 && P.bloom > 0 ? this._fx().bloom(P) : this._bloom(P);
-    const gm = (!setOnly && (P.lut || P.chroma > 0) && this._fx().grade(P)) || this.grade;
+    if (P.grade && !this.graded) this.useGrade();
+    const gm =(!setOnly && (P.lut || P.chroma > 0) && this._fx().grade(P)) || this.grade;
     const u = gm.uniforms;
     u.tColor.value = this.accRT.texture; u.uTexel.value.set(1 / this.w, 1 / this.h);
     u.uExposure.value = P.exposure * expK; u.uSat.value = P.saturation; u.uCon.value = P.contrast; u.uLift.value = P.lift;
@@ -774,6 +872,19 @@ export class Pipeline {
     u.uUseAE.value = useAE ? 1 : 0; u.tAE.value = this.aeA.texture;
     const t = P.temperature;   // -1 cool .. +1 warm, a simple channel tilt
     u.uWB.value.set(1 + 0.1 * t, 1, 1 - 0.12 * t);
+    if (this.graded) {
+      // the time-of-day grade (GRADE): P.grade is the hour's look (daynight.js gradeAt); without one, every term is off
+      const L = P.grade, cl = L && !setOnly ? L.clarity || 0 : 0;
+      u.uTmMix.value = L && L.tonemapMix !== null && L.tonemapMix !== undefined ? Math.min(1, Math.max(0, L.tonemapMix)) : -1;
+      u.uGamma.value = L ? Math.max(0.1, L.gamma ?? 1) : 1;
+      u.uBlack.value = L ? Math.min(0.5, Math.max(0, L.black || 0)) : 0; u.uCurve.value = L ? L.curve || 0 : 0;
+      u.uShTint.value.fromArray(L ? L.shadowTint : [1, 1, 1]); u.uHiTint.value.fromArray(L ? L.hiTint : [1, 1, 1]);
+      u.uGLift.value.fromArray(L ? L.lift : [0, 0, 0]);
+      if (L && L.tint) u.uWB.value.set(u.uWB.value.x + 0.02 * L.tint, 1 - 0.06 * L.tint, u.uWB.value.z + 0.02 * L.tint);
+      u.uPunch.value = L ? Math.min(1, Math.max(0, L.punch || 0)) : 0; u.uHiWarm.value = L ? Math.max(0, L.highlightWarmth || 0) : 0;
+      // clarity's local mean: the bloom's 1/16 blur when the bloom ran this frame (free), else a pass of its own (~0.3 ms at 1440 x 900, M4 Pro)
+      u.uClarity.value = cl; u.tLocal.value = cl !== 0 ? (this._bloomMip ? this._bloomMip.texture : this._local()) : null;
+    }
     if (!setOnly) this._draw(gm, target);
   }
 
@@ -791,7 +902,7 @@ export class Pipeline {
   compileAsync() {
     const r = this.r, cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), geo = this.quad._mesh.geometry;   // FullScreenQuad's (shared)
     const bloom = Object.values(this.bloomPass).flat().filter((m) => m && m.isMaterial);
-    const passes = [this.ao, this.acc, this.taaMat, this.copyMat, this.grade, this.blendMat, ...bloom];
+    const passes = [this.ao, this.acc, this.taaMat, this.copyMat, this.grade, this.blendMat, ...bloom, ...(this.localMat ? [this.localMat] : [])];
     const sceneOf = (mats) => { const s = new THREE.Scene(); for (const m of mats) { const q = new THREE.Mesh(geo, m); q.frustumCulled = false; s.add(q); } return s; };
     const saved = r.getRenderTarget(), jobs = [];
     r.setRenderTarget(this.accRT); jobs.push(r.compileAsync(sceneOf(passes), cam));
@@ -801,10 +912,10 @@ export class Pipeline {
   }
 
   dispose() {
-    for (const t of [this.sceneRT, this.aoRT, this.accRT, this.histA, this.histB, this.ssrRT, this.volRT, this.meterRT, this.aeA, this.aeB]) t && t.dispose();
+    for (const t of [this.sceneRT, this.aoRT, this.accRT, this.histA, this.histB, this.ssrRT, this.volRT, this.meterRT, this.aeA, this.aeB, this.localRT]) t && t.dispose();
     if (this.l2) { this.l2.lamps.dispose(); this.l2.ssrMat.dispose(); this.l2.volMat.dispose(); }
     this.bloomPass.dispose(); this.quad.dispose(); this.fx && this.fx.dispose();
-    for (const m of [this.ao, this.acc, this.grade, this.gradeClear, this.taaMat, this.copyMat, this.blendMat, this.meterMat, this.adaptMat, this.cvDiff, this.cvScale]) m && m.dispose();
+    for (const m of [this.ao, this.acc, this.grade, this.gradeClear, this.taaMat, this.copyMat, this.blendMat, this.meterMat, this.adaptMat, this.cvDiff, this.cvScale, this.localMat]) m && m.dispose();
     if (this.cv) { this.cv.prev.dispose(); this.cv.stats.dispose(); this.cv = null; }
   }
 }

@@ -41,6 +41,26 @@ assert.equal((await pickQuality({ storage: null, nav: { userAgent: SAFARI, maxTo
     assert.ok(Object.values(lightAt(st)).flat().every((v) => typeof v !== 'number' || Number.isFinite(v)), 'every light value is finite');
   }
 }
+// the time-of-day grade (opt-in): off by default, pure and deterministic, darker night, strength 0 = neutral
+{
+  const { gradeConfig, gradeAt, GRADE_PRESETS } = await import('./src/index.js');
+  assert.equal(gradeConfig(false), null, 'grade off by default');
+  assert.equal(gradeConfig(undefined), null, 'grade off when not given');
+  const G = gradeConfig(true), K = { lat: 22.93, lon: 57.53, tzHours: 4 };
+  const at = (time) => { const st = skyState({ day: '2026-10-25', time }, K); return gradeAt(lightAt(st), st, G); };
+  assert.deepEqual(at('17:00'), at('17:00'), 'gradeAt is deterministic');
+  for (const t of ['06:00', '12:00', '17:00', '17:50', '19:30', '03:00']) {
+    assert.ok(Object.values(at(t)).flat().every((v) => v === null || Number.isFinite(v)), `every grade value at ${t} is finite`);
+  }
+  assert.ok(at('17:00').hiTint[2] < at('12:00').hiTint[2], 'golden-hour highlights are warmer than noon');
+  const night = skyState({ day: '2026-10-25', time: '21:00' }, K), Ln = lightAt(night);
+  assert.ok(gradeAt(Ln, night, G).exposure < 0.5 && Ln.exposure > 2, 'the grade darkens the night');
+  const zero = gradeAt(Ln, night, gradeConfig({ strength: 0 }));
+  assert.ok(zero.exposure === 1 && zero.saturation === 1 && zero.curve === 0 && zero.tonemapMix === 0 && zero.hiTint.every((v) => v === 1), 'strength 0 is neutral');
+  const over = gradeConfig({ golden: { saturation: 1.4, hiTint: [1, 2] }, nightAdapt: 7 });
+  assert.ok(over.golden.saturation === 1.4 && over.golden.hiTint.join() === GRADE_PRESETS.golden.hiTint.join(), 'look overrides merge, bad arrays are ignored');
+  assert.equal(over.nightAdapt, 1, 'nightAdapt is clamped');
+}
 // texture set names reach GLSL identifiers: anything but letters, digits and _ is spelled out (review #21)
 {
   const { glslName } = await import('./src/textures.js');
