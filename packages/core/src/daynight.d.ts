@@ -28,7 +28,7 @@ export interface GradeLookPreset {
 /** gradeAt's result: as a preset, but exposure is a multiplier (2^EV x the night adaptation) and the tints are normalised to luma 1. */
 export type GradeLook = GradeLookPreset;
 export interface GradeSettings {
-  /** 0..1: every term mixed from neutral (the tone map toward ACES). */
+  /** 0..1: every term mixed from neutral (the tone-map blend from post.tonemap); 0 is the world's own look. */
   strength: number;
   /** 0..1: how much of the eye's dark adaptation (lightAt's exposure above 1) the grade takes back: a darker night. */
   nightAdapt: number;

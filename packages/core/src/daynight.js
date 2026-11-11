@@ -181,7 +181,7 @@ export function gradeConfig(option) {
 const lumaNorm = (c) => { const l = lum(c); return l > 1e-6 ? c.map((v) => v / l) : [1, 1, 1]; };
 /** The look for a light (lightAt) and its sky state (skyState), under grade settings (gradeConfig). Pure. Fields as in
  *  GRADE_PRESETS, except exposure: a multiplier here (2^EV, times the night adaptation), and tints normalised to luma 1. */
-export function gradeAt(light, state, settings) {
+export function gradeAt(light, state, settings, exposure = light.exposure) {
   const S = settings || gradeConfig(true), h = state.sun.elevation, s = S.strength;
   let i = 0;
   while (i < GRADE_KEYS.length - 1 && h > GRADE_KEYS[i + 1][0]) i++;
@@ -192,8 +192,9 @@ export function gradeAt(light, state, settings) {
   const o = {};
   for (const k of GRADE_FIELDS) {
     if (k === 'tonemapMix') {
-      // null on one side: the other side's value, toward ACES (0) on the null side
-      o[k] = A[k] === null && B[k] === null ? null : mixv(A[k] ?? 0, B[k] ?? 0) * s;
+      // null on one side: the other side's value, toward ACES (0) on the null side; the strength weighs the blend
+      // against post.tonemap (tonemapK), so strength 0 is the world's own tone map, not ACES
+      o[k] = A[k] === null && B[k] === null ? null : mixv(A[k] ?? 0, B[k] ?? 0);
       continue;
     }
     o[k] = toward(mixv(A[k], B[k]), ID_LOOK[k]);
@@ -201,6 +202,9 @@ export function gradeAt(light, state, settings) {
   const lt = S.lampTint.map((v) => 1 + (v - 1) * Math.min(1, Math.max(0, light.lamp)) * s);
   o.shadowTint = lumaNorm(o.shadowTint);
   o.hiTint = lumaNorm(o.hiTint.map((v, k) => v * lt[k]));
-  o.exposure = Math.pow(2, o.exposure) * Math.pow(Math.max(light.exposure, 1), -S.nightAdapt * s);
+  o.tonemapK = s;
+  // the night adaptation follows the exposure in use (world.js passes the eased one), so an eased setTime does not
+  // snap the night's adaptation in while the exposure is still on its way
+  o.exposure = Math.pow(2, o.exposure) * Math.pow(Math.max(Number.isFinite(exposure) ? exposure : light.exposure, 1), -S.nightAdapt * s);
   return o;
 }

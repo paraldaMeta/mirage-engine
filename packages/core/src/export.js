@@ -481,7 +481,10 @@ export async function exportWorld(world, opts = {}) {
   }
 
   const plainCache = new Map();
-  const plain = (m) => { if (!plainCache.has(m.uuid)) plainCache.set(m.uuid, plainMaterial(m, G)); return plainCache.get(m.uuid); };
+  // the lamps' gain counts the time-of-day grade's exposure (world.gradeLook), which the export does not apply: take it out
+  const gradeK = world.gradeLook && world.gradeLook.exposure > 0 ? Math.pow(world.gradeLook.exposure, 0.9) : 1;
+  const GX = gradeK === 1 || !G || !G.uLampGain ? G : { ...G, uLampGain: { value: G.uLampGain.value * gradeK } };
+  const plain = (m) => { if (!plainCache.has(m.uuid)) plainCache.set(m.uuid, plainMaterial(m, GX)); return plainCache.get(m.uuid); };
   const tris = (g) => (g.index ? g.index.count : g.attributes.position.count) / 3;
 
   // one export scene: kind 'glb' keeps instancing and vertex colours; 'usdz' expands and bakes vertex colours
@@ -532,7 +535,7 @@ export async function exportWorld(world, opts = {}) {
           bakeCache.set(bakeCache.has(key) ? key + '|' + kind : key, b);
         }
         geometry = b.geometry;
-        material = plainMaterial(m, G);
+        material = plainMaterial(m, GX);
         if (b.vertexColors) { material.vertexColors = true; material.color.set(0xffffff); material.map = null; }
         if (b.maps.color) { material.map = b.maps.color; material.color.set(0xffffff); material.vertexColors = false; if (m.transparent) material.opacity = 1; }
         if (b.cut) { material.alphaTest = 0.5; material.transparent = false; }
@@ -543,7 +546,7 @@ export async function exportWorld(world, opts = {}) {
         geometry = expand ? source() : own(src.geometry, KEEP);
         if (!(m.vertexColors || (expand && instColor))) geometry.deleteAttribute('color');
         material = plain(m);
-        if (expand && instColor && !material.vertexColors) { material = plainMaterial(m, G); material.vertexColors = true; }
+        if (expand && instColor && !material.vertexColors) { material = plainMaterial(m, GX); material.vertexColors = true; }
       }
       if (src.isInstancedMesh && !expand) {
         node = new THREE.InstancedMesh(geometry, material, src.count);

@@ -73,7 +73,7 @@ function CLEAR(fs) {
 //   lift      a display-referred RGB lift of the darks
 //   split     shadow / highlight tints by display luma, then (sRGB) a black point and an S-curve on luma
 // Ported from the Nizwa Golden Hour project's grade (src/core/post.js, the author's own code; it descends from Golden
-// Temple's). Not ported: its lens flare and screen-space god rays (light2's volumetric shafts cover the latter).
+// Temple's). Its lens flare and screen-space god rays are postfx.js (post.flare, post.godrays).
 const AGX_PUNCHY = /* glsl */ `
       // AgX (Troy Sobotka / Benjamin Wrensch fit) with the punchy look (Nizwa's agx / agxPunchy / agxEotf)
       vec3 mgAgxContrast(vec3 x){ vec3 x2 = x * x, x4 = x2 * x2; return 15.5 * x4 * x2 - 40.14 * x4 * x + 31.96 * x4 - 6.868 * x2 * x + 0.4298 * x2 + 0.1191 * x - 0.00232; }
@@ -90,7 +90,7 @@ const AGX_PUNCHY = /* glsl */ `
 function GRADE(fs) {
   const swap = (a, b) => { if (!fs.includes(a)) throw new Error('post: grade text changed, GRADE cannot patch it'); fs = fs.replace(a, b); };
   const TM = 'c = uTM < 0.5 ? AgXToneMapping(c) : uTM < 1.5 ? ACESFilmicToneMapping(c) : NeutralToneMapping(c);';
-  swap('uniform sampler2D tAE; uniform float uUseAE;', 'uniform sampler2D tAE; uniform float uUseAE;\n      uniform sampler2D tLocal; uniform float uTmMix, uGamma, uBlack, uCurve, uPunch, uClarity, uHiWarm; uniform vec3 uShTint, uHiTint, uGLift;');
+  swap('uniform sampler2D tAE; uniform float uUseAE;', 'uniform sampler2D tAE; uniform float uUseAE;\n      uniform sampler2D tLocal; uniform float uTmMix, uTmK, uGamma, uBlack, uCurve, uPunch, uClarity, uHiWarm; uniform vec3 uShTint, uHiTint, uGLift;');
   swap('#include <tonemapping_pars_fragment>', '#include <tonemapping_pars_fragment>' + AGX_PUNCHY);
   swap(TM, [
     'if (uClarity != 0.0) {',
@@ -99,7 +99,7 @@ function GRADE(fs) {
     '}',
     'if (uHiWarm > 0.0) c = mix(c, c * vec3(1.06, 0.98, 0.88), clamp(dot(c, vec3(0.2126, 0.7152, 0.0722)) * 0.25, 0.0, 1.0) * uHiWarm);',
     `if (uTmMix < 0.0) ${TM}`,
-    'else c = mix(ACESFilmicToneMapping(c), mgAgxPunchy(c, uPunch), uTmMix);',
+    'else { vec3 cb = mix(ACESFilmicToneMapping(c), mgAgxPunchy(c, uPunch), uTmMix); if (uTmK < 1.0) { ' + TM + ' c = mix(c, cb, uTmK); } else c = cb; }',
     'if (uGamma != 1.0) c = pow(max(c, 0.0), vec3(1.0 / uGamma));',
   ].join('\n        '));
   swap('c = c + uLift * (1.0 - c);', 'c = c + uLift * (1.0 - c);\n        c = c + uGLift * (1.0 - c);');
@@ -114,7 +114,7 @@ function GRADE(fs) {
   ].join('\n        '));
   return fs;
 }
-const GRADE_U = () => ({ tLocal: { value: null }, uTmMix: { value: -1 }, uGamma: { value: 1 }, uBlack: { value: 0 }, uCurve: { value: 0 }, uPunch: { value: 0 }, uClarity: { value: 0 }, uHiWarm: { value: 0 },
+const GRADE_U = () => ({ tLocal: { value: null }, uTmMix: { value: -1 }, uTmK: { value: 1 }, uGamma: { value: 1 }, uBlack: { value: 0 }, uCurve: { value: 0 }, uPunch: { value: 0 }, uClarity: { value: 0 }, uHiWarm: { value: 0 },
   uShTint: { value: new THREE.Vector3(1, 1, 1) }, uHiTint: { value: new THREE.Vector3(1, 1, 1) }, uGLift: { value: new THREE.Vector3() } });
 
 const VS = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }';
@@ -667,6 +667,7 @@ export class Pipeline {
   /** renderTransparent: grade the black sum (keepBlack) and the white one (accRT, background K) into `target` with
    *  straight alpha: alpha from the sums before the bloom, the object's own bloom added to its colour. No auto exposure. */
   endClear(P, frameIndex, target, K = 1) {
+    if (P.grade && !this.graded) this.useGrade();   // before the CLEAR program is taken: useGrade rebuilds it
     const m = this._gradeClear(), u = m.uniforms, g = this.grade.uniforms;
     this.end({ ...P, bloom: 0, autoExposure: 0 }, frameIndex, null, {}, true);   // set the grade's uniforms, draw nothing
     for (const k of Object.keys(g)) if (u[k]) u[k].value = g[k].value;
@@ -875,14 +876,16 @@ export class Pipeline {
       // the time-of-day grade (GRADE): P.grade is the hour's look (daynight.js gradeAt); without one, every term is off
       const L = P.grade, cl = L && !setOnly ? L.clarity || 0 : 0;
       u.uTmMix.value = L && L.tonemapMix !== null && L.tonemapMix !== undefined ? Math.min(1, Math.max(0, L.tonemapMix)) : -1;
+      u.uTmK.value = L && Number.isFinite(L.tonemapK) ? Math.min(1, Math.max(0, L.tonemapK)) : 1;
       u.uGamma.value = L ? Math.max(0.1, L.gamma ?? 1) : 1;
       u.uBlack.value = L ? Math.min(0.5, Math.max(0, L.black || 0)) : 0; u.uCurve.value = L ? L.curve || 0 : 0;
       u.uShTint.value.fromArray(L ? L.shadowTint : [1, 1, 1]); u.uHiTint.value.fromArray(L ? L.hiTint : [1, 1, 1]);
       u.uGLift.value.fromArray(L ? L.lift : [0, 0, 0]);
       if (L && L.tint) u.uWB.value.set(u.uWB.value.x + 0.02 * L.tint, 1 - 0.06 * L.tint, u.uWB.value.z + 0.02 * L.tint);
       u.uPunch.value = L ? Math.min(1, Math.max(0, L.punch || 0)) : 0; u.uHiWarm.value = L ? Math.max(0, L.highlightWarmth || 0) : 0;
-      // clarity's local mean: the bloom's 1/16 blur when the bloom ran this frame (free), else a pass of its own (~0.3 ms at 1440 x 900, M4 Pro)
-      u.uClarity.value = cl; u.tLocal.value = cl !== 0 ? (this._bloomMip ? this._bloomMip.texture : this._local()) : null;
+      // clarity's local mean: always its own 1/16 pass (~0.07-0.3 ms at 1440 x 900, M4 Pro). The bloom's mip is not
+      // used: it is far wider and high-passed, so clarity would change with the bloom path (light2, bloomPyramid, bloom 0)
+      u.uClarity.value = cl; u.tLocal.value = cl !== 0 ? this._local() : null;
     }
     if (!setOnly) this._draw(gm, target);
   }

@@ -191,7 +191,7 @@ export function createWorldRenderer(config = {}) {
     const P = { ...post, exposure: post.exposure * exposure, temperature: post.temperature + light.warmth };
     if (P.autoExposure > 0) P.aeKey = post.aeKey * Math.pow(2, -(post.aeNight || 0) * Math.min(1, Math.max(0, light.lamp)));
     if (grade) {
-      look = gradeAt(light, state, grade); setLampGain();
+      look = gradeAt(light, state, grade, exposure); setLampGain();
       P.exposure *= look.exposure; P.aeKey *= look.exposure;   // auto exposure aims as much lower: it does not undo the night
       P.temperature += look.temperature; P.saturation *= look.saturation; P.contrast *= look.contrast; P.grade = look;
     }
@@ -219,7 +219,7 @@ export function createWorldRenderer(config = {}) {
     skyLut.bake();
     G.uLamp.value = L.lamp; G.uSkyLight.value = L.skyLight; G.uNight.value = L.night;
     expTarget = L.exposure;
-    if (grade) look = gradeAt(L, state, grade);
+    if (grade) look = gradeAt(L, state, grade, ease ? exposure : expTarget);
     if (!ease) { exposure = expTarget; envState = 'instant'; }
     else if (envState !== 'instant') {
       const moved = keyDir.angleTo(lastCap.dir) > 0.5 * Math.PI / 180;
@@ -595,6 +595,9 @@ export function createWorldRenderer(config = {}) {
     /** forget the adapted exposure (auto exposure): the next frame is metered on its own, e.g. after a teleport */
     resetExposure: () => pipeline.resetExposure(),
     get light() { return light; }, get state() { return state; }, get exposure() { return exposure; },
+    /** the time-of-day grade's current look (daynight.js gradeAt), null without `grade`: paths that expose the frame
+     *  themselves (XR direct, export) apply its exposure, or the lamps (whose gain counts it) come out too bright */
+    get gradeLook() { return look; },
     /** reduced motion in use ({ sway, rain }), null when off; set it with setReducedMotion(true | { sway, rain } | false) */
     get reducedMotion() { return reduced; },
     setReducedMotion, renderTransparent,

@@ -208,20 +208,23 @@ basin@12:00, pergola@21:00, gate@17:22: 0 px against the commit before it).
   white balance), saturation and contrast, `tonemapMix` (the AgX share of an ACES / AgX blend; null keeps
   `post.tonemap`), display-referred split toning (`shadowTint`, `hiTint`), an sRGB black point (`black`), an S-curve
   on luma (`curve`, hue kept), `punch` (the AgX branch steeper and more saturated: AgX-punchy), `clarity` (local
-  contrast against the bloom's 1/16 blur), `highlightWarmth` (the bright end leans warm, as film's halation), a
+  contrast against a 1/16-size local mean of its own), `highlightWarmth` (the bright end leans warm, as film's halation), a
   display-referred RGB `lift` and a display `gamma`. The lamps tint the highlights as they come on (`lampTint` by
-  `light.lamp`). Ported from the Nizwa Golden Hour project's day-night grade and post (which descend from Golden Temple's); its
-  lens flare and screen-space god rays are not (light2's volumetric shafts cover the latter).
+  `light.lamp`). Ported from the Nizwa Golden Hour project's day-night grade and post (which descend from Golden Temple's);
+  its lens flare and screen-space god rays are `post.flare` / `post.godrays` (below).
 - **Night.** `lightAt`'s exposure adapts the eye up to 40x at night, which lifts the whole frame; `nightAdapt` (0.45)
   takes back that share of it (in log: at 21:00 an exposure of 5 becomes 2.4). The lamps' gain follows the graded
   exposure, so they stay as bright while the walls go dark; with auto exposure on, its target moves with it (it does
-  not undo the darker night).
-- **Live.** `world.grade` (the settings; `strength` 0..1 mixes every term from neutral) is read every frame;
+  not undo the darker night). The adaptation follows the exposure in use, so `setTime(t, { ease: true })` eases it
+  in with the exposure. Paths that expose the frame themselves read `world.gradeLook`: the XR direct path applies its
+  exposure, white balance, saturation and contrast; the GLB / USDZ export takes its exposure out of the lamps' gain.
+- **Live.** `world.grade` (the settings; `strength` 0..1 mixes every term from neutral, the tone-map blend from
+  `post.tonemap`, so 0 is the world's own look) is read every frame;
   `gradeAt(light, state, settings)` is the pure function behind it (`post.grade` carries the look to the pipeline, so
   a host driving `Pipeline` itself can pass one).
 - **Cost** (Nizwa probe, 1440 x 900, Apple M4 Pro, GPU shared with other work, so ranges): the grade pass +0.04-0.1 ms
-  (0.14-0.2 ms plain); `clarity` reads the bloom's blur for free, and draws a 1/16-size pass of its own (+0.07-0.3 ms)
-  only when the bloom is off. Walking frames, 8 spots x 2 runs interleaved: 10.33 -> 10.43 ms mean, inside the noise.
+  (0.14-0.2 ms plain); `clarity` draws a 1/16-size pass of its own (+0.07-0.3 ms) whenever it is above 0 (the bloom's
+  blur is not reused: it is wider and high-passed, so clarity would change with the bloom path). Walking frames, 8 spots x 2 runs interleaved: 10.33 -> 10.43 ms mean, inside the noise.
 - **Limits.** One set of looks for every view (no per-shot grade). The grade cannot make bounce light or a sky: on the
   Nizwa probe at 17:00 the sunlit plaster comes within about 0-20 levels of Nizwa's per channel (it was 32-40 levels
   short in red before), the shade stays greyer (no bounce) and the dusk sky stays Mirage's.

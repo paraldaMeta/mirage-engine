@@ -190,6 +190,9 @@ bias is applied under upscaling (WebGL2 has no sampler LOD bias): textures are a
 
 ## Not here
 
+- **God rays and flare in XR.** The XR pipeline (`createXRPost`) gets no `lensSun`, so `post.godrays` and `post.flare`
+  draw nothing in a headset.
+
 - **Screen-space reflections** now live in the lit materials (`lighting: { screen: true }`, `docs/lighting.md`);
   light2's older pass is unchanged.
 - **XR.** `world.renderDirect` (the XR path) calls `renderer.render` into the headset's framebuffer and never

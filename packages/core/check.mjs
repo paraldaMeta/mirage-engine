@@ -56,7 +56,7 @@ assert.equal((await pickQuality({ storage: null, nav: { userAgent: SAFARI, maxTo
   const night = skyState({ day: '2026-10-25', time: '21:00' }, K), Ln = lightAt(night);
   assert.ok(gradeAt(Ln, night, G).exposure < 0.5 && Ln.exposure > 2, 'the grade darkens the night');
   const zero = gradeAt(Ln, night, gradeConfig({ strength: 0 }));
-  assert.ok(zero.exposure === 1 && zero.saturation === 1 && zero.curve === 0 && zero.tonemapMix === 0 && zero.hiTint.every((v) => v === 1), 'strength 0 is neutral');
+  assert.ok(zero.exposure === 1 && zero.saturation === 1 && zero.curve === 0 && zero.tonemapK === 0 && zero.hiTint.every((v) => v === 1), 'strength 0 is neutral (the tone-map blend weighs 0: post.tonemap)');
   const over = gradeConfig({ golden: { saturation: 1.4, hiTint: [1, 2] }, nightAdapt: 7 });
   assert.ok(over.golden.saturation === 1.4 && over.golden.hiTint.join() === GRADE_PRESETS.golden.hiTint.join(), 'look overrides merge, bad arrays are ignored');
   assert.equal(over.nightAdapt, 1, 'nightAdapt is clamped');
