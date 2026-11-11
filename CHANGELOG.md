@@ -5,12 +5,27 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
 ## Unreleased
 
 **New**
+- @miragekit/core: bounce light (`lighting: { bounce: true | { min, max, spacing, ... } }`; experimental, opt-in,
+  `docs/lighting.md`): one-bounce light from sunlit walls into the shade beside them and the sky occlusion of lanes,
+  as a factor (local / reference) on the image-based diffuse light, gathered from a height field of the built scene
+  (ported from the Nizwa Golden Hour project's irradiance volume). Nizwa Fort: ~10 ms height field + 30-40 ms bake
+  (42,240 probes) where `gi` took 51 s; stills bit-identical when off and between runs; eased re-bakes as the
+  clock runs. `probes/nizwa-probe/?bounce=1`, hello-courtyard `?bounce=1`.
+- @miragekit/core: `post.godrays` and `post.flare` (experimental, opt-in, `postfx.js`, `docs/post.md`): screen-space
+  light shafts from the sun (half resolution, shafts only where something hides the sky round the sun, weighed down
+  by `godraysVol` while light2's volumetric light marches the sun) and the sun's lens flare (glare, ghosts, halo;
+  visibility from 16 depth taps over the sun's disc). Both follow the sun's radiance and draw nothing at night or
+  with the sun out of view. Off, frames are bit-identical; on, stills are bit-identical run to run. hello-courtyard
+  and the Nizwa probe read `?godrays=1&flare=1`. +0.19 / +0.0 ms at 1280 x 720, +1.3 / +0.3 ms at 2560 x 1440.
 - `examples/neon-district`: a small first-person shooter in a rain-wet city block at night, the engine's showcase.
   Seven modules on one plan, no asset files. Clustered lamps with shadow tiles, screen-space reflections on wet
   streets, a probe volume and reflection probes indoors, volumetric lamps, the post chain, GPU particles, beams and
   decals, lightning; a carbine with recoil, reload, aiming and a strike, leaning and crouching, navgrid sentinels with
   an animation controller and a state machine, flying kites, a radio, a compass, an options panel, checkpoints,
-  English and Traditional Chinese, keyboard / gamepad / touch. A 140-step playtest plays it from the alley to the roof. Which
+  English and Traditional Chinese, keyboard / gamepad / touch. A 140-step playtest plays it from the alley to the roof.
+  Any hour of the day (`?time=`, T in the game, a slider): it uses the time-of-day grade, the dusk sky, the lamp pool
+  (163 lamps), bounce light, god rays and the flare. Dressed buildings (balconies, units, pipes, fire escapes, wall
+  art), skybridges, megatowers, a train, street clutter, armoured sentinels. Which
   feature each part shows, the frame times and what it works around: `examples/neon-district/NOTES.md`. No engine
   code changed.
 
@@ -20,11 +35,38 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
   `@mirage-engine` are taken on npm). Imports change from `@mirage/...` to `@miragekit/...`; nothing else does.
 - `.github/workflows/release.yml` publishes them to npm with provenance after the owner approves (docs/releasing.md).
 
+**New**
+- @miragekit/core: a time-of-day grade (`createWorldRenderer({ grade: true })`; experimental, opt-in, off renders
+  bit-identical): split toning, black point, S-curve, ACES / AgX-punchy blend, clarity, highlight warmth and a darker night, keyed by the sun's
+  elevation and the lamp level (`GRADE_PRESETS`, `gradeConfig`, `gradeAt`). hello-courtyard and the Nizwa probe:
+  `?grade=1`. Closes gap 1 of `probes/nizwa-probe/REPORT.md`.
+- @miragekit/core: the dusk sky (opt-in, `createWorldRenderer({ sky: { dusk: true } })`, `SKY_DUSK_DEFAULTS`):
+  twilight colours (a warm horizon under the set Sun, Earth's shadow, a blue hour), a hazier horizon by day, airglow
+  toward the horizon and a night dome seen darker than the light it gives, the world's far haze below the horizon
+  instead of black, altocumulus clouds at a fuller default cover. Off, the sky is bit-identical; on, +0.2–0.4 ms with
+  the sky filling a 1440 x 900 frame. nizwa-probe and hello-courtyard: `?sky=dusk`.
+- @miragekit/core: the lamp pool (`createWorldRenderer({ lampPool: true })`, `world.lampPool.set(lamps)`; opt-in,
+  off = bit-identical): every lamp of a town lights its surroundings through the lit materials (clustered, three's
+  falloff and BRDF), not only the few PointLights near the eye; a PointLight on a pool lamp takes its share, so the
+  hand-off is seamless; a lamp's wall stops its light; with light2 the shadow slots go to the best pool lamps.
+  Closes gap 3 of the Nizwa probe (`probes/nizwa-probe` `?pools=1`); hello-courtyard `?lamppool=1`.
+- @miragekit/core: ambient volumes scale to a town and take a colour. `setAmbientVolumes` boxes accept
+  `tint: [r, g, b]` (the sky light inside is scaled by factor x tint per channel), and a list of more than 8 boxes,
+  or a tinted one, goes into a grid over x / z in a float data texture, where a pixel visits only its cell's boxes
+  (at most 16, a constant loop bound). Nizwa probe, 1280 x 720, M4 Pro, 8 interleaved rounds: no volumes 14.0 ms,
+  8 boxes on the uniform path 14.7, 8 on the grid 14.2, 1,000 on the grid 14.7 (735 cells, at most 9 per cell). Up
+  to 8 untinted boxes, and worlds that never call it, keep the original code (hello-courtyard stills bit-identical
+  to the base, with and without 3 boxes, with and without light2). light2's volumetric dust reads the grid too.
+  @miragekit/world validates `tint`. The Nizwa probe's bridge passes every box with its tint and maps Nizwa's
+  two-sided ramp onto Mirage's (box shrunk by soft, ramp doubled).
+
 **Fixes**
 - `mirage-package` (single-file builds) no longer inlines three's default Draco and Basis decoder files (~2.5 MB),
   which three's DRACOLoader and KTX2Loader name at module top level; Mirage's `createAssets` always sets its own
   decoder paths. hello-courtyard 5.32 -> 2.79 MB, walled-garden -> 2.83 MB (the site's 5 MB budget had stopped the
   1.0.0 site build). `--keep-three-decoders` keeps them for a page that uses the loaders without a decoder path.
+- `lighting` worlds compile the lit programs WITH the environment in `prepare()` too (the variants the lighting
+  parts act on); they were linked one by one in the first capture: about 25 s of the fort's 51 s `gi=1` start.
 
 ## 1.0.0 — 2026-11-11 (tagged `v1.0.0`; not published to npm)
 

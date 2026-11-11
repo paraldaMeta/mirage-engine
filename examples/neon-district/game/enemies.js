@@ -7,7 +7,7 @@
 //   thinking   a small state machine: post / patrol -> alert -> fight (close in, hold and fire bursts, shift) -> search
 // They are game entities with save / load, so a checkpoint restores who is down and where the others stand.
 import * as THREE from 'three';
-import { createRigModel, createAnimator, createNavGrid, createNavAgent, createNavCrowd, createSenses, RIG } from '@miragekit/play';
+import { createRigModel, createAnimator, createNavGrid, createNavAgent, createNavCrowd, createSenses, solveLookAt, RIG } from '@miragekit/play';
 import { FX } from './fx.js';
 
 const q = (x, y, z) => new THREE.Quaternion().setFromEuler(new THREE.Euler(x, y, z)).toArray();
@@ -33,18 +33,20 @@ function extraClips() {
     new THREE.QuaternionKeyframeTrack('RightArm.quaternion', T, [...q(0, 0, 1.2), ...q(-0.5, 0, 0.4), ...q(-0.2, -0.4, 0.2), ...q(0, -0.5, 0.35)]),
     new THREE.QuaternionKeyframeTrack('Head.quaternion', T, [...I, ...q(-0.3, 0, 0), ...q(0.2, 0.2, 0), ...q(0.1, 0.3, 0)]),
   ]);
-  return [aim, flinch, die];
+  // looking about on its post: an offset on the neck, for an additive layer
+  const scan = new THREE.AnimationClip('scan', 6, [new THREE.QuaternionKeyframeTrack('Neck.quaternion', [0, 1.4, 2.6, 4.2, 5.2, 6], [...I, ...q(0, 0.55, 0), ...q(0.08, 0.5, 0), ...q(0, -0.6, 0), ...q(-0.05, -0.45, 0), ...I])]);
+  return [aim, flinch, die, scan];
 }
 
 const KIND = {
-  grunt: { name: 'grunt', hp: 60, speed: 3.0, damage: 5, burst: 3, visor: [0.1, 0.9, 1.0], colors: { skin: 0x2a2f38, shirt: 0x566274, trousers: 0x2b313b, boots: 0x101216, hair: 0x1a1d22 }, scale: 1 },
-  heavy: { name: 'heavy', hp: 135, speed: 2.3, damage: 8, burst: 5, visor: [1.0, 0.16, 0.1], colors: { skin: 0x2b2624, shirt: 0x7a4a3a, trousers: 0x33261f, boots: 0x101216, hair: 0x1f1714 }, scale: 1.1 },
+  grunt: { name: 'grunt', hp: 60, speed: 3.0, damage: 5, burst: 3, visor: [0.1, 0.9, 1.0], colors: { skin: 0x14171b, shirt: 0x1b2026, trousers: 0x181c21, boots: 0x0c0d0f, hair: 0x14171b }, scale: 1 },
+  heavy: { name: 'heavy', hp: 135, speed: 2.3, damage: 8, burst: 5, visor: [1.0, 0.16, 0.1], colors: { skin: 0x141211, shirt: 0x1d1917, trousers: 0x191514, boots: 0x0c0d0f, hair: 0x141211 }, scale: 1.1 },
 };
 const RANGE = 24, FOV = 130, FIRE_RANGE = 19;
 
 export function createEnemies({ world, game, physics, plan, vfx, sfx, player, assist, onDispose }) {
   const { mat } = world;
-  const armour = mat.std({ vertexColors: true, roughness: 0.42, metalness: 0.65 });
+  const armour = mat.std({ vertexColors: true, roughness: 0.42, metalness: 0.45 });
   const plate = mat.std({ color: new THREE.Color(0.03, 0.035, 0.045), roughness: 0.35, metalness: 0.9 });
   const visorMat = Object.fromEntries(Object.entries(KIND).map(([k, v]) => [k, mat.glow(v.visor, 7)]));
   const extra = extraClips();
@@ -56,18 +58,81 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
   function build(def) {
     const K = KIND[def.kind || 'grunt'], rig = createRigModel({ material: armour, colors: K.colors });
     rig.root.scale.setScalar(K.scale);
-    const B = rig.bones, add = (bone, geo, m, p, r = [0, 0, 0]) => { const o = new THREE.Mesh(geo, m); o.position.set(...p); o.rotation.set(...r); o.castShadow = true; B[bone].add(o); return o; };
-    add('Head', new THREE.BoxGeometry(0.2, 0.05, 0.1), visorMat[def.kind || 'grunt'], [0, 0.12, 0.085]);
-    add('Head', new THREE.SphereGeometry(0.135, 14, 10), plate, [0, 0.13, -0.01]);
-    add('Chest', new THREE.BoxGeometry(0.36, 0.26, 0.14), plate, [0, 0.08, 0.1]);
-    add('Chest', new THREE.BoxGeometry(0.34, 0.3, 0.12), plate, [0, 0.05, -0.12]);
-    for (const s of [-1, 1]) add(s < 0 ? 'RightArm' : 'LeftArm', new THREE.BoxGeometry(0.17, 0.11, 0.15), plate, [s * 0.03, 0.03, 0]);
-    // the rifle lies along the right hand's own -X (the arm's axis)
+    // ---- the armour: plates, joints and lights authored in the rig's own space (T-pose, +Z forward, +X its left) and
+    // skinned rigidly, each part to one bone. Two extra skinned meshes on the rig's skeleton (plates, lights) instead
+    // of a mesh per part: a sentinel is four draws however many parts it has.
+    const B = rig.bones, bones = rig.mesh.skeleton.bones, heavy = def.kind === 'heavy';
+    const plates = [], lights = [], col = new THREE.Color();
+    const part = (list, bone, geo, p, color, r = [0, 0, 0]) => {
+      const g = geo.index ? geo.toNonIndexed() : geo.clone();
+      g.applyMatrix4(new THREE.Matrix4().compose(new THREE.Vector3(...p), new THREE.Quaternion().setFromEuler(new THREE.Euler(...r)), new THREE.Vector3(1, 1, 1)));
+      const n = g.attributes.position.count, c = new Float32Array(n * 3), si = new Uint16Array(n * 4), sw = new Float32Array(n * 4), bi = bones.indexOf(B[bone]);
+      col.set(color);
+      for (let i = 0; i < n; i++) { c[i * 3] = col.r; c[i * 3 + 1] = col.g; c[i * 3 + 2] = col.b; si[i * 4] = bi; sw[i * 4] = 1; }
+      g.setAttribute('color', new THREE.BufferAttribute(c, 3)); g.setAttribute('skinIndex', new THREE.BufferAttribute(si, 4)); g.setAttribute('skinWeight', new THREE.BufferAttribute(sw, 4));
+      g.deleteAttribute('uv');
+      list.push(g);
+    };
+    // rounded only where it reads (helmet, breastplate, pauldrons, thighs): a chamfered box is 108 triangles, a plain one 12
+    const RBx = (w, h, d, r = 0.02) => (r >= 0.04 ? new world.geom.RoundedBoxGeometry(w, h, d, 1, Math.min(r, 0.45 * Math.min(w, h, d))) : new THREE.BoxGeometry(w, h, d));
+    const C = heavy ? { a: 0x5c4a44, b: 0x9a4a32, c: 0xe0703c, d: 0x1c1b1c } : { a: 0x56626f, b: 0x8593a2, c: 0xe2e8ee, d: 0x1c2026 };   // shell, plate, accent, joint
+    // head: a helmet with a brow, cheek guards, a chin, ear pods, an antenna; the visor is a lit band (one eye on a warden)
+    part(plates, 'Head', RBx(0.25, 0.25, 0.28, 0.07), [0, 1.675, -0.005], C.a);
+    part(plates, 'Head', RBx(0.27, 0.06, 0.2, 0.02), [0, 1.755, 0.05], C.b, [0.25, 0, 0]);
+    part(plates, 'Head', RBx(0.2, 0.09, 0.1, 0.03), [0, 1.585, 0.085], C.b, [-0.2, 0, 0]);
+    for (const s of [-1, 1]) { part(plates, 'Head', new THREE.CylinderGeometry(0.05, 0.05, 0.05, 10).rotateZ(Math.PI / 2), [s * 0.135, 1.66, -0.02], C.d); part(plates, 'Head', RBx(0.03, 0.12, 0.14, 0.01), [s * 0.125, 1.63, 0.07], C.b); }
+    part(plates, 'Head', RBx(0.012, 0.2, 0.012, 0), [0.1, 1.88, -0.07], C.d);
+    part(plates, 'Head', RBx(0.05, 0.16, 0.2, 0.02), [0, 1.8, -0.03], C.c);                                              // a crest
+    if (heavy) part(lights, 'Head', new THREE.CylinderGeometry(0.045, 0.045, 0.03, 14).rotateX(Math.PI / 2), [0, 1.675, 0.14], 0xffffff);
+    else part(lights, 'Head', RBx(0.21, 0.04, 0.03, 0.01), [0, 1.685, 0.135], 0xffffff);
+    part(plates, 'Neck', new THREE.CylinderGeometry(0.075, 0.095, 0.1, 10), [0, 1.5, 0], C.d);
+    // torso: a layered breastplate, a collar yoke, a core light, ribbed abdomen, a pelvis block with hip plates
+    part(plates, 'Chest', RBx(heavy ? 0.5 : 0.43, 0.3, 0.26, 0.05), [0, 1.34, 0.01], C.a);
+    for (const s of [-1, 1]) part(plates, 'Chest', RBx(0.19, 0.17, 0.06, 0.02), [s * 0.105, 1.37, 0.14], C.b, [-0.12, s * 0.2, 0]);
+    part(plates, 'Chest', RBx(heavy ? 0.56 : 0.48, 0.07, 0.24, 0.02), [0, 1.485, 0], C.b);
+    part(plates, 'Chest', RBx(0.1, 0.03, 0.02, 0), [0.1, 1.44, 0.165], C.c); part(plates, 'Chest', RBx(0.16, 0.012, 0.012, 0), [-0.1, 1.29, 0.165], C.c);
+    part(lights, 'Chest', RBx(0.05, 0.05, 0.02, 0.005), [0, 1.34, 0.168], 0xffffff);
+    for (const y of [1.06, 1.12, 1.18]) part(plates, 'Spine', RBx(0.31 - (1.18 - y) * 0.4, 0.045, 0.2, 0.015), [0, y, 0.005], y === 1.12 ? C.d : C.b);
+    part(plates, 'Hips', RBx(0.35, 0.15, 0.23, 0.04), [0, 0.945, 0], C.a);
+    for (const s of [-1, 1]) part(plates, 'Hips', RBx(0.05, 0.2, 0.2, 0.02), [s * 0.185, 0.9, 0], C.b, [0, 0, s * 0.12]);
+    part(plates, 'Hips', RBx(0.12, 0.12, 0.06, 0.02), [0, 0.9, 0.12], C.b);
+    // the pack: a power unit with two canisters and heat vents that glow
+    part(plates, 'Chest', RBx(0.32, 0.36, 0.15, 0.03), [0, 1.3, -0.2], C.b);
+    for (const s of [-1, 1]) part(plates, 'Chest', new THREE.CylinderGeometry(0.045, 0.045, 0.3, 10), [s * 0.11, 1.33, -0.29], C.d);
+    for (const y of [1.2, 1.25]) part(lights, 'Chest', RBx(0.2, 0.016, 0.012, 0), [0, y, -0.277], 0xffffff);
+    part(plates, 'Chest', RBx(0.3, 0.04, 0.16, 0.01), [0, 1.5, -0.2], C.c);
+    // arms and legs, both sides: pauldron, upper plate, elbow, gauntlet; thigh, knee, shin, boot; a light at each joint
+    for (const [side, x] of [['Left', 1], ['Right', -1]]) {
+      part(plates, `${side}Arm`, RBx(heavy ? 0.27 : 0.22, heavy ? 0.2 : 0.16, 0.24, 0.06), [x * 0.245, 1.45, 0], C.b, [0, 0, x * -0.25]);
+      part(plates, `${side}Arm`, RBx(0.05, 0.035, 0.25, 0.01), [x * 0.255, 1.53, 0], C.c);
+      part(plates, `${side}Arm`, RBx(0.17, 0.105, 0.11, 0.03), [x * 0.36, 1.4, 0], C.a);
+      part(plates, `${side}ForeArm`, new THREE.CylinderGeometry(0.052, 0.052, 0.07, 10).rotateX(Math.PI / 2), [x * 0.47, 1.4, 0], C.d);
+      part(lights, `${side}ForeArm`, RBx(0.025, 0.025, 0.115, 0), [x * 0.47, 1.4, 0], 0xffffff);
+      part(plates, `${side}ForeArm`, RBx(0.2, 0.095, 0.1, 0.03), [x * 0.6, 1.4, 0], C.b);
+      part(plates, `${side}ForeArm`, RBx(0.12, 0.03, 0.105, 0.01), [x * 0.6, 1.455, 0], C.c);
+      part(plates, `${side}Hand`, RBx(0.1, 0.06, 0.08, 0.02), [x * 0.78, 1.4, 0], C.d);
+      part(plates, `${side}UpLeg`, RBx(0.155, 0.32, 0.17, 0.04), [x * 0.1, 0.73, 0.012], C.a);
+      part(plates, `${side}UpLeg`, RBx(0.1, 0.2, 0.03, 0.01), [x * 0.1, 0.76, 0.1], C.b);
+      part(plates, `${side}Leg`, RBx(0.115, 0.11, 0.09, 0.03), [x * 0.1, 0.5, 0.065], C.b);
+      part(lights, `${side}Leg`, RBx(0.125, 0.02, 0.02, 0), [x * 0.1, 0.5, 0.112], 0xffffff);
+      part(plates, `${side}Leg`, RBx(0.125, 0.3, 0.135, 0.035), [x * 0.1, 0.29, 0.008], C.a);
+      part(plates, `${side}Leg`, RBx(0.05, 0.22, 0.03, 0.01), [x * 0.1, 0.3, -0.075], C.d);
+      part(plates, `${side}Foot`, RBx(0.135, 0.105, 0.27, 0.03), [x * 0.1, 0.052, 0.04], C.d);
+      part(plates, `${side}Foot`, RBx(0.14, 0.03, 0.1, 0.01), [x * 0.1, 0.11, 0.1], C.b);
+    }
+    if (heavy) {   // a warden carries a light bar on the left shoulder and thicker shins
+      part(plates, 'LeftArm', RBx(0.1, 0.12, 0.3, 0.02), [0.27, 1.6, -0.02], C.a);
+      part(lights, 'LeftArm', RBx(0.08, 0.05, 0.02, 0), [0.27, 1.61, 0.135], 0xffffff);
+      for (const x of [-1, 1]) part(plates, x > 0 ? 'LeftLeg' : 'RightLeg', RBx(0.15, 0.16, 0.16, 0.03), [x * 0.1, 0.36, 0.02], C.b);
+    }
+    const skin = (list, material) => { const m = new THREE.SkinnedMesh(world.geom.mergeGeometries(list, false), material); m.bind(rig.mesh.skeleton, rig.mesh.bindMatrix); m.frustumCulled = false; m.castShadow = material === armour; m.receiveShadow = true; rig.root.add(m); return m; };
+    skin(plates, armour); skin(lights, visorMat[def.kind || 'grunt']);
+    // the rifle lies along the right hand's own -X (the arm's axis): receiver, barrel, magazine, stock, a lit muzzle
     const gun = new THREE.Group(); B.RightHand.add(gun); gun.position.set(-0.1, -0.02, 0.02);
-    const gm = (geo, m, p) => { const o = new THREE.Mesh(geo, m); o.position.set(...p); o.castShadow = true; gun.add(o); return o; };
-    gm(new THREE.BoxGeometry(0.62, 0.075, 0.05), plate, [-0.1, 0.02, 0]);
-    gm(new THREE.BoxGeometry(0.1, 0.16, 0.04), plate, [0.08, -0.07, 0]);
-    const tip = gm(new THREE.BoxGeometry(0.04, 0.03, 0.03), visorMat[def.kind || 'grunt'], [-0.43, 0.02, 0]);
+    const gparts = [[RBx(0.5, 0.085, 0.055, 0.01), [-0.06, 0.02, 0]], [new THREE.CylinderGeometry(0.014, 0.014, 0.3, 8).rotateZ(Math.PI / 2), [-0.42, 0.03, 0]], [RBx(0.07, 0.16, 0.04, 0.01), [0.02, -0.08, 0]], [RBx(0.2, 0.06, 0.045, 0.01), [0.27, 0.0, 0]], [RBx(0.16, 0.03, 0.03, 0), [-0.1, 0.075, 0]]]
+      .map(([g, p]) => g.translate(...p).toNonIndexed());
+    const gunMesh = new THREE.Mesh(world.geom.mergeGeometries(gparts, false), plate); gunMesh.castShadow = true; gun.add(gunMesh);
+    const tip = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.03, 0.03), visorMat[def.kind || 'grunt']); tip.position.set(-0.58, 0.03, 0); gun.add(tip);
     rig.root.traverse((o) => { o.userData.occlude = false; });
     // a top-level object marked mgDynamic: the lamps' cached shadow tiles are drawn again when it moves near them,
     // and the probe bakes leave it out; collide = false keeps it out of the walk grid (it is not under the game's group)
@@ -82,13 +147,17 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
         { name: 'aim', mask: ['Chest'], weight: 0, start: 'aim', states: { aim: { clip: 'aim' } } },
         { name: 'flinch', additive: true, start: 'none', states: { none: {}, flinch: { clip: 'flinch', loop: false } },
           transitions: [{ from: '*', to: 'flinch', when: ['flinch'], duration: 0.03 }, { from: 'flinch', to: 'none', exitTime: 0.95, duration: 0.05 }] },
+        { name: 'scan', additive: true, weight: 1, start: 'scan', states: { scan: { clip: 'scan' } } },
       ],
     });
     const e = {
       id: def.id, def, K, rig, anim, tip, hp: K.hp, state: 'post', home: def.at.slice(), pos: def.at.slice(), yaw: def.face ?? 0, agent: null,
-      aim: 0, t: 0, wait: 0, burst: 0, next: 1 + R() * 1.5, tele: 0, lastSeen: null, seenT: -1e9, shift: 0, patrolI: 0, dead: false, deadT: 0, active: def.zone !== 'wave' && def.zone !== 'relay', speed: 0,
+      aim: 0, watch: 0, t: 0, wait: 0, burst: 0, next: 1 + R() * 1.5, tele: 0, lastSeen: null, seenT: -1e9, shift: 0, patrolI: 0, dead: false, deadT: 0, active: def.zone !== 'wave' && def.zone !== 'relay', speed: 0,
       heading: [Math.sin(def.face ?? 0), Math.cos(def.face ?? 0)],
     };
+    // the head follows the player once it knows of them (after the clips have posed the bones)
+    const eyeAt = new THREE.Vector3();
+    anim.post.push(() => { if (e.watch && !e.dead) solveLookAt([B.Neck, B.Head], eyeAt.set(player.feet[0], player.feet[1] + player.height, player.feet[2]), { share: [0.4, 0.6], limit: 0.9 }); });
     rig.root.position.set(...e.pos); rig.root.rotation.y = e.yaw; rig.root.visible = e.active;   // the wave and the relay's two are not drawn until they are woken
     anim.update(0);
     // an entity: the playtest can look at it by id, and a checkpoint saves it
@@ -275,7 +344,8 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
       const sp = Math.hypot(e.pos[0] - px, e.pos[2] - pz) / dt;
       e.speed += (Math.min(sp, 4.4) - e.speed) * Math.min(1, dt * 8);
       if (far) continue;
-      e.anim.set('speed', e.speed); e.anim.setLayerWeight('aim', e.aim);
+      e.anim.set('speed', e.speed); e.anim.setLayerWeight('aim', e.aim); e.anim.setLayerWeight('scan', e.state === 'post' ? 1 : 0);
+      e.watch = e.state === 'fight' || e.state === 'alert' ? 1 : 0;
       e.anim.update(dt);
       moved = true;
     }

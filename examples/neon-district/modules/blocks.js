@@ -3,7 +3,8 @@
 // beyond the walkable block. Offers `signs` (one per entry of plan.blocks[i].signs, on the face it names),
 // `beacons` (the red lamp on top of each mast) and `holos` (the board on the tallest skyline tower).
 import { materials } from './materials.js';
-import { slab } from './lib.js';
+import * as THREE from 'three';
+import { slab, lamp } from './lib.js';
 
 // a point on a block's face and the way it looks: local +Z out of the wall
 const FACE = { s: (r, a) => [[a, r[3]], 0], n: (r, a) => [[a, r[1]], Math.PI], e: (r, a) => [[r[2], a], Math.PI / 2], w: (r, a) => [[r[0], a], -Math.PI / 2] };
@@ -20,7 +21,15 @@ export default {
         slab(b, M.concrete, [x0 - 0.05, z0 - 0.05, x1 + 0.05, z1 + 0.05], 0, 0.75);
         slab(b, M.darkMetal, [x0 - 0.1, z0 - 0.1, x1 + 0.1, z1 + 0.1], 4.16, 4.38);
         const tint = { s1: 'pink', c: 'cyan', e: 'violet', sw: 'amber', s3: 'cyan', w: 'pink' }[k.name];
-        if (tint) for (const [a2, c2, d2, e2] of [[x0 - 0.12, z0 - 0.13, x1 + 0.12, z0 - 0.1], [x0 - 0.12, z1 + 0.1, x1 + 0.12, z1 + 0.13], [x0 - 0.13, z0 - 0.1, x0 - 0.1, z1 + 0.1], [x1 + 0.1, z0 - 0.1, x1 + 0.13, z1 + 0.1]]) slab(roofs, M.neon[tint], [a2, c2, d2, e2], 4.08, 4.13);
+        if (tint) {
+          for (const [a2, c2, d2, e2] of [[x0 - 0.12, z0 - 0.13, x1 + 0.12, z0 - 0.1], [x0 - 0.12, z1 + 0.1, x1 + 0.12, z1 + 0.13], [x0 - 0.13, z0 - 0.1, x0 - 0.1, z1 + 0.1], [x1 + 0.1, z0 - 0.1, x1 + 0.13, z1 + 0.1]]) slab(roofs, M.neon[tint], [a2, c2, d2, e2], 4.08, 4.13);
+          // the line lights the wall and the pavement under it: a pool lamp every 5 m, only on faces the player can stand by
+          const col = new THREE.Color().setRGB(...M.NEON[tint]), B = plan.bounds, inside = (x, z) => x > B[0] - 1 && x < B[2] + 1 && z > B[1] - 1 && z < B[3] + 1;
+          for (const [ax, az, bx, bz, nx, nz] of [[x0, z0, x1, z0, 0, -1], [x0, z1, x1, z1, 0, 1], [x0, z0, x0, z1, -1, 0], [x1, z0, x1, z1, 1, 0]]) {
+            const len = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.round(len / 6));
+            for (let i = 0; i < n; i++) { const t = (i + 0.5) / n, x = ax + (bx - ax) * t + nx * 0.5, z = az + (bz - az) * t + nz * 0.5; if (inside(x, z)) lamp(ctx, { pos: [x, 3.8, z], color: col, intensity: 3.4, range: 6, normal: [nx, 0, nz], back: 0.5 }); }
+          }
+        }
       }
       // the roof: a dark deck, a parapet, plant rooms, a tank or a mast
       slab(roofs, M.roofing, [x0 + 0.3, z0 + 0.3, x1 - 0.3, z1 - 0.3], k.h, k.h + 0.06);

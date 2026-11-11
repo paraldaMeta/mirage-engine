@@ -9,6 +9,12 @@
 //      ?soft=1 contact-hardening soft sun shadows (@miragekit/core softshadow.js); &sunAngle=deg (0.53 = the real sun)
 //      ?wet=0..1 wet ground and masonry, puddles (@miragekit/core wet.js)  &rain=0..1 ripples on the puddles and falling
 //      streaks (@miragekit/world/kits/rain); without ?wet / ?rain nothing of either is built
+//      ?grade=1 the time-of-day grade (@miragekit/core daynight.js: split toning, black point, curve, ACES / AgX mix,
+//      punch, clarity, highlight warmth, a darker night); &gradek=0..1 its strength
+//      ?sky=dusk the dusk sky (@miragekit/core sky.js): twilight colours, a darker night dome, a hazy horizon, altocumulus
+//      ?lamppool=1 the lanterns are lit by the lamp pool (@miragekit/core lamppool.js) instead of PointLights;
+//      &lampreal=1 keeps the PointLights too (the pool then adds nothing: the A/B of the hand-off)
+//      ?godrays=1 light shafts from the sun, ?flare=1 the sun's lens flare (@miragekit/core postfx.js, docs/post.md)
 //      Enter VR / Enter AR appear in a WebXR browser: docs/xr.md
 import { createWorldRenderer, createTextures, placeDate, pickQuality, setRelief, setWetness, setRain, postFromQuery } from '@miragekit/core';
 import { buildWorld } from '@miragekit/world';
@@ -38,34 +44,40 @@ setRelief({ low: 0, medium: 0.7, high: 1 }[quality] ?? 1);   // the relief's rea
 const light2 = Q.get('light2') === '1' && Object.fromEntries((Q.get('l2') || '').split(',').filter(Boolean).map((k) => [k.replace(/^no/, ''), false]));
 // soft sun shadows (opt-in): ?soft=1 [&sunAngle=deg]
 const softShadows = Q.get('soft') === '1' && (Q.get('sunAngle') ? { sunAngle: +Q.get('sunAngle') } : true);
+// time-of-day grade (opt-in): ?grade=1 [&gradek=0..1]
+const grade = Q.get('grade') === '1' && (Q.has('gradek') ? { strength: +Q.get('gradek') } : true);
 // realtime lighting (opt-in, docs/lighting.md): ?csm=1 cascaded sun shadows, ?gi=1 irradiance probe volume,
+// ?bounce=1 one-bounce light from a height field (&bspacing=m),
 // ?probes=1 a box reflection probe,
 // ?lights=N clustered lamps (&cluster=0 plain loop, &lshadows=K shadowed, &stock=1 three's own lights instead)
 const LF = (k) => Q.get(k) === '1';
 const NL = +Q.get('lights') || 0, stock = LF('stock');
 const SCR = ['ssr', 'ssgi', 'contact'].some((k) => +Q.get(k) > 0);   // ?ssr=1&ssgi=1&contact=1: screen-space lighting (docs/lighting.md)
-const lighting = ['csm', 'gi', 'probes'].some(LF) || (NL && !stock) || SCR ? {
+const lighting = ['csm', 'gi', 'bounce', 'probes'].some(LF) || (NL && !stock) || SCR ? {
   screen: SCR,
   csm: LF('csm') && { cascades: +Q.get('cascades') || 4, stagger: LF('stagger') },   // &stagger=1: far cascades redrawn less often
   gi: LF('gi') && { min: [-9, 0.15, -9], max: [9, 5.4, 9], spacing: +Q.get('gispacing') || 2 },
+  bounce: LF('bounce') && { spacing: +Q.get('bspacing') || 1 },   // the box: the shadow volume (x / z) and the built heights
   probes: LF('probes') && [{ min: [-7.2, 0, -7.2], max: [7.2, 6, 7.2], position: [0, 2.6, 0], fade: 1.5 }],
   lights: NL > 0 && !stock && { cluster: Q.get('cluster') !== '0', perCell: +Q.get('percell') || 0 },   // exact lists (&percell=64: the capped ones)
 } : undefined;
+// the dusk sky (opt-in): ?sky=dusk
+const sky = Q.get('sky') === 'dusk' ? { dusk: true } : undefined;
 const ed = editable(plan, edits);   // with an empty layer: the plan itself, and every ed. call below does nothing
-const world = createWorldRenderer({ quality, byteTargets: Q.get('bytetargets') === '1', xr: xrs.vr || xrs.ar, light2, softShadows, lighting: ed.lighting(lighting), dynamicRes: Q.get('dynres') ? (Q.get('dynres') === '1' || { target: +Q.get('dynres') }) : (caps?.settings.dynamicRes ?? false),
+const world = createWorldRenderer({ quality, byteTargets: Q.get('bytetargets') === '1', xr: xrs.vr || xrs.ar, light2, softShadows, grade, lampPool: Q.get('lamppool') === '1', lighting: ed.lighting(lighting), dynamicRes: Q.get('dynres') ? (Q.get('dynres') === '1' || { target: +Q.get('dynres') }) : (caps?.settings.dynamicRes ?? false),
   canvas, width: W, height: H, place, time: date || 'golden', preserveDrawingBuffer: true,
   shadow: { center: [0, 2, 0], radius: 17 }, envProbe: [0, 2.2, 0],
-  fog: { groundDensity: 0.0022, height: 30 },
+  fog: { groundDensity: 0.0022, height: 30 }, ...(sky ? { sky } : {}),
   post: { grain: Q.get('grain') === '0' ? 0 : 0.012, dof: Q.get('dof') ? 0.025 : 0, focus: 9,
     ...(Q.get('aolit') === '1' ? { aoLit: 1 } : {}), ...(Q.get('ae') === '1' ? { autoExposure: 0.5 } : {}),
-    ...postFromQuery(Q) },   // ?taa2=1&upscale=0.67&mb=0.5&bokeh=1&lens=0.03&bloom2=1&lut=warm&chroma=0.6 (docs/post.md)
+    ...postFromQuery(Q) },   // ?taa2=1&upscale=0.67&mb=0.5&bokeh=1&lens=0.03&bloom2=1&lut=warm&chroma=0.6&godrays=1&flare=1 (docs/post.md)
 });
 const urls = import.meta.glob('./tex/*.webp', { eager: true, query: '?url', import: 'default' });
 const tex = createTextures(world, { manifest, url: (f) => urls['./tex/' + f] });
 // wetness (opt-in): ?wet=0.8 re-patches the ground and masonry materials, ?rain=1 adds the streaks
 const wet = Q.has('wet') || Q.has('rain');
 if (wet) { setWetness(+(Q.get('wet') ?? 0)); setRain(+(Q.get('rain') ?? 0)); }
-const buildOpts = (p) => ({ plan: p, modules: modules({ broken: Q.has('broken') }), shared: { tex, detail: !Q.has('nodetail'), ...(wet ? { wet: true } : {}) } });
+const buildOpts = (p) => ({ plan: p, modules: modules({ broken: Q.has('broken') }), shared: { tex, detail: !Q.has('nodetail'), ...(wet ? { wet: true } : {}), ...(Q.get('lampreal') === '1' ? { lampReal: true } : {}) } });
 const built = await buildWorld(world, buildOpts(ed.plan));
 const rain = Q.has('rain') ? addRain({ ...world.ctx, root: world.scene }) : null;
 

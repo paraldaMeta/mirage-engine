@@ -52,6 +52,7 @@ const CSS = `
 .nd-opt{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(380px,calc(100vw - 32px));padding:18px 20px;background:#06161ef2;border:1px solid #6fe8ff66;pointer-events:auto;font:500 13px/1.4 system-ui,"PingFang TC","Noto Sans TC",sans-serif}
 .nd-opt h2{margin:0 0 12px;font:600 13px ui-monospace,monospace;letter-spacing:.16em;color:#7af0ff}
 .nd-opt label{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:10px 0}
+.nd-opt output{width:44px}
 .nd-opt input[type=range]{width:150px;accent-color:#19d8ff}.nd-opt output{width:38px;text-align:right;font:600 12px ui-monospace,monospace}
 .nd-opt button{min-height:32px;padding:0 12px;background:#04141c;color:#d8f6ff;border:1px solid #6fe8ff88;font:inherit;cursor:pointer}
 .nd-opt button:focus-visible,.nd-opt input:focus-visible{outline:2px solid #ffd34a;outline-offset:2px}
@@ -60,6 +61,10 @@ const CSS = `
 .mg-ui .mg-cross{display:none}
 .mg-ui{--mg-accent:#19d8ff}
 `;
+
+const HOURS = { night: 23.25, dawn: 6.25, day: 13.5, dusk: 17 };
+const hourValue = (h) => (h in HOURS ? HOURS[h] : (() => { const [a, b] = String(h).split(':'); return +a + (+b || 0) / 60; })());
+const hourText = (v) => `${String(Math.floor(v)).padStart(2, '0')}:${String(Math.round((v % 1) * 60)).padStart(2, '0')}`;
 
 export function createHud({ camera, onDispose, T }) {
   const root = document.createElement('div');
@@ -114,12 +119,16 @@ export function createHud({ camera, onDispose, T }) {
       opt.innerHTML = `<h2>${T.opt.title}</h2>
         <label>${T.opt.sens}<span><input type="range" data-k="sens" min="0.3" max="2.5" step="0.05" value="${o.values.sens}"><output>${(+o.values.sens).toFixed(2)}</output></span></label>
         <label>${T.opt.fov}<span><input type="range" data-k="fov" min="50" max="90" step="1" value="${o.values.fov}"><output>${o.values.fov}</output></span></label>
+        <label>${T.opt.time}<span><input type="range" data-k="hour" min="0" max="23.75" step="0.25" value="${hourValue(o.values.hour)}"><output>${hourText(hourValue(o.values.hour))}</output></span></label>
         <label>${T.opt.invert}<button data-b="invert">${o.values.invert ? T.opt.on : T.opt.off}</button></label>
         <label>${T.opt.full}<button data-b="full">${document.fullscreenElement ? T.opt.on : T.opt.off}</button></label>
         <label>${T.opt.lang}<button data-b="lang">${o.values.lang === 'zh' ? '繁體中文' : 'English'}</button></label>
         <label><span></span><button data-b="close">${T.opt.close}</button></label><p>${T.opt.hint}</p>`;
       root.appendChild(opt);
-      for (const r of opt.querySelectorAll('input')) r.addEventListener('input', () => { r.nextElementSibling.textContent = r.dataset.k === 'sens' ? (+r.value).toFixed(2) : r.value; o.onChange(r.dataset.k, +r.value); });
+      for (const r of opt.querySelectorAll('input')) r.addEventListener('input', () => {
+        if (r.dataset.k === 'hour') { r.nextElementSibling.textContent = hourText(+r.value); o.onHour(hourText(+r.value)); return; }
+        r.nextElementSibling.textContent = r.dataset.k === 'sens' ? (+r.value).toFixed(2) : r.value; o.onChange(r.dataset.k, +r.value);
+      });
       for (const b of opt.querySelectorAll('button')) { b.addEventListener('keydown', (e) => e.stopPropagation()); b.addEventListener('click', () => {
         const k = b.dataset.b;
         if (k === 'close') { opt.remove(); opt = null; o.onClose(); }

@@ -21,7 +21,7 @@ export const VERSION = 1;
 const UPLINK_S = 40;
 export const lang = pickLang(new URLSearchParams(globalThis.location?.search || '')), T = LANGS[lang];
 
-export function setupGame(ctx, { shared, vfx, Q, quality }) {
+export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour }) {
   const { game, physics, audio, root, plan, anchors, world, onDispose, input } = ctx;
   const M = shared.mats, { mat } = world, K = plan.levels;
   const sfx = createSfx(audio), assist = Q.get('assist') === '1';
@@ -63,13 +63,14 @@ export function setupGame(ctx, { shared, vfx, Q, quality }) {
   listen(canvas, 'contextmenu', (e) => e.preventDefault());
   listen(window, 'keydown', (e) => { if (e.repeat || !live()) return; if (e.code === 'KeyF') held.key = true; if (e.code === 'KeyQ') held.aimKey = true; if (e.code === 'KeyR') weapon.S.wantReload = true;
     if (e.code === 'KeyV') weapon.melee(); if (e.code === 'KeyZ') held.leanL = true; if (e.code === 'KeyX') held.leanR = true; if (e.code === 'KeyC' || e.code === 'ControlLeft') player.wantCrouch = !player.wantCrouch; });
-  listen(window, 'keydown', (e) => { if (e.code === 'KeyO' && !e.repeat && g && g.ui.started && !player.dead && (hud.optionsOpen || !game.paused)) toggleOptions(); });
+  listen(window, 'keydown', (e) => { if (e.code === 'KeyT' && !e.repeat && live()) { const order = ['night', 'dawn', 'day', 'dusk'], next = order[(order.indexOf(hour()) + 1) % 4]; setHour(next); game.ui.toast(T.hours[next]); }
+    if (e.code === 'KeyO' && !e.repeat && g && g.ui.started && !player.dead && (hud.optionsOpen || !game.paused)) toggleOptions(); });
   listen(window, 'keyup', (e) => { if (e.code === 'KeyF') held.key = false; if (e.code === 'KeyQ') held.aimKey = false; if (e.code === 'KeyZ') held.leanL = false; if (e.code === 'KeyX') held.leanR = false; });
   listen(window, 'blur', () => { for (const k of Object.keys(held)) held[k] = false; });
   let padReload = false, padMelee = false;
   // the options panel pauses the game; its values apply at once and are kept in the settings
   function toggleOptions() {
-    const open = hud.options({ values: { ...opts, lang },
+    const open = hud.options({ values: { ...opts, lang, hour: hour() }, onHour: (h) => setHour(h),
       onChange: (k, v) => { opts[k] = v; if (k === 'fov') weapon.S.fov = v; game.settings.nd = { ...opts }; game.saveSettings(); },
       onClose: () => game.pause(false),
       onLang: () => { const u = new URL(location.href); u.searchParams.set('lang', lang === 'zh' ? 'en' : 'zh'); location.href = u.href; } });
@@ -175,7 +176,7 @@ export function setupGame(ctx, { shared, vfx, Q, quality }) {
 
   // ---- weather and sound: a lamp high over the block for the lightning, the audio engine for the rooms' reverb
   const sky = new THREE.PointLight(0xcfe0ff, 0, 600, 2); root.add(sky); world.lighting?.addLight(sky);
-  const skyGain = 26000 * world.G.uLampGain.value, said = { spotted: false, hurtT: -99 };
+  const skyGain = 26000, said = { spotted: false, hurtT: -99 };
   let boltT = 9, thunderT = 0, endYaw = 0, endPitch = 0, reverb = null;
   try { reverb = createAudioEngine({ audio, voices: 24, zones: zonesFromPlan(plan), zoneOptions: { ambient: { reverb: 'outdoor', wet: 0.16 } } }); onDispose(() => reverb.dispose()); } catch { reverb = null; }
   game.on('start', () => hud.radio(T.radio.start));
@@ -184,6 +185,7 @@ export function setupGame(ctx, { shared, vfx, Q, quality }) {
   game.system((dt) => {
     sfx.poll();
     if (!g) return;
+    const gains = relight();   // the hour's lamp level into every clustered lamp (the hour can change, and eases)
     play.turn(0, 0, 0);            // the scene clock (rain, effects, screens) runs only on frames the player drives: keep it running
     game.dirty = true;
     const p = g.character.pos;
@@ -220,7 +222,7 @@ export function setupGame(ctx, { shared, vfx, Q, quality }) {
       vfx.beam({ from: [bx + (R() - 0.5) * 30, 150, bz + (R() - 0.5) * 30], to: [bx, 38 + R() * 20, bz], width: 1.6, color: '#cfe0ff', intensity: 7, jitter: 16, branches: 3, life: 0.4 });
       sky.position.set(bx * 0.4, 110, bz * 0.4); sky.userData.t = 0.38; thunderT = 0.7 + r / 340;
     }
-    sky.userData.t = (sky.userData.t || 0) - dt; sky.intensity = sky.userData.t > 0 ? skyGain * (0.35 + 0.65 * R()) * Math.min(1, sky.userData.t * 6) : 0;
+    sky.userData.t = (sky.userData.t || 0) - dt; sky.intensity = sky.userData.t > 0 ? skyGain * gains.room * (0.35 + 0.65 * R()) * Math.min(1, sky.userData.t * 6) : 0;
     if (thunderT > 0 && (thunderT -= dt) <= 0) sfx.play('nd_thunder', { bus: 'ambience', gain: 0.9 });
     // health: a little of it comes back out of a fight
     if (!player.dead && assist) player.hp = Math.min(100, player.hp + dt * 6);
@@ -244,7 +246,7 @@ export function setupGame(ctx, { shared, vfx, Q, quality }) {
       if (list.length) { const a = list[Math.floor(R() * list.length)]; vfx.burst(FX.sparks, a.pos, { direction: [0, -1, 0], scale: 0.7 }); sparkLight.position.set(...a.pos); sparkLight.userData.t = 0.12; sfx.play('nd_impact', { at: a.pos, gain: 0.5, ref: 4 }); }
       sparkT = 2.5 + R() * 5;
     }
-    sparkLight.userData.t = (sparkLight.userData.t || 0) - dt; sparkLight.intensity = sparkLight.userData.t > 0 ? 40 * world.G.uLampGain.value * R() : 0;
+    sparkLight.userData.t = (sparkLight.userData.t || 0) - dt; sparkLight.intensity = sparkLight.userData.t > 0 ? 40 * gains.room * R() : 0;
     for (const s of strobes) s.light.intensity = s.light.userData.base * (s.flicker ? (R() < 0.04 ? 0.25 : 1) : 0.35 + 0.65 * Math.pow(0.5 + 0.5 * Math.sin(game.time * (game.flags.uplink ? 9 : 3.2)), 2));
     for (const [i, l] of lanterns.entries()) l.light.intensity = l.light.userData.base * (0.93 + 0.07 * Math.sin(game.time * (5 + i) + i));
     const indoors = (p[1] < 4 && ((p[0] > plan.bar.rect[0] && p[0] < plan.bar.rect[2] && p[2] > plan.bar.rect[1] && p[2] < plan.bar.rect[3]) || (p[0] > plan.relay.rect[0] && p[2] < plan.relay.rect[3])));

@@ -24,11 +24,11 @@ vec3 ndRoom(vec2 id, float seed, float share){
 const facade = (style) => {
   const S = {
     // poured concrete, punched windows
-    concrete: { bay: 2.6, floor: 3.3, lo: '0.2, 0.3', hi: '0.8, 0.8', base: 'vec3(0.105, 0.11, 0.12)', panes: 2, share: 0.24, gloss: 0.1, rough: 0.9 },
+    concrete: { bay: 2.6, floor: 3.3, lo: '0.2, 0.3', hi: '0.8, 0.8', base: 'vec3(0.25, 0.25, 0.26)', panes: 2, share: 0.24, gloss: 0.1, rough: 0.9 },
     // metal cladding, strip windows
-    panel: { bay: 3.4, floor: 3.6, lo: '0.04, 0.38', hi: '0.96, 0.72', base: 'vec3(0.075, 0.085, 0.1)', panes: 4, share: 0.3, gloss: 0.08, rough: 0.55 },
+    panel: { bay: 3.4, floor: 3.6, lo: '0.04, 0.38', hi: '0.96, 0.72', base: 'vec3(0.17, 0.19, 0.22)', panes: 4, share: 0.3, gloss: 0.08, rough: 0.55 },
     // a curtain wall: nearly all glass between thin mullions
-    glass: { bay: 1.8, floor: 3.9, lo: '0.035, 0.05', hi: '0.965, 0.95', base: 'vec3(0.05, 0.055, 0.065)', panes: 1, share: 0.2, gloss: 0.05, rough: 0.4 },
+    glass: { bay: 1.8, floor: 3.9, lo: '0.035, 0.05', hi: '0.965, 0.95', base: 'vec3(0.1, 0.11, 0.13)', panes: 1, share: 0.2, gloss: 0.05, rough: 0.4 },
   }[style];
   return {
     fragmentDecl: FACADE_DECL,
@@ -72,7 +72,7 @@ const ASPHALT = {
     vec2 p = mgWorldPos.xz;
     float coarse = mgFbm2(p * 0.35, 4), grit = mgValue2(p * 38.0), patchy = smoothstep(0.1, 0.5, mgFbm2(p * 0.11 + 9.0, 3));
     ndH = 0.55 * coarse + 0.25 * grit + 0.2 * mgValue2(p * 7.0);
-    vec3 c = mix(vec3(0.03, 0.031, 0.034), vec3(0.052, 0.05, 0.05), patchy) * (0.75 + 0.5 * grit);
+    vec3 c = mix(vec3(0.05, 0.051, 0.055), vec3(0.085, 0.082, 0.08), patchy) * (0.75 + 0.5 * grit);
     // cracks: thin dark lines where two noise cells meet
     vec2 ce = mgCell2(p * 0.55);
     c *= 1.0 - 0.45 * (1.0 - smoothstep(0.0, 0.035, ce.y - ce.x));
@@ -82,7 +82,9 @@ const ASPHALT = {
     float aa = fwidth(p.y) * 1.5;
     float centre = (1.0 - smoothstep(0.06, 0.06 + aa, abs(p.y - 6.0))) * step(fract(p.x / 4.0), 0.5);
     float edges = 1.0 - smoothstep(0.05, 0.05 + aa, min(abs(p.y - 3.9), abs(p.y - 8.1)));
-    ndPaint = inRoad * max(centre, edges) * wear;
+    float zebra = step(abs(p.x - 18.0), 2.2) * step(fract(p.y / 0.9), 0.52) * step(4.1, p.y) * step(p.y, 7.9);
+    float stop = step(abs(abs(p.x - 18.0) - 3.4), 0.15) * step(3.9, p.y) * step(p.y, 8.1);
+    ndPaint = inRoad * max(max(centre * (1.0 - step(abs(p.x - 18.0), 3.6)), edges), max(zebra, stop)) * wear;
     c = mix(c, vec3(0.5, 0.48, 0.4), ndPaint * 0.85);
     diffuseColor.rgb *= c; }`,
   roughness: 'roughnessFactor = 0.86 - 0.12 * ndPaint;',
@@ -115,7 +117,7 @@ const CONCRETE = {
     float hole = 1.0 - smoothstep(0.02, 0.035, length(q * vec2(1.2, 0.6)));
     float big = mgFbm3(p * 0.6, 4), fine = mgValue3(p * 22.0);
     ndH = 0.5 * big + 0.2 * fine - 0.6 * seam - 0.8 * hole;
-    vec3 c = vec3(0.17, 0.172, 0.18) * (0.72 + 0.45 * big) * (0.9 + 0.2 * fine);
+    vec3 c = vec3(0.3, 0.3, 0.31) * (0.72 + 0.45 * big) * (0.9 + 0.2 * fine);
     c *= 1.0 - 0.4 * seam - 0.6 * hole;
     c *= 1.0 - 0.32 * smoothstep(0.15, 0.85, mgFbm3(p * vec3(2.6, 0.13, 2.6) + 4.0, 3)) * (1.0 - abs(n.y));   // run-off
     c *= mix(0.62, 1.0, smoothstep(0.0, 1.0, p.y + 0.3 * big));                                                // a damp foot
@@ -152,7 +154,7 @@ const SCREEN = (tint) => ({
     ndE = ${tint} * (0.08 + mix(0.5, dot_, fade));
     diffuseColor.rgb *= vec3(0.01); }`,
   roughness: 'roughnessFactor = 0.12;',
-  emissive: 'totalEmissiveRadiance += ndE * (1.3 * uLampGain);',
+  emissive: 'totalEmissiveRadiance += ndE * (1.3 * max(uLampGain, 0.1));   // a screen is on by day too',
 });
 
 export function materials(ctx) {
@@ -169,15 +171,15 @@ export function materials(ctx) {
   const M = {
     NEON,
     asphalt: mat.std({ roughness: 0.86 }, wet(ASPHALT, { porosity: 0.35, puddles: 1.5, height: 'ndH', heightMid: 0.5, heightScale: 0.02 })),
-    pavement: mat.std({ roughness: 0.82 }, wet(slabs(1.2, 'vec3(0.16, 0.16, 0.165)', 0.035), { porosity: 0.5, puddles: 0.9, height: 'ndH', heightMid: 0.6, heightScale: 0.014 })),
-    plaza: mat.std({ roughness: 0.42 }, wet(slabs(0.9, 'vec3(0.075, 0.08, 0.09)', 0.02), { porosity: 0.2, puddles: 1.1, height: 'ndH', heightMid: 0.65, heightScale: 0.012 })),
+    pavement: mat.std({ roughness: 0.82 }, wet(slabs(1.2, 'vec3(0.27, 0.27, 0.275)', 0.035), { porosity: 0.5, puddles: 0.9, height: 'ndH', heightMid: 0.6, heightScale: 0.014 })),
+    plaza: mat.std({ roughness: 0.42 }, wet(slabs(0.9, 'vec3(0.12, 0.125, 0.14)', 0.02), { porosity: 0.2, puddles: 1.1, height: 'ndH', heightMid: 0.65, heightScale: 0.012 })),
     kerb: mat.std({ roughness: 0.8 }, wet(CONCRETE, { porosity: 0.6, puddles: 0 })),
     concrete: mat.std({ roughness: 0.88 }, wet(CONCRETE, { porosity: 0.8, puddles: 0, band: 0.5 })),
     concreteDry: mat.std({ roughness: 0.9 }, CONCRETE),                                              // indoors
-    sheet: mat.std({ roughness: 0.5, metalness: 0.75 }, wet(RIBBED('vec3(0.2, 0.22, 0.25)'), { porosity: 0.1, puddles: 0 })),
-    sheetRed: mat.std({ roughness: 0.55, metalness: 0.6 }, wet(RIBBED('vec3(0.3, 0.06, 0.05)'), { porosity: 0.1, puddles: 0 })),
+    sheet: mat.std({ roughness: 0.5, metalness: 0.75 }, wet(RIBBED('vec3(0.32, 0.34, 0.38)'), { porosity: 0.1, puddles: 0 })),
+    sheetRed: mat.std({ roughness: 0.55, metalness: 0.6 }, wet(RIBBED('vec3(0.42, 0.1, 0.08)'), { porosity: 0.1, puddles: 0 })),
     facade: { concrete: mat.std({ roughness: 0.9 }, facade('concrete')), panel: mat.std({ roughness: 0.55, metalness: 0.5 }, facade('panel')), glass: mat.std({ roughness: 0.4, metalness: 0.3 }, facade('glass')) },
-    roofing: mat.std({ roughness: 0.92 }, wet({ fragmentDecl: 'float ndH;', albedo: 'ndH = mgFbm2(mgWorldPos.xz * 1.4, 4); diffuseColor.rgb *= vec3(0.045, 0.047, 0.052) * (0.7 + 0.6 * ndH);', normal: 'normal = mgBump(normal, ndH, 0.006);' }, { porosity: 0.3, puddles: 1.6, height: 'ndH', heightMid: 0.5 })),
+    roofing: mat.std({ roughness: 0.92 }, wet({ fragmentDecl: 'float ndH;', albedo: 'ndH = mgFbm2(mgWorldPos.xz * 1.4, 4); diffuseColor.rgb *= vec3(0.08, 0.082, 0.09) * (0.7 + 0.6 * ndH);', normal: 'normal = mgBump(normal, ndH, 0.006);' }, { porosity: 0.3, puddles: 1.6, height: 'ndH', heightMid: 0.5 })),
     steel: mat.std({ metalness: 1, roughness: 0.34 }, PROC.brushed('vec3(0.34, 0.36, 0.4)', { axis: 'y', wear: 1.4 })),
     darkMetal: mat.std({ color: rgb(0.035, 0.038, 0.045), metalness: 0.9, roughness: 0.42 }),
     blackMetal: mat.std({ color: rgb(0.012, 0.013, 0.016), metalness: 0.8, roughness: 0.5 }),

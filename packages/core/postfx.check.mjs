@@ -5,7 +5,7 @@ import { FX_DEFAULTS, halton, apertureRadius, parseCube, makeLut, lutTexture, po
 import { DEFAULT_POST } from './src/post.js';
 
 // everything is opt-in: the defaults are all off, and DEFAULT_POST carries them
-for (const k of ['taa2', 'upscale', 'motionBlur', 'bokeh', 'bloomPyramid', 'chroma']) assert.equal(FX_DEFAULTS[k], 0, `${k} is off by default`);
+for (const k of ['taa2', 'upscale', 'motionBlur', 'bokeh', 'bloomPyramid', 'chroma', 'rcas', 'godrays', 'flare']) assert.equal(FX_DEFAULTS[k], 0, `${k} is off by default`);
 assert.equal(FX_DEFAULTS.lut, null);
 for (const k of Object.keys(FX_DEFAULTS)) assert.equal(DEFAULT_POST[k], FX_DEFAULTS[k], `DEFAULT_POST.${k}`);
 
@@ -37,4 +37,5 @@ assert.ok(t.isData3DTexture && t.image.width === 4 && t.image.depth === 4);
 const q = postFromQuery(new URLSearchParams('taa2=1&upscale=0.67&mb=0.5&bokeh=1&lens=0.03&focus=6&bloom2=1&chroma=0.6&lut=warm&dof=1'));
 assert.deepEqual({ ...q, lut: !!q.lut.isData3DTexture }, { taa2: 1, upscale: 0.67, motionBlur: 0.5, bokeh: 1, dof: 0.03, focus: 6, bloomPyramid: 1, chroma: 0.6, lut: true });
 assert.deepEqual(postFromQuery(new URLSearchParams('time=noon&taa2=yes&lut=nothing')), {}, 'an empty query changes nothing');
+assert.deepEqual(postFromQuery(new URLSearchParams('godrays=0.8&flare=1')), { godrays: 0.8, flare: 1 }, 'the lens flags');
 console.log('postfx check: ok');

@@ -76,9 +76,9 @@ export default {
     [[-19.6, -2.6, 1], [-16, -3.2, 0], [-12.6, -2.4, 1], [-18, -7.3, 0], [-11.6, -6.6, 1], [-14.6, 0.2, 0]].forEach(([x, z, real], i) => {
       fx.add(globe, M.paperGlow, geom.compose([x, F + 2.55, z]));
       fx.cylinder(M.blackMetal, 0.006, 0.006, H - F - 2.82, [x, (H + F + 2.82) / 2, z], [0, 0, 0], 4);
-      if (real) lanterns.push(lamp(ctx, { pos: [x, F + 2.4, z], color: 0xff9c4a, intensity: 1.7, range: 7, shadow: i === 0 }));
+      if (real) lanterns.push(lamp(ctx, { indoor: true, live: true, pos: [x, F + 2.4, z], color: 0xff9c4a, intensity: 1.7, range: 7, shadow: i === 0 }));
     });
-    lamp(ctx, { pos: [c0 + 3.4, F + 2.0, z0 + T + 0.6], color: 0xd8ecff, intensity: 3.5, range: 5 });               // under the hood
+    lamp(ctx, { indoor: true, pos: [c0 + 3.4, F + 2.0, z0 + T + 0.6], color: 0xd8ecff, intensity: 3.5, range: 5 });               // under the hood
     // two red lanterns outside, either side of the door
     for (const s of [-1, 1]) {
       fx.add(new THREE.SphereGeometry(0.2, 14, 10).scale(1, 1.25, 1), M.neonSoft.red, geom.compose([B.door.x + s * 1.35, K + 2.25, z1 + 0.32]));

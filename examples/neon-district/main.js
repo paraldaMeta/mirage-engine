@@ -8,6 +8,8 @@
 //      every rendering feature has a switch, for A/B stills and timing (default: what the quality level turns on):
 //      ?ssr=0|1 ?ssgi=0|1 ?contact=0|1 (screen-space passes)  ?gi=0|1 ?probes=0|1 ?csm=0|1 ?shadows=0|1 (lamp tiles)
 //      ?vol=0|1 (volumetric lamps, light2)  ?taa2=0|1 ?mb=0..1 ?bloom2=0|1 ?lut=0|1 ?chroma=N ?upscale=0.5..1
+//      ?grade=0|1 (the hour's look) ?dusk=0|1 (the dusk sky) ?pool=0|1 (the lamp pool) ?bounce=0|1 ?godrays=0|1 ?flare=0|1
+//      ?time=night | dusk | day | dawn | HH:MM (in the game: T steps through them, the options panel has a slider)
 //      ?wet=0..1 ?rain=0..1   ?big=chunk,occ,lod (docs/big-worlds.md)   ?lamps=N (N extra lamps: the cluster test)
 import * as THREE from 'three';
 import { createWorldRenderer, pickQuality, setWetness, setRain, addLampSource, makeLut, lutTexture, createVfx } from '@miragekit/core';
@@ -28,22 +30,26 @@ const quality = Q.get('quality') || (await pickQuality()).quality;
 
 // ---- what each quality level turns on; a URL flag overrides one feature
 const TIER = {
-  low: { ssr: 0, ssgi: 0, contact: 0, gi: 0, probes: 1, csm: 0, shadows: 0, vol: 0, taa2: 0, mb: 0, bloom2: 1, lut: 1, chroma: 0, upscale: 0.75, rain: 0.6, big: 0 },
-  medium: { ssr: 1, ssgi: 0, contact: 0, gi: 1, probes: 1, csm: 0, shadows: 1, vol: 1, taa2: 1, mb: 0, bloom2: 1, lut: 1, chroma: 0.25, upscale: 1, rain: 1, big: 0 },
-  high: { ssr: 1, ssgi: 1, contact: 1, gi: 1, probes: 1, csm: 1, shadows: 1, vol: 1, taa2: 1, mb: 0.35, bloom2: 1, lut: 1, chroma: 0.3, upscale: 1, rain: 1, big: 0 },
+  low: { grade: 1, dusk: 1, pool: 1, bounce: 0, godrays: 0, flare: 0, ssr: 0, ssgi: 0, contact: 0, gi: 0, probes: 1, csm: 0, shadows: 0, vol: 0, taa2: 0, mb: 0, bloom2: 1, lut: 1, chroma: 0, upscale: 0.75, rain: 0.6, big: 0 },
+  medium: { grade: 1, dusk: 1, pool: 1, bounce: 1, godrays: 1, flare: 1, ssr: 1, ssgi: 0, contact: 0, gi: 1, probes: 1, csm: 0, shadows: 1, vol: 1, taa2: 1, mb: 0, bloom2: 1, lut: 1, chroma: 0.25, upscale: 1, rain: 1, big: 0 },
+  high: { grade: 1, dusk: 1, pool: 1, bounce: 1, godrays: 1, flare: 1, ssr: 1, ssgi: 1, contact: 1, gi: 1, probes: 1, csm: 1, shadows: 1, vol: 1, taa2: 1, mb: 0.35, bloom2: 1, lut: 1, chroma: 0.3, upscale: 1, rain: 1, big: 0 },
 }[quality] || {};
 const F = (k) => (Q.has(k) ? (isNaN(+Q.get(k)) ? Q.get(k) : +Q.get(k)) : TIER[k]);
 const on = (k) => !!F(k);
 
 // ---- the grade: cool shadows, warm highlights, a little more colour in the neon (a LUT made in code)
-const grade = makeLut(([r, g, b]) => {
+const lut = makeLut(([r, g, b]) => {
   const l = 0.2126 * r + 0.7152 * g + 0.0722 * b, sh = (1 - l) ** 2, hi = l * l;
   const sat = (c) => l + (c - l) * 1.12;
   return [sat(r) * (1 - 0.05 * sh) + 0.02 * hi, sat(g) * (1 + 0.01 * sh), sat(b) * (1 + 0.07 * sh) - 0.015 * hi].map((v) => Math.min(1, Math.max(0, v)));
 }, 24);
 
+// ?time=night | dusk | day | dawn | HH:MM (26 October, a full Moon high over the roofs by night)
+const TIMES = { night: { day: '2026-10-26', time: '23:10' }, dawn: { day: '2026-10-26', time: '06:20' }, day: { day: '2026-10-26', time: '13:30' }, dusk: { day: '2026-10-26', time: '17:04' } };
+const timeOf = (t) => TIMES[t] || (/^\d{1,2}:\d{2}$/.test(t || '') ? { day: '2026-10-26', time: t } : null);
 const bar = plan.bar.rect, room = plan.relay.room;
 const lighting = {
+  bounce: on('bounce') && { spacing: 2 },                                                          // by day: light off the sunlit side of the street into the shade
   lights: { perCell: 0, perFrame: 1 },                                                            // clustered lamps, exact lists; one shadow tile redrawn a frame (sentinels walking past lamps)
   screen: on('ssr') || on('ssgi') || on('contact'),
   csm: on('csm') && { cascades: 3, stagger: true },
@@ -59,7 +65,17 @@ setRain(Q.has('rain') ? +Q.get('rain') : TIER.rain ?? 1);
 const world = createWorldRenderer({
   quality, canvas, width: W, height: H, preserveDrawingBuffer: true,
   place: { lat: 34, lon: 135, height: 20, tzHours: 9 },                                           // a generic mid-latitude coast, not a real city
-  time: { day: '2026-10-26', time: '23:10' },                                                    // a full Moon high over the roofs
+  time: timeOf(Q.get('time')) || TIMES.night,
+  // the hour's look: deep blue shadows and magenta-cyan lights by night, a warm smog by day
+  grade: on('grade') && { nightAdapt: 0.4,
+    night: { exposure: -0.75, saturation: 1.16, contrast: 1.05, shadowTint: [0.9, 0.99, 1.16], hiTint: [1.07, 0.97, 1.05], black: 0.002 },
+    dusk: { exposure: 0.1, saturation: 1.12, shadowTint: [0.93, 0.98, 1.1], hiTint: [1.1, 0.98, 0.9] },
+    golden: { exposure: 0.75, saturation: 1.15 },
+    noon: { temperature: 0.8, tint: -0.04, saturation: 0.92, shadowTint: [1.0, 1.0, 0.95], hiTint: [1.08, 1.0, 0.84], exposure: 1.5 } },
+  sky: on('dusk') ? { dusk: { haze: 3, night: 0.45 } } : undefined,
+  // captures off: with them the pool bins its lamps again for every face of every lamp shadow tile that is redrawn
+  // (a sentinel walking past a street lamp), which cost 5 ms a frame here
+  lampPool: on('pool') ? { perCell: 32, captures: false } : undefined,
   clouds: 0.85, shadow: { center: [0, 2, -6], radius: 46 }, envProbe: [-2, 5, 6], envIntensity: 0.6,
   fog: { groundDensity: 0.0045, height: 14, air: 0.0003, color: 1.3, glow: 1 },
   lighting,
@@ -67,7 +83,8 @@ const world = createWorldRenderer({
   post: {
     exposure: 0.52, contrast: 1.06, saturation: 1.06, vignette: 0.32, grain: Q.get('grain') === '0' ? 0 : 0.014, bloom: 0.2, ao: 0.9,
     taa2: F('taa2') ? 1 : 0, motionBlur: F('mb') || 0, bloomPyramid: F('bloom2') ? 1 : 0, chroma: F('chroma') || 0, ...(F('upscale') && F('upscale') < 1 ? { upscale: F('upscale') } : {}),
-    ...(F('lut') ? { lut: lutTexture(grade), lutStrength: 1 } : {}),
+    ...(F('lut') && !on('grade') ? { lut: lutTexture(lut), lutStrength: 1 } : {}),                    // the code-made LUT stands in when the grade is off
+    godrays: on('godrays') ? 0.9 : 0, flare: on('flare') ? 0.8 : 0,
     ssr2: on('ssr') ? 1 : 0, ssrRough: 0.5, ssgi: on('ssgi') ? 0.7 : 0, ssgiRange: 3, contact: on('contact') ? 1 : 0,
   },
 });
@@ -80,6 +97,18 @@ for (let i = 0, n = +Q.get('lamps') || 0; i < n; i++) {                         
 }
 // the volumetric pass scatters the lamps the modules marked `vol` (they are clustered lights, so three's own loop
 // and light2's scan never see them: this table is how light2 learns of them)
+if (world.lampPool) world.lampPool.set(shared.pool || []);
+// the clustered lamps' strength, from the hour: street lamps follow the world's lamp level (off by day), the rooms'
+// own lamps stay on and only follow the exposure
+const relight = () => {
+  const look = world.gradeLook, room = Math.pow(Math.max(look ? world.exposure * look.exposure : world.exposure, 1e-4), -0.9), out = world.G.uLampGain.value;
+  for (const { light } of shared.lamps || []) light.userData.base = light.intensity = light.userData.nd * (light.userData.indoor ? room : out);
+  return { room, out };
+};
+relight();
+/** the hour: 'night' | 'dawn' | 'day' | 'dusk' | 'HH:MM'; eased over about a second, the probes bake again */
+let hour = TIMES[Q.get('time')] ? Q.get('time') : timeOf(Q.get('time')) ? Q.get('time') : 'night';
+const setHour = (t) => { const v = timeOf(t); if (!v) return hour; hour = t; world.setTime(v, { ease: true }); return hour; };
 const volLamps = (shared.lamps || []).filter((l) => l.vol).map(({ light }, i) => ({ id: 'nd' + i, light, x: light.position.x, y: light.position.y, z: light.position.z, range: light.distance, power: 0, near: 0.5, col: [0, 0, 0] }));
 if (world.light2) addLampSource(world.scene, () => { for (const v of volLamps) { const l = v.light, k = l.intensity; v.power = k; v.col[0] = l.color.r * k; v.col[1] = l.color.g * k; v.col[2] = l.color.b * k; } return volLamps; });
 
@@ -98,7 +127,7 @@ if (Q.has('world')) {   // the district alone: walk, fly, orbit (stills, the wor
   g = await startGame(world, {
     built, canvas, id: plan.name, version: VERSION, title: T.title, subtitle: T.subtitle,
     spp, shadowRadius: 34, fit: !Q.get('w'), quality, hud, idle: 0,
-    setup: (ctx) => { game = setupGame(ctx, { built, shared, vfx, Q, quality }); },
+    setup: (ctx) => { game = setupGame(ctx, { built, shared, vfx, Q, quality, relight, setHour, hour: () => hour }); },
     objective, summary,
   });
   play = g.play;
@@ -107,5 +136,6 @@ if (Q.has('world')) {   // the district alone: walk, fly, orbit (stills, the wor
 }
 const v = plan.viewpoints.find((p) => p.name === Q.get('view'));
 if (v) play.place(v.eye, v.look, v.mode || (Q.has('world') ? Q.get('mode') || 'walk' : 'walk'));
-window.__mirage = { world, built, play, g, game, vfx, rain, big, shared, features: Object.fromEntries(Object.keys(TIER).map((k) => [k, F(k)])) };
+if (Q.has('world')) world.ctx.onUpdate(relight);
+window.__mirage = { world, built, play, g, game, vfx, rain, big, shared, setHour, relight, features: Object.fromEntries(Object.keys(TIER).map((k) => [k, F(k)])) };
 window.__READY = true;

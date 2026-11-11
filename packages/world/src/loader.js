@@ -15,8 +15,8 @@ import { definePlan } from './plan.js';
 //                     module offers others (lamps, seats, doors). Entries get `from: name`.
 //   finalize(ctx)     runs after every build; ctx.anchors holds every module's anchors (consume them here).
 //   consumes          optional { required: ['lamps'], optional: ['seats'] }. Resolved after all builds.
-//   ambientVolumes    array, or (ctx, built) => array: [{ min, max, factor, soft }] interiors (core dims the
-//                     image-based light inside).
+//   ambientVolumes    array, or (ctx, built) => array: [{ min, max, factor, soft, tint }] interiors (core dims the
+//                     image-based light inside, by factor x tint per channel).
 //
 // Isolation: a module that throws (build, anchors, ambientVolumes or finalize) is logged and skipped; whatever it
 // added to its own ctx.root is dropped with it, its onUpdate callbacks stop, and anchors it offered in a failed
@@ -39,11 +39,12 @@ export const LAYER = { VIEW: 0, COLLIDE: 2 };
 const now = () => (globalThis.performance ? performance.now() : Date.now());
 // drawn triangles: collision-only proxies are not drawn, and a placeholder mesh without positions has none
 const tris = (o) => { let n = 0; o.traverse((m) => { const g = m.geometry, p = g?.attributes?.position; if (m.isMesh && p && !m.userData.collider) n += ((g.index ? g.index.count : p.count) / 3) * (m.isInstancedMesh ? m.count : 1); }); return Math.round(n); };
-// what world.setAmbientVolumes reads: { min: [x, y, z], max: [x, y, z], factor?, soft? }
+// what world.setAmbientVolumes reads: { min: [x, y, z], max: [x, y, z], factor?, soft?, tint?: [r, g, b] }
 const xyz = (v) => Array.isArray(v) && v.length === 3 && v.every(Number.isFinite);
 function checkVolume(v, i) {
   if (!v || typeof v !== 'object' || !xyz(v.min) || !xyz(v.max)) throw new Error(`ambientVolumes[${i}] needs min and max as [x, y, z]`);
   for (const k of ['factor', 'soft']) if (v[k] !== undefined && !Number.isFinite(v[k])) throw new Error(`ambientVolumes[${i}].${k} must be a number`);
+  if (v.tint !== undefined && !xyz(v.tint)) throw new Error(`ambientVolumes[${i}].tint must be [r, g, b]`);
 }
 // a dropped module's GPU objects (the shared proxy material stays)
 const release = (root) => root.traverse((o) => {

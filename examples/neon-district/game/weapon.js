@@ -51,9 +51,9 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
   // the muzzle light: one clustered lamp, dark between shots
   const flash = new THREE.PointLight(0xffb060, 0, 9, 2); root.add(flash);
   world.lighting?.addLight(flash);
-  const flashGain = 14 * world.G.uLampGain.value;
+  const flashGain = 14;
   // a small fill light that travels with the gun, so it reads against a dark street
-  const fill = new THREE.PointLight(0x9fd8ff, 0.16 * world.G.uLampGain.value, 1.4, 2); root.add(fill);
+  const fill = new THREE.PointLight(0x9fd8ff, 0, 1.4, 2); root.add(fill);
   world.lighting?.addLight(fill);
 
   const S = {
@@ -186,7 +186,9 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
     holder.updateMatrixWorld(true);
     muzzle.getWorldPosition(mz);
     fill.position.copy(holder.position).addScaledVector(fwd.set(0.25, 0.12, -0.25).applyQuaternion(holder.quaternion), 1);
-    flash.position.copy(mz); flash.intensity = S.flashT > 0 ? flashGain * (0.6 + 0.4 * R()) * (1 - 0.6 * S.ads) : 0;
+    flash.position.copy(mz); const room = Math.pow(Math.max(world.gradeLook ? world.exposure * world.gradeLook.exposure : world.exposure, 1e-4), -0.9);   // these two do not go out by day
+    fill.intensity = 0.16 * room;
+    flash.intensity = S.flashT > 0 ? flashGain * room * (0.6 + 0.4 * R()) * (1 - 0.6 * S.ads) : 0;
   }
   let last = -1;
   const off = world.ctx.onUpdate((t) => { const dt = last < 0 ? 0 : Math.min(0.05, Math.max(0, t - last)); last = t; pose(dt); });

@@ -1,7 +1,7 @@
 // Mirage original code. Techniques informed by Golden Temple by Leon Lin (MIT) — see NOTICE.
 import * as THREE from 'three';
 import { NOISE_GLSL } from './noise.js';
-import { WIND_GLSL, AMBIENT_GLSL, CHUNK_EPOCH } from './env.js';
+import { WIND_GLSL, AMB_UNIFORMS, ambientMode, ambientGLSL, CHUNK_EPOCH } from './env.js';
 import { hash32 } from './rng.js';
 import { RELIEF_GLSL, RELIEF, renderHeight, renderShade } from './relief.js';
 
@@ -53,24 +53,27 @@ float mgSpecAA(float r, vec3 n){
 `;
 
 function uniformDecls(G, amb) {
-  const type = (v) => (typeof v === 'number' ? 'float' : v.isVector2 ? 'vec2' : v.isVector3 ? 'vec3' : v.isVector4 ? 'vec4' : v.isMatrix3 ? 'mat3' : 'mat4');
-  return Object.entries(G).filter(([k]) => amb || !k.startsWith('uAmb')).map(([k, u]) => Array.isArray(u.value) ? `uniform ${type(u.value[0])} ${k}[${u.value.length}];` : `uniform ${type(u.value)} ${k};`).join('\n');
+  const type = (v) => (typeof v === 'number' ? 'float' : v.isVector2 ? 'vec2' : v.isVector3 ? 'vec3' : v.isVector4 ? 'vec4' : v.isMatrix3 ? 'mat3' : v.isTexture ? 'highp sampler2D' : 'mat4');
+  // of the ambient-volume uniforms only those of the world's path (none without volumes)
+  return Object.entries(G).filter(([k]) => !k.startsWith('uAmb') || AMB_UNIFORMS[amb].includes(k)).map(([k, u]) => Array.isArray(u.value) ? `uniform ${type(u.value[0])} ${k}[${u.value.length}];` : `uniform ${type(u.value)} ${k};`).join('\n');
 }
 
 export function patch(material, hooks, G) {
   const key = 'mg' + hash32(JSON.stringify([hooks, Object.keys(G)], (k, v) => (k === 'uniforms' ? Object.keys(v) : v)));
-  // ambient-volume code is compiled in only while the world has volumes (setAmbientVolumes recompiles), so a
-  // world without them compiles exactly the shaders it did before
-  const amb = () => !!(G.uAmbN && G.uAmbN.value > 0);
+  // ambient-volume code is compiled in only while the world has volumes (setAmbientVolumes recompiles when the path
+  // changes), so a world without them compiles exactly the shaders it did before; 1 the uniform path, 2 the grid
+  const amb = () => ambientMode(G);
   if (hooks.defines) material.defines = { ...(material.defines || {}), ...hooks.defines };
   material.userData.hooks = hooks;
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, G, hooks.uniforms || {});
     const A = amb();
-    const head = `varying vec3 mgWorldPos;\nvarying vec3 mgWorldNormal;\n${uniformDecls(G, A)}\n${NOISE_GLSL}\n${A ? AMBIENT_GLSL : ''}\n`;
+    const headOf = (m) => `varying vec3 mgWorldPos;\nvarying vec3 mgWorldNormal;\n${uniformDecls(G, m)}\n${NOISE_GLSL}\n${ambientGLSL(m)}\n`;
+    // the grid's texture and lookup are fragment-only (the uniform path keeps its code in both stages, as before)
+    const head = headOf(A), vhead = A === 2 ? headOf(0) : head;
     let vs = shader.vertexShader;
     const hasNormal = !material.isMeshBasicMaterial && !material.isMeshDepthMaterial && vs.includes('#include <defaultnormal_vertex>');
-    vs = vs.replace('#include <common>', `#include <common>\n${head}${WIND_GLSL}\n${hooks.vertexDecl || ''}`);
+    vs = vs.replace('#include <common>', `#include <common>\n${vhead}${WIND_GLSL}\n${hooks.vertexDecl || ''}`);
     vs = vs.replace('#include <project_vertex>', /* glsl */ `
       vec4 mgW4 = vec4( transformed, 1.0 );
       mat3 mgN = mat3( modelMatrix );
@@ -91,8 +94,9 @@ export function patch(material, hooks, G) {
     shader.vertexShader = vs;
     const bump = shader.fragmentShader.includes('vViewPosition') ? BUMP_GLSL : '';
     let fs = shader.fragmentShader.replace('#include <common>', `#include <common>\n${head}${bump}\n${hooks.fragmentDecl || ''}`);
-    // ambient volumes scale the image-based light (sky + world capture) inside interiors
-    if (A) fs = fs.replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\n{ float mgAmb = mgAmbient(mgWorldPos); reflectedLight.indirectDiffuse *= mgAmb; reflectedLight.indirectSpecular *= mgAmb; }');
+    // ambient volumes scale the image-based light (sky + world capture) inside interiors (per channel on the grid)
+    if (A === 1) fs = fs.replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\n{ float mgAmb = mgAmbient(mgWorldPos); reflectedLight.indirectDiffuse *= mgAmb; reflectedLight.indirectSpecular *= mgAmb; }');
+    if (A === 2) fs = fs.replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\n{ vec3 mgAmb = mgAmbientRGB(mgWorldPos); reflectedLight.indirectDiffuse *= mgAmb; reflectedLight.indirectSpecular *= mgAmb; }');
     for (const [name, inc] of Object.entries(FRAG_HOOKS)) if (hooks[name]) fs = fs.replace(inc, `${inc}\n${hooks[name]}`);
     // specular AA where the hooks touch the roughness; hooks.specAA overrides: false never, a string is a preprocessor
     // #if expression (wet.js: a dry material that had none gets it only while wet, 'defined(MG_WET)')
@@ -101,7 +105,7 @@ export function patch(material, hooks, G) {
     if (hooks.output) fs = fs.replace('#include <opaque_fragment>', `${hooks.output}\n#include <opaque_fragment>`);
     shader.fragmentShader = fs;
   };
-  material.customProgramCacheKey = () => key + (amb() ? 'a' : '') + (CHUNK_EPOCH.n ? 'e' + CHUNK_EPOCH.n : '');
+  material.customProgramCacheKey = () => key + ['', 'a', 'g'][amb()] + (CHUNK_EPOCH.n ? 'e' + CHUNK_EPOCH.n : '');
   material.needsUpdate = true;
   if (typeof hooks.attach === 'function') hooks.attach(material);
   return material;

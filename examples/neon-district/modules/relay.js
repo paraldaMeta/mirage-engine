@@ -66,22 +66,22 @@ export default {
     slab(b, M.rack, [part - 3.4, -29.2, part - 0.5, -28.4], F, F + 0.95, 0.03);                                                   // the desk
     b.add(new THREE.BoxGeometry(2.4, 0.9, 0.04).rotateX(-0.25), M.screenPink, geom.compose([part - 1.95, F + 1.5, -29.15]));
     for (const [x, z, s] of [[x0 + 1.2, -21.4, 0.8], [x0 + 1.25, -22.3, 0.6], [part - 0.9, -24.2, 0.8]]) b.box(M.crate, [s, s, s], [x, F + s / 2, z], [0, 0.2, 0], 0.03);
-    const strobe = lamp(ctx, { pos: [P.door.x, H - 0.45, z1 - T - 0.5], color: 0xff1808, intensity: 3, range: 7 });
+    const strobe = lamp(ctx, { indoor: true, live: true, pos: [P.door.x, H - 0.45, z1 - T - 0.5], color: 0xff1808, intensity: 3, range: 7 });
     fx.cylinder(M.neon.red, 0.09, 0.09, 0.12, [P.door.x, H - 0.3, z1 - T - 0.2], [0, 0, 0], 12);
     for (const [x, z, sh] of [[x0 + 4, -23.6, true], [x0 + 10, -26.2, false], [part - 3, -23.4, false]]) {
       fx.box(M.neon.cyan, [1.6, 0.03, 0.12], [x, H - 0.12, z]);
-      lamp(ctx, { pos: [x, H - 0.5, z], color: 0x8fdcff, intensity: 3.2, range: 8, shadow: sh });
+      lamp(ctx, { indoor: true, pos: [x, H - 0.5, z], color: 0x8fdcff, intensity: 3.2, range: 8, shadow: sh });
     }
 
     // ---- stairwell lights: one over each landing
     fx.box(M.neon.white, [0.9, 0.03, 0.1], [(s0 + s1) / 2, mid + 2.6, t0 + 0.3]);
-    const lampA = lamp(ctx, { pos: [(s0 + s1) / 2, mid + 2.3, t0 + 0.7], color: 0xcfe6ff, intensity: 5, range: 8, shadow: true });
+    const lampA = lamp(ctx, { indoor: true, live: true, pos: [(s0 + s1) / 2, mid + 2.3, t0 + 0.7], color: 0xcfe6ff, intensity: 5, range: 8, shadow: true });
     fx.box(M.neon.amber, [0.9, 0.03, 0.1], [(s0 + s1) / 2, TOP - 0.05, t1 - 0.4]);
-    lamp(ctx, { pos: [(s0 + s1) / 2, TOP - 0.5, t1 - 0.8], color: 0xffa040, intensity: 4.5, range: 8 });
+    lamp(ctx, { indoor: true, pos: [(s0 + s1) / 2, TOP - 0.5, t1 - 0.8], color: 0xffa040, intensity: 4.5, range: 8 });
     fx.box(M.neon.white, [0.7, 0.03, 0.1], [s0 + 1.25, RF - 0.23, t1 - 0.5]);
-    lamp(ctx, { pos: [s0 + 1.25, 3.0, t1 - 0.8], color: 0xcfe6ff, intensity: 11, range: 9 });
+    lamp(ctx, { indoor: true, pos: [s0 + 1.25, 3.0, t1 - 0.8], color: 0xcfe6ff, intensity: 11, range: 9 });
     fx.box(M.neon.cyan, [0.03, 0.04, t1 - S.foot - 0.3], [s1 - 0.02, F + 1.0, (t1 + S.foot) / 2]);
-    lamp(ctx, { pos: [s1 - 0.6, F + 1.2, (t1 + S.foot) / 2], color: 0x30d8ff, intensity: 4, range: 6 });
+    lamp(ctx, { indoor: true, pos: [s1 - 0.6, F + 1.2, (t1 + S.foot) / 2], color: 0x30d8ff, intensity: 4, range: 6 });
 
     // ---- the roof: plant, pipes, a mast, dishes, the uplink console
     for (const [x, z, len, h] of plan.roofUnits) {

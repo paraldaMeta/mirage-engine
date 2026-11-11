@@ -53,10 +53,14 @@ count of stable and experimental exports, and how a name is promoted: [STABILITY
 | `createLighting(world, option)` | experimental | the realtime lighting features behind `createWorldRenderer({ lighting })` (the world renderer calls it; `world.lighting` is its result): `csm`, `gi`, `probes`, `lights`, `addLight(light, { shadow })`, `removeLight`, `invalidate()`, `busy`. Shader parts go into the world's own lit materials, not three's chunks (`docs/lighting.md`) |
 | `CSM_DEFAULTS` | experimental | cascaded sun shadows' settings (`cascades` 2-4, `distance`, `lambda`, `blend`, `tile`, `taps`, `stagger`, ...); `lighting: { csm: true }` |
 | `GI_DEFAULTS` | experimental | the irradiance probe volume's settings (`spacing`, `bounces`, `cube`, `perFrame`, `intensity`, `fade`, `bias`, `specular`); `lighting: { gi: { min, max } }` |
+| `BOUNCE_DEFAULTS` | experimental | the height-field bounce light's settings (`spacing`, `layers`, `curve`, `texel`, `margin`, `hmax`, `strength`, `multi`, `edge`, `lo`, `hi`, `bands`, `ease`, `maxProbes`, `maxMap`); `lighting: { bounce: true \| { min, max } }` |
 | `LIGHTS_DEFAULTS` | experimental | clustered local lights and their shadow atlas (`max`, `cluster`, `perCell`, `atlas`, `tileMax`, `tileMin`, `perFrame`, `bias`); `lighting: { lights: true }` |
 | `SCREEN_DEFAULTS` | experimental | the screen-space passes' buffers (`scale`, `refScale`, `layer`); `lighting: { screen: true }` (`docs/lighting.md`) |
 | `SCREEN_POST` | experimental | their post settings, all off: `ssr2`, `ssrRough`, `ssrDist`, `ssrThick`, `ssgi`, `ssgiRange`, `ssgiRays`, `contact`, `contactLen` |
 | `PROBE_DEFAULTS` | experimental | a reflection probe's defaults (`fade`, `intensity`); `lighting: { probes: [{ min, max, position }] }`, at most 4 |
+| `LAMPPOOL_DEFAULTS` | experimental | the lamp pool's settings (`max`, `perCell`, `far`, `fade`, `lampGain`, `real`, `soft`, `light2`, `captures`); `createWorldRenderer({ lampPool: true })` turns it on and `world.lampPool.set(lamps)` fills it (README "Lamp pool") |
+| `lampPoolConfig(option)` | experimental | the full lamp-pool settings for `true` / a partial object; null when off |
+| `createLampPool(world, settings)` | experimental | what `createWorldRenderer({ lampPool })` builds (`world.lampPool`): `set`, `add`, `update`, `clear`, `count`, `info`. A clustered term in the world's lit materials; a PointLight on a pool lamp takes its share of it |
 | `TEX_RELIEF_GLSL` | experimental | the texture layer's relief taps (`mgTexTriRelief`, `mgTexWallRelief`, `mgTexGroundRelief`); compiled in by the relief opt-ins |
 | `RELIEF` | experimental | the close-range relief's shared uniforms (`uRelief` on / off, `uReliefFar` fade distance) |
 | `setRelief(level)` | experimental | relief level: 0 off, 1 full (8 m), in between a shorter reach |
@@ -78,6 +82,9 @@ count of stable and experimental exports, and how a name is promoted: [STABILITY
 | `placeClock(date, tzHours)` | stable | the local wall-clock parts of a `Date` |
 | `skyState(time, place)` | stable | the light model's input for a time: sun, moon, night |
 | `lightAt(state)` | stable | key light, exposure, lamps and sky light for a sky state |
+| `GRADE_PRESETS` | experimental | the time-of-day grade's four looks (`noon`, `golden`, `dusk`, `night`: `exposure` EV, `temperature`, `tint`, `saturation`, `contrast`, `tonemapMix`, `shadowTint`, `hiTint`, `black`, `curve`, `punch`, `clarity`, `highlightWarmth`, `lift`, `gamma`); `createWorldRenderer({ grade })` turns the grade on |
+| `gradeConfig(option)` | experimental | the full grade settings for `true` / a partial object (`strength`, `nightAdapt`, `lampTint`, per-look overrides); null when off |
+| `gradeAt(light, state, settings)` | experimental | the look of an hour (pure): the presets eased by the sun's elevation, the lamps' tint, the darker night; what the pipeline's grade variant applies through `post.grade` |
 | `deviceProfile(renderer, { force })` | stable | the device tier (mobile, weak GPU) |
 | `pickQuality({ storage, nav })` | stable | the quality a page starts with (saved choice, battery, phone) |
 | `QUALITY_LEVELS` | stable | `['low', 'medium', 'high']` |
@@ -89,7 +96,9 @@ count of stable and experimental exports, and how a name is promoted: [STABILITY
 | `dirFromAltAz(alt, az)` | experimental | the same from astronomy's altitude / azimuth |
 | `WIND_GLSL` | experimental | `mgWind()` for vertex hooks |
 | `createSky(uniforms)` | experimental | the sky dome mesh |
-| `createSkyUniforms()` | experimental | its uniforms |
+| `createSkyUniforms(options?)` | experimental | its uniforms; `{ dusk }` adds the dusk sky's (`createSky` and `createSkyLut` then compile it in) |
+| `SKY_DUSK_DEFAULTS` | experimental | the dusk sky's settings (`haze`, `night`, `airglow`, `cover`); `createWorldRenderer({ sky: { dusk } })` turns it on |
+| `skyDuskConfig(sky)` | experimental | the full dusk-sky settings for `{ dusk: true }` / a partial object (numbers clamped); null when off |
 | `createSkyLut(renderer, uniforms, options?)` | experimental | bakes the sky's air into direction tables per `setTime` (call before `createSky`) |
 | `createStars(skyUniforms, { faint })` | experimental | stars and the Moon's disc |
 | `ATMO` | experimental | atmosphere constants (radii, scattering coefficients) |
@@ -102,9 +111,9 @@ count of stable and experimental exports, and how a name is promoted: [STABILITY
 | `FOG` | experimental | the page-global fog uniforms |
 | `Pipeline` | experimental | the sub-frame accumulation / TAA / post pipeline |
 | `DEFAULT_POST` | experimental | default post settings (exposure, tone map, bloom, AO, DOF, …) |
-| `FX_DEFAULTS` | experimental | the post settings of `postfx.js`, all off: `taa2`, `upscale`, `motionBlur`, `bokeh`, `bloomPyramid`, `lut`, `chroma`, `rcas` (`docs/post.md`) |
-| `PostFX` | experimental | the passes behind them (velocity buffer, temporal resolve / upscale, lens blur, motion blur, bloom pyramid, LUT grade); `pipeline.fx` |
-| `postFromQuery(query)` | experimental | post settings from URL flags (`?taa2=1&upscale=0.67&mb=0.5&bokeh=1&lens=0.03&bloom2=1&lut=warm&chroma=0.6`) |
+| `FX_DEFAULTS` | experimental | the post settings of `postfx.js`, all off: `taa2`, `upscale`, `motionBlur`, `bokeh`, `bloomPyramid`, `lut`, `chroma`, `rcas`, `godrays`, `flare` (`docs/post.md`) |
+| `PostFX` | experimental | the passes behind them (velocity buffer, temporal resolve / upscale, lens blur, motion blur, bloom pyramid, LUT grade, god rays, lens flare); `pipeline.fx` |
+| `postFromQuery(query)` | experimental | post settings from URL flags (`?taa2=1&upscale=0.67&mb=0.5&bokeh=1&lens=0.03&bloom2=1&lut=warm&chroma=0.6&godrays=1&flare=1`) |
 | `parseCube(text)` | experimental | an Adobe / Resolve `.cube` 3D lookup table -> `{ size, data }` |
 | `makeLut(fn, size)` | experimental | a lookup table from a function of display-referred RGB |
 | `lutTexture(lut)` | experimental | the table as a `Data3DTexture` for `post.lut` |

@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { createInjector, isLit } from './src/inject.js';
 import { csmConfig, csmSplits, sliceSphere, snapToTexel, CSM_DEFAULTS } from './src/csm.js';
 import { giConfig, giGrid, giCell, giTile, GI_DEFAULTS } from './src/gi.js';
+import { bounceConfig, bounceGrid, bounceLayerY, BOUNCE_DEFAULTS } from './src/bounce.js';
 import { lightsConfig, clusterSlice, sphereSpan, tileAllocator, CLUSTER, LIGHTS_DEFAULTS } from './src/lights.js';
 import { probesConfig, boxExit, probeWeight, PROBES_MAX } from './src/probes.js';
 import * as core from './src/index.js';
@@ -73,6 +74,31 @@ assert.equal(giConfig({ spacing: 2 }), null, 'no box, no volume');
   assert.equal(seen.size, 60); assert.equal(tiles.size, 120);
   const big = giGrid(giConfig({ min: [0, 0, 0], max: [100, 50, 100], spacing: 1, maxProbes: 1000 }));
   assert.ok(big.probes <= 1000, 'the grid thins to stay under maxProbes');
+}
+
+// --- bounce light (height-field irradiance volume)
+assert.equal(bounceConfig(null), null); assert.equal(bounceConfig(false), null);
+assert.equal(bounceConfig(true).spacing, BOUNCE_DEFAULTS.spacing, 'true: the defaults (the box comes from the shadow volume)');
+assert.equal(bounceConfig({ strength: 0.5 }).strength, 0.5);
+{
+  const box = { min: [-10, 0.5, -6], max: [10, 16.5, 6] };
+  const g = bounceGrid(bounceConfig({ spacing: 2 }), box);
+  assert.equal(g.nx, 11); assert.equal(g.nz, 7); assert.equal(g.nl, 8); assert.equal(g.probes, 11 * 7 * 8);
+  assert.ok(near(bounceLayerY(g, 0), 0.5) && near(bounceLayerY(g, g.nl - 1), 16.5), 'layers run min.y..max.y');
+  for (let k = 1; k < g.nl; k++) assert.ok(bounceLayerY(g, k) > bounceLayerY(g, k - 1), 'layers rise');
+  assert.ok(bounceLayerY(g, 1) - bounceLayerY(g, 0) < bounceLayerY(g, 7) - bounceLayerY(g, 6), 'curve 2: dense at the ground');
+  const even = bounceGrid(bounceConfig({ curve: 1 }), box);
+  assert.ok(near(bounceLayerY(even, 1) - bounceLayerY(even, 0), bounceLayerY(even, 7) - bounceLayerY(even, 6)), 'curve 1: even steps');
+  // the height field covers the grid and its margin, at the texel asked for
+  assert.ok(near(g.map.x0, -10 - BOUNCE_DEFAULTS.margin) && near(g.map.w, 20 + 2 * BOUNCE_DEFAULTS.margin));
+  assert.equal(g.mw, Math.ceil(g.map.w / 0.5)); assert.ok(near(g.hmax, 16.5 + 4));
+  // a town-sized box thins the grid under maxProbes and coarsens the texel under maxMap
+  const town = bounceGrid(bounceConfig({ spacing: 1, maxProbes: 100000, maxMap: 512 }), { min: [-104, 0.5, -264], max: [230, 23, 118] });
+  assert.ok(town.probes <= 100000 && town.dx > 1, 'thinned');
+  assert.ok(town.mw <= 512 + 1 && town.mh <= 512 + 1 && town.texel > 0.5, 'coarser texel');
+  // Nizwa's own grid (2 m, 8 quadratic layers over 168 x 192): 258,048 probes fit the default cap
+  const nz = bounceGrid(bounceConfig({}), { min: [-104, 0.5, -264], max: [230, 22.55, 118] });
+  assert.equal(nz.nx, 168); assert.equal(nz.nz, 192); assert.equal(nz.dx, 2);
 }
 
 // --- clustered lights
@@ -154,5 +180,5 @@ assert.equal(probesConfig([]), null);
 }
 
 // --- the package exports
-for (const k of ['createLighting', 'CSM_DEFAULTS', 'GI_DEFAULTS', 'LIGHTS_DEFAULTS', 'PROBE_DEFAULTS']) assert.ok(core[k], k + ' is exported');
+for (const k of ['createLighting', 'CSM_DEFAULTS', 'GI_DEFAULTS', 'BOUNCE_DEFAULTS', 'LIGHTS_DEFAULTS', 'PROBE_DEFAULTS']) assert.ok(core[k], k + ' is exported');
 console.log('lighting check: ok');

@@ -23,7 +23,7 @@ export default {
       b.box(M.blackMetal, [0.34, 0.1, 0.8], [x, y + H - 0.08, z + side * 1.45], [0, 0, 0], 0.03);
       fx.box(M.neon.warm, [0.24, 0.02, 0.62], [x, y + H - 0.14, z + side * 1.45]);
       proxy([0.3, H, 0.3], [x, y + H / 2, z]);
-      lamp(ctx, { pos: [x, y + H - 0.5, z + side * 1.45], color: 0xffc58a, intensity: 10, range: 14, shadow: true, vol: true });
+      lamp(ctx, { pos: [x, y + H - 0.5, z + side * 1.45], color: 0xffc58a, intensity: 16, range: 15, shadow: true, vol: true });
     }
 
     // ---- cover: jersey barriers on the road, planters on the plaza
@@ -90,7 +90,7 @@ export default {
       fx.add(new THREE.BoxGeometry(0.84, 1.3, 0.02), M.neonSoft[tint], m.clone().multiply(geom.compose([0, 1.15, 0.405])));
       fx.add(new THREE.BoxGeometry(0.6, 0.18, 0.02), M.blackMetal, m.clone().multiply(geom.compose([0, 0.28, 0.405])));
       const p = new THREE.Vector3(0, 1.2, 0.9).applyMatrix4(m);
-      lamp(ctx, { pos: p.toArray(), color: new THREE.Color().setRGB(...M.NEON[tint]), intensity: 2.6, range: 6 });
+      lamp(ctx, { pos: p.toArray(), color: new THREE.Color().setRGB(...M.NEON[tint]), intensity: 6, range: 7, normal: [Math.sin(rot), 0, Math.cos(rot)], back: 0.5 });
     }
 
     // ---- bollards along the plaza's street edge (a proxy each: they are thinner than a walk-grid cell)

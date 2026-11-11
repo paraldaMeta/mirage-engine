@@ -36,6 +36,7 @@
     "./impostor": { "types": "./src/impostor.d.ts", "default": "./src/impostor.js" },
     "./instancing": { "types": "./src/instancing.d.ts", "default": "./src/instancing.js" },
     "./ktx2": { "types": "./src/ktx2.d.ts", "default": "./src/ktx2.js" },
+    "./lamppool": { "types": "./src/lamppool.d.ts", "default": "./src/lamppool.js" },
     "./lifetime": { "types": "./src/lifetime.d.ts", "default": "./src/lifetime.js" },
     "./light2": { "types": "./src/light2.d.ts", "default": "./src/light2.js" },
     "./lighting": { "types": "./src/lighting.d.ts", "default": "./src/lighting.js" },
@@ -74,7 +75,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "node check.mjs && node assets.check.mjs && node postfx.check.mjs && node bigworld.check.mjs && node platform.check.mjs"
+    "test": "node check.mjs && node lamppool.check.mjs && node assets.check.mjs && node postfx.check.mjs && node bigworld.check.mjs && node platform.check.mjs"
   },
   "author": "灰叔 Racso",
   "types": "./src/index.d.ts"

@@ -5,6 +5,7 @@ const EN = {
   vitals: 'VITALS', gun: 'K-7 CARBINE', down: 'DOWN', assist: 'ASSIST', uplink: 'UPLINK', uplinkReady: 'UPLINK READY · CLEAR THE ROOF', metres: 'M',
   compass: ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'], control: 'CONTROL',
   kinds: { grunt: 'Sentinel', heavy: 'Warden', drone: 'Kite' }, destroyed: 'down', weak: 'HEAD',
+  hours: { night: 'Night', dawn: 'Dawn', day: 'Day', dusk: 'Dusk' },
   fire: 'FIRE', aim: 'AIM', reloadBtn: 'RLD', optBtn: 'OPT',
   passLabel: 'Take the relay pass', passName: 'Relay pass', passText: 'opens the relay on the plaza', passToast: 'Relay pass taken. The relay is across the plaza.',
   doorOpen: 'Open the relay', doorLocked: 'Locked: needs a relay pass', doorToast: 'Locked. The pass is in the noodle bar on the street.',
@@ -33,13 +34,14 @@ const EN = {
     hurt: 'You are hit hard. Get behind something and breathe.',
     done: 'Feed is ours. Clean work. Control out.',
   },
-  opt: { title: 'Options', sens: 'Look sensitivity', fov: 'Field of view', invert: 'Invert vertical look', full: 'Full screen', lang: 'Language', close: 'Close', on: 'On', off: 'Off', hint: 'O opens this · Z / X lean · C crouches · V strikes · Q aims · R reloads' },
+  opt: { title: 'Options', sens: 'Look sensitivity', fov: 'Field of view', invert: 'Invert vertical look', full: 'Full screen', lang: 'Language', time: 'Time of day', close: 'Close', on: 'On', off: 'Off', hint: 'O opens this · T steps the hour · Z / X lean · C crouches · V strikes · Q aims · R reloads' },
 };
 const ZH = {
   title: '霓虹街區', subtitle: '取得中繼通行證 · 登上屋頂 · 守住上行鏈路',
   vitals: '生命', gun: 'K-7 卡賓槍', down: '擊倒', assist: '輔助', uplink: '上行鏈路', uplinkReady: '鏈路就緒 · 清空屋頂', metres: '公尺',
   compass: ['北', '東北', '東', '東南', '南', '西南', '西', '西北'], control: '指揮中心',
   kinds: { grunt: '哨兵', heavy: '典獄官', drone: '風箏' }, destroyed: '已擊倒', weak: '爆頭',
+  hours: { night: '夜晚', dawn: '清晨', day: '白天', dusk: '黃昏' },
   fire: '開火', aim: '瞄準', reloadBtn: '換彈', optBtn: '設定',
   passLabel: '拿取中繼通行證', passName: '中繼通行證', passText: '可開啟廣場上的中繼站', passToast: '已取得通行證。中繼站在廣場對面。',
   doorOpen: '開啟中繼站', doorLocked: '已上鎖：需要中繼通行證', doorToast: '上鎖了。通行證在街上的麵店裡。',
@@ -68,7 +70,7 @@ const ZH = {
     hurt: '你傷得很重。找掩體，喘口氣。',
     done: '訊號到手，乾淨俐落。指揮中心結束通話。',
   },
-  opt: { title: '設定', sens: '視角靈敏度', fov: '視野範圍', invert: '反轉垂直視角', full: '全螢幕', lang: '語言', close: '關閉', on: '開', off: '關', hint: 'O 開啟設定 · Z / X 側身 · C 蹲下 · V 近戰 · Q 瞄準 · R 換彈' },
+  opt: { title: '設定', sens: '視角靈敏度', fov: '視野範圍', invert: '反轉垂直視角', full: '全螢幕', lang: '語言', time: '時段', close: '關閉', on: '開', off: '關', hint: 'O 開啟設定 · T 切換時段 · Z / X 側身 · C 蹲下 · V 近戰 · Q 瞄準 · R 換彈' },
 };
 export const LANGS = { en: EN, zh: ZH };
 export const pickLang = (Q) => { const q = Q.get('lang'); if (q && LANGS[q]) return q; return /^zh/i.test(globalThis.navigator?.language || '') ? 'zh' : 'en'; };

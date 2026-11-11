@@ -26,11 +26,16 @@ the first click. Nothing was taken from another project.
 
 | part of the district | engine feature | where |
 |---|---|---|
-| the whole world | site plan + modules + anchors (`@miragekit/world`), seven modules | `plan.js`, `modules/` |
-| night, a full Moon behind cloud | sky, Moon as the key light, stars, exposure of a night-adapted eye | `main.js` (`time`, `clouds`) |
+| the whole world | site plan + modules + anchors (`@miragekit/world`), ten modules | `plan.js`, `modules/` |
+| any hour: `?time=night\|dawn\|day\|dusk\|HH:MM`, T in the game, a slider in the options | `world.setTime(t, { ease: true })`; the probes bake again, the lamps follow the hour | `main.js` `setHour`, `relight` |
+| the hour's look: blue shadows and magenta-cyan lights by night, warm smog by day | the time-of-day grade (`grade`, four custom looks) | `main.js` |
+| sunset and night skies, cloud cells | the dusk sky (`sky: { dusk }`) | `main.js` |
+| shafts between the towers and the sun's flare by day and at dusk | `post.godrays`, `post.flare` | `main.js` |
+| light off the sunlit side of a street into the shade | bounce light (`lighting.bounce`) | `main.js` |
 | wet asphalt, paving, roofs: puddles, rain rings | `withWet`, `setWetness`, `setRain` | `modules/materials.js` |
 | reflections of the signs in the street | screen-space reflections `post.ssr2` (`lighting.screen`) | `main.js` |
-| 70-odd lamps: signs, street lamps, lanterns, screens | clustered lights with exact lists, `world.lighting.addLight` | `modules/lib.js` `lamp()` |
+| every sign, neon line, screen and bridge lights what is round it (over a hundred lamps) | the lamp pool (`lampPool`, `world.lampPool.set`), each lamp cut at the wall it hangs on (`normal`, `back`) | `modules/lib.js` `lamp()`, `main.js` |
+| lamps that cast shadows, flicker or stay lit indoors by day | clustered lights, `world.lighting.addLight` | `modules/lib.js` `lamp()` |
 | lamp shadows (street lamps, the hologram, interiors) | the clustered path's shadow atlas (`{ shadow: true }`) | `modules/lib.js` |
 | the noodle bar's warm bounce | irradiance probe volume (`lighting.gi`) over `plan.bar.rect` | `main.js`, `modules/bar.js` |
 | tiles, lacquer and racks that mirror their room | two box reflection probes (`lighting.probes`): the bar, the relay | `main.js` |
@@ -79,20 +84,23 @@ Apple M4 Pro, headless Chrome (ANGLE Metal), 1440 x 900 at pixel ratio 1, `node 
 Every variant is its own page in one Chrome and the rounds go round-robin over the pages; in a round each view is
 walked for 40 moving frames with a slow pan, each frame ended by a 1-pixel read-back. A cell is the median of the
 round medians in ms per frame, the bracket their lowest and highest. Other GPU jobs ran on the machine while this
-was measured: read the brackets. The table of quality levels below came from a quiet run of 8 rounds; the feature
-table further down from a run that other jobs disturbed (its high ends are those jobs).
+was measured: read the brackets. The table of quality levels below is from a quiet run of 6 rounds on the current build. The feature table further
+down is older: it was taken before the lamp pool, the facades and the megastructure went in, on a run that other
+jobs disturbed (its high ends are those jobs), and is kept for what it says about the screen-space passes.
 
 | variant | alley | street west | bar inside | plaza | roof vista | calls, triangles (street) |
 |---|---|---|---|---|---|---|
-| game, low | 6.5 [6.4-6.7] | 7.0 [6.5-7.1] | 6.2 [5.7-6.6] | 6.3 [6.1-6.5] | 6.8 [6.6-7.0] | 487, 169 k |
-| game, medium | 8.8 [8.6-9.0] | 10.0 [9.2-10.2] | 8.5 [7.9-8.7] | 9.2 [8.8-9.4] | 9.9 [9.8-10.2] | 1160, 564 k |
-| game, high | 10.2 [10.0-10.4] | 11.1 [10.3-11.3] | 9.8 [8.9-10.0] | 10.2 [9.6-10.3] | 10.8 [10.5-11.0] | 1322, 618 k |
-| world, low | 4.6 [4.5-4.7] | 5.1 [4.8-5.2] | 4.3 [4.2-4.5] | 4.3 [4.3-4.8] | 4.6 [4.6-4.9] | 204, 123 k |
-| world, medium | 6.1 [5.7-6.7] | 6.9 [6.8-7.6] | 6.1 [6.0-7.0] | 6.2 [6.0-6.8] | 6.5 [6.4-7.1] | 277, 190 k |
-| world, high | 7.5 [7.1-8.0] | 8.3 [8.1-8.9] | 7.4 [7.3-7.6] | 7.5 [7.4-8.1] | 8.0 [7.8-8.2] | 322, 225 k |
+| game, low | 8.3 [8.3-8.5] | 9.1 [9.1-9.3] | 7.0 [6.7-7.0] | 7.7 [7.7-7.8] | 8.3 [8.3-8.5] | 535, 268 k |
+| game, medium | 11.6 [11.5-11.8] | 13.9 [13.8-14.1] | 10.2 [9.7-10.3] | 11.6 [11.3-11.6] | 12.9 [12.8-13.1] | 1155, 777 k |
+| game, high | 13.8 [13.6-14.1] | 15.7 [15.4-15.9] | 11.8 [11.4-12.0] | 12.8 [12.7-12.8] | 14.1 [13.9-14.2] | 1143, 772 k |
+| world, low | 6.6 [6.5-6.8] | 7.4 [7.3-7.7] | 5.1 [5.0-5.7] | 5.8 [5.5-6.3] | 6.9 [6.4-7.0] | 324, 199 k |
+| world, medium | 8.9 [8.8-9.1] | 10.4 [10.4-10.6] | 7.7 [7.4-8.0] | 8.4 [8.3-8.5] | 9.5 [9.2-9.7] | 431, 332 k |
+| world, high | 10.4 [10.3-10.5] | 12.0 [11.9-12.4] | 9.0 [8.8-9.3] | 9.8 [9.6-10.0] | 10.9 [10.7-11.0] | 422, 327 k |
 
 `game` is the whole thing (nine sentinels and three kites awake, their animation and navigation, the view model, effects, the HUD);
-`world` is the district alone. The difference is mostly the lamp shadow tiles: a sentinel that moves near a
+`world` is the district alone. Before the detail pass and the lamp pool the game ran at 6.2-7.0 / 8.5-10.0 /
+9.8-11.1 ms; the dressing of the buildings, the megastructure, the 163 pool lamps and the armoured sentinels cost
+about 2 to 4 ms. The difference between `game` and `world` is mostly the lamp shadow tiles: a sentinel that moves near a
 shadowed lamp makes its cached tile draw again (one tile, six faces, a frame).
 
 Each feature of `high` switched off in turn, the world alone (6 rounds):
@@ -122,16 +130,18 @@ occlusion culling and automatic LOD (`big=`) make no measurable difference: the 
 are a few boxes each and most of it is on screen or behind one wall, so they stay behind the flag.
 Not measured: any other GPU, a phone, pixel ratio 2.
 
-The single file (`npm run package -w neon-district`): **3.45 MB (3,619,163 bytes)**, against the site's 5 MB budget. All of it is
+The single file (`npm run package -w neon-district`): **3.53 MB (3,702,149 bytes)**, against the site's 5 MB budget. All of it is
 code (Rapier's WASM is 2.2 MB of it); there are no assets.
 
 ## Below a commercial shooter, and why
 
-- **Geometry and materials.** Buildings are boxes with a window grid in the shader; props are boxes, cylinders and
-  two extruded profiles. No authored models, no texture maps, no decals of wear, no parallax interiors behind the
-  windows. A commercial street has a few thousand unique meshes; this one has a few dozen shapes.
-- **Characters.** The sentinels are the engine's 880-vertex test rig with plates on its bones. Four extra clips
-  were authored by hand as a few keys each. No motion capture, no blend between aiming directions, no ragdoll
+- **Geometry and materials.** Buildings are still boxes with a window grid in the shader; what dresses them
+  (balconies, units, pipes, fire escapes, bridges) and every prop is built from boxes, cylinders, lathes and two
+  extruded profiles. No sculpted or scanned models, no texture maps beyond canvas-drawn signs and wall art, no
+  parallax interiors behind the windows, no per-surface wear maps. Up close the edges are hard and the surfaces flat.
+- **Characters.** The sentinels are the engine's 880-vertex test rig under about ninety rigid armour parts (helmet,
+  breastplate, pack, pauldrons, gauntlets, greaves, lights at the joints). Five extra clips were authored by hand as
+  a few keys each; the head tracks the player. No motion capture, no blend between aiming directions, no ragdoll
   (the engine has one; it needs the physics kit, which `startGame` does not set up), no cover use, no flanking:
   the brain is five states.
 - **Lighting.** Lamps do not light particles (steam is tinted by hand) and only 16 of 76 cast shadows. Reflections
@@ -162,6 +172,9 @@ code (Rapier's WASM is 2.2 MB of it); there are no assets.
 8. **`startGame`'s character has no crouch, lean or look sensitivity.** The game lowers and shifts the camera itself
    (`world.ctx.onUpdate`) and rescales what the mouse turned since the last tick. `createMover` has a real crouch,
    but `startGame` drives the Rapier character.
+13. **The lamp pool bins again for every lamp shadow tile face.** With `lampPool.captures` on, each cube face of a
+    redrawn shadow tile is a capture that re-bins all 160 lamps: +5 ms a frame while a sentinel walks past a shadowed
+    lamp (18.9 against 13.0 ms). The example sets `captures: false`, so pool lamps do not light environment captures.
 12. **`ui.message` has no callback.** The death screen listens for the dialog's `close`.
 9. **A jump of the view rewinds the particles for good.** `play.place` (tools, viewpoints) sets the scene clock to
    0; the pools reset, and a looping emitter spawned at a later step waits for that step again. The reset pass
@@ -174,8 +187,8 @@ code (Rapier's WASM is 2.2 MB of it); there are no assets.
 
 ---
 
-Each module owns one section below; only its owner writes there. Build order: ground, blocks, street, bar, relay,
-plaza, signs.
+Each module owns one section below; only its owner writes there. Build order: ground, blocks, facades,
+megastructure, street, clutter, bar, relay, plaza, signs.
 
 ## ground
 
@@ -199,6 +212,36 @@ a mast; not in the walk grid) and eleven skyline towers beyond the block. Reads 
 | `signs` | the centre of the sign on the wall's face; `rotY` out of the wall | `w`, `h`, `text`, `color`, `kind` (`board` / `blade`), `vertical`, `second` | 24 |
 | `beacons` | the top of a mast | | 13 |
 | `holos` | the centre of the board on the tallest tower | `kind: 'board'`, `w`, `h` | 1 |
+
+## facades
+
+What was bolted onto the buildings afterwards, on every block face that looks onto walkable ground (`lib.js`
+`openFaces`): balconies with rails, ledges, AC units, pipes on brackets, a sagging cable bundle with junction boxes,
+fins on the glass towers, fire escapes on six faces, four scaffolded roof billboards, and on the ground storey
+posters, tags and stencils drawn into canvases. Repeated parts are one instanced unit box per material. All decor.
+
+| key | pos is | count |
+|---|---|---|
+| `signs` | the roof billboards | 4 |
+| `ledWalls` | the centre of an LED advertising wall (`w`, `h`) | 2 |
+
+## megastructure
+
+The city overhead: three glazed skybridges (two over the street at 7.6 and 10.4 m, one over the alley at 8.2 m), a
+road deck from the bar's roof at 14 m, a gallery along the plaza's west wall, setbacks, spires and light fins on the
+skyline towers, sixteen stepped megatowers 120 to 210 m out, and behind the relay a viaduct at 13 m with a train
+that crosses every 24 s of scene clock. Not in the walk grid.
+
+## clutter
+
+Rubbish heaps (bags, boxes, pallets, litter), cones, bins, newspaper boxes, a hydrant, two scooters, a noodle cart,
+a signal gantry at the plaza's entrance, cables across the street, washing over the alley, a closed underpass
+entrance. Soft and small things are decor; the cart, scooters, bins, gantry post and the underpass are solid.
+
+| key | pos is | count |
+|---|---|---|
+| `signs` | the cart's board, the underpass's board | 2 |
+| `steam` | the cart's pot | 1 |
 
 ## street
 

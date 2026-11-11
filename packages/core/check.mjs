@@ -41,6 +41,26 @@ assert.equal((await pickQuality({ storage: null, nav: { userAgent: SAFARI, maxTo
     assert.ok(Object.values(lightAt(st)).flat().every((v) => typeof v !== 'number' || Number.isFinite(v)), 'every light value is finite');
   }
 }
+// the time-of-day grade (opt-in): off by default, pure and deterministic, darker night, strength 0 = neutral
+{
+  const { gradeConfig, gradeAt, GRADE_PRESETS } = await import('./src/index.js');
+  assert.equal(gradeConfig(false), null, 'grade off by default');
+  assert.equal(gradeConfig(undefined), null, 'grade off when not given');
+  const G = gradeConfig(true), K = { lat: 22.93, lon: 57.53, tzHours: 4 };
+  const at = (time) => { const st = skyState({ day: '2026-10-25', time }, K); return gradeAt(lightAt(st), st, G); };
+  assert.deepEqual(at('17:00'), at('17:00'), 'gradeAt is deterministic');
+  for (const t of ['06:00', '12:00', '17:00', '17:50', '19:30', '03:00']) {
+    assert.ok(Object.values(at(t)).flat().every((v) => v === null || Number.isFinite(v)), `every grade value at ${t} is finite`);
+  }
+  assert.ok(at('17:00').hiTint[2] < at('12:00').hiTint[2], 'golden-hour highlights are warmer than noon');
+  const night = skyState({ day: '2026-10-25', time: '21:00' }, K), Ln = lightAt(night);
+  assert.ok(gradeAt(Ln, night, G).exposure < 0.5 && Ln.exposure > 2, 'the grade darkens the night');
+  const zero = gradeAt(Ln, night, gradeConfig({ strength: 0 }));
+  assert.ok(zero.exposure === 1 && zero.saturation === 1 && zero.curve === 0 && zero.tonemapK === 0 && zero.hiTint.every((v) => v === 1), 'strength 0 is neutral (the tone-map blend weighs 0: post.tonemap)');
+  const over = gradeConfig({ golden: { saturation: 1.4, hiTint: [1, 2] }, nightAdapt: 7 });
+  assert.ok(over.golden.saturation === 1.4 && over.golden.hiTint.join() === GRADE_PRESETS.golden.hiTint.join(), 'look overrides merge, bad arrays are ignored');
+  assert.equal(over.nightAdapt, 1, 'nightAdapt is clamped');
+}
 // texture set names reach GLSL identifiers: anything but letters, digits and _ is spelled out (review #21)
 {
   const { glslName } = await import('./src/textures.js');
@@ -202,6 +222,25 @@ assert.deepEqual(dynamicResConfig({ target: 1000, min: 0, step: NaN }), { target
 }
 console.log('core check: ok');
 
+// ---------------------------------------------------------------- the dusk sky (sky.js, opt-in)
+// config parsing; off = the same uniforms and no dusk code compiled in (the shader text with the define is the only
+// difference); on = its uniforms, the define in the dome and in the bake, the cover default
+{
+  const SK = await import('./src/sky.js');
+  assert.equal(SK.skyDuskConfig(undefined), null, 'the dusk sky is off by default');
+  assert.equal(SK.skyDuskConfig({}), null);
+  assert.equal(SK.skyDuskConfig({ dusk: false }), null);
+  assert.deepEqual(SK.skyDuskConfig({ dusk: true }), { ...SK.SKY_DUSK_DEFAULTS }, 'true = the defaults');
+  const dc = SK.skyDuskConfig({ dusk: { haze: 99, night: -1, cover: 0.2, airglow: 'x' } });
+  assert.ok(dc.haze === 10 && dc.night === 0 && dc.cover === 0.2 && dc.airglow === SK.SKY_DUSK_DEFAULTS.airglow, 'clamped, bad numbers keep the default');
+  const off = SK.createSkyUniforms(), on = SK.createSkyUniforms({ dusk: true });
+  assert.deepEqual(Object.keys(off), Object.keys(SK.createSkyUniforms({})), 'no option = the old uniforms');
+  assert.ok(!('uDusk' in off) && on.uDusk.value.x === SK.SKY_DUSK_DEFAULTS.haze, 'the dusk uniforms only when on');
+  const domeOff = SK.createSky(off).material, domeOn = SK.createSky(on).material;
+  assert.ok(!('MG_SKY_DUSK' in (domeOff.defines || {})) && 'MG_SKY_DUSK' in domeOn.defines, 'MG_SKY_DUSK compiled in only when on');
+  assert.equal(domeOff.fragmentShader, domeOn.fragmentShader, 'one source text: the define picks the code');
+}
+
 // ---------------------------------------------------------------- soft sun shadows (softshadow.js, opt-in)
 // config parsing; nothing patched or written before install; a chunk mismatch warns and patches nothing; install
 // patches the sun's call once (idempotent), leaves spot / point / light2 paths alone; uniforms depend on k only
@@ -276,6 +315,84 @@ console.log('core check: ok');
   assert.deepEqual(reducedMotionConfig({ sway: 2, rain: -1 }), { sway: 1, rain: 0 }, 'clamped to 0..1');
   assert.deepEqual(reducedMotionConfig({ sway: NaN }), { sway: 0.25, rain: 0.4 });
   console.log('metals, reduced-motion config: ok');
+}
+
+// ambient volumes (env.js): up to 8 untinted boxes keep the uniform path exactly; more, or a tint, take the grid. The
+// grid read the way the shader reads it (cell, then its boxes) equals the loop over every box at random points.
+{
+  const E = await import('./src/env.js');
+  const { createMaterials: CM } = await import('./src/index.js');
+  const G2 = E.createEnv().G;
+  const room = (x, z, k = {}) => ({ min: [x, 0, z], max: [x + 4, 3, z + 5], ...k });
+  let r = E.writeAmbientVolumes(G2, [room(0, 0), room(6, 0, { factor: 0.5, soft: 1 })]);
+  assert.ok(r.recompile && r.info.path === 'uniform' && E.ambientMode(G2) === 1 && G2.uAmbN.value === 2 && G2.uAmbData.value === null, 'two plain boxes: the uniform path');
+  assert.deepEqual(G2.uAmbHi.value[1].toArray(), [10, 3, 5, 0.5], 'max corner and factor, as before');
+  assert.equal(E.ambientGLSL(1), E.AMBIENT_GLSL, 'the uniform path compiles the GLSL it always did');
+  r = E.writeAmbientVolumes(G2, [room(0, 0, { tint: [1, 1, 1] })]);
+  assert.ok(!r.recompile && r.info.path === 'uniform', 'a white tint is no tint');
+  r = E.writeAmbientVolumes(G2, [room(0, 0, { tint: [1.2, 1, 0.8] })]);
+  assert.ok(r.recompile && r.info.path === 'grid' && E.ambientMode(G2) === 2 && G2.uAmbData.value.isDataTexture, 'a tint: the grid');
+  let disposed = false; G2.uAmbData.value.addEventListener('dispose', () => { disposed = true; });
+  r = E.writeAmbientVolumes(G2, []);
+  assert.ok(r.recompile && E.ambientMode(G2) === 0 && G2.uAmbData.value === null && G2.uAmbDim.value.x === 0, 'an empty list: no volumes');
+  assert.ok(disposed, 'a replaced grid texture is disposed');
+  // a town: 1,000 rooms on a jittered grid, some tinted, some soft; a few big vaults over them
+  const R = rng('ambient'), town = [];
+  for (let i = 0; i < 1000; i++) {
+    const x = (i % 40) * 9 + R.next() * 3, z = Math.floor(i / 40) * 11 + R.next() * 3, wd = 2 + R.next() * 5, dp = 2 + R.next() * 6;
+    town.push({ min: [x, R.next() * 4, z], max: [x + wd, 3 + R.next() * 6, z + dp], factor: 0.1 + R.next() * 0.8, soft: R.next() * 1.5, ...(i % 3 ? { tint: [0.6 + R.next(), 0.6 + R.next(), 0.6 + R.next()] } : {}) });
+  }
+  for (let i = 0; i < 4; i++) town.push({ min: [i * 80, 0, 50], max: [i * 80 + 60, 12, 200], factor: 0.7, soft: 2 });
+  r = E.writeAmbientVolumes(G2, town);
+  assert.ok(r.info.path === 'grid' && r.info.boxes === 1004 && G2.uAmbN.value === 1004, 'a town: every box kept');
+  assert.ok(r.info.maxPerCell <= E.AMB_PER_CELL && r.info.overfull === 0, `a cell holds a few rooms, not the town (most ${r.info.maxPerCell}, cell ${r.info.cellSize.toFixed(2)} m)`);
+  const D = G2.uAmbData.value.image, W = G2.uAmbGrid.value.w, gd = G2.uAmbGrid.value, dim = G2.uAmbDim.value;
+  const T = (i) => D.data.subarray(i * 4, i * 4 + 4);
+  assert.equal(D.width, W);
+  const ss = (e0, e1, x) => { const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0))); return t * t * (3 - 2 * t); };
+  const weigh = (k, lo, hi, val, soft, p) => {
+    const d = Math.hypot(Math.max(lo[0] - p[0], p[0] - hi[0], 0), Math.max(lo[1] - p[1], p[1] - hi[1], 0), Math.max(lo[2] - p[2], p[2] - hi[2], 0));
+    const sf = Math.max(soft, 1e-3), w = ss(0, sf, d);
+    for (let c = 0; c < 3; c++) k[c] *= val[c] + (1 - val[c]) * w;
+  };
+  const viaGrid = (p) => {
+    const k = [1, 1, 1], cx = Math.floor((p[0] - gd.x) * gd.z), cz = Math.floor((p[2] - gd.y) * gd.z);
+    if (!(cx >= 0 && cz >= 0 && cx < dim.x && cz < dim.y)) return k;
+    const [s, n0, y0, y1] = T(cz * dim.x + cx), n = p[1] >= y0 && p[1] <= y1 ? n0 : 0;
+    for (let i = 0; i < Math.min(n, E.AMB_PER_CELL); i++) { const lo = T(s + 3 * i), hi = T(s + 3 * i + 1), v = T(s + 3 * i + 2); weigh(k, lo, hi, v, lo[3], p); }
+    return k;
+  };
+  const viaAll = (p) => {
+    const k = [1, 1, 1];
+    // the texture holds float32: round the same way, so only a missed or misplaced box can differ
+    const F = (a) => a.map(Math.fround);
+    for (const v of town) { const f = v.factor, t = v.tint || [1, 1, 1]; weigh(k, F(v.min), F(v.max), F([f * t[0], f * t[1], f * t[2]]), Math.fround(v.soft), p); }
+    return k;
+  };
+  let worst = 0;
+  for (let i = 0; i < 20000; i++) {
+    const p = [-10 + R.next() * 400, -1 + R.next() * 12, -10 + R.next() * 300], a1 = viaGrid(p), a2 = viaAll(p);
+    for (let c = 0; c < 3; c++) worst = Math.max(worst, Math.abs(a1[c] - a2[c]));
+  }
+  assert.ok(worst < 1e-9, `the grid gives what every box gives (worst ${worst})`);
+  // 30 boxes over one spot: no cell size separates them; the cell keeps its 16 darkest, and says so
+  const warn = console.warn; let warned = ''; console.warn = (m) => { warned = m; };
+  const pile = Array.from({ length: 30 }, (_, i) => ({ min: [0, 0, 0], max: [2, 2, 2], factor: 0.2 + i * 0.02 }));
+  const rp = E.writeAmbientVolumes(E.createEnv().G, pile).info;
+  console.warn = warn;
+  assert.ok(rp.maxPerCell === E.AMB_PER_CELL && rp.overfull > 0 && /darkest/.test(warned), 'an overfull cell is capped, with a warning');
+  assert.ok(E.ambientNear(G2, { x: town[0].max[0] + 0.3, y: town[0].max[1], z: town[0].max[2] }, 0.5) && !E.ambientNear(G2, { x: -50, y: 1, z: -50 }, 2), 'ambientNear on the grid');
+  // materials: the grid path declares its uniforms and a vec3 scale; the program key follows the path
+  const m = CM(G2).std({}, {}), sh = { uniforms: {}, vertexShader: '#include <common>\n#include <project_vertex>\n#include <worldpos_vertex>', fragmentShader: '#include <common>\n#include <lights_fragment_end>\n' };
+  m.onBeforeCompile(sh);
+  assert.ok(sh.fragmentShader.includes('uniform highp sampler2D uAmbData;') && sh.fragmentShader.includes('vec3 mgAmb = mgAmbientRGB(mgWorldPos)') && !sh.fragmentShader.includes('uAmbLo'), 'grid materials');
+  assert.ok(m.customProgramCacheKey().includes('g'), 'grid program key');
+  E.writeAmbientVolumes(G2, [room(0, 0)]);
+  const sh1 = { uniforms: {}, vertexShader: '#include <common>\n#include <project_vertex>\n#include <worldpos_vertex>', fragmentShader: '#include <common>\n#include <lights_fragment_end>\n' };
+  m.onBeforeCompile(sh1);
+  assert.ok(sh1.fragmentShader.includes('uniform vec4 uAmbLo[8];') && !sh1.fragmentShader.includes('uAmbData') && sh1.fragmentShader.includes('float mgAmb = mgAmbient(mgWorldPos)'), 'uniform-path materials as before');
+  E.disposeAmbient(G2);
+  console.log('ambient volumes check: ok');
 }
 
 // streaming helpers (stream.js): the job queue's priority order and concurrency, the LRU's byte budget with pins,
