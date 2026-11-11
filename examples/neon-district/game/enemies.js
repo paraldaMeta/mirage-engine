@@ -162,7 +162,7 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
   function entity(def, K, o) {
     const e = {
       id: def.id, def, K, ...o, hp: K.hp, state: 'post', home: def.at.slice(), pos: def.at.slice(), yaw: def.face ?? 0, agent: null,
-      aim: 0, watch: 0, t: 0, wait: 0, burst: 0, next: 1 + R() * 1.5, tele: 0, lastSeen: null, seenT: -1e9, shift: 0, patrolI: 0, dead: false, deadT: 0, active: def.zone !== 'wave' && def.zone !== 'relay', speed: 0,
+      aim: 0, watch: 0, t: 0, wait: 0, burst: 0, next: 1 + R() * 1.5, tele: 0, lastSeen: null, seenT: -1e9, shift: 0, patrolI: 0, dead: false, deadT: 0, active: !['wave', 'relay', 'holdout'].includes(def.zone), speed: 0,
       heading: [Math.sin(def.face ?? 0), Math.cos(def.face ?? 0)],
       maxHp: K.hp, stun: 0, jam: 0, shieldHp: K.shieldHp || 0, shieldOff: 0, charge: 0, barkT: 0, lureT: 0, sparkT: 0, lod: 0, leapT: 0, cool: 0,
     };

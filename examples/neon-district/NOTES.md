@@ -58,7 +58,9 @@ the first click. Nothing was taken from another project.
   the lit emitter on its lower rim), the **marksman** (violet; holds the relay's roof over the plaza; a beam tightens
   on you for 1.2 s before a heavy shot: break the line or dash), the **mender kite** (green ring; mends damaged
   sentinels with a beam and keeps away from you), and the **warden** (a red lamp on its chest and a rising whine
-  0.8 s before a nine-round suppressing burst). Distinct hit, head-shot, shield-hit and kill sounds and crosshair
+  0.8 s before a nine-round suppressing burst), and the **hounds** (robot dogs: the scout flanks, closes in and lunges
+  after a tell: it crouches, its lights flare, a charge sound, 0.6 s; the hauler carries a small turret that fires
+  bursts; low, hard to hit over cover). Distinct hit, head-shot, shield-hit and kill sounds and crosshair
   marks; a dim rim on the armour so robots read in the dark. The holdout brings shields from wave 2, marksmen from
   wave 3, menders from wave 4.
 - **Ammunition you can always find** (`game/ammo.js`): sentinels drop ammo cells (always when your reserve is under
@@ -87,7 +89,8 @@ Keys and buttons of the kit (the touch layer's buttons use the API in `game/kit.
 ## The arsenal
 
 Five guns from one table (`game/arms.js`), each with its own view model (`game/viewmodels.js`: extruded profiles,
-lathes, rounded boxes, the gloved hands modelled once round the carbine and moved onto each gun's grip and support),
+lathes, rounded boxes, library materials; the gloved hands modelled round the carbine, each finger one smooth tapered
+tube, moved onto each gun's grip and support and opened or closed per gun),
 rounds, crosshair, recoil pattern, muzzle flash, tracer or projectile, casings and sounds (`game/weapon.js`).
 
 | slot | gun | kind | magazine / reserve (max) | rate | damage | reload | what it is for |
@@ -591,11 +594,12 @@ code (Rapier's WASM is 2.2 MB of it); there are no assets.
   (balconies, units, pipes, fire escapes, bridges) and every prop is built from boxes, cylinders, lathes and two
   extruded profiles. No sculpted or scanned models, no texture maps beyond canvas-drawn signs and wall art, no
   parallax interiors behind the windows, no per-surface wear maps. Up close the edges are hard and the surfaces flat.
-- **Characters.** The sentinels are the engine's 880-vertex test rig under about ninety rigid armour parts (helmet,
-  breastplate, pack, pauldrons, gauntlets, greaves, lights at the joints). Five extra clips were authored by hand as
-  a few keys each; the head tracks the player. No motion capture, no blend between aiming directions, no ragdoll
-  (the engine has one; it needs the physics kit, which `startGame` does not set up), no cover use, no flanking:
-  the brain is five states.
+- **Characters.** The robots are built in code from a kit of parts (`modules/robot-kit.js`): rigid links skinned to
+  the engine's test rig, turned and extruded shells, no sculpting, no texture maps beyond printed decals; the gait is
+  procedural (planted feet, heel-toe, playback scaled to the ground covered), the aim and fall are a few hand-set
+  keys; the head tracks the player. No motion capture, no blend between aiming directions, no ragdoll (the engine has
+  one; it needs the physics kit, which `startGame` does not set up), no cover use; the hounds flank, the rest close in
+  and side-step: the brain is five states.
 - **Lighting.** Lamps do not light particles (steam is tinted by hand) and only 16 of 76 cast shadows. Reflections
   are screen space: what is off screen falls back to two box probes or the sky. The probe volume covers one room.
   The volumetric pass scatters 8 lamps. There is no ray tracing and no path-traced reference.
@@ -849,42 +853,41 @@ materials, sky-bridges, lifts (instanced cabins on the clock), the vertical name
 ## streetlife
 
 `plan.streetlife`: people, walkers, vending rows, the stall, and the machines' own posts (`cartVendor`, `sweeper`,
-`totem`, `broken`). The street's bystanders are robots, a civilian family built to read apart from the sentinels at a
-glance (black armour, slit visors, rifles): round shells in soft liveries (off-white, mint, peach, butter, sky, lilac,
-pink), dark mechanical struts at the joints, a capsule head with a face screen whose glyph eyes change slowly (ten
-expressions drawn into one canvas atlas with the printed decals: ID labels, aprons, a wet-floor sign, parcel labels,
-an out-of-order sticker, the totem's notices in English, 繁中 and kana), a lit ID band, no weapons (`machines.js`).
-- **androids** (`people`): slim bipeds with a battery pack and shoulder caps, some under an umbrella with a lit rim, some
-  in a rain-hat plate; neighbours closer than 1.7 m talk (heads turn to each other, one gestures while the other
-  listens, they take turns), the rest look about.
-- **walkers** (`walkers`): one loop (the first walker's), one pace (their mean), evenly spaced and turning on
-  half-circles at the ends, so nobody walks through anybody; the second walker is a wheeled parcel courier (a lit
-  box, headlamps, a whip mast with a pennant, wheels that roll with the distance).
-- **vendors**: on a ceiling rail in the yakitori container (turns skewers at the grill, slides to the pot and stirs),
-  on a pedestal behind the noodle cart (stirs, wipes the counter, looks at the customers); an apron panel each.
-- **sweeper** (`sweeper`): low and wide, butter-yellow, two spinning side brushes, a turning amber beacon, a wet-floor
-  sign on its back; up and down the north kerb east of the plaza's way in (not built at low detail).
-- **queue totem** (`totem`) by the clinic: a column, a pod with a lit band, a screen head paging through four notices
-  every 5 s, an arm that points at the door and waves now and then.
-- **broken units** (`broken`): sat against a wall (the alley, the north pavement), grimy, an out-of-order sticker, one
-  eye flickering, a servo that twitches.
-- **shop keepers**: drawn in the shop interiors' shader (`kit.js` `interiorMaterial`): an egg body on a column, a screen
-  head with blinking eyes, an antenna bead, a lit band, one arm wiping the counter. The interiors themselves now work:
-  the pane's normal comes from screen-space derivatives (the unlit material had no world normal, so every window
-  showed the box's floor).
-Cost: three THREE.BatchedMesh (shells, lights, umbrella canopies), so three draws a pass for every machine; parts move
-by instance matrices in the module's onUpdate, faces and notices change by swapping an instance's geometry; androids
-have three levels (about 930, 230 and 140 triangles: full within 9 m x detail², the one-offs swap to a far version
-past 26 m x detail²); per-instance frustum culling. Measured (machines vs the humans, triangles drawn per frame
-averaged over 12 frames, four views: street east, the stall, street west, the clinic): high 22.5 / 9.2 / 16.1 / 11.0 k
-vs 23.7 k each, 7-9 draws vs 12-14; medium 9.9 / 5.9 / 9.7 / 6.0 k vs 14.8 k, 5.5-7 draws vs 9.5-11; low 1.8 / 1.7 /
-2.2 / 1.7 k vs 3.1 k, 3-4 draws vs 5-6. No lamps added, no shadows (castShadow off, as before); decor, out of the walk
-grid (the grid's hash is unchanged).
-Still rough: the androids walk with straight legs (hip swing only, no knee) and their feet slide a little; the far
-versions pop at their distance; the broken units sit a little stiffly and the alley one is hard to see in its corner;
-the keepers are flat silhouettes in the interior shader (no parallax of their own); the courier's wheels do not steer
-round the loop's ends; a still frame that accumulates over a page change shows two totem notices at once (moving, it
-does not); umbrellas do not shed rain.
+`totem`, `broken`). The street's bystanders are civilian robots from the robot kit (`machines.js`, see "Robots and
+cars" below), built never to be taken for the sentinels: light shells (white, pale greys), black joints under fabric
+boots, a dark glass face plate with a soft white or blue status light that breathes, no weapons (the sentinels are
+carbon black with red and amber sensors). Printed decals (ID numbers, the maker's plate, aprons, a wet-floor sign, an
+out-of-order sticker, parcel labels) come from the kit's decal atlas; the totem's notices (English, 繁中, kana) from
+the machines' own.
+- **pedestrians** (`people`): compact domestic humanoids (the kit's `home` body at 0.82 scale, about 1.45 m), standing
+  with soft knees and shifting their weight; neighbours closer than 1.7 m talk (heads turn, one gestures while the
+  other listens, they take turns), the rest look about. Some carry an umbrella, only while it rains (`WET.uRain`).
+- **walkers** (`walkers`): one loop, one pace, evenly spaced; a real gait (the kit's `bipedLegs`: the stance foot
+  stays where it landed because the cycle runs on the distance walked; knee flexion, heel strike and toe-off, hip
+  sway, arm swing); the second walker is the courier, a robot dog with a parcel box on its back, trotting the loop.
+- **vendors**: a humanoid upper body on a carriage that runs along a ceiling rail in the yakitori container (turns
+  skewers at the grill, slides to the pot and stirs), and on a pedestal behind the noodle cart; an apron each.
+- **sweeper** (`sweeper`): a floor scrubber: a rounded hull with a rubber bumper, two disc brushes with bristle tufts
+  that turn, a squeegee at the back, a lidar puck, a blue beacon; up and down the north kerb east of the plaza's way in.
+- **queue totem** (`totem`) by the clinic: a signage kiosk on a mast (four notices paging every 5 s), a camera, a blue
+  status ring.
+- **broken units** (`broken`): pedestrians slumped against a wall (the alley, the north pavement), grimy, an
+  out-of-order sticker, the status light flickering, a servo that twitches.
+- **shop keepers**: drawn in the shop interiors' shader (`kit.js` `interiorMaterial`), unchanged.
+Cost: four THREE.BatchedMesh (shells, printed decals, lights, umbrella canopies), so four draws a pass for every
+machine; each body is 17 segment instances posed in code from joint angles (forward kinematics in the module's
+onUpdate), three levels by distance (the kit's home body: about 3.9 k, 2.6 k and 1.4 k triangles; full within 13 m x
+detail², the far level past 32 m x detail², with hysteresis; decals near only); per-instance frustum culling. No lamps,
+no shadows; decor, out of the walk grid.
+**For the destructible civilians**: `machineUnits(group)` (machines.js; the group is `scene.getObjectByName('machines')`,
+also `group.userData.units()`) lists every unit: `{ id ('pedestrian-3', 'walker-0', 'courier-0', 'vendor-1',
+'sweeper-0', 'totem-0', 'broken-1'), kind, shell: [instance ids], decals: [ids], lights: [ids], canopy: [canopy id,
+shaft id (in shell), rim id (in lights)], frame: Matrix4 (the unit's root segment now) }`; the meshes are
+`group.userData.batches` `{ shell, decals, lights, canopy }`. Hide a unit with `setVisibleAt(id, false)` on each id in
+its batch (its pose keeps being written each frame, which is harmless while hidden).
+Still rough: the pedestrians' joints are rigid segments (no skin between them: they are robots, but the shoulder and
+hip covers can open a gap at extreme poses); the umbrella is a flat-shaded canopy without drips; the broken units sit
+stiffly; the vendors' arms do not reach the grill exactly.
 `plan.streetlife`: people, walkers, vending rows, the stall. People are four instanced meshes (body, legs, accents,
 umbrellas) posed in onUpdate; the stall is solid (one proxy for the container). The vending rows are built by
 vending.js.
@@ -920,11 +923,9 @@ A pass so that what the player can walk up to holds at 0.5–1.5 m. Shared piece
   chopstick holders, skewers, stools, a goods rack), `props-lights.js` (paper lanterns, bulb strings, street lamp
   heads, bulkheads, tube fixtures, floodlights, beacons, signal heads), `props-street.js` (bins, crates, bags,
   cardboard, AC units, junction boxes, bollards, jersey barriers, news boxes, benches).
-- `cars.js` (built by street.js): three designs of an invented marque lofted from cross sections: a faceted
-  brushed-steel pickup (anisotropic), a pearlescent wedge coupe (two-tone flip, flake, clearcoat), a boxy autonomous
-  cab; real wheel openings, tyres with tread and sidewall print, rims, brake discs, interiors, lenses, plates,
-  under-glow (one pool lamp each). `rain-beads.js` adds beads, running drops, splash rings and a wet foot to the
-  car paint, steel and glass (inside withWet). main.js adds one reflection probe box round the steel truck.
+- `cars.js` (built by street.js): three designs of an invented marque, remodelled in the realism pass (see "Robots and
+  cars" below). `rain-beads.js` adds beads, running drops, splash rings, water spots and a wet foot to the car paint,
+  steel and glass (inside withWet). main.js adds one reflection probe box round the steel truck.
 
 Rules kept: every colliding thing keeps its volume (an invisible proxy of the old size where the visible part became
 decor: vending cabinets, stools, bins, news boxes, crates, barriers, cars, lamp bases, rack faces); every light keeps
@@ -933,7 +934,92 @@ its `lamp()` call; new lamps: three (the cars' under-glow). Small parts cast no 
 Still not up to standard at 1 m: the shop interiors behind the glass are still the ray-cast box (`goodsRack` exists
 but no shop uses it yet); the kiosks, the plinth, the planters (no plants), the scooters, the hydrant, the pallets,
 the underpass head, the roof HVAC boxes and the duct are still bevelled or plain boxes; the bar's booths and the
-relay's desk body are plain slabs; bag heaps read only as dark lumps at night; the cars' glass has a black seal tube
-instead of a dotted frit, the steel truck is dark away from light (the probe adds little at night), and the rain
-is a shader on smooth panels (no drops falling from sills); the mast beacons and the aerial traffic keep their
-spheres (far away).
+relay's desk body are plain slabs; bag heaps read only as dark lumps at night; the mast beacons and the aerial traffic
+keep their spheres (far away).
+
+## Robots and cars (the realism pass)
+
+The owner looked at the cars and the robots up close and asked for a realistic standard. Learned from real products'
+design language only (current humanoid robots, commercial robot dogs, home robots, service machines, angular
+electric pickups, wedge concept coupes, autonomous cabs); no logos, names or one-to-one copies: the makers are
+invented (KORVID SYSTEMS, MIRU HOME, QUADRA, KESTREL MOTOR WORKS). `node scripts/realism.mjs [--only robots|cars|civ|compare]
+[--time dusk,night,day] [--match a,b]` shoots every subject from its sides (out/realism, gitignored).
+
+**The robot kit** (`modules/robot-kit.js`, used by `game/enemies.js` through `game/robot-rig.js` and by `machines.js`):
+- parts: actuators (a dark housing round a machined aluminium face and hub), turned oval covers with a panel seam,
+  extruded shells with rounded edges, cable loops, hands with jointed fingers, feet with a rubber sole, sensor heads
+  (a wraparound visor with a ring of cameras; a ring-light puck; a dark glass face plate), battery packs with ribs, a
+  handle and status lights; printed decals (unit numbers as a worn stencil, a high-voltage label, the maker's plate,
+  IDs, aprons) from one 512 canvas through a per-vertex attribute;
+- materials: the surface library's powder coat (dielectric; worn edges show steel) and anodised aluminium, in the
+  part's own space (`msOP` is the bind-pose position, so the texture sticks to a skinned or batched part), a
+  per-vertex roughness (rubber, visor glass, fabric), a wet film by the street's wetness (`WET.uWet`); metalness 0 or
+  1. The wet film is the kit's own (no textures): a skinned or batched robot is at the GPU's 16 texture units already;
+- bodies: `humanoid(style, lod)` gives every bone's parts in its own frame: `sentinel` (slim, carbon black and
+  graphite), `warden` (wide shoulders, ring actuators, a bearing ring under a torso that turns, thick forearms with a
+  tool rail, a ring-light head), `home` (the civilians: light shells, fabric boots over the joints, a dark face
+  plate); kits: `shield` (chest and shoulder plates, an emitter on the left forearm, chevrons), `mast` (the marksman's
+  sensor mast). `quadruped(style)`: `scout`, `hauler` (a turret on a yoke), `courier` (a parcel box). Triangles
+  (near / middle / far): sentinel 6.2 k / 3.6 k / 1.5 k, warden 6.1 / 3.4 / 1.6 k, home 3.9 / 2.6 / 1.4 k, scout 3.2 /
+  1.8 / 1.3 k, hauler 3.5 / 2.0 / 1.5 k; the enemies switch at 12 and 30 m with hysteresis;
+- gait: `bipedLegs(phase, gait)`: the stance foot is fixed on the ground and moves back under the hip at exactly the
+  gait's speed, rolled over the heel at strike and over the toe at push-off; the hip is as high as the stance leg's
+  reach allows (a compass bob), the knees stay bent (robots walk crouched); two-bone IK (`legIK`) for the angles.
+  `robotClips()` bakes idle (weight shifts), walk and run for the rig; the enemies' blend plays at a rate that makes
+  the clips' travel equal to the ground covered (`speedParam`), so the feet do not slide. `trotLegs` for the dogs
+  (diagonal pairs, knees back), driven by the distance travelled.
+
+**Enemies** keep every behaviour, hit volume and API: three skinned meshes per robot (shell, metal, lights) at each of
+three levels, one fixed bounding sphere for all, the rig's own body not drawn; only the shell casts shadows. Lights
+are red or amber (the grunt red, the warden red-orange, the shield amber, the marksman red; the hounds orange-red);
+the dim rim outline as before. **Hounds** (`plan.enemies` `h0`-`h4`: a scout on the street, a hauler and a scout on
+the plaza; a scout and a hauler in zone `holdout`, never woken in the mission: in the last wave they kept the uplink
+from completing in the playtest): `K.type 'hound'`, counted as sentinels by the rest of the game
+(`K.name 'grunt'`: the kill feed says "Sentinel"; story.js's banter can pick a hound as a speaker); posed in code, no
+animator (`game/robot-rig.js` `createHound`, a stand-in for the animator's calls); the FSM's fight state calls
+`hunt()`: flank (a point beside the player on the side it is on), within 3.6 m the tell, then a leap along the walk
+grid to where the player stood (a bite: `K.bite`, under the assist factor); the hauler's turret fires bursts by the
+sentinels' rules (two robots fire at a time). The holdout keeps its hounds back until the third wave (they are held
+as "not dead" while the wave is under 2, then put first among the small fry: the holdout picks in list order).
+
+**Civilians**: see streetlife above (`machineUnits` for the destructibles agent).
+
+**Cars** (`modules/cars.js`), each fault the owner named:
+- the pickup's tail light: one thin continuous red bar (2.2 cm) across the tailgate's top edge under the bed cover, in
+  a black channel, brighter end segments; small red reflectors low in the bumper; a thin white bar across the nose
+  between two slim headlamps (a chrome reflector bowl behind a clear lens). The old tail lamp's pool light was moved
+  low behind the bumper (it washed the tailgate red);
+- the coupe's seats: seats are a cushion, a reclined back and a headrest (vinyl), set on the cabin floor and checked
+  against the canopy (the headrests 7 cm under the glass); the steering wheel and the dash under the windshield; the
+  pickup has two rows under its glass roof, the cab two rows and a passenger screen;
+- the wheels: per car (pickup: r 0.385 m, a tall all-terrain sidewall, a flat aero cover with five segments; coupe:
+  r 0.345 m, a 0.265 m rim, a thin sidewall, fourteen fine spokes, the cast-iron disc and a caliper behind; cab:
+  r 0.30 m, a flush cover); a 48-segment tyre profile with grooves, tread and sidewall from the library's rubber in
+  metres of uv, the contact patch flattened on the ground, the fronts steered 0.11 rad; centred in arches cut out of
+  the lower body (the side silhouette extruded across the width: the tyre's radius plus 3-4.5 cm), a dark liner and
+  panel in each well; track and wheelbase symmetric. No level of detail for the wheels (three cars);
+- bodies: brushed stainless with the grain along each panel (uv in metres along the car), the coupe pearl and the
+  cab metallic car paint with clearcoat, black textured cladding (the pickup's arch lips and sills), tinted glass flush
+  with the body and a dotted black frit band inside each pane's edge (no seal tube), shut lines, a flush handle,
+  camera pods instead of mirrors, a charge port with a lit ring, number plates, the coupe's light blades, aero
+  channels and diffuser strakes, the cab's lidar dome and corner cameras;
+- rain: beads stand and run while it rains, as the street dries they go and leave water spots (`rain-beads.js` reads
+  `WET.uWet` and `WET.uRain`); drops swell under the sills and bumpers and fall to the road while the street is wet;
+  the under-glow strips are lit only at night (`uLampGain`).
+Proportions: the pickup 4.7 x 1.9 x 1.56 m (5.7 x 2.0 x 1.8 in life, scaled to the footprint), the coupe 4.6 x 1.94 x
+1.12, the cab 4.4 x 1.86 x 1.86; every car keeps its anchors, proxy boxes and lamps.
+
+**Hands** (`game/viewmodels.js`): fingers as single tapered tubes with knuckles (they were chains of capsules), a
+smaller hand, dark leather gloves and a cotton sleeve without sheen (the nylon's sheen read as a pale sleeve under
+the gun's fill light); the pistol's support hand closes round the firing hand, the gatling's front hand opens.
+
+**What still looks unreal**: the robots' parts are rigid and their silhouettes are built from turned and extruded
+shapes (a real humanoid's covers are freeform); the gait is procedural, without the small corrections a balancing
+robot makes; the hounds' lunge is a straight line; the civilians' umbrellas have no drips; the cars' bodies are
+faceted lofts (the coupe's surfaces are smooth only between its stations), the tyre tread is a shader over a grooved
+profile, the interiors are simple; the wheels have no LOD. Lighting is another agent's: at night and in the shade
+under a car (the wheels at 0.7 m) the forms are still dark; the stills were judged at dusk. The day is not yet dry
+(the rain still falls at `time=day`), so the cars' water spots are only seen once the lighting pass dries the day.
+At high quality the batched civilians' materials still need one texture unit more than the GPU has (the old
+machines did too: `THREE.WebGLTextures: Trying to use 17 texture units` at high, none at medium).
+
