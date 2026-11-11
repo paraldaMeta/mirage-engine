@@ -35,7 +35,8 @@ for (const s of list) {
     items.push({ label: ONE ? `${s} ${light[0]}${wet ? ' wet' : ''} ${view}` : `${light} ${wet ? 'wet' : 'dry'} ${view}`, data });
   }
   if (ONE) continue;
-  const sheet = await page.evaluate(sheetInPage, items, { cols: VIEWS.length, tw: 480, title: `${s} (${MODE})` });
+  const note = await page.evaluate((k) => { const K = window.__mirage.SURFACE_KINDS[k.split(':')[0]], v = k.split(':')[1]; const R = (K.refs.variants || {})[v] || K.refs; return `albedo ${R.albedo.join('-')}, roughness ${R.rough.join('-')}, metal ${R.metal}: ${R.note}`; }, s);
+  const sheet = await page.evaluate(sheetInPage, items, { cols: VIEWS.length, tw: 480, title: `${s} (${MODE}) | ${note}` });
   const file = path.join(outDir, `${s.replace(':', '-')}.png`);
   fs.writeFileSync(file, Buffer.from(sheet.split(',')[1], 'base64'));
   console.log(file);

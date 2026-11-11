@@ -97,6 +97,7 @@ vec4 msGrid(vec2 u, vec2 cell, float shift){
   msCellSize = s;
   return vec4(fract(x) * s.x, u.y - row * s.y, mod(vec2(floor(x), row), vec2(nx, ny)));
 }
+float bh0(vec2 id){ return mgHash3(vec3(id, msSeed + 11.0)).x; }
 float msEdgeD(vec4 g){ vec2 e = min(g.xy, msCellSize - g.xy); return min(e.x, e.y); }
 // snap a spacing to the tile
 float msSnap(float s){ return msT / max(1.0, floor(msT / s + 0.5)); }
@@ -118,8 +119,8 @@ MsS ms_concrete(vec2 u){
   float V = msX.z; vec3 base = msA.rgb;
   float m1 = msFbm(u, 0.8, 3), m2 = msFbm(u + 3.7, 6.0, 3), sand = msFbm(u + 1.3, 120.0, 2);
   // air voids (bug holes): sparse pits 2..8 mm with a lighter rim, their sizes by the cell's hash
-  vec4 pc = msCell(u, 26.0, 1.0);
-  float pr = 0.05 + 0.12 * pc.w;
+  vec4 pc = msCell(u + 0.006 * vec2(msFbm(u, 70.0, 2), msFbm(u + 2.0, 70.0, 2)), 26.0, 1.0);
+  float pr = 0.035 + 0.15 * pc.w * pc.w * pc.w;
   float pore = (1.0 - smoothstep(pr * 0.7, pr, pc.x)) * step(1.0 - 0.32 * msD.y, pc.z) * msLod(0.012);
   float prim = (1.0 - smoothstep(pr, pr * 1.6, pc.x)) * step(1.0 - 0.32 * msD.y, pc.z) * msLod(0.02) - pore;
   // fine aggregate showing in the laitance: grains 1.5..5 mm of their own tone
@@ -264,10 +265,11 @@ MsS ms_paving(vec2 u){
   vec3 col; float h, r, ao = 1.0;
   if (V < 0.5) {
     // concrete flags: exposed fine aggregate, a slab-wide tilt (rocked slabs catch the light apart), chipped arrises
-    vec4 ag = msCell(u + 1.7, 220.0, 1.0);
-    float sp = (1.0 - smoothstep(0.2, 0.36, ag.x)) * msLod(0.004) * msD.y;
-    col = msA.rgb * (0.86 + 0.24 * ph.x) * (0.92 + 0.1 * m1 + 0.06 * fines);
-    col = mix(col, msA.rgb * (0.55 + 0.9 * ag.z), sp * 0.6);
+    vec4 ag = msCell(u + 1.7, 150.0, 1.0);
+    float sp = (1.0 - smoothstep(0.22, 0.4, ag.x)) * msLod(0.006) * msD.y;
+    float stain = msFbm(u + ph.xy * 5.0, 3.5, 4), blot = smoothstep(0.25, 0.7, msFbm(u + ph.zx * 7.0, 1.6, 3));
+    col = msA.rgb * (0.84 + 0.28 * ph.x) * (0.9 + 0.1 * m1 + 0.1 * stain + 0.07 * fines) * (1.0 - 0.18 * blot);
+    col = mix(col, msA.rgb * (0.45 + 1.1 * ag.z) * mix(vec3(1.0), vec3(1.08, 1.0, 0.9), ag.w), sp * 0.7);
     float chipN = msFbm(u + 7.0, 18.0, 3) * 0.5 + 0.5;
     float chip = smoothstep(0.62 - 0.25 * msD.x, 0.66 - 0.25 * msD.x, chipN + (0.02 - min(de - jw, 0.02)) * 22.0 - 0.45) * step(jw, de);
     float bevel = smoothstep(jw, jw + 0.004, de);
@@ -506,7 +508,7 @@ MsS ms_paintedMetal(vec2 u){
     float by = min(abs(q.y - 0.035), abs(q.y - (s.y - 0.035)));
     float d = length(vec2(bx, by));
     bolt = 1.0 - smoothstep(0.0085, 0.0095 + msFP, d);
-    near = 1.0 - smoothstep(0.01, 0.06, d);
+    near = (1.0 - smoothstep(0.01, 0.03 + 0.05 * (msFbm(u + 3.3, 30.0, 2) * 0.5 + 0.5), d)) * step(0.35, bh0(g.zw + floor(q.x / sp) * 0.137));
     vec3 bh = msCH(g.zw + floor(q.x / sp) * 0.137, 3.0);
     float below = (s.y - 0.035) - q.y;
     drip = (1.0 - smoothstep(0.002, 0.007 + 0.006 * bh.y, abs(bx + 0.003 * m2))) * step(0.012, below) * (1.0 - smoothstep(0.0, 0.08 + 0.5 * bh.x, below)) * step(0.4, bh.z);
@@ -886,8 +888,8 @@ MsS ms_fabric(vec2 u){
   float m1 = msFbm(u, 1.2, 3), slub = msFbm2(u, vec2(2.0, 60.0), 2);
   vec3 base = msA.rgb;
   if (msB.a > 0.0) base = mix(msA.rgb, msB.rgb, step(0.5, fract(u.x / (2.0 * msSnap(msB.a)))));
-  float slub2 = msFbm2(u + 5.0, vec2(0.8, 25.0), 3);
-  vec3 col = base * (0.92 + 0.07 * m1 + 0.09 * slub + 0.06 * slub2) * mix(1.0, 0.8 + 0.28 * wh + 0.1 * (th - 0.5), k);
+  float slub2 = msFbm2(u + 5.0, vec2(0.8, 25.0), 3), slub3 = msFbm2(u + 9.0, vec2(25.0, 0.8), 3);
+  vec3 col = base * (0.9 + 0.08 * m1 + 0.1 * slub + 0.08 * slub2 + 0.08 * slub3) * mix(1.0, 0.8 + 0.28 * wh + 0.1 * (th - 0.5), k);
   // the cloth is never flat: soft creases and puckers at 3..15 cm
   float crease = msFbm(u + 2.0, 9.0, 4);
   float h = mix(0.5, 0.25 + 0.55 * wh, k) * 0.7 + 0.25 * (crease * 0.5 + 0.5) + 0.05 * fuzz + 0.04 * slub;
@@ -968,8 +970,8 @@ MsS ms_wood(vec2 u){
   late = mix(0.3, late, k);
   // rays and pores: short dashes along the grain
   float pores = msFbm2(u + b.xz * 5.0, vec2(30.0, 700.0), 2) * msLod(0.001);
-  vec3 tone = msA.rgb * (0.85 + 0.25 * bb.z) * (0.95 + 0.08 * msFbm(u, 1.0, 2));
-  vec3 col = mix(tone, tone * msD.rgb, late) * (1.0 + 0.06 * pores);
+  vec3 tone = msA.rgb * (0.78 + 0.4 * bb.z) * mix(vec3(1.0), vec3(1.08, 0.97, 0.88), bb.y) * (0.93 + 0.12 * msFbm2(u + bb.xy * 3.0, vec2(0.6, 4.0), 3));
+  vec3 col = mix(tone, tone * msD.rgb * 0.85, late) * (1.0 + 0.12 * pores);
   col = mix(col, tone * msD.rgb * 0.6, knot);
   float r = msA.a + 0.04 * pores - 0.05 * late;
   float h = 0.6 + 0.04 * pores - 0.05 * late;

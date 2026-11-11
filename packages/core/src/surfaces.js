@@ -45,7 +45,7 @@ const FOOTSTEP = { wood: 'wood', metal: 'gravel', coating: 'gravel', composite: 
 const STEEL = [0.53, 0.53, 0.54];
 const KINDS = {
   concrete: {
-    family: 'masonry', variants: ['cast', 'boardFormed', 'painted', 'precast'], tile: 2.4, depth: 0.006, size: 1024, porosity: 0.8,
+    micro: [0.003, 0.06, 0.25, 0.05], family: 'masonry', variants: ['cast', 'boardFormed', 'painted', 'precast'], tile: 2.4, depth: 0.006, size: 1024, porosity: 0.8,
     refs: { albedo: [0.18, 0.42], rough: [0.75, 0.95], metal: 0, note: 'Portland cement concrete 0.20-0.40 (fresh grey ~0.35, weathered 0.20-0.30)', variants: { painted: { albedo: [0.03, 0.85], rough: [0.5, 0.95], metal: 0, note: 'masonry paint as its pigment (white 0.70-0.85), satin 0.55-0.7' } } },
     defaults: { color: [0.33, 0.32, 0.3], roughness: 0.88, panel: [2.4, 1.2], tieSpacing: 0.6, boardHeight: 0.15, paint: [0.62, 0.6, 0.55], peel: 0.35, aggregate: 0.6, pores: 0.6, coldJoint: 0, efflorescence: 0 },
     pack: (o) => ({ A: [...o.color, o.roughness], B: [o.panel[0], o.panel[1], o.tieSpacing, o.boardHeight], C: [...o.paint, o.peel], D: [o.aggregate, o.pores, o.coldJoint, o.efflorescence] }),
@@ -53,7 +53,7 @@ const KINDS = {
     edge: (o) => ({ rgb: [1.12, 1.1, 1.06], rough: 0.95, metal: 0, mode: 1, chip: 0.02 }),
   },
   asphalt: {
-    family: 'ground', variants: ['fresh', 'worn', 'patched'], tile: 1.2, depth: 0.005, size: 1024, porosity: 0.35,
+    micro: [0.002, 0.12, 0.3, 0.06], family: 'ground', variants: ['fresh', 'worn', 'patched'], tile: 1.2, depth: 0.005, size: 1024, porosity: 0.35,
     refs: { albedo: [0.03, 0.16], rough: [0.3, 0.95], metal: 0, note: 'binder 0.03-0.06; aggregate 0.10-0.30; worn surface overall 0.08-0.14; crack sealant (tar) glossy 0.3-0.4' },
     defaults: { color: [0.042, 0.041, 0.04], roughness: 0.88, stone: [0.2, 0.2, 0.19], stoneSize: 0.011, patch: 1, cracks: 0.5, oil: 0, polish: 0.5 },
     pack: (o) => ({ A: [...o.color, o.roughness], B: [...o.stone, o.stoneSize], C: [o.patch, o.cracks, o.oil, o.polish], D: [0, 0, 0, 0] }),
@@ -61,7 +61,7 @@ const KINDS = {
     edge: () => ({ rgb: [1.25, 1.25, 1.25], rough: 0.9, metal: 0, mode: 1, chip: 0.03 }),
   },
   paving: {
-    family: 'ground', variants: ['slabs', 'setts', 'polished'], tile: 2.4, depth: 0.012, size: 1024, porosity: 0.5,
+    micro: [0.003, 0.06, 0.2, 0.05], family: 'ground', variants: ['slabs', 'setts', 'polished'], tile: 2.4, depth: 0.012, size: 1024, porosity: 0.5,
     refs: { albedo: [0.08, 0.42], rough: [0.1, 0.95], metal: 0, note: 'concrete flags 0.25-0.35, granite setts 0.10-0.30, polished granite 0.08-0.40 (roughness 0.10-0.30)' },
     defaults: { color: [0.3, 0.29, 0.27], roughness: 0.82, cell: [0.6, 0.6], joint: 0.008, shift: 0, jointColor: [0.1, 0.085, 0.07], tilt: 0.25, chips: 0.5, speckle: 1 },
     variantDefaults: { setts: { cell: [0.2, 0.1], joint: 0.012, shift: 0.5, color: [0.2, 0.19, 0.18], roughness: 0.78 }, polished: { color: [0.16, 0.16, 0.17], roughness: 0.2, cell: [0.6, 0.6], joint: 0.003 } },
@@ -70,7 +70,7 @@ const KINDS = {
     edge: () => ({ rgb: [1.15, 1.15, 1.12], rough: 0.95, metal: 0, mode: 1, chip: 0.02 }),
   },
   brick: {
-    family: 'masonry', variants: ['common', 'engineering', 'painted', 'stock'], tile: 2.25, depth: 0.02, size: 1024, porosity: 0.7,
+    micro: [0.003, 0.06, 0.15, 0.04], family: 'masonry', variants: ['common', 'engineering', 'painted', 'stock'], tile: 2.25, depth: 0.02, size: 1024, porosity: 0.7,
     refs: { albedo: [0.06, 0.45], rough: [0.5, 0.95], metal: 0, note: 'red clay brick R 0.20-0.40; engineering blue 0.05-0.10 (dense, roughness ~0.6); London stock ~(0.40, 0.30, 0.17); lime mortar 0.35-0.55', variants: { painted: { albedo: [0.03, 0.85], rough: [0.5, 0.95], metal: 0, note: 'masonry paint over brick' } } },
     defaults: { color: [0.32, 0.12, 0.07], roughness: 0.82, brick: [0.225, 0.075], mortar: 0.01, recess: 0.008, mortarColor: [0.44, 0.42, 0.38], burnt: 0.12, paint: [0.7, 0.7, 0.68], peel: 0.3 },
     variantDefaults: { engineering: { color: [0.075, 0.065, 0.075], mortarColor: [0.25, 0.25, 0.25], burnt: 0.05 }, stock: { color: [0.42, 0.31, 0.17], burnt: 0.18 } },
@@ -79,7 +79,7 @@ const KINDS = {
     edge: () => ({ rgb: [1.1, 1.08, 1.05], rough: 0.95, metal: 0, mode: 1, chip: 0.02 }),
   },
   render: {
-    family: 'masonry', variants: ['smooth', 'pebbledash', 'roughcast'], tile: 2.0, depth: 0.004, size: 1024, porosity: 0.75,
+    micro: [0.002, 0.05, 0.3, 0.04], family: 'masonry', variants: ['smooth', 'pebbledash', 'roughcast'], tile: 2.0, depth: 0.004, size: 1024, porosity: 0.75,
     refs: { albedo: [0.3, 0.8], rough: [0.75, 0.95], metal: 0, note: 'cement / lime render 0.40-0.75; painted white ~0.75' },
     defaults: { color: [0.55, 0.52, 0.46], roughness: 0.88, cracks: 0.3, patches: 0, patchColor: [0.6, 0.58, 0.52] },
     pack: (o) => ({ A: [...o.color, o.roughness], B: [0, o.cracks, o.patches, 0], C: [...o.patchColor, 0], D: [0, 0, 0, 0] }),
@@ -96,7 +96,7 @@ const KINDS = {
     edge: () => ({ rgb: [0.9, 0.9, 0.9], rough: 0.3, metal: 0, mode: 1, chip: 0.01 }),
   },
   corrugated: {
-    family: 'metal', variants: ['galvanised', 'painted', 'rusted'], tile: 1.52, depth: 0.018, size: 1024, porosity: 0.1,
+    micro: [0.002, 0.04, 0.04, 0.05], family: 'metal', variants: ['galvanised', 'painted', 'rusted'], tile: 1.52, depth: 0.018, size: 1024, porosity: 0.1,
     refs: { albedo: [0.05, 0.7], rough: [0.25, 0.95], metal: 'zinc 1 / paint 0 / rust 0', note: 'zinc F0 ~(0.62, 0.64, 0.66); rust 0.10-0.35 (R)' },
     defaults: { color: [0.17, 0.24, 0.27], roughness: 0.6, pitch: 0.076, sheet: 0.76, fixings: 0.38, profile: 'sine', rust: 0.3, chips: 0.2, whiteRust: 0.3 },
     pack: (o) => ({ A: [...o.color, o.roughness], B: [o.pitch, o.sheet, o.fixings, o.profile === 'box' ? 1 : 0], C: [o.rust, o.chips, o.whiteRust, 0], D: [0, 0, 0, 0] }),
@@ -104,7 +104,7 @@ const KINDS = {
     edge: (o, v) => (v === 1 ? { rgb: [0.6, 0.62, 0.64], rough: 0.45, metal: 1, mode: 0, chip: 0.012 } : { rgb: [0.2, 0.08, 0.03], rough: 0.9, metal: 0, mode: 0, chip: 0.015 }),
   },
   paintedMetal: {
-    family: 'metal', variants: ['sheet', 'panels', 'enamel'], tile: 2.0, depth: 0.003, size: 1024, porosity: 0.1,
+    micro: [0.002, 0.02, 0.2, 0.03], family: 'metal', variants: ['sheet', 'panels', 'enamel'], tile: 2.0, depth: 0.003, size: 1024, porosity: 0.1,
     refs: { albedo: [0.03, 0.85], rough: [0.15, 0.92], metal: 'paint 0 / bare steel 1 / rust 0', note: 'paint as its pigment (white 0.70-0.85, black 0.03-0.05); bare steel F0 (0.53, 0.53, 0.54); red-oxide primer ~(0.25, 0.08, 0.05)' },
     defaults: { color: [0.3, 0.33, 0.36], roughness: 0.45, primer: [0.24, 0.08, 0.05], chips: 0.35, panel: [1.0, 1.0], boltSpacing: 0.15, rust: 0.5, streaks: 0.5, gloss: 0 },
     variantDefaults: { enamel: { roughness: 0.25, gloss: 0.5 } },
@@ -122,7 +122,7 @@ const KINDS = {
     edge: () => ({ rgb: [1.05, 1.05, 1.05], rough: 0.15, metal: 1, mode: 1, chip: 0.01 }),
   },
   galvanised: {
-    family: 'metal', variants: ['new', 'weathered'], tile: 1.0, depth: 0.0006, size: 1024, porosity: 0.05,
+    micro: [0.002, 0.03, 0.3, 0.05], family: 'metal', variants: ['new', 'weathered'], tile: 1.0, depth: 0.0006, size: 1024, porosity: 0.05,
     refs: { albedo: [0.4, 0.72], rough: [0.25, 0.95], metal: 'zinc 1 / white rust 0', note: 'zinc F0 ~(0.62, 0.64, 0.66); patina ~0.42; white rust ~0.6 dielectric' },
     defaults: { color: [0.62, 0.64, 0.66], roughness: 0.38, spangle: 0.014, whiteRust: 0.25 },
     pack: (o) => ({ A: [...o.color, o.roughness], B: [o.spangle, o.whiteRust, 0, 0], C: [0, 0, 0, 0], D: [0, 0, 0, 0] }),
@@ -130,7 +130,7 @@ const KINDS = {
     edge: () => ({ rgb: [1.06, 1.06, 1.06], rough: 0.3, metal: 1, mode: 1, chip: 0.01 }),
   },
   castIron: {
-    family: 'metal', variants: ['manhole', 'plain', 'grate'], tile: 0.8, depth: 0.012, size: 1024, porosity: 0.2,
+    micro: [0.002, 0.05, 0.06, 0.05], family: 'metal', variants: ['manhole', 'plain', 'grate'], tile: 0.8, depth: 0.012, size: 1024, porosity: 0.2,
     refs: { albedo: [0.006, 0.55], rough: [0.3, 0.95], metal: 'worn tops 1 / rust and grime 0', note: 'cast iron F0 ~(0.45, 0.44, 0.43), darker than wrought; rust 0.10-0.35', variants: { grate: { albedo: [0.0, 0.55], rough: [0.3, 0.95], metal: 'bars 1 / openings 0', note: 'a grate is half openings (near black)' } } },
     defaults: { color: [0.45, 0.44, 0.43], roughness: 0.35, rustColor: [0.2, 0.08, 0.035], rust: 0.5, diameter: 0.7, pitch: 0.035 },
     variantDefaults: { grate: { pitch: 0.04 } },
@@ -165,7 +165,7 @@ const KINDS = {
     edge: () => ({ rgb: [1.05, 1.05, 1.05], rough: 0.15, metal: 1, mode: 1, chip: 0.008 }),
   },
   powderCoat: {
-    family: 'coating', variants: ['powder', 'cerakote', 'wrinkle'], tile: 0.5, depth: 0.0008, size: 512, porosity: 0.05,
+    family: 'coating', variants: ['powder', 'cerakote', 'wrinkle'], tile: 0.5, depth: 0.0015, size: 512, porosity: 0.05,
     refs: { albedo: [0.02, 0.85], rough: [0.3, 0.75], metal: 'coat 0 / worn edges 1', note: 'a dielectric coat: black powder coat 0.03-0.05, not a dark metal; worn edges show the metal under it' },
     defaults: { color: [0.035, 0.037, 0.042], roughness: 0.45, peel: 0.004, bare: STEEL },
     variantDefaults: { cerakote: { roughness: 0.58 }, wrinkle: { peel: 0.0025, roughness: 0.55 } },
@@ -210,7 +210,7 @@ const KINDS = {
     edge: () => ({ rgb: [1.6, 1.6, 1.6], rough: 0.9, metal: 0, mode: 1, chip: 0.01 }),
   },
   fabric: {
-    family: 'textile', variants: ['canvas', 'tarpaulin', 'cotton', 'nylon'], tile: 0.5, depth: 0.0025, size: 1024, porosity: 0.9,
+    micro: [0.0015, 0.05, 0.2, 0.03], family: 'textile', variants: ['canvas', 'tarpaulin', 'cotton', 'nylon'], tile: 0.5, depth: 0.0025, size: 1024, porosity: 0.9,
     refs: { albedo: [0.03, 0.75], rough: [0.45, 0.98], metal: 0, note: 'canvas 0.30-0.60 (a scanned canvas set averages 0.53); cotton 0.85-0.95 rough' },
     defaults: { color: [0.5, 0.06, 0.05], roughness: 0.9, stripe: [0.62, 0.6, 0.52], stripeWidth: 0, thread: 0.0009, fuzz: 1 },
     variantDefaults: { tarpaulin: { roughness: 0.5, color: [0.03, 0.12, 0.3], thread: 0.002 }, cotton: { thread: 0.0006 }, nylon: { roughness: 0.55, thread: 0.0004 } },
@@ -221,7 +221,7 @@ const KINDS = {
     material: (o, v) => (v === 1 ? {} : { sheen: 1, sheenRoughness: v === 3 ? 0.5 : 0.8, sheenColor: new THREE.Color().setRGB(...o.color.map((c) => Math.min(1, c * 0.6 + 0.12))) }),
   },
   paper: {
-    family: 'fibre', variants: ['cardboard', 'boardEdge', 'paper'], tile: 0.5, depth: 0.0008, size: 1024, porosity: 0.95,
+    micro: [0.0015, 0.04, 0.3, 0.03], family: 'fibre', variants: ['cardboard', 'boardEdge', 'paper'], tile: 0.5, depth: 0.0008, size: 1024, porosity: 0.95,
     refs: { albedo: [0.15, 0.85], rough: [0.7, 0.95], metal: 0, note: 'kraft board ~(0.42, 0.29, 0.16); white paper 0.70-0.85' },
     defaults: { color: [0.42, 0.29, 0.16], roughness: 0.88, flute: 0.008 },
     variantDefaults: { paper: { color: [0.78, 0.77, 0.73], roughness: 0.82 } },
@@ -230,10 +230,10 @@ const KINDS = {
     edge: () => ({ rgb: [0.85, 0.85, 0.85], rough: 0.95, metal: 0, mode: 1, chip: 0.01 }),
   },
   wood: {
-    family: 'wood', variants: ['planks', 'plywood', 'painted', 'weathered', 'varnished', 'sawn'], tile: 2.4, depth: 0.004, size: 1024, porosity: 0.7,
+    family: 'wood', variants: ['planks', 'plywood', 'painted', 'weathered', 'varnished', 'sawn'], tile: 1.2, depth: 0.004, size: 1024, porosity: 0.7,
     refs: { albedo: [0.02, 0.6], rough: [0.15, 0.92], metal: 0, note: 'pine 0.35-0.50, oak ~(0.30, 0.19, 0.10), old planks (scan) ~(0.10, 0.08, 0.05), teak (scan) ~(0.08, 0.03, 0.01), silvered ~0.30' },
     defaults: { color: [0.36, 0.22, 0.12], roughness: 0.68, board: [0.14, 1.2], gap: 0.003, paint: [0.2, 0.32, 0.3], peel: 0.35, latewood: [0.62, 0.55, 0.5], knots: 0.35 },
-    variantDefaults: { plywood: { color: [0.5, 0.36, 0.22], board: [1.2, 2.4], gap: 0.001, knots: 0.1 }, varnished: { color: [0.22, 0.1, 0.04], roughness: 0.22 }, weathered: { roughness: 0.86 }, sawn: { roughness: 0.88, color: [0.4, 0.29, 0.17] } },
+    variantDefaults: { plywood: { color: [0.5, 0.36, 0.22], board: [1.2, 1.2], gap: 0.001, knots: 0.1 }, varnished: { color: [0.22, 0.1, 0.04], roughness: 0.22 }, weathered: { roughness: 0.86 }, sawn: { roughness: 0.88, color: [0.4, 0.29, 0.17] } },
     pack: (o) => ({ A: [...o.color, o.roughness], B: [o.board[0], o.board[1], o.gap, 0], C: [...o.paint, o.peel], D: [...o.latewood, o.knots] }),
     quantum: (o, T, v) => [v === 1 ? T : snap(T, o.board[1]), snap(T, o.board[0])],
     edge: (o, v) => ({ rgb: v === 2 ? [0.3, 0.28, 0.25] : [1.15, 1.12, 1.08], rough: 0.85, metal: 0, mode: v === 2 ? 0 : 1, chip: 0.02 }),
@@ -248,7 +248,7 @@ const KINDS = {
     edge: () => ({ rgb: [1.1, 1.1, 1.05], rough: 0.6, metal: 0, mode: 1, chip: 0.01 }),
   },
   leather: {
-    family: 'polymer', variants: ['leather', 'vinyl', 'suede', 'aged'], tile: 0.4, depth: 0.0008, size: 1024, porosity: 0.4,
+    micro: [0.0015, 0.04, 0.3, 0.05], family: 'polymer', variants: ['leather', 'vinyl', 'suede', 'aged'], tile: 0.4, depth: 0.0008, size: 1024, porosity: 0.4,
     refs: { albedo: [0.03, 0.4], rough: [0.4, 0.95], metal: 0, note: 'tanned leather 0.05-0.25; black vinyl 0.03-0.05' },
     defaults: { color: [0.16, 0.07, 0.035], roughness: 0.55, grain: 0.0015, pleat: 0.08 },
     variantDefaults: { vinyl: { color: [0.03, 0.03, 0.032], roughness: 0.45, grain: 0.0008 } },
@@ -275,7 +275,7 @@ const KINDS = {
     edge: (o, v) => (v === 2 ? { rgb: [0.03, 0.03, 0.03], rough: 0.5, metal: 0, mode: 0, chip: 0.006 } : { rgb: [1.1, 1.1, 1.1], rough: 0.3, metal: 0, mode: 1, chip: 0.006 }),
   },
   roofing: {
-    family: 'ground', variants: ['felt', 'epdm', 'gravel'], tile: 2.0, depth: 0.006, size: 1024, porosity: 0.3,
+    micro: [0.002, 0.08, 0.25, 0.05], family: 'ground', variants: ['felt', 'epdm', 'gravel'], tile: 2.0, depth: 0.006, size: 1024, porosity: 0.3,
     refs: { albedo: [0.03, 0.4], rough: [0.6, 0.95], metal: 0, note: 'bitumen 0.04-0.06; mineral granules 0.10-0.20; ballast gravel 0.25-0.45' },
     defaults: { color: [0.11, 0.11, 0.11], roughness: 0.88, roll: 1.0, granule: 0.0018 },
     variantDefaults: { epdm: { color: [0.05, 0.05, 0.052], roughness: 0.72 } },
@@ -366,7 +366,7 @@ function makeSpec(kind, opt = {}) {
   const T = +(opt.tile ?? K.tile), seed = +(opt.seed ?? 1) % 997;
   const common = {
     X: [T, seed, v, +(opt.scale ?? 1)],
-    W: [clamp01(opt.age ?? 0.35), clamp01(opt.dirt ?? (K.family === 'metal' || K.family === 'coating' ? 0.15 : 0.3)), clamp01(opt.edgeWear ?? (K.live ? 0 : 0.5)), clamp01(opt.variation ?? 0.5)],
+    W: [clamp01(opt.age ?? 0.35), clamp01(opt.dirt ?? (K.family === 'metal' || K.family === 'coating' ? 0.15 : 0.3)), clamp01(opt.edgeWear ?? (K.live ? 0 : K.family === 'coating' || K.family === 'metal' ? 0.25 : 0.5)), clamp01(opt.variation ?? 0.5)],
     G: [...lin(opt.dirtColor, DIRT), 0],
   };
   const e = K.edge ? K.edge(o, v) : { rgb: [1, 1, 1], rough: 0.5, metal: 0, mode: -1, chip: 0.01 };
@@ -453,7 +453,7 @@ void msFinish(inout MsS s, vec3 wp, vec3 wn, float fpw){
     vec4 cnv = textureLod(msNoiseT, cq, lod);
     float cn = 0.7 * cnv.r + 0.3 * cnv.a;
     float e = clamp(msEdgeK * msW.z * 1.6, 0.0, 1.0);
-    float ex = smoothstep(0.52, 0.56, e * 0.5 + (cn - 0.5) * 1.6 + 0.18);
+    float ex = smoothstep(0.55, 0.6, e * 0.6 + (cn - 0.5) * 1.2 + 0.05);
     if (msF.y < 0.5) { s.a = mix(s.a, msE.rgb, ex); s.m = mix(s.m, msF.x, ex); }
     else s.a = mix(s.a, s.a * msE.rgb, ex);
     s.r = mix(s.r, msE.a, ex);
@@ -588,8 +588,11 @@ export function surfaceHooks(spec, options = {}) {
     + (o.edges === 'attribute' ? 'varying float msEdgeV;\n' : '') + FRAME_GLSL + FINISH_GLSL + (LIVE_GLSL[spec.kind] || KIND_GLSL[spec.kind]);
   if (baked) {
     uniforms.msTC = { value: o.baked.c }; uniforms.msTN = { value: o.baked.n };
+    // close up, where a pixel is finer than the set's texel: the kind's grain as a runtime detail layer over the bake
+    uniforms.msMi = { value: new THREE.Vector4(...(K.micro || [0, 0, 0, 0])) };
+    uniforms.msBakeN = { value: o.baked.size || (o.baked.c.image && o.baked.c.image.width) || 1024 };
     decl += /* glsl */ `
-uniform sampler2D msTC; uniform sampler2D msTN;
+uniform sampler2D msTC; uniform sampler2D msTN; uniform vec4 msMi; uniform float msBakeN; float msMicroH = 0.0;
 // one baked tap: the tile at uv (m), a repetition breaker (offsets in whole pattern modules, cross-faded by height)
 void msTap(vec2 uv, vec2 gx, vec2 gy, out vec4 c, out vec4 n){
   vec2 t = uv / msT, tx = gx / msT, ty = gy / msT;
@@ -648,6 +651,13 @@ void msTap(vec2 uv, vec2 gx, vec2 gy, out vec4 c, out vec4 n){
   body += '\n  MsS msS = msZero(); vec3 msNW = vec3(0.0);\n';
   for (let i = 0; i < nTaps; i++) body += `  if (msFrameW[${i}] > 0.0) ${(baked ? tapBaked : tapProc)(i, `msU[${i}]`)}\n`;
   if (!baked) body += '  msS.a *= msS.ao;\n';   // the bake folds the cavity into the albedo
+  else body += `  if (msMi.x > 0.0) {
+    vec2 mq = msNQ(msPW) / msMi.x * 0.125;
+    vec4 md = textureGrad(msNoiseT, mq, dFdx(mq), dFdy(mq)) - 0.5;
+    float mk = clamp(msT / msBakeN / max(msFP, 1e-6) - 1.0, 0.0, 1.0);
+    float g = (md.r * 0.7 + md.g * 0.3) * mk;
+    msS.a *= 1.0 + msMi.y * g * 2.0; msS.r = clamp(msS.r + msMi.w * g * 2.0, 0.02, 1.0); msMicroH = msMi.z * g;
+  }\n`;
   if (o.paint) body += `  msRoadPaint(msS, msPW.xz, ${o.paint});\n`;
   if (o.decals) body += '  msDecals(msS, msPW, msNWorld);\n';
   if (!live) body += '  msFinish(msS, msPW, msNWorld, msFPW);\n';
@@ -659,7 +669,7 @@ void msTap(vec2 uv, vec2 gx, vec2 gy, out vec4 c, out vec4 n){
     roughness: 'roughnessFactor = msR;',
     metalness: 'metalnessFactor = msM;',
     normal: baked
-      ? 'if (dot(msNWo, msNWo) > 0.0) { vec3 wn = normalize(mgWorldNormal); normal = normalize(normal + (viewMatrix * vec4(normalize(msNWo) - wn, 0.0)).xyz); }'
+      ? 'if (dot(msNWo, msNWo) > 0.0) { vec3 wn = normalize(mgWorldNormal); normal = normalize(normal + (viewMatrix * vec4(normalize(msNWo) - wn, 0.0)).xyz); }\nnormal = mgBump(normal, msMicroH * msY.y, 1.0);'
       : 'normal = mgBump(normal, msH * msY.y, 1.0);',
     uniforms,
     vertexDecl: 'varying vec2 msUVraw;' + (objectSpace ? ' varying vec3 msOP; varying vec3 msON;' : '') + (o.edges === 'attribute' ? ' attribute float edge; varying float msEdgeV;' : ''),
