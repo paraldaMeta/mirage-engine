@@ -529,6 +529,9 @@ versions pop at their distance; the broken units sit a little stiffly and the al
 the keepers are flat silhouettes in the interior shader (no parallax of their own); the courier's wheels do not steer
 round the loop's ends; a still frame that accumulates over a page change shows two totem notices at once (moving, it
 does not); umbrellas do not shed rain.
+`plan.streetlife`: people, walkers, vending rows, the stall. People are four instanced meshes (body, legs, accents,
+umbrellas) posed in onUpdate; the stall is solid (one proxy for the container). The vending rows are built by
+vending.js.
 
 | key | pos is | count |
 |---|---|---|
@@ -539,3 +542,42 @@ does not); umbrellas do not shed rain.
 `plan.grime`: cables over the alley, a duct, dripping pipes (drops in the vertex shader), heaps, crates, puddles
 (cut-out glossy films the planar mirror sees), barricades (solid), wayfinding panels, stencilled numbers, floor
 marks (one atlas), manhole covers.
+
+## vending
+
+`plan.streetlife.vending` rows plus four singles along the street (moved here from streetlife.js and street.js:
+same places, same lamps). Five kinds (cold drinks, hot food, snacks, capsule toys, parts / ammo). Cabinets are
+decor; an invisible box of the old size collides. Products are six instanced meshes for all the machines together.
+
+## Close-up detail
+
+A pass so that what the player can walk up to holds at 0.5–1.5 m. Shared pieces (no module of their own):
+
+- `props-kit.js`: one 2048² canvas atlas for everything printed (invented brands in English / Traditional Chinese /
+  kana: can wraps, bottle labels, cartons, snack packs, capsules, price tags, stickers, warning labels, stencils,
+  number plates, menus, lantern paper, drive sleds, keyboards, tyre walls, lenses) and the materials that read it:
+  `paint`, `metal`, `glow` (intensity in the vertex colour), `lantern` (brighter where it faces you), `clear`,
+  `product` (instanced, a per-instance label offset `ndLab`). `put()` fits a part's uv to its atlas cell and writes
+  its tint as a vertex colour, so a module's props merge into one draw per material.
+- `props-shapes.js` (cans, PET bottles, cups, boxes, pillow packs, capsules, spirals, bowls, jars, glasses),
+  `props-goods.js` (spirit bottles with liquid levels, tumblers, bowl stacks, pots, noodle baskets, a rice cooker,
+  chopstick holders, skewers, stools, a goods rack), `props-lights.js` (paper lanterns, bulb strings, street lamp
+  heads, bulkheads, tube fixtures, floodlights, beacons, signal heads), `props-street.js` (bins, crates, bags,
+  cardboard, AC units, junction boxes, bollards, jersey barriers, news boxes, benches).
+- `cars.js` (built by street.js): three designs of an invented marque lofted from cross sections: a faceted
+  brushed-steel pickup (anisotropic), a pearlescent wedge coupe (two-tone flip, flake, clearcoat), a boxy autonomous
+  cab; real wheel openings, tyres with tread and sidewall print, rims, brake discs, interiors, lenses, plates,
+  under-glow (one pool lamp each). `rain-beads.js` adds beads, running drops, splash rings and a wet foot to the
+  car paint, steel and glass (inside withWet). main.js adds one reflection probe box round the steel truck.
+
+Rules kept: every colliding thing keeps its volume (an invisible proxy of the old size where the visible part became
+decor: vending cabinets, stools, bins, news boxes, crates, barriers, cars, lamp bases, rack faces); every light keeps
+its `lamp()` call; new lamps: three (the cars' under-glow). Small parts cast no shadows.
+
+Still not up to standard at 1 m: the shop interiors behind the glass are still the ray-cast box (`goodsRack` exists
+but no shop uses it yet); the kiosks, the plinth, the planters (no plants), the scooters, the hydrant, the pallets,
+the underpass head, the roof HVAC boxes and the duct are still bevelled or plain boxes; the bar's booths and the
+relay's desk body are plain slabs; bag heaps read only as dark lumps at night; the cars' glass has a black seal tube
+instead of a dotted frit, the steel truck is dark away from light (the probe adds little at night), and the rain
+is a shader on smooth panels (no drops falling from sills); the mast beacons and the aerial traffic keep their
+spheres (far away).

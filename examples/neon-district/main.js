@@ -60,6 +60,8 @@ const lighting = {
   probes: on('probes') && [
     { min: [bar[0], 0, bar[1]], max: [bar[2], plan.bar.height, bar[3]], fade: 0.5 },
     { min: [room[0], 0, room[1]], max: [room[2], plan.relay.height, room[3]], fade: 0.5 },
+    // the steel truck at the alley mouth (the first close look at a car): its own capture of the signs round it
+    { min: [plan.cars[0][0] - 3.4, 0, plan.cars[0][1] - 2.6], max: [plan.cars[0][0] + 3.4, 3.2, plan.cars[0][1] + 2.4], fade: 0.6 },
   ],
 };
 // wetness before the world exists: set later, the world sees a change, recaptures its light and re-bakes every probe

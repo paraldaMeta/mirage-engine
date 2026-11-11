@@ -7,19 +7,21 @@ import * as THREE from 'three';
 import { materials } from './materials.js';
 import { decor } from './lib.js';
 import { detail, thin, worn, textAtlas, atlasQuad } from './kit.js';
+import { propKit } from './props-kit.js';
+import { beacon } from './props-lights.js';
+import { junctionBox, bag as sack, crate } from './props-street.js';
 
 export default {
   name: 'grime',
   build(ctx) {
     const { geom, root, plan, mat, R } = ctx, M = materials(ctx), G = plan.grime || {}, K = plan.levels.kerb, D = detail(ctx);
-    const b = new geom.MeshBatch(), fx = new geom.MeshBatch(), Q = R.fork('grime');
+    const b = new geom.MeshBatch(), fx = new geom.MeshBatch(), Q = R.fork('grime'), P = propKit(ctx), pb = new geom.MeshBatch();
     const [ax0, , ax1] = plan.alley.rect;
 
     // ---- cable bundles across the alley: four to six cables each, one junction box at each wall
-    const jbox = mat.std({ roughness: 0.5, metalness: 0.6 }, worn('vec3(0.3, 0.32, 0.3)', { rows: 0.5, chip: 0.4, rust: 0.6 }));
     for (const [z, y, n] of G.alleyCables || []) {
       for (const [x, s] of [[ax0, 1], [ax1, -1]]) {
-        b.add(new geom.RoundedBoxGeometry(0.22, 0.5, 0.38, 2, 0.03), jbox, geom.compose([x + s * 0.11, y + 0.1, z]));
+        junctionBox(P, pb, geom, geom.compose([x, y + 0.1, z], [0, s > 0 ? Math.PI / 2 : -Math.PI / 2, 0]), 0.5, [0.3, 0.32, 0.3], 2);
         fx.cylinder(M.darkMetal, 0.03, 0.03, y + 0.1, [x + s * 0.06, (y + 0.1) / 2, z + 0.12], [0, 0, 0], 6);       // a conduit down to the ground
       }
       for (let i = 0; i < n; i++) {
@@ -54,18 +56,13 @@ export default {
     }
 
     // ---- rubbish: bags in a heap, crates (solid when big)
-    const bag = mat.std({ color: new THREE.Color(0.01, 0.01, 0.012), roughness: 0.18, metalness: 0.0 });
-    const bagBlue = mat.std({ color: new THREE.Color(0.02, 0.05, 0.12), roughness: 0.2 });
-    const bagGeo = new THREE.IcosahedronGeometry(0.32, 1);
-    { const p = bagGeo.attributes.position; for (let i = 0; i < p.count; i++) { const y = p.getY(i); p.setY(i, y < 0 ? y * 0.7 : y * (1 + 0.25 * Math.sin(p.getX(i) * 9))); p.setX(i, p.getX(i) * (1 + 0.12 * Math.sin(p.getZ(i) * 11))); } bagGeo.computeVertexNormals(); }
-    const crateMat = mat.std({ roughness: 0.6, metalness: 0.3 }, worn('vec3(0.08, 0.2, 0.14)', { rows: 0.4, chip: 0.5, rust: 0.4 }));
     for (const [x, z, y, n] of thin(ctx, G.heaps || [], 2)) {
       const H = R.fork('h' + x + z);
-      for (let i = 0; i < n; i++) fx.add(bagGeo, H.chance(0.75) ? bag : bagBlue, geom.compose([x + H.range(-0.6, 0.6), y + 0.2 + (i > 3 ? 0.3 : 0), z + H.range(-0.35, 0.35)], [H.range(-0.3, 0.3), H.range(0, 6), 0], [H.range(0.8, 1.2), H.range(0.75, 1.0), H.range(0.8, 1.1)]));
+      for (let i = 0; i < n; i++) sack(P, pb, geom, geom.compose([x + H.range(-0.6, 0.6), y + (i > 3 ? 0.28 : 0), z + H.range(-0.35, 0.35)], [H.range(-0.2, 0.2), H.range(0, 6), 0], [H.range(0.85, 1.15), H.range(0.8, 1.0), H.range(0.85, 1.1)]), i + 1, H.chance(0.75) ? [0.012, 0.012, 0.014] : [0.02, 0.05, 0.12]);
     }
     for (const [x, z, y, s, rot] of G.crates || []) {
-      b.add(new geom.RoundedBoxGeometry(s * 1.2, s, s, 2, 0.03), crateMat, geom.compose([x, y + s / 2, z], [0, rot, 0]));
-      fx.add(new THREE.BoxGeometry(s * 1.22, 0.04, s * 1.02), M.darkMetal, geom.compose([x, y + s * 0.75, z], [0, rot, 0]));
+      crate(P, pb, geom, geom.compose([x, y, z], [0, rot, 0]), s, [0.12, 0.24, 0.16], Math.round(x) & 1);
+      const cp = new THREE.Mesh(new THREE.BoxGeometry(s * 1.2, s, s)); cp.applyMatrix4(geom.compose([x, y + s / 2, z], [0, rot, 0])); ctx.collider(cp);
     }
 
     // ---- puddles on the asphalt: a glassy film, shaped by noise (cut out, not blended: the planar mirror sees it)
@@ -83,7 +80,7 @@ export default {
       const m = geom.compose([x, (z > 3.6 && z < 8.4) ? 0 : K, z], [0, rot, 0]), at = (p, r = [0, 0, 0]) => m.clone().multiply(geom.compose(p, r));
       for (const y of [0.55, 0.95]) b.add(new geom.RoundedBoxGeometry(1.6, 0.22, 0.04, 2, 0.015), M.yellow, at([0, y, 0.0]));
       for (const sx of [-0.7, 0.7]) for (const sz of [-1, 1]) fx.add(new THREE.BoxGeometry(0.05, 1.15, 0.05), M.darkMetal, at([sx, 0.55, sz * 0.18], [sz * 0.32, 0, 0]));
-      fx.add(new THREE.CylinderGeometry(0.06, 0.06, 0.05, 8).rotateX(Math.PI / 2), M.neon.amber, at([0, 1.14, 0.03]));
+      beacon(P, pb, geom, new THREE.Vector3(0, 1.065, 0).applyMatrix4(m).toArray(), [1.0, 0.55, 0.12], 3.5, 0.045);
       const px = new THREE.Mesh(new THREE.BoxGeometry(1.7, 1.1, 0.5)); px.applyMatrix4(at([0, 0.55, 0])); ctx.collider(px);
     }
 
@@ -113,7 +110,7 @@ export default {
     });
     for (const [x, z] of G.manholes || []) fx.cylinder(manhole, 0.43, 0.43, 0.025, [x, 0.014, z], [0, Q.range(0, 6), 0], 28);
 
-    root.add(b.finish({ name: 'grime', castShadow: false }), decor(fx.finish({ name: 'grime-decor', castShadow: false })));
+    root.add(b.finish({ name: 'grime', castShadow: false }), decor(fx.finish({ name: 'grime-decor', castShadow: false })), decor(pb.finish({ name: 'grime-props', castShadow: false })));
     return {};
   },
 };

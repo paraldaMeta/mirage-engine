@@ -13,6 +13,7 @@ import adverts from './adverts.js';
 import aerial from './aerial.js';
 import arcology from './arcology.js';
 import streetlife from './streetlife.js';
+import vending from './vending.js';
 import grime from './grime.js';
 import signs from './signs.js';
-export default [ground, blocks, facades, megastructure, street, clutter, bar, relay, plaza, adverts, aerial, arcology, streetlife, grime, signs];
+export default [ground, blocks, facades, megastructure, street, clutter, bar, relay, plaza, adverts, aerial, arcology, streetlife, vending, grime, signs];
