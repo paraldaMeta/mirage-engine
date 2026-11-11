@@ -14,6 +14,32 @@ Recommendation: **keep Nizwa on its own engine, back-port two Mirage features in
 Mirage before any further port.** Once those are closed, a port is cheap, because the bridge in this example
 carries Nizwa's world code across unchanged.
 
+## Update: the gaps, closed (branch `claude/nizwa-gaps`)
+
+Six opt-in features were added to Mirage after this report (all off by default; off, hello-courtyard renders
+bit-identical to the commit before them, with and without light2). The probe turns them on with
+`?grade=1&sky=dusk&pools=1&bounce=1&godrays=1&flare=1` (ambient tints pass through the bridge by default).
+
+| gap | feature | where |
+|---|---|---|
+| 1 time-of-day grade | `grade`: split toning, black point, S-curve, ACES / AgX-punchy blend, clarity, highlight warmth, a darker night | `daynight.js`, `post.js` |
+| 2 bounce light | `lighting: { bounce }`: a height-field port of Nizwa's irradiance volume (ms to prepare, `gi` took 51 s) | `bounce.js` |
+| 3 far-lamp pools | `lampPool`: every lamp lights its surroundings (clustered, in the lit materials) | `lamppool.js` |
+| 4 dusk and night sky | `sky: { dusk }`: twilight colours, a darker night dome, a hazy horizon, altocumulus | `sky.js` |
+| 5 ambient volumes | tints and hundreds of boxes (a grid in a data texture) | `env.js` |
+| (Golden Temple's lens) | `post.godrays`, `post.flare` | `postfx.js` |
+
+Left Nizwa, middle Mirage before, right Mirage with all six. Golden hour (gate, inside the tower, approach):
+![](media/final/golden.jpg)
+Dusk 19:30, night 21:00, noon:
+![](media/final/dusk-noon.jpg)
+
+- Golden hour: sunlit plaster within about 0-20 levels of Nizwa per channel (it was 32-40 short in red).
+- Dusk and night: the frame's mean matches (19:30: Nizwa 37/40/46, Mirage 37/42/48); every lantern has a pool
+  (+16 to +34 levels over the wall, Nizwa +13 to +38); the sky has a dark zenith, a brighter horizon and clouds.
+- Still short: the shade under the tower's stair (Nizwa a deep orange: the height field cannot see under the
+  overhang), Nizwa's pinker dusk tone, and its larger, uniform lamp discs (Mirage's fall off from the flame).
+
 ## What was built
 
 `examples/nizwa-probe/`: a Mirage world (`createWorldRenderer` + `buildWorld` + `createPlay`) with light2,
