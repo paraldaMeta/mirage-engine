@@ -28,6 +28,18 @@ scene.add(floor);
 const lampW = new THREE.PointLight(new THREE.Color().setRGB(1, 0.86, 0.72), 0, 0, 2); lampW.position.set(-1.6, 2.3, 1.6);
 const lampC = new THREE.PointLight(new THREE.Color().setRGB(0.2, 0.6, 1.0), 0, 0, 2); lampC.position.set(1.7, 1.2, 1.3);
 lampW.castShadow = true; lampW.shadow.mapSize.set(1024, 1024); lampW.shadow.bias = -0.0005;
+// something for metals and glass to reflect (out of every view, seen only by the image-based light): two tall windows
+// behind the camera, a side window, three strip lights overhead; brighter by day, dim shop windows at night
+const RIG = { studio: 7, golden: 3, night: 1.2 };
+const rigMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+const rig = new THREE.Group();
+for (const [w, h, x, y, z, ry, rx] of [[3, 2.6, -2.6, 2.3, 7.5, Math.PI, 0], [2.2, 2.6, 2.4, 2.3, 7.5, Math.PI, 0], [2.4, 2.2, -7, 2.0, 1.5, Math.PI / 2, 0],
+  [5, 0.22, 0, 5.5, -0.5, 0, Math.PI / 2], [5, 0.22, 0, 5.5, 1.2, 0, Math.PI / 2], [5, 0.22, 0, 5.5, 2.9, 0, Math.PI / 2]]) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), rigMat); m.position.set(x, y, z); m.rotation.set(rx, ry, 0); rig.add(m);
+}
+scene.add(rig);
+const setRig = (L) => rigMat.color.setScalar(RIG[L] ?? RIG.studio);
+setRig(Q.get('light') || 'studio');
 scene.add(lampW, lampC);
 
 const lib = createSurfaces(world, { mode: Q.get('mode') || 'baked' });
@@ -39,7 +51,18 @@ const GEO = {
   wall: new RoundedBoxGeometry(2.0, 2.0, 0.12, 4, 0.012),
   ground: new THREE.PlaneGeometry(3.2, 2.4, 1, 1).rotateX(-Math.PI / 2),
   tube: new THREE.CylinderGeometry(0.012, 0.012, 1.4, 32, 1).rotateZ(Math.PI / 2),
+  backdrop: new THREE.PlaneGeometry(2.6, 2.0),
+  box: new THREE.BoxGeometry(0.6, 0.6, 0.6),
 };
+// behind a glass pane: coloured stripes and a checker, to see the tint, the blur of frosting and the refraction
+const backdropMat = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d');
+  const cols = ['#d23', '#fc2', '#2a5', '#28d', '#eee', '#222'];
+  for (let i = 0; i < 6; i++) { g.fillStyle = cols[i]; g.fillRect(i * 43, 0, 43, 128); }
+  for (let y = 0; y < 8; y++) for (let x = 0; x < 16; x++) { g.fillStyle = (x + y) % 2 ? '#eee' : '#222'; g.fillRect(x * 16, 128 + y * 16, 16, 16); }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  return world.mat.std({ map: t, roughness: 0.7 });
+})();
 const VIEWS = {
   far: { eye: [0.0, 1.55, 4.6], look: [0, 0.75, -0.3] },
   near: { eye: [1.12, 0.78, 0.82], look: [0.72, 0.52, 0.42] },
@@ -47,7 +70,7 @@ const VIEWS = {
   ground: { eye: [-0.9, 0.42, 0.95], look: [-0.75, 0.0, 0.62] },
 };
 // grain for the directional kinds: along the wall, along x on the cube
-const GRAIN = { wood: 'x', stainless: 'x', corrugated: 'y', bamboo: 'x', fabric: 'y', carbonFibre: 'x', aluminium: 'x', rubber: 'x', paper: 'x' };
+const GRAIN = { wood: 'x', stainless: 'x', bamboo: 'x', fabric: 'y', carbonFibre: 'x', aluminium: 'x', rubber: 'x', paper: 'x' };
 
 let current = null, mats = [];
 function clear() {
@@ -56,7 +79,7 @@ function clear() {
   mats = [];
 }
 /** build one surface's test row. s: 'kind[:variant]', opts: extra spec options, wet 0..1, mode baked | procedural */
-function show({ s = 'concrete', light, wet = 0, view = 'far', mode = Q.get('mode') || 'baked', opts = {}, matOpts = {} } = {}) {
+function show({ s = 'concrete', light, wet = 0, view = 'far', mode = Q.get('mode') || 'baked', opts = {}, matOpts = {}, box = false } = {}) {
   clear();
   const [kind, variant] = s.split(':');
   const K = SURFACE_KINDS[kind];
@@ -64,14 +87,17 @@ function show({ s = 'concrete', light, wet = 0, view = 'far', mode = Q.get('mode
   const spec = SURFACES[kind]({ ...(variant ? { variant } : {}), ...opts });
   const grain = GRAIN[kind];
   const wetO = wet > 0 && !K.live && kind !== 'glass';
-  const mk = (mapping, extra = {}) => { const m = lib.material(spec, { mapping, mode, wet: wetO, grain: mapping === 'wall' ? (grain === 'y' ? 'y' : undefined) : grain, ...matOpts, ...extra }); mats.push(m); return m; };
+  const glassO = kind === 'glass' ? { transmission: true } : {};
+  const mk = (mapping, extra = {}) => { const m = lib.material(spec, { mapping, mode, wet: wetO, grain: mapping === 'wall' ? (grain === 'y' ? 'y' : undefined) : grain, ...glassO, ...matOpts, ...extra }); mats.push(m); return m; };
   const add = (geo, m, x, y, z) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; group.add(o); return o; };
+  if (kind === 'glass') add(GEO.backdrop, backdropMat, 0, 1.0, -1.7);   // something behind the pane to tint and blur
   add(GEO.ground, mk('ground'), 0, 0.002, -0.1);
   add(GEO.wall, mk('wall'), 0, 1.0, -1.0);
   add(GEO.sphere, mk('tri'), -0.6, 0.3, 0.35);
-  add(GEO.cube, mk('tri'), 0.55, 0.3, 0.15);
-  if (['neon', 'fluorescent'].includes(kind)) add(GEO.tube, mk('tri'), 0, 1.2, -0.5);
-  if (light && light !== current?.light) world.setTime(TIMES[light]);
+  add(box ? GEO.box : GEO.cube, mk('tri'), 0.55, 0.3, 0.15);   // box: an unbevelled cube (edge wear by edges: 'box')
+  // a tube, mapped along its length (uv.y, 1.4 m): the neon's electrode caps and support clips sit on it
+  if (['neon', 'fluorescent'].includes(kind)) add(GEO.tube, kind === 'neon' ? (() => { const m = lib.material(SURFACES.neon({ ...opts, electrodes: opts.electrodes ?? 0.03, supports: opts.supports ?? 0.35 }), { mapping: 'uv', uvScale: 1.4 }); mats.push(m); return m; })() : mk('tri'), 0, 1.2, -0.5);
+  if (light && light !== current?.light) { setRig(light); world.setTime(TIMES[light]); }
   const L = light || current?.light || Q.get('light') || 'studio';
   const night = L === 'night';
   lampW.intensity = night ? 5 * world.G.uLampGain.value : 0; lampC.intensity = night ? 3.5 * world.G.uLampGain.value : 0;
@@ -131,7 +157,7 @@ async function showRef({ c, n, tile, mean = [0.2, 0.2, 0.2], hMean = 0.5, rough 
   await tex.ready();
   const add = (geo, m, x, y, z) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; group.add(o); };
   add(GEO.ground, mk('ground'), 0, 0.002, -0.1); add(GEO.wall, mk('wall'), 0, 1.0, -1.0); add(GEO.sphere, mk('tri'), -0.6, 0.3, 0.35); add(GEO.cube, mk('tri'), 0.55, 0.3, 0.15);
-  if (light && light !== current?.light) world.setTime(TIMES[light]);
+  if (light && light !== current?.light) { setRig(light); world.setTime(TIMES[light]); }
   const L = light || current?.light || 'studio';
   lampW.intensity = L === 'night' ? 5 * world.G.uLampGain.value : 0; lampC.intensity = L === 'night' ? 3.5 * world.G.uLampGain.value : 0;
   setWetness(wet);
