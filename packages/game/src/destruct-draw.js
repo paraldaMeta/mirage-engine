@@ -204,7 +204,7 @@ export function createDebris(root, { max = 600 } = {}) {
     const G = debrisGeometries();
     meshes = SHAPES.map((k) => {
       const glass = k === 'glass';
-      const mat = new THREE.MeshStandardMaterial(glass ? { color: 0xffffff, roughness: 0.04, metalness: 0.1, transparent: true, opacity: 0.6, side: THREE.DoubleSide, depthWrite: false, envMapIntensity: 2.4 }
+      const mat = new THREE.MeshStandardMaterial(glass ? { color: 0xffffff, roughness: 0.03, metalness: 0.35, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false, envMapIntensity: 2.4, emissive: 0x6f8890, emissiveIntensity: 0.025 }
         : { color: 0xffffff, roughness: k === 'bolt' ? 0.4 : 0.85, metalness: k === 'bolt' ? 0.8 : 0, side: k === 'flake' ? THREE.DoubleSide : THREE.FrontSide });
       mat.name = 'destruct:debris:' + k;
       const m = passOut(new THREE.InstancedMesh(G[k], mat, N));
@@ -372,7 +372,8 @@ export function createMarks(root, { max = 96 } = {}) {
   const _c = new THREE.Color(), up = new THREE.Vector3(0, 0, 1);
   function build() {
     if (mesh) return;
-    const mat = new THREE.MeshBasicMaterial({ map: atlasTexture(), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4, side: THREE.DoubleSide, fog: true });
+    // lit like the surface it is on (a crack on a pane catches the lamps; at night a white unlit mark would glow)
+    const mat = new THREE.MeshStandardMaterial({ map: atlasTexture(), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4, side: THREE.DoubleSide, roughness: 0.45, metalness: 0 });
     mat.name = 'destruct:marks';
     mat.onBeforeCompile = (s) => {
       s.vertexShader = 'attribute vec3 aMark;\nvarying float vMarkA;\n' + s.vertexShader.replace('#include <uv_vertex>', '#include <uv_vertex>\nvMapUv = (uv + aMark.xy) * vec2(0.25, 0.5);\nvMarkA = aMark.z;');
@@ -408,7 +409,7 @@ export function createMarks(root, { max = 96 } = {}) {
     owner[i] = who; seqs[i] = ++serial; rot[i] = rotation;
     for (let c = 0; c < 3; c++) { P[i * 3 + c] = at[c] + normal[c] * 0.004; Nn[i * 3 + c] = normal[c]; }
     size[i * 2] = s[0]; size[i * 2 + 1] = s[1];
-    tile.array[i * 3] = M.tile % 4; tile.array[i * 3 + 1] = 1 - Math.floor(M.tile / 4); tile.array[i * 3 + 2] = opacity ?? M.opacity;
+    tile.array[i * 3] = M.tile % 4; tile.array[i * 3 + 1] = Math.floor(M.tile / 4); tile.array[i * 3 + 2] = opacity ?? M.opacity;
     mesh.setColorAt(i, _c.set(color || M.color));
     write(i);
     return i;

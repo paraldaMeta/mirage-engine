@@ -823,6 +823,8 @@ export function createDestructibles(target = {}, options = {}) {
     // the lowest point over the floor
     const a = _ax.set(0, 1, 0).applyQuaternion(m.q), ay = Math.abs(a.y);
     const low = m.cyl ? ay * m.hh + Math.sqrt(Math.max(0, 1 - ay * ay)) * m.r : lowBox(m);
+    // the floor under it again now and then (it may roll off a shelf)
+    if ((occluder || typeof options.floor === 'function') && (steps + it.index) % 4 === 0) m.floor = floorAt(m.p[0], m.p[1] - low + 0.03, m.p[2]);
     const pen = m.floor - (m.p[1] - low);
     if (pen > 0) {
       m.p[1] += pen;
@@ -962,7 +964,7 @@ export function createDestructibles(target = {}, options = {}) {
   const collapsing = [];
   function collapse(it, D, quiet) {
     const A = it.actor;
-    const L = Math.hypot(D[0], D[2]) || 1; A.dir = [D[0] / L, 0, D[2] / L];
+    const L = Math.hypot(D[0], D[2]); A.dir = L > 1e-6 ? [D[0] / L, 0, D[2] / L] : [0, 0, -1];   // straight down (a restore): it falls back
     for (const p of A.parts) { const h = p.handle; if (h.kind === 'object') { h.object.updateWorldMatrix(true, false); p.base.copy(h.object.matrixWorld); p.has = true; } else if (h.matrix) { h.mesh.updateWorldMatrix(true, false); h.matrix(p.base).premultiply(h.mesh.matrixWorld); p.has = true; } }
     A.k = quiet ? 1 : 0; A.active = true;
     if (!collapsing.includes(it)) collapsing.push(it);
