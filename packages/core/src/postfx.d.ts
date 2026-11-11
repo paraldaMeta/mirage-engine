@@ -3,7 +3,8 @@ import * as THREE from 'three';
 import type { Pipeline, PostSettings } from './post.js';
 
 /** The post settings postfx.js adds to DEFAULT_POST: everything off. */
-export const FX_DEFAULTS: Pick<PostSettings, 'taa2' | 'upscale' | 'motionBlur' | 'motionBlurMax' | 'bokeh' | 'bokehMax' | 'bloomPyramid' | 'lut' | 'lutStrength' | 'chroma' | 'rcas'>;
+export const FX_DEFAULTS: Pick<PostSettings, 'taa2' | 'upscale' | 'motionBlur' | 'motionBlurMax' | 'bokeh' | 'bokehMax' | 'bloomPyramid' | 'lut' | 'lutStrength' | 'chroma' | 'rcas'
+  | 'godrays' | 'godraysDecay' | 'godraysThreshold' | 'godraysVol' | 'flare'>;
 /** Element i >= 1 of the Halton sequence in `base` (0..1). */
 export function halton(i: number, base: number): number;
 /** The lens radius (m) of a focal length (mm) at an f-number: post.dof for a real lens. */
@@ -16,7 +17,7 @@ export function parseCube(text: string): LutData;
 export function makeLut(fn: (rgb: [number, number, number]) => [number, number, number], size?: number): LutData;
 /** The table as a texture for post.lut (linear filtered, half float). */
 export function lutTexture(lut: LutData): THREE.Data3DTexture;
-/** Post settings from URL flags: taa2, upscale, mb, bokeh, lens, focus, bloom, bloom2, chroma, rcas, lut=warm|cool|bleach; ssr, ssrrough, ssgi, girange, girays, contact (lighting.screen). */
+/** Post settings from URL flags: taa2, upscale, mb, bokeh, lens, focus, bloom, bloom2, chroma, rcas, godrays, flare, lut=warm|cool|bleach; ssr, ssrrough, ssgi, girange, girays, contact (lighting.screen). */
 export function postFromQuery(query: URLSearchParams): Partial<PostSettings>;
 /** The passes behind those settings; the Pipeline makes one on first use (pipeline.fx). */
 export class PostFX {
@@ -33,5 +34,10 @@ export class PostFX {
   motionBlur(post: PostSettings): void;
   bloom(post: PostSettings): number;
   grade(post: PostSettings): THREE.ShaderMaterial | null;
+  /** Screen-space light shafts added to the frame before the bloom. jitter: the sub-frame / TAA index; light2Vol: light2
+   *  marched the sun this frame (weight post.godraysVol); live: a moving frame (eased through a history). */
+  godrays(post: PostSettings, camera: THREE.Camera, jitter?: number, light2Vol?: boolean, live?: boolean): void;
+  /** The sun's lens flare added after the bloom; visibility from 16 depth taps over the sun's disc. */
+  flare(post: PostSettings, camera: THREE.Camera, live?: boolean): void;
   dispose(): void;
 }
