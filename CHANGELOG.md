@@ -4,6 +4,15 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
 
 ## Unreleased
 
+**New**
+- `examples/neon-district`: a small first-person shooter in a rain-wet city block at night, the engine's showcase.
+  Seven modules on one plan, no asset files. Clustered lamps with shadow tiles, screen-space reflections on wet
+  streets, a probe volume and reflection probes indoors, volumetric lamps, the post chain, GPU particles, beams and
+  decals; a carbine with recoil, reload and aiming, navgrid sentinels with an animation controller and a state
+  machine, checkpoints, keyboard / gamepad / touch. A 91-step playtest plays it from the alley to the roof. Which
+  feature each part shows, the frame times and what it works around: `examples/neon-district/NOTES.md`. No engine
+  code changed.
+
 **Changes in behaviour**
 - The packages are named `@miragekit/core`, `@miragekit/world`, `@miragekit/play`, `@miragekit/game`,
   `@miragekit/net`, `@miragekit/editor` and `@miragekit/tools` (were `@mirage/*`, never published: `@mirage` and

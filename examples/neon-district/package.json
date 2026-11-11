@@ -1,0 +1,28 @@
+{
+  "name": "neon-district",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Mirage flagship example: a small first-person shooter in a rain-wet cyberpunk district at night. Clustered neon, SSR on wet streets, probe GI and reflection probes indoors, volumetric lamps, GPU particles, navgrid enemies with an animation controller, checkpoints, keyboard / gamepad / touch.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 5194 --strictPort",
+    "build": "vite build",
+    "preview": "vite preview --port 5195 --strictPort",
+    "playtest": "node ../../packages/tools/src/playtest.mjs scenarios/playtest.json dist --out out/playtest",
+    "snap": "node ../../packages/tools/src/snap.mjs dist --out out/snap",
+    "check": "node ../../packages/tools/src/check-world.mjs dist",
+    "package": "node ../../packages/tools/src/package.mjs ."
+  },
+  "dependencies": {
+    "@miragekit/core": "1.0.0",
+    "@miragekit/game": "1.0.0",
+    "@miragekit/play": "1.0.0",
+    "@miragekit/world": "1.0.0",
+    "three": "0.186.1"
+  },
+  "devDependencies": {
+    "vite": "8.3.4"
+  },
+  "author": "灰叔 Racso"
+}

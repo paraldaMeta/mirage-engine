@@ -33,7 +33,7 @@ Try them on two examples (each flag alone or together):
 | `?ssr=1` `?ssgi=1` `?contact=1` | the screen-space passes (below) |
 | `&lshadows=K` | the first K lamps cast shadows from the atlas |
 
-`examples/walled-garden/?gi=1&probes=1&csm=1&lights=64&lshadows=4&time=20:30`. On `examples/hello-courtyard/` use `lights=8`: 64 lamps in that small yard over-expose most views (there is no exposure adaptation unless auto exposure is on).
+`examples/walled-garden/?gi=1&probes=1&csm=1&lights=64&lshadows=4&time=20:30`. `examples/neon-district` has all of it on at once at night (76 clustered lamps, 16 shadowed, a probe volume and two reflection probes indoors, the screen-space passes on wet streets), each behind a flag; its NOTES.md has the timings. On `examples/hello-courtyard/` use `lights=8`: 64 lamps in that small yard over-expose most views (there is no exposure adaptation unless auto exposure is on).
 
 ## How the shader parts get in
 

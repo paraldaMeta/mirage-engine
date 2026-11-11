@@ -1,0 +1,249 @@
+# Notes — neon-district
+
+A small first-person shooter in one rain-wet block of a city at night: the alley, Kestrel Street, a noodle bar,
+the plaza, the relay (a server room and a stairwell) and its roof. About five minutes from the spawn to the end.
+It is the engine's showcase, so this file first says which engine feature each part shows and where the code is,
+then holds the modules' own sections (the convention of `docs/world-protocol.md`).
+
+```
+npm run dev -w neon-district            # http://localhost:5194
+npm run build -w neon-district && npm run playtest -w neon-district     # the whole route, headless
+node examples/neon-district/scripts/measure.mjs --ab                   # frame time per quality and per feature
+node examples/neon-district/scripts/controls-check.mjs                 # gamepad and touch, with real events
+node examples/neon-district/scripts/gameshots.mjs                      # frames of the running game, a contact sheet
+```
+
+The playtest takes about eight minutes: it plays the route (91 steps: every wall, door and stair on it, eleven
+fights, the pass, the relay door, the uplink and its wave) and a view with rain never comes to rest, which the tool
+waits for before each of its 13 screenshots.
+
+Everything is made in code. There is no texture, model or sound file in the folder: surfaces are GLSL hooks,
+signs are text drawn into a canvas with the system's own font (so the glyph shapes follow the machine: the
+Traditional Chinese signs need a CJK font, which macOS, Windows, Android and iOS ship), sounds are synthesised at
+the first click. Nothing was taken from another project.
+
+## What shows what
+
+| part of the district | engine feature | where |
+|---|---|---|
+| the whole world | site plan + modules + anchors (`@miragekit/world`), seven modules | `plan.js`, `modules/` |
+| night, a full Moon behind cloud | sky, Moon as the key light, stars, exposure of a night-adapted eye | `main.js` (`time`, `clouds`) |
+| wet asphalt, paving, roofs: puddles, rain rings | `withWet`, `setWetness`, `setRain` | `modules/materials.js` |
+| reflections of the signs in the street | screen-space reflections `post.ssr2` (`lighting.screen`) | `main.js` |
+| 70-odd lamps: signs, street lamps, lanterns, screens | clustered lights with exact lists, `world.lighting.addLight` | `modules/lib.js` `lamp()` |
+| lamp shadows (street lamps, the hologram, interiors) | the clustered path's shadow atlas (`{ shadow: true }`) | `modules/lib.js` |
+| the noodle bar's warm bounce | irradiance probe volume (`lighting.gi`) over `plan.bar.rect` | `main.js`, `modules/bar.js` |
+| tiles, lacquer and racks that mirror their room | two box reflection probes (`lighting.probes`): the bar, the relay | `main.js` |
+| the relay and the stairwell are dark without their lamps | `ambientVolumes` (the bar declares one only when the probes are off) | `modules/relay.js`, `modules/bar.js` |
+| short-range bounce and grounding outdoors | `post.ssgi`, `post.contact` (high) | `main.js` |
+| Moon shadows that stay sharp near the viewer | cascaded shadows, staggered (`lighting.csm`, high) | `main.js` |
+| halos round the street lamps, shafts past the posts | `light2` volumetric light, fed by `addLampSource` with the clustered lamps marked `vol` | `main.js` |
+| haze down the street | height fog (`fog`) | `main.js` |
+| signs, windows, screens, the hologram | `mat.glow`, emissive hooks scaled by `uLampGain`, an additive `mat.patch` material | `modules/materials.js`, `modules/signs.js` |
+| the look of a moving frame | `taa2`, `motionBlur`, `bloomPyramid`, a LUT made in code (`makeLut`), `chroma`, vignette, grain | `main.js` |
+| low quality | `upscale: 0.75` (the temporal upscaler), no screen-space passes | `main.js` `TIER` |
+| rain | `@miragekit/world/kits/rain` | `main.js` |
+| steam, sparks, muzzle flash, impacts, motes, rain rings | `createVfx`: effects as data, one-shot bursts, a followed emitter, depth collision | `game/fx.js` |
+| tracers, scorch marks | `vfx.beam`, `vfx.decal` | `game/weapon.js`, `game/enemies.js` |
+| chunks, occlusion culling, automatic LOD | `applyBigWorld` behind `?big=chunk,occ,lod`; off by default because it does not pay here (numbers below) | `main.js` |
+| the player: physics character, action map, pause, saves | `startGame` (`@miragekit/game`) | `main.js`, `game/index.js` |
+| checkpoints | `game.zone` + `g.save('auto')`; a death loads it | `game/index.js` |
+| the relay door | `physics.hinge` leaves hung in a module's `doors` anchor | `game/index.js` |
+| hit-scan | Rapier ray with the surface normal (`physics.world.castRayAndGetNormal`) | `game/weapon.js` |
+| sentinels: walking | `createNavGrid` on the player's walk grid, `createNavAgent`, `createNavCrowd` | `game/enemies.js` |
+| sentinels: seeing | `createSenses` (sight cones the walk grid occludes) | `game/enemies.js` |
+| sentinels: bodies | `createRigModel` + `createAnimator`: a speed blend, a masked aim layer, an additive flinch, a fall | `game/enemies.js` |
+| HUD and menus | `@miragekit/game`'s overlay (objective, prompts, toasts, pause menu, save slots, rebinding, touch stick) plus the example's own HUD | `game/hud.js` |
+| sound | the mixer's buses and 3D placement, the engine's own pickup / door / chime, the example's synthesised set | `game/sfx.js` |
+| the test | a `mirage-playtest` scenario that plays the route | `scenarios/playtest.json` |
+
+## Controls
+
+| | keyboard / mouse | gamepad | touch |
+|---|---|---|---|
+| move, look | WASD, mouse (click captures the pointer) | left stick, right stick | stick bottom-left, drag elsewhere |
+| fire, aim, reload | left button (or F), right button (or Q), R | right trigger, left trigger, right bumper | FIRE (hold), AIM (toggle), RLD |
+| run, jump, use, menu | Shift, Space, E, Esc | LB, A, X, Start | push the stick past its rim, Jump, Use, ☰ |
+
+`?assist=1` is an easy mode (an eighth of the damage, health comes back in full, the reserve never runs dry); the playtest uses it, because its
+scripted player stands in the open and aims once per step.
+
+## Measured
+
+Apple M4 Pro, headless Chrome (ANGLE Metal), 1440 x 900 at pixel ratio 1, `node scripts/measure.mjs` (and `--ab`).
+Every variant is its own page in one Chrome and the rounds go round-robin over the pages; in a round each view is
+walked for 40 moving frames with a slow pan, each frame ended by a 1-pixel read-back. A cell is the median of the
+round medians in ms per frame, the bracket their lowest and highest. Other GPU jobs ran on the machine while this
+was measured: read the brackets. The table of quality levels below came from a quiet run of 8 rounds; the feature
+table further down from a run that other jobs disturbed (its high ends are those jobs).
+
+| variant | alley | street west | bar inside | plaza | roof vista | calls, triangles (street) |
+|---|---|---|---|---|---|---|
+| game, low | 6.4 [6.2-6.7] | 6.9 [6.3-7.2] | 6.3 [5.7-6.6] | 6.3 [6.0-6.6] | 6.8 [6.5-7.0] | 397, 158 k |
+| game, medium | 8.7 [8.6-9.0] | 9.8 [8.9-10.3] | 8.4 [7.8-8.9] | 9.2 [8.8-9.4] | 9.8 [9.7-10.4] | 986, 543 k |
+| game, high | 9.8 [9.7-10.3] | 10.8 [9.9-11.4] | 9.6 [8.8-9.9] | 10.0 [9.6-10.2] | 10.5 [10.4-11.0] | 1103, 593 k |
+| world, low | 4.8 [4.6-4.8] | 5.3 [5.2-5.6] | 4.7 [4.4-4.9] | 4.7 [4.4-4.9] | 5.0 [4.9-5.1] | 204, 123 k |
+| world, medium | 6.4 [6.0-6.6] | 7.5 [6.9-7.9] | 6.5 [6.1-6.9] | 6.8 [6.3-7.0] | 6.9 [6.6-7.3] | 277, 190 k |
+| world, high | 8.1 [7.6-8.2] | 8.8 [8.3-9.0] | 7.7 [7.5-8.1] | 8.1 [7.5-8.3] | 8.2 [7.9-8.7] | 322, 225 k |
+
+`game` is the whole thing (nine sentinels awake, their animation and navigation, the view model, effects, the HUD);
+`world` is the district alone. The difference is mostly the lamp shadow tiles: a sentinel that moves near a
+shadowed lamp makes its cached tile draw again (one tile, six faces, a frame).
+
+Each feature of `high` switched off in turn, the world alone (6 rounds):
+
+| variant | alley | street west | bar inside | plaza | roof vista | calls, triangles (street) |
+|---|---|---|---|---|---|---|
+| world, high | 8.3 [7.7-14.2] | 9.8 [9.3-16.1] | 8.1 [7.6-14.6] | 8.6 [8.2-15.2] | 9.3 [8.8-15.7] | 296, 183 k |
+| world, high, ssr=0 | 7.9 [7.5-13.7] | 8.7 [8.0-14.8] | 7.7 [7.3-14.2] | 8.1 [7.7-14.1] | 8.4 [8.2-14.3] | 294, 183 k |
+| world, high, ssgi=0 | 7.8 [7.6-13.4] | 8.7 [8.4-14.8] | 7.7 [7.2-14.1] | 8.0 [7.8-14.1] | 8.5 [8.3-14.4] | 294, 183 k |
+| world, high, contact=0 | 7.9 [7.6-13.5] | 8.8 [8.5-14.9] | 7.8 [7.2-13.9] | 7.9 [7.2-14.2] | 8.3 [7.9-14.6] | 294, 183 k |
+| world, high, gi=0&probes=0 | 7.8 [7.3-7.8] | 8.7 [8.5-8.7] | 7.8 [7.3-7.9] | 7.9 [7.6-8.0] | 8.2 [8.0-8.3] | 296, 183 k |
+| world, high, csm=0 | 7.8 [7.1-8.0] | 8.7 [8.3-9.2] | 7.7 [7.2-8.1] | 8.0 [7.4-8.0] | 8.3 [8.2-8.5] | 312, 190 k |
+| world, high, shadows=0 | 8.2 [7.9-8.2] | 8.8 [8.5-8.9] | 7.7 [7.2-8.0] | 7.9 [7.2-8.2] | 8.3 [8.2-8.8] | 296, 183 k |
+| world, high, vol=0 | 8.0 [7.8-8.3] | 8.7 [8.5-9.5] | 8.1 [7.3-8.5] | 8.1 [7.9-8.3] | 8.4 [8.1-8.6] | 295, 183 k |
+| world, high, taa2=0 | 8.1 [7.9-8.3] | 9.0 [8.9-9.2] | 8.1 [8.0-8.3] | 8.1 [7.8-8.4] | 8.6 [8.4-8.7] | 296, 183 k |
+| world, high, mb=0 | 7.7 [7.7-7.8] | 8.7 [8.4-8.8] | 7.7 [7.6-7.8] | 7.8 [7.7-8.0] | 8.3 [8.2-8.3] | 292, 183 k |
+| world, high, rain=0 | 7.7 [7.7-7.8] | 8.7 [8.5-8.9] | 7.8 [7.3-7.9] | 7.8 [7.6-8.0] | 8.4 [8.2-14.5] | 295, 165 k |
+| world, high, big=0 | 8.1 [8.0-8.4] | 9.1 [8.7-9.2] | 8.1 [7.5-14.4] | 8.3 [7.8-14.4] | 8.8 [8.0-14.9] | 270, 185 k |
+| world, high, big=chunk,occ | 8.1 [7.8-13.9] | 9.3 [8.9-15.2] | 8.2 [8.0-14.7] | 8.3 [7.8-14.6] | 8.7 [8.3-14.9] | 296, 183 k |
+| world, high, big=chunk,occ,lod | 8.3 [8.1-13.7] | 9.2 [8.9-15.2] | 8.1 [7.4-14.8] | 8.3 [8.2-14.6] | 8.6 [8.3-15.0] | 296, 175 k |
+| world, high, lamps=100 | 8.3 [8.2-13.9] | 10.9 [10.7-17.2] | 8.4 [8.1-14.8] | 8.5 [8.4-15.0] | 8.8 [8.4-15.3] | 296, 183 k |
+
+Read honestly: no single feature is resolved. Every row is within about a millisecond of the first, which is
+inside the run-to-run spread, so the table says the features are cheap together on this GPU at this size, not what
+each costs. `lamps=100` (100 more clustered lamps along the street) shows only in the street view. Chunks,
+occlusion culling and automatic LOD (`big=`) make no measurable difference: the block is 68 x 64 m, its buildings
+are a few boxes each and most of it is on screen or behind one wall, so they stay behind the flag.
+Not measured: any other GPU, a phone, pixel ratio 2.
+
+The single file (`npm run package -w neon-district`): **3.40 MB (3,565,629 bytes)**, against the site's 5 MB budget. All of it is
+code (Rapier's WASM is 2.2 MB of it); there are no assets.
+
+## Below a commercial shooter, and why
+
+- **Geometry and materials.** Buildings are boxes with a window grid in the shader; props are boxes, cylinders and
+  two extruded profiles. No authored models, no texture maps, no decals of wear, no parallax interiors behind the
+  windows. A commercial street has a few thousand unique meshes; this one has a few dozen shapes.
+- **Characters.** The sentinels are the engine's 880-vertex test rig with plates on its bones. Four extra clips
+  were authored by hand as a few keys each. No motion capture, no blend between aiming directions, no ragdoll
+  (the engine has one; it needs the physics kit, which `startGame` does not set up), no cover use, no flanking:
+  the brain is five states.
+- **Lighting.** Lamps do not light particles (steam is tinted by hand) and only 16 of 76 cast shadows. Reflections
+  are screen space: what is off screen falls back to two box probes or the sky. The probe volume covers one room.
+  The volumetric pass scatters 8 lamps. There is no ray tracing and no path-traced reference.
+- **Weapon feel.** One gun, hit-scan, no projectiles, no penetration, no animation of the hands beyond the reload
+  tilt; the view model is in the world's depth range and pulls back from walls instead of having its own.
+- **Sound.** Everything is synthesised from noise and sines in a few lines each. No reverb zones or occlusion
+  (the engine's audio engine has both; not wired here), no recorded material.
+- **Scope.** One gun, two enemy kinds, five minutes.
+
+## What the example works around (engine gaps)
+
+1. **The scene clock stops when the player stops.** `createPlay` runs the clock only on frames the player drives,
+   and `startGame` does not pass `animate` on. The game calls `play.turn(0, 0, 0)` every tick to keep rain, effects
+   and screens running.
+2. **No weapon layer.** The view model is an ordinary object placed from the camera before every sub-frame
+   (`world.ctx.onUpdate`); it comes back from walls (a short ray) instead of being drawn in its own depth range.
+3. **The field of view of a game is fixed at 62°.** `startGame` does not pass `fov` to play; aiming sets the
+   camera's lens in `world.ctx.onUpdate`, after play wrote its own.
+4. **The action map has no fire / aim / reload and no mouse buttons.** The game listens for them itself, so the
+   pause menu cannot rebind them.
+5. **The mixer cannot be given a sound.** The game's sounds are written into `audio.buffers` after the first gesture.
+6. **`physics.ray` has no normal.** The weapon calls Rapier's `castRayAndGetNormal` through `physics.world`.
+7. **Particles take no local lamps** (documented in `docs/vfx.md`): steam is unlit and tinted by hand.
+8. **`ui.message` has no callback.** The death screen listens for the dialog's `close`.
+9. **A jump of the view rewinds the particles for good.** `play.place` (tools, viewpoints) sets the scene clock to
+   0; the pools reset, and a looping emitter spawned at a later step waits for that step again. The reset pass
+   also draws into the state textures it still has bound (Chrome: "Feedback loop formed between Framebuffer and
+   active Texture", a warning, 7 per jump). The game spawns its loops again three ticks after a `place`.
+10. **`mirage-playtest` waits 20 s for a still view before each screenshot.** A world with rain never rests, so the
+    scenario takes screenshots on 13 of its 91 steps only.
+11. **Moving casters must be top-level scene objects** (`userData.mgDynamic`) for the lamp shadow tiles to follow
+    them, so the sentinels are added to `world.scene`, not to the game's group.
+
+---
+
+Each module owns one section below; only its owner writes there. Build order: ground, blocks, street, bar, relay,
+plaza, signs.
+
+## ground
+
+The carriageway and the alley (asphalt, y = 0), both pavements and the plaza (`plan.levels.kerb` = 0.14 m),
+kerb stones 1 cm proud of the paving, a dark base 5 cm under everything out to 140 m, drain grates and manhole
+covers (decor). Reads: `street`, `alley`, `plaza`, `levels`, `vents`. Owns: `street`, `alley`, `levels.kerb`.
+
+| key | pos is | count |
+|---|---|---|
+| `steam` | the centre of a vent grate, 5 cm above it | 5 |
+
+## blocks
+
+Eleven buildings as solid boxes (`plan.blocks`), one facade material per style (`concrete`, `panel`, `glass`: the
+window grid and the lit rooms are in the shader, none below 4.4 m), roofs (deck, parapet, plant rooms, a tank or
+a mast; not in the walk grid) and eleven skyline towers beyond the block. Reads / owns: `blocks`, `skyline`,
+`points.billboard`.
+
+| key | pos is | extra | count |
+|---|---|---|---|
+| `signs` | the centre of the sign on the wall's face; `rotY` out of the wall | `w`, `h`, `text`, `color`, `kind` (`board` / `blade`), `vertical`, `second` | 24 |
+| `beacons` | the top of a mast | | 13 |
+| `holos` | the centre of the board on the tallest tower | `kind: 'board'`, `w`, `h` | 1 |
+
+## street
+
+Ten lamp posts (a shadowed lamp each, a 0.3 m collider proxy), jersey barriers on the road and planters on the
+plaza (`plan.cover`), three parked cars, shutters / doors / awnings along both pavements, wall plant, four vending
+machines, bollards along the plaza's edge (proxies), the alley's dumpsters, crates, pipes, fence and bulb strings,
+and a sheet wall with barriers at both ends of the street. Reads: `lamps`, `cover`, `cars`, `street`, `alley`.
+
+| key | pos is | count |
+|---|---|---|
+| `signs` | the boards on the two end walls | 2 |
+| `sparks` | a broken fitting (the game bursts sparks there) | 2 |
+| `cars` | 1.6 m over each car's centre | 3 |
+
+## bar
+
+`plan.bar`: 12 x 11 m, ceiling 3.4 m, floor at `levels.floor` (0.16 m). A shop front with a 1.8 m door and two
+windows (glass panes with 0.2 m collider proxies: not walked or shot through), a counter (1.05 m) with six stools,
+a back counter, three shelves of bottles, a hood, three booths, a menu screen, six paper lanterns (three are
+lamps), a canopy and two red lanterns outside. The room is the world's GI box and a reflection probe; with
+`ctx.shared.gi` false it declares an ambient volume (factor 0.25) instead.
+
+| key | pos is | count |
+|---|---|---|
+| `signs` | two neon signs on the inner walls (`bare`: no box behind) | 2 |
+| `lanterns` | the three lanterns that are lamps (`light`) | 3 |
+
+## relay
+
+`plan.relay`: the room (15.8 x 9 m, ceiling 3.6 m), the stairwell (two flights of 17 risers of 0.176 m, treads
+0.28 m, 2.5 m wide, a half landing at 3 m, a spine wall between the flights, a 1.1 m guard at the top landing) and
+the roof at 6 m (parapet 1.1 m; plant from `plan.roofUnits`, a mast with a proxy, two dishes, the uplink console).
+The stairwell's door to the room and its door to the roof are one above the other (`relay.stair.door`).
+Ambient volumes: the room and the stairwell, factor 0.22.
+
+| key | pos is | extra | count |
+|---|---|---|---|
+| `doors` | floor centre of the plaza doorway, in the wall's middle | `width` 1.9, `height` 2.5, `leaves` 2, `swing` 1.5 rad | 1 |
+| `signs` | the board on the parapet over the door | | 1 |
+| `beacons` | the top of the mast | | 1 |
+| `consoles` | the uplink's screen | | 1 |
+| `strobes` | the red lamp inside the door; the stairwell's landing lamp (`flicker`) | `light` | 2 |
+
+## plaza
+
+A plinth (r 2.3 m) with a hologram over it (a knot, two rings and a cone, turning on the scene clock; additive, not
+in the walk grid), two kiosks, four benches, two advertising pylons, light strips in the paving.
+
+| key | pos is | count |
+|---|---|---|
+| `holos` | the hologram's centre (`kind: 'figure'`) | 1 |
+| `signs` | the kiosks' boards | 2 |
+
+## signs
+
+Consumes `signs` (required), `beacons`, `holos`. A board is a dark box with a glowing face 14.5 cm off the wall; a
+blade sticks out of the wall with a face on both sides; each gets one clustered lamp of its colour (range 5 to 22 m
+by its area; the three largest are also volumetric). Beacons blink on the scene clock.
