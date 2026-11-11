@@ -290,10 +290,15 @@ export function createWorldRenderer(config = {}) {
     // objects marked userData.mgNoCapture (the rain kit's streaks) stay out of the image-based light
     const hidden = [];
     scene.traverse((o) => { if (o.userData.mgNoCapture && o.visible) { o.visible = false; hidden.push(o); } });
-    for (let pass = 0; pass < (instant ? 2 : 1); pass++) {
-      envLight.capture(scene, envProbe, { instant });
-      scene.environment = envLight.texture;
-    }
+    // bounce light (lighting.bounce) stays out of the capture: the bake divides by it (a capture holding the last
+    // bake fed back, and repeated setTime stills drifted)
+    const bnBack = lighting && lighting.bounce ? lighting.bounce.suspend() : null;
+    try {
+      for (let pass = 0; pass < (instant ? 2 : 1); pass++) {
+        envLight.capture(scene, envProbe, { instant });
+        scene.environment = envLight.texture;
+      }
+    } finally { if (bnBack) bnBack(); }
     stars.visible = true; skyU.uCapture.value = 0;
     for (const o of hidden) o.visible = true;
     softShadowsIdle();
@@ -309,7 +314,9 @@ export function createWorldRenderer(config = {}) {
     const hidden = [], sm = renderer.shadowMap, auto = sm.autoUpdate;
     scene.traverse((o) => { if ((o.userData.mgNoCapture || (o.userData.mgDynamic && o.parent === scene)) && o.visible) { o.visible = false; hidden.push(o); } });
     stars.visible = false; skyU.uCapture.value = 1; sm.autoUpdate = false; sm.needsUpdate = true;
+    const bnBack = lighting && lighting.bounce ? lighting.bounce.suspend() : null;
     try { return fn(); } finally {
+      if (bnBack) bnBack();
       stars.visible = true; skyU.uCapture.value = 0; sm.autoUpdate = auto;
       for (const o of hidden) o.visible = true;
       softShadowsIdle();
@@ -387,6 +394,7 @@ export function createWorldRenderer(config = {}) {
     let spp = opts.spp ?? config.spp ?? Q.spp;
     const taa = !!opts.taa;
     if (taa) spp = 1; else taaValid = false;
+    if (!taa && lampPool) lampPool.rescan();   // a still frame sees the PointLights the scene has now
     const dt = opts.dt ?? 1 / 60, shutter = opts.shutter ?? (reduced ? 0 : 0.5);
     const sh = opts.shadow || shadow;
     const P = framePost();

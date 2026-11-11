@@ -86,7 +86,7 @@ export const AMB_PER_CELL = 16;
 const AMB_CELLS = 256 * 256;     // most cells in a grid
 const AMB_TEXELS = AMB_TEX_W * 1024;   // most texels (16 MB); a list past it gets coarser cells
 const AMB_LIST = new WeakMap();  // G -> the boxes on the grid path (ambientNear)
-const isWhite = (t) => !t || (t[0] === 1 && t[1] === 1 && t[2] === 1);
+const isWhite = (t) => { if (!t) return true; const c = tintOf(t); return c[0] === 1 && c[1] === 1 && c[2] === 1; };
 
 /** Write a list of ambient volumes into G. Returns { recompile } (the path changed: materials must recompile) and
  *  { info: { path, boxes, cells, maxPerCell, texels, cellSize } }. `grid: true` takes the grid path for any list. */
@@ -112,6 +112,9 @@ export function writeAmbientVolumes(G, list = [], { grid } = {}) {
     G.uAmbGrid.value.set(g.x0, g.z0, 1 / g.cell, AMB_TEX_W);
     G.uAmbDim.value.set(g.gw, g.gh, 0, 0);
     G.uAmbData.value = g.tex;
+    // a uniform-path program still around (a streamer's detached subtree, not reached by the recompile) reads
+    // uAmbLo / uAmbHi with uAmbN boxes: make the old list neutral
+    for (const v of G.uAmbHi.value) v.w = 1;
     G.uAmbN.value = g.boxes.length;
     AMB_LIST.set(G, g.boxes);
     info = { path: 'grid', boxes: g.boxes.length, cells: g.gw * g.gh, maxPerCell: g.maxPerCell, overfull: g.overfull, texels: g.texels, cellSize: g.cell };
@@ -130,12 +133,14 @@ export function disposeAmbient(G) {
 // smaller while one lists more than AMB_PER_CELL boxes (the shader's loop has that constant bound: a loop bounded by a
 // value read from the texture cost 5 - 7 ms a frame in the Nizwa probe on ANGLE / Metal, a constant bound 0.2 - 0.5);
 // a cell still over it keeps its darkest AMB_PER_CELL boxes (info.overfull counts such cells).
+const tintOf = (t) => (Array.isArray(t) ? t : t && Number.isFinite(t.r) ? [t.r, t.g, t.b] : [1, 1, 1]);
 function ambientGrid(list) {
   const boxes = [];
   let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
   const foot = [];
   for (const v of list) {
-    const soft = v.soft ?? 0.6, f = v.factor ?? 0.3, t = v.tint || [1, 1, 1];
+    // as the uniform path reads them: a negative soft is a hairline edge, a THREE.Color / { r, g, b } tint is accepted
+    const soft = Math.max(0.001, v.soft ?? 0.6), f = v.factor ?? 0.3, t = tintOf(v.tint);
     const b = { min: [v.min[0], v.min[1], v.min[2]], max: [v.max[0], v.max[1], v.max[2]], soft, val: [f * t[0], f * t[1], f * t[2]] };
     if (![...b.min, ...b.max, soft, ...b.val].every(Number.isFinite)) continue;
     boxes.push(b);

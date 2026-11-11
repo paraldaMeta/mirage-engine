@@ -134,7 +134,8 @@ const VS = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4( positio
 const HF = /* glsl */ `
 uniform sampler2D tHF; uniform vec4 uMap; uniform float uTexel;
 vec2 mapUV( vec2 xz ) { return vec2( ( xz.x - uMap.x ) / uMap.z, 1.0 - ( xz.y - uMap.y ) / uMap.w ); }
-vec4 hfAt( vec2 xz, float lod ) { return textureLod( tHF, mapUV( xz ), lod ); }
+// off the map: open ground below everything (ClampToEdge would stretch the rim's walls out to infinity)
+vec4 hfAt( vec2 xz, float lod ) { vec2 u = mapUV( xz ); if ( any( lessThan( u, vec2( 0.0 ) ) ) || any( greaterThan( u, vec2( 1.0 ) ) ) ) return vec4( 0.0, 0.0, 0.0, - 1e4 ); return textureLod( tHF, u, lod ); }
 `;
 
 /** w: { renderer, scene, sun, G, keyDir, Q, envProbe, shadow, msaa, skyVisible } (the world's internals) */
@@ -231,6 +232,7 @@ export function createBounce(w, cfg) {
     const save = {
       env: scene.environment, envI: scene.environmentIntensity, bg: scene.background, fog: scene.fog ? scene.fog.density : 0,
       amb: G.uAmbHi.value.map((v) => v.w), lamp: G.uLamp.value, gain: G.uLampGain.value,
+      bn: U.mgBnC.value.x, dimY: G.uAmbDim ? G.uAmbDim.value.y : 0,
       rt: r.getRenderTarget(), auto: r.autoClear, cc: r.getClearColor(new THREE.Color()), ca: r.getClearAlpha(),
       smA: r.shadowMap.autoUpdate, smN: r.shadowMap.needsUpdate, xr: r.xr.enabled,
     };
@@ -239,6 +241,8 @@ export function createBounce(w, cfg) {
     if (scene.fog) scene.fog.density = 0;
     // ambient volumes at factor 1 (not uAmbN = 0: their count is part of the materials' program key)
     for (const v of G.uAmbHi.value) v.w = 1;
+    if (G.uAmbDim) G.uAmbDim.value.y = 0;   // the grid path too: no cell is inside (its mode reads .x: no recompile)
+    U.mgBnC.value.x = 0;                    // not the last bake's own factor: it would feed back into the albedo
     G.uLamp.value = 0; G.uLampGain.value = 0;
     r.shadowMap.autoUpdate = false; r.shadowMap.needsUpdate = false; r.xr.enabled = false;
     // orthographic, from above, north (-z) up the image; depth into a float texture
@@ -262,6 +266,7 @@ export function createBounce(w, cfg) {
       scene.environment = save.env; scene.environmentIntensity = save.envI; scene.background = save.bg;
       if (scene.fog) scene.fog.density = save.fog;
       G.uAmbHi.value.forEach((v, i) => { v.w = save.amb[i]; }); G.uLamp.value = save.lamp; G.uLampGain.value = save.gain;
+      U.mgBnC.value.x = save.bn; if (G.uAmbDim) G.uAmbDim.value.y = save.dimY;
       r.shadowMap.autoUpdate = save.smA; r.shadowMap.needsUpdate = save.smN; r.xr.enabled = save.xr;
     }
     // pack albedo + height (no geometry: just under the lowest probes), mipmapped
@@ -488,6 +493,9 @@ void main() {
     envCaptured(now) { if (!g) { drawHeightField(); bake(true); } else bake(!!now); },
     invalidate() { if (g) { drawHeightField(); bake(false); } },
     set strength(v) { cfg.strength = v; if (U.mgBnC.value.x > 0) U.mgBnC.value.x = v; },
+    /** switch the factor off while something captures the scene (the environment, probes): the capture is the
+     *  reference the bake divides by, so it must not hold the last bake. Returns the function that restores it. */
+    suspend() { const x = U.mgBnC.value.x; U.mgBnC.value.x = 0; return () => { U.mgBnC.value.x = x; }; },
     get strength() { return cfg.strength; },
     dispose() { for (const x of [hf, sh, next, out, white]) if (x) x.dispose(); for (const m of [shMat, gMat, bMat]) if (m) m.dispose(); quad.dispose(); },
   };

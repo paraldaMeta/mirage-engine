@@ -130,7 +130,7 @@ export interface Lighting {
   screen: LightingFeature | null;
   csm: LightingFeature | null; gi: (LightingFeature & { bake(): void }) | null; probes: LightingFeature | null; lights: LightingFeature | null;
   /** `bake(true)` now, `bake(false)` over the next frames; `prepare()` draws the height field again; `strength` 0..1. */
-  bounce: (LightingFeature & { bake(now?: boolean): unknown; prepare(): unknown; strength: number; readonly busy: boolean }) | null;
+  bounce: (LightingFeature & { bake(now?: boolean): unknown; prepare(): unknown; strength: number; readonly busy: boolean; /** Switch the factor off (while capturing); returns the restore function. */ suspend(): () => void }) | null;
   /** Hand a PointLight / SpotLight already in the scene to the clustered path; `shadow` gives it a tile of the shadow atlas. */
   addLight(light: THREE.PointLight | THREE.SpotLight, options?: { shadow?: boolean }): boolean;
   removeLight(light: THREE.Light): boolean;

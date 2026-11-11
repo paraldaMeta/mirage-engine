@@ -147,18 +147,25 @@ world.lampPool.set(lanterns.map((a) => ({ pos: a.flame, range: 6, power: 1.2, no
   skipped); lamps beyond `far` (200 m) fade out over the last `fade` (40 m).
 - **Real lights and the pool.** A visible PointLight within 3 cm of a pool lamp is that lamp's real light; the pool
   adds what it lacks (1 - its intensity / the lamp's, every render). A module that hands a few PointLights to the
-  lamps nearest the eye with a smooth weight gets a seamless hand-off: real + pool is the whole lamp at every weight.
-  The nizwa probe at 21:00, its 4 real lights on vs hidden (the pool lighting all 36 lamps): max 1 level, 0.3 % of
-  the pixels differ (light2 on), max 2 / 0.8 % (light2 off).
+  lamps nearest the eye with a smooth weight gets a near-seamless hand-off: real + pool is the whole lamp at every
+  weight, except where the pool's wall cut (below) and the PointLight disagree. The Nizwa probe at 21:00, the camera
+  3 m from a lamp, its 4 real lights on vs hidden (the pool lighting all 36 lamps): max 1-10 levels per lamp, the
+  rest where a PointLight leaks past the cut (it was up to 65 before `thick`).
 - **light2.** Pool lamps are lamp-shadow candidates at full power, and a PointLight on one is folded into it: the 4
   shadow slots go to the most important lamps, real light or not, and the pool's loop reads them by position, so a
   slot shadows the whole lamp. They scatter in the volumetric pass like the real ones.
 - **Leaks.** A lamp without a slot has no shadow: it lights every surface facing it within `range`, through walls.
-  `normal` (the wall's outward normal) and `back` (flame to wall face, m) stop it `soft` m (0.15) behind the wall it
-  hangs on, which removes the usual leak (the room or street behind that wall). Still leaking: through a second
+  `normal` (the wall's outward normal) and `back` (flame to wall face, m) stop it `soft` m (0.15) past `thick` m (0.4)
+  behind the wall face it hangs on: door and window reveals and arch soffits within `thick` keep the light a
+  PointLight gives them (the hand-off does not flip them), a wall at least `thick` + `soft` thick stays dark on its
+  far side. That removes the usual leak (the room or street behind that wall). Still leaking: through a second
   wall or a floor between lamp and surface (a room across a lane narrower than `range`, the floor above), round
   corners and piers; a lamp without `normal` leaks every way. Short ranges keep it local.
 - **Captures.** Pool lamps light the environment and probe captures like PointLights do (`captures: false` to skip).
+- **Real lights found.** The scene's PointLights are looked for again every 30 renders and before every still frame
+  (never by the clock); one counts only while it is visible and still in the scene. light2's slot for a pool lamp is
+  keyed by its place (or its `id`), so removing another lamp moves no shadow. An XR (array) camera takes the list
+  path, not the clusters (each eye draws its own viewport).
   An orthographic camera loops over every lamp within `far` (correct, not culled).
 - **Why not deferred light volumes.** Mirage keeps no G-buffer: a box per lamp added after the opaque pass knows no
   albedo, roughness or normal map (a dark door would glow like plaster) and would have to sit between the opaque and
@@ -327,7 +334,10 @@ calibrated level stays and only the local variation is added. The probes (2 m ap
 GPU from a height field of the scene, drawn once from above with its own materials (albedo and height), not from a
 cube render per probe: Nizwa Fort (1.6 M triangles, 42,240 probes) prepares in about 10 ms of drawing and 30-40 ms
 of baking, against 51 s for `gi`. Re-baked with every recapture of the image-based light: at once for a still
-(exact, repeatable), over ~30 frames and eased for a running clock. Without `bounce` nothing of it is built and
+(repeatable), over ~30 frames and eased for a running clock. Neither the height field nor the environment capture
+sees the last bake (no feedback), nor the ambient volumes (grid path included); rays leaving the map see open
+ground. Re-capturing at the same time repeats the image within a few levels (the capture's own bounce, as without
+`bounce`). Without `bounce` nothing of it is built and
 stills are bit-identical. Limits: one height per (x, z), so under an arch, a roof or a floor it leaves the light as it
 is (ambient volumes handle rooms); no local lamps; not together with `gi` over the same area.
 `world.lighting.bounce.info` / `.strength` / `.bake()`; settings `BOUNCE_DEFAULTS`; details and measurements in

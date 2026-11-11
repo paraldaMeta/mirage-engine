@@ -14,6 +14,8 @@ export interface LampPoolSettings {
   real: boolean;
   /** Metres behind a lamp's wall over which its light fades out. */
   soft: number;
+  /** Metres behind the wall face where the cut starts (0.4): reveals and soffits within it stay lit. */
+  thick: number;
   /** With light2 on: pool lamps are lamp-shadow and in-scatter candidates (a PointLight on one is folded into it). */
   light2: boolean;
   /** Shade in cube captures too (the environment, lighting probes), as a PointLight is. */
@@ -36,6 +38,10 @@ export interface PoolLampInput {
   normal?: V3;
   /** Metres from the flame back to the wall face along `normal` (default 0). */
   back?: number;
+  /** Per lamp: where the cut starts behind the wall face (default the pool's `thick`). */
+  thick?: number;
+  /** A stable id for light2's slot (default: the lamp's place). */
+  id?: string | number;
   /** The lamp-shadow cube's near plane with light2 (default: light2's `ls.near`, as for a PointLight without `userData.lsNear`). */
   near?: number;
 }
@@ -69,6 +75,8 @@ export interface LampPool {
   clear(): void;
   /** Wrap the lit materials added since the last call (the world does it in prepare, the pool every 30 renders). */
   adopt(): number;
+  /** Look for the scene's PointLights again now (createWorldRenderer does it before every still frame). */
+  rescan(): void;
   dispose(): void;
 }
 export const LAMPPOOL_DEFAULTS: LampPoolSettings;

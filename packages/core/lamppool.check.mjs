@@ -126,6 +126,13 @@ assert.equal(realShare(1, [1, 1, 1], 0, [1, 1, 1]), 1, 'a dark lamp (day) needs 
   assert.ok(scene.onBeforeRender !== before, 'dispose unhooks the scene');
 }
 
+// --- review fixes: ids by place, the reveal depth
+{
+  const a = poolLamp({ pos: [1, 2, 3] }), b = poolLamp({ pos: [1, 2, 3], id: 'gate' });
+  assert.ok(a.id === 'mgPool1.00,2.00,3.00' && b.id === 'gate', 'a pool lamp\'s light2 id is its place, or the id given');
+  assert.equal(LAMPPOOL_DEFAULTS.thick, 0.4, 'the wall cut starts 0.4 m behind the face by default');
+  assert.equal(poolLamp({ pos: [0, 0, 0], thick: -1 }).thick, 0, 'thick is clamped at 0');
+}
 // --- light2: the pool's lamps are lamp-shadow candidates; a PointLight on one is folded into it (one slot a lamp)
 {
   const { LampShadows, LIGHT2_DEFAULTS, light2Config } = await import('./src/light2.js');
@@ -138,10 +145,11 @@ assert.equal(realShare(1, [1, 1, 1], 0, [1, 1, 1]), 1, 'a dark lamp (day) needs 
   const fake = { cfg: { ...LIGHT2_DEFAULTS.ls }, lampLevel: () => 1, _v: new THREE.Vector3(), _plCache: null, _plT: -1e9, _pointLights: LampShadows.prototype._pointLights };
   const c = LampShadows.prototype._candidates.call(fake, scene, new THREE.Vector3(0, 1.6, 0));
   const keys = c.map((q) => q.key).sort();
-  assert.deepEqual(keys, [other.uuid, 'mgPool0', 'mgPool1'].sort(), 'the PointLight on lamp 0 is folded into it, the far lamp is out of reach: ' + keys);
-  const q0 = c.find((q) => q.key === 'mgPool0');
+  const K0 = 'mgPool0.00,2.00,-6.00', K1 = 'mgPool3.00,2.00,-8.00';   // ids by place: removing another lamp does not move a slot
+  assert.deepEqual(keys, [other.uuid, K0, K1].sort(), 'the PointLight on lamp 0 is folded into it, the far lamp is out of reach: ' + keys);
+  const q0 = c.find((q) => q.key === K0);
   assert.ok(near(q0.power, 1) && near(q0.near, 0.16), 'the pool entry carries the whole lamp (power x gain) and its near plane');
-  assert.equal(c.find((q) => q.key === 'mgPool1').near, l2.ls.near, 'no near plane given: light2\'s default, as for a PointLight');
+  assert.equal(c.find((q) => q.key === K1).near, l2.ls.near, 'no near plane given: light2\'s default, as for a PointLight');
   // without the pool nothing is folded (a world without lampPool picks its candidates as before)
   pool.dispose();
   const c2 = LampShadows.prototype._candidates.call({ ...fake, _plCache: null }, scene, new THREE.Vector3(0, 1.6, 0));

@@ -54,6 +54,9 @@ export const LAMPPOOL_DEFAULTS = {
   lampGain: true,   // a lamp's power x the world's lamp gain (G.uLampGain): 0 by day; false: the power as given
   real: true,       // a PointLight on a pool lamp is its real light (the pool adds the rest); false: the pool ignores them
   soft: 0.15,       // m: how far behind a lamp's wall its light fades out
+  thick: 0.4,       // m: the cut starts this far behind the wall face (door and window reveals, arch soffits keep the
+                    // light a PointLight gives them, so the hand-off does not flip them); a wall at least thick + soft
+                    // thick stays dark on its far side
   light2: true,     // with light2 on: pool lamps are lamp-shadow (and in-scatter) candidates
   captures: true,   // shade in cube captures too (the environment, lighting.js probes), as a PointLight is: the image-based
                     // light then sees every lamp near its probe whether or not a real light sits on it
@@ -68,7 +71,9 @@ const lum = (r, g, b) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
 export function poolLamp(o) {
   const p = o.pos || [o.x, o.y, o.z];
   const c = o.color || [1, 0.56, 0.25];
-  const l = { x: +p[0], y: +p[1], z: +p[2], range: o.range ?? 6, power: o.power ?? 1, r: c[0], g: c[1], b: c[2], decay: o.decay ?? 2, n: null, near: o.near ?? null };   // near: null = light2's own default (ls.near)
+  const l = { x: +p[0], y: +p[1], z: +p[2], range: o.range ?? 6, power: o.power ?? 1, r: c[0], g: c[1], b: c[2], decay: o.decay ?? 2, n: null, near: o.near ?? null, thick: Number.isFinite(o.thick) ? Math.max(0, o.thick) : null };   // near: null = light2's own default (ls.near); thick: null = the pool's
+  // a stable id for light2's lamp-shadow slot (by place, so removing another lamp does not move it)
+  l.id = o.id != null ? String(o.id) : 'mgPool' + l.x.toFixed(2) + ',' + l.y.toFixed(2) + ',' + l.z.toFixed(2);
   if (o.normal) {
     const [nx, ny, nz] = o.normal, s = Math.hypot(nx, ny, nz) || 1;
     // the plane `back` m behind the flame along the normal: light where dot(n, P) + d > 0
@@ -198,17 +203,17 @@ export function createLampPool(w, cfg) {
     for (let i = 0; i < lamps.length; i++) {
       const l = lamps[i], o = i * REC * 4, k = weight[i] * l.power;
       data.set([l.x, l.y, l.z, l.range, l.r * k, l.g * k, l.b * k, l.decay], o);
-      if (l.n) data.set(l.n, o + 8); else data.fill(0, o + 8, o + 12);
+      if (l.n) data.set([l.n[0], l.n[1], l.n[2], l.n[3] + (l.thick ?? cfg.thick)], o + 8); else data.fill(0, o + 8, o + 12);
     }
     dirtyRec = false;
   }
 
-  // ---- the scene's PointLights that sit on a pool lamp (rescanned every second; light set changes are rare)
-  let plCache = null, plT = -1e9;
+  // ---- the scene's PointLights that sit on a pool lamp: rescanned every 30 renders and before every still frame
+  // (world.js calls rescan()), never by the clock, so a still frame sees the lights the scene has now
+  let plCache = null, plR = -1;
   let plMatch = new WeakMap();   // light -> { x, y, z, n, i }: the lamp it sits on (-1: none)
   function realLights() {
-    const now = performance.now();
-    if (!plCache || now - plT > 1000) { const out = []; scene.traverse((o) => { if (o.isPointLight) out.push(o); }); plCache = out; plT = now; }
+    if (!plCache || renders - plR >= 30) { const out = []; scene.traverse((o) => { if (o.isPointLight) out.push(o); }); plCache = out; plR = renders; }
     return plCache;
   }
   function nearestLamp(x, y, z) {
@@ -222,9 +227,10 @@ export function createLampPool(w, cfg) {
     const next = scratch.fill(1);
     let n = 0;
     for (const pl of realLights()) {
-      let vis = pl.visible && pl.intensity > 0;
-      for (let p = pl.parent; vis && p; p = p.parent) vis = p.visible;
-      if (!vis || pl.parent === null) continue;
+      // visible, and still in this scene (a group taken out of it, e.g. by a streamer, takes its lights along)
+      let vis = pl.visible && pl.intensity > 0, top = pl;
+      for (let p = pl.parent; vis && p; p = p.parent) { vis = p.visible; top = p; }
+      if (!vis || top !== scene) continue;
       pl.getWorldPosition(_v);
       let m = plMatch.get(pl);
       if (!m || m.x !== _v.x || m.y !== _v.y || m.z !== _v.z || m.n !== lamps.length) { m = { x: _v.x, y: _v.y, z: _v.z, n: lamps.length, i: nearestLamp(_v.x, _v.y, _v.z) }; plMatch.set(pl, m); }
@@ -264,7 +270,9 @@ export function createLampPool(w, cfg) {
     info.active = act.length;
     if (!act.length) { U.mgPA.value.y = 0; info.mode = 0; if (dirty) tex.needsUpdate = true; return; }
     const ak = act.join(',');
-    const clustered = cam.isPerspectiveCamera;
+    // an XR ArrayCamera is a PerspectiveCamera too, but each eye draws its own viewport through the joint frustum:
+    // the cells would not line up, so it takes the list path
+    const clustered = cam.isPerspectiveCamera && !cam.isArrayCamera;
     if (clustered) {
       const e = cam.matrixWorld.elements, p = cam.projectionMatrix.elements;
       let k = p[0] + ',' + p[5] + ',' + cam.near + ',' + cam.far;
@@ -291,11 +299,14 @@ export function createLampPool(w, cfg) {
     if (dirty) tex.needsUpdate = true;
   }
   const chained = scene.onBeforeRender;
-  scene.onBeforeRender = function (r, s, cam, rt) {
+  let disposed = false;
+  const hook = function (r, s, cam, rt) {
     if (chained) chained.call(this, r, s, cam, rt);
+    if (disposed) return;
     before(r, cam, rt);
     info.renders = renders;
   };
+  scene.onBeforeRender = hook;
 
   // ---- light2: the pool lamps as lamp-shadow candidates (light2.js folds a PointLight on a pool lamp into it)
   const l2 = w.light2 && cfg.light2 ? w.light2 : null;
@@ -307,7 +318,7 @@ export function createLampPool(w, cfg) {
       const l = lamps[i];
       if (l.power <= 0 || (l.x - cp.x) ** 2 + (l.y - cp.y) ** 2 + (l.z - cp.z) ** 2 > (l.range + reach) ** 2) continue;
       const p = l.power * gain;
-      out.push({ id: 'mgPool' + i, x: l.x, y: l.y, z: l.z, range: l.range, power: p, near: l.near ?? l2.ls.near, col: [l.r * p, l.g * p, l.b * p], pool: true });
+      out.push({ id: l.id, x: l.x, y: l.y, z: l.z, range: l.range, power: p, near: l.near ?? l2.ls.near, col: [l.r * p, l.g * p, l.b * p], pool: true });
     }
     return out;
   };
@@ -331,7 +342,7 @@ export function createLampPool(w, cfg) {
     /** change lamp i (the fields given; the rest stay) */
     update(i, o) {
       const l = lamps[i]; if (!l) return false;
-      lamps[i] = poolLamp({ pos: [l.x, l.y, l.z], range: l.range, power: l.power, color: [l.r, l.g, l.b], decay: l.decay, near: l.near, ...(l.n ? { normal: l.n.slice(0, 3), back: l.n[3] + l.n[0] * l.x + l.n[1] * l.y + l.n[2] * l.z } : {}), ...o });
+      lamps[i] = poolLamp({ pos: [l.x, l.y, l.z], range: l.range, power: l.power, color: [l.r, l.g, l.b], decay: l.decay, near: l.near, thick: l.thick ?? undefined, ...(o.pos ? {} : { id: l.id }), ...(l.n ? { normal: l.n.slice(0, 3), back: l.n[3] + l.n[0] * l.x + l.n[1] * l.y + l.n[2] * l.z } : {}), ...o });
       changed(); return true;
     },
     clear() { lamps.length = 0; changed(); },
@@ -339,8 +350,13 @@ export function createLampPool(w, cfg) {
     get lamps() { return lamps; },
     /** wrap the lit materials added since the last call (the world does it in prepare; the pool every 30 renders) */
     adopt() { return own ? inj.adopt(scene) : 0; },
+    /** look for the scene's PointLights again now (world.js: before every still frame) */
+    rescan() { plCache = null; },
     dispose() {
-      if (scene.onBeforeRender && chained !== undefined) scene.onBeforeRender = chained;
+      disposed = true;
+      // unhook only if nothing wrapped the hook since (frame.js's onView, LOD): otherwise the wrapper stays and ours
+      // passes straight through
+      if (scene.onBeforeRender === hook) scene.onBeforeRender = chained;
       const src = scene.userData.mgLampSources, i = src ? src.indexOf(source) : -1;
       if (i >= 0) src.splice(i, 1);
       inj.remove('lamppool');
