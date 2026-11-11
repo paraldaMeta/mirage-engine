@@ -9,6 +9,7 @@
 //      look tuning: ?env= (image-based light, 1) ?exp= (0.6) ?sat= ?con= ?temp= ?clouds=   ?maxfps=N (walk: no 60 fps cap)
 //      ?grade=1 [&gradek=0..1 &nightadapt=0..1]  Mirage's time-of-day grade (gap 1), off by default
 //      ?gi=1 [&gispacing=4]  Mirage's probe GI (bounce light), for the comparison with Nizwa's irradiance volume
+//      ?sky=dusk [&haze= &night= &airglow= &cover=]  the dusk sky (opt-in; see the block below)
 //      ?wet=0..1 &rain=0..1 are accepted but only Mirage-made materials get wet (REPORT.md)
 import * as THREE from 'three';
 import { createWorldRenderer, placeDate, setWetness, setRain } from '@miragekit/core';
@@ -34,6 +35,10 @@ const gradeOpt = Q.get('grade') === '1' && {
   ...(Q.has('gradek') ? { strength: +Q.get('gradek') } : {}), ...(Q.has('nightadapt') ? { nightAdapt: +Q.get('nightadapt') } : {}),
 };
 // ---- end of gap 1
+// ---- the dusk sky (REPORT.md gaps 4 and 5): ?sky=dusk turns on createWorldRenderer's opt-in `sky: { dusk }`
+//      (twilight colours, a darker night dome, a hazy horizon, altocumulus); &haze= &night= &airglow= &cover= tune it
+const skyDusk = Q.get('sky') === 'dusk' ? { dusk: Object.fromEntries(['haze', 'night', 'airglow', 'cover'].filter((k) => Q.has(k)).map((k) => [k, +Q.get(k)])) } : null;
+// ----
 
 const canvas = document.querySelector('canvas');
 canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
@@ -45,6 +50,7 @@ const world = createWorldRenderer({
   // ?gi=1: Mirage's irradiance probe volume over the fort (docs/lighting.md); off by default (not part of the brief)
   ...(Q.get('gi') === '1' ? { lighting: { gi: { min: [-24, 0.5, -34], max: [78, 31, 34], spacing: +Q.get('gispacing') || 4 } } } : {}),
   ...(Q.has('env') ? { envIntensity: +Q.get('env') } : {}), ...(Q.has('clouds') ? { clouds: +Q.get('clouds') } : {}),
+  ...(skyDusk ? { sky: skyDusk } : {}),
   post: { ...(off.has('aolit') ? {} : { aoLit: 1 }), ...(off.has('ae') ? {} : { autoExposure: 0.5 }), grain: 0, exposure: 0.6,   // 0.6: the sunlit plaster as bright as in Nizwa's stills (Mirage's default is 0.4)
     ...(Q.has('exp') ? { exposure: +Q.get('exp') } : {}), ...(Q.has('sat') ? { saturation: +Q.get('sat') } : {}), ...(Q.has('con') ? { contrast: +Q.get('con') } : {}), ...(Q.has('temp') ? { temperature: +Q.get('temp') } : {}) },
 });

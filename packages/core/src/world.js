@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { createEnv } from './env.js';
 import { installFog, FOG, retainChunks, releaseChunks } from './fog.js';
-import { createSky, createSkyUniforms, createSkyLut } from './sky.js';
+import { createSky, createSkyUniforms, createSkyLut, skyDuskConfig } from './sky.js';
 import { createStars } from './stars.js';
 import { skyState, lightAt, gradeConfig, gradeAt } from './daynight.js';
 import { Pipeline, DEFAULT_POST } from './post.js';
@@ -96,9 +96,10 @@ export function createWorldRenderer(config = {}) {
   scene.environmentIntensity = envIntensity;
   scene.fog = new THREE.FogExp2(0x8899aa, fogCfg.density);   // FogExp2 switches on Mirage's aerial perspective
   const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 2000);
-  const skyU = createSkyUniforms();
+  const dusk = skyDuskConfig(config.sky);   // the dusk sky (opt-in, sky.js): twilight, night, haze, altocumulus
+  const skyU = createSkyUniforms(dusk ? { dusk } : undefined);
   const skyLut = createSkyLut(renderer, skyU);   // the sky's air, baked per setTime instead of marched per pixel
-  skyU.uCloudCover.value = clouds;
+  skyU.uCloudCover.value = dusk && config.clouds === undefined ? dusk.cover : clouds;
   const sky = createSky(skyU);
   const stars = createStars(skyU);
   scene.add(sky, stars);

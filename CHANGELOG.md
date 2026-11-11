@@ -15,6 +15,11 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
   bit-identical): split toning, black point, S-curve, ACES / AgX-punchy blend, clarity, highlight warmth and a darker night, keyed by the sun's
   elevation and the lamp level (`GRADE_PRESETS`, `gradeConfig`, `gradeAt`). hello-courtyard and the Nizwa probe:
   `?grade=1`. Closes gap 1 of `probes/nizwa-probe/REPORT.md`.
+- @miragekit/core: the dusk sky (opt-in, `createWorldRenderer({ sky: { dusk: true } })`, `SKY_DUSK_DEFAULTS`):
+  twilight colours (a warm horizon under the set Sun, Earth's shadow, a blue hour), a hazier horizon by day, airglow
+  toward the horizon and a night dome seen darker than the light it gives, the world's far haze below the horizon
+  instead of black, altocumulus clouds at a fuller default cover. Off, the sky is bit-identical; on, +0.2–0.4 ms with
+  the sky filling a 1440 x 900 frame. nizwa-probe and hello-courtyard: `?sky=dusk`.
 
 **Fixes**
 - `mirage-package` (single-file builds) no longer inlines three's default Draco and Basis decoder files (~2.5 MB),

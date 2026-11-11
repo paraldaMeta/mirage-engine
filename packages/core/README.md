@@ -44,7 +44,8 @@ requestAnimationFrame(loop);
 | `post` | `DEFAULT_POST` | `exposure (0.4), temperature, saturation, contrast, lift, vignette, tonemap ('aces' \| 'agx' \| 'neutral'), sharpen, grain, bloom, bloomRadius, ao, aoRadius, aoPower, aoLit, autoExposure, aeKey, aeNight, aeRange, aeUp, aeDown, sky, dof (lens radius m, 0 = off), focus (m)` (the opt-in ones: see "Ambient-only AO, auto exposure, dynamic resolution") |
 | `spp` | per quality | sub-frames per frame |
 | `wind` | `{ dir: [0.8, 0.6], strength: 1 }` | for `mgWind()` in vertex hooks |
-| `clouds` | `0.35` | cloud cover 0..1 |
+| `clouds` | `0.35` | cloud cover 0..1 (`0.5` with the dusk sky) |
+| `sky` | off | `{ dusk: true }` or `{ dusk: { haze, night, airglow, cover } }` overriding `SKY_DUSK_DEFAULTS`: twilight colours, a darker night dome, a hazy horizon, altocumulus (see "The dusk sky") |
 | `shadowMapSize`, `mobile`, `preserveDrawingBuffer` | | overrides |
 | `dynamicRes` | off | `true` or `{ target: 60 fps, min: 0.6, step: 0.1 }`: moving frames render smaller when they run over budget (see below) |
 | `light2` | off | `true` or `{ ls, ssr, vol, bloom }` overriding `LIGHT2_DEFAULTS` (each part `false` to drop it): lamp shadows, screen-space reflections, volumetric light, mixed bloom (see below) |
@@ -211,6 +212,35 @@ a world renders bit-identical to before.
   its penumbra is noisier per frame (the average converges). The blocker distance is a per-tap median, so
   overlapping casters at very different heights average to one penumbra (PCSS's usual approximation). Install
   before the first compile (as light2).
+
+## The dusk sky (opt-in): `sky: { dusk }`
+
+`createWorldRenderer({ ..., sky: { dusk: true } })` (or `{ dusk: { haze: 2.5, night: 0.5, airglow: 1, cover: 0.5 } }`).
+Off, the sky's shaders are the same text as before and every frame is bit-identical. Made for the hours the default
+sky is weakest at: after sunset it is a flat bright blue with a hard horizon, black below it where no ground
+reaches.
+
+- **Air** (baked into the sky's direction tables per `setTime`, so no per-pixel cost): the aerosol x `haze` (a
+  paler, softer horizon by day, a wide warm glow round a low Sun or Moon); multiple scattering lit by the light
+  that reaches each point just above its own elevation (reddened at sunset, gone in Earth's shadow) plus a quarter
+  of the old day-blue term. Day skies change little; twilight gets a warm horizon under the set Sun, a blue-grey
+  Earth's shadow and a pink band above it, then a blue hour, and is darker than before (about a third from 2° below
+  the horizon on: the image-based light follows, so a scene at dusk is darker too).
+- **Night**: the airglow brightens toward the horizon (it shines from a shell ~90 km up). The dome as seen is x
+  `night` once the Sun is 10° down (ramping from 2°): a moonlit sky reads as night instead of a day sky at a high
+  exposure. Environment captures keep the dome as lit, so the light the night sky gives is unchanged.
+- **Below the horizon**, where no ground reaches: the horizon's air, then what the world's haze makes of far
+  ground (fog.js's in-scatter at infinite distance, colour and glow toward the light), so the far edge of a ground
+  plane meets the sky without a black band.
+- **Clouds**: altocumulus (coverage patches stretched along the wind, puffy cells of two cell-noise scales),
+  self-shadowed by four taps toward the light, forward / back scattering, powder and a silver lining; lit by the Sun,
+  by the Moon once the Sun is 4° down, thinner and sky-lit without sunlight. `cover` (0.5) applies when the world's
+  `clouds` is not given; they drift with the scene clock as before (still frames stay bit-identical).
+- **Cost** (nizwa-probe, 1440 x 900, one sub-frame + TAA, Apple M4 Pro shared with other jobs, off and on interleaved,
+  3 rounds): the clouds are the only per-pixel part, +0.2–0.4 ms (min of the rounds) with the sky filling the frame,
+  within the noise on a street view; `setTime` (the table bake) 0.34 -> 0.36 ms. Load: one more sky program.
+- Techniques (the altocumulus cells, the night cloud look, the below-horizon fill) ported from the author's own
+  Nizwa engine; the probe that asked for it: `probes/nizwa-probe` (`?sky=dusk`), hello-courtyard `?sky=dusk`.
 
 ## Materials: `world.mat`
 

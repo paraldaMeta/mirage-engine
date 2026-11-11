@@ -11,6 +11,7 @@
 //      streaks (@miragekit/world/kits/rain); without ?wet / ?rain nothing of either is built
 //      ?grade=1 the time-of-day grade (@miragekit/core daynight.js: split toning, black point, curve, ACES / AgX mix,
 //      punch, clarity, highlight warmth, a darker night); &gradek=0..1 its strength
+//      ?sky=dusk the dusk sky (@miragekit/core sky.js): twilight colours, a darker night dome, a hazy horizon, altocumulus
 //      Enter VR / Enter AR appear in a WebXR browser: docs/xr.md
 import { createWorldRenderer, createTextures, placeDate, pickQuality, setRelief, setWetness, setRain, postFromQuery } from '@miragekit/core';
 import { buildWorld } from '@miragekit/world';
@@ -55,11 +56,13 @@ const lighting = ['csm', 'gi', 'probes'].some(LF) || (NL && !stock) || SCR ? {
   probes: LF('probes') && [{ min: [-7.2, 0, -7.2], max: [7.2, 6, 7.2], position: [0, 2.6, 0], fade: 1.5 }],
   lights: NL > 0 && !stock && { cluster: Q.get('cluster') !== '0', perCell: +Q.get('percell') || 0 },   // exact lists (&percell=64: the capped ones)
 } : undefined;
+// the dusk sky (opt-in): ?sky=dusk
+const sky = Q.get('sky') === 'dusk' ? { dusk: true } : undefined;
 const ed = editable(plan, edits);   // with an empty layer: the plan itself, and every ed. call below does nothing
 const world = createWorldRenderer({ quality, byteTargets: Q.get('bytetargets') === '1', xr: xrs.vr || xrs.ar, light2, softShadows, grade, lighting: ed.lighting(lighting), dynamicRes: Q.get('dynres') ? (Q.get('dynres') === '1' || { target: +Q.get('dynres') }) : (caps?.settings.dynamicRes ?? false),
   canvas, width: W, height: H, place, time: date || 'golden', preserveDrawingBuffer: true,
   shadow: { center: [0, 2, 0], radius: 17 }, envProbe: [0, 2.2, 0],
-  fog: { groundDensity: 0.0022, height: 30 },
+  fog: { groundDensity: 0.0022, height: 30 }, ...(sky ? { sky } : {}),
   post: { grain: Q.get('grain') === '0' ? 0 : 0.012, dof: Q.get('dof') ? 0.025 : 0, focus: 9,
     ...(Q.get('aolit') === '1' ? { aoLit: 1 } : {}), ...(Q.get('ae') === '1' ? { autoExposure: 0.5 } : {}),
     ...postFromQuery(Q) },   // ?taa2=1&upscale=0.67&mb=0.5&bokeh=1&lens=0.03&bloom2=1&lut=warm&chroma=0.6 (docs/post.md)

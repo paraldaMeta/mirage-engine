@@ -92,7 +92,9 @@ count of stable and experimental exports, and how a name is promoted: [STABILITY
 | `dirFromAltAz(alt, az)` | experimental | the same from astronomy's altitude / azimuth |
 | `WIND_GLSL` | experimental | `mgWind()` for vertex hooks |
 | `createSky(uniforms)` | experimental | the sky dome mesh |
-| `createSkyUniforms()` | experimental | its uniforms |
+| `createSkyUniforms(options?)` | experimental | its uniforms; `{ dusk }` adds the dusk sky's (`createSky` and `createSkyLut` then compile it in) |
+| `SKY_DUSK_DEFAULTS` | experimental | the dusk sky's settings (`haze`, `night`, `airglow`, `cover`); `createWorldRenderer({ sky: { dusk } })` turns it on |
+| `skyDuskConfig(sky)` | experimental | the full dusk-sky settings for `{ dusk: true }` / a partial object (numbers clamped); null when off |
 | `createSkyLut(renderer, uniforms, options?)` | experimental | bakes the sky's air into direction tables per `setTime` (call before `createSky`) |
 | `createStars(skyUniforms, { faint })` | experimental | stars and the Moon's disc |
 | `ATMO` | experimental | atmosphere constants (radii, scattering coefficients) |
