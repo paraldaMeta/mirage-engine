@@ -33,10 +33,17 @@ export function materials(ctx) {
   const paving = tex.material('paving', { mapping: 'ground', tint: [0.56, 0.48, 0.38], detail: 0.8, roughness: 0.82, ...(D ? { relief: RL.paving } : {}) });
   // ctx.shared.wet (`?wet=`, off by default): @miragekit/core's wet.js on the ground and the masonry; the photo sets'
   // heights (mgS.h) let the paving joints and the land's hollows fill first. Without it nothing is re-patched.
+  // ctx.shared.wetWear (`&wear=1`): the paving's puddles follow its wear (a trodden path from the gate to the basin, a
+  // splashed and walked ring round it) and the pergola keeps the bench's strip of paving dry
   if (ctx.shared.wet) {
     const wet = (m, o) => mat.patch(m, withWet(m.userData.hooks, o));
     const hm = (n) => tex.info(n).hMean;
-    wet(paving, { porosity: 0.5, height: 'mgS.h', heightMid: hm('paving'), heightScale: 0.014 });
+    const P = 'mgWorldPos';
+    const wear = ctx.shared.wetWear ? {
+      wear: `max(exp(-${P}.x * ${P}.x / 0.35) * smoothstep(2.0, 2.8, ${P}.z), exp(-pow(length(${P}.xz) - 2.25, 2.0) / 0.06)) * (0.55 + 0.45 * mgFbm2(${P}.xz * 1.7, 3))`,
+      shelter: `(1.0 - smoothstep(3.3, 3.9, abs(${P}.x))) * (1.0 - smoothstep(-5.3, -4.7, ${P}.z))`,
+    } : {};
+    wet(paving, { porosity: 0.5, height: 'mgS.h', heightMid: hm('paving'), heightScale: 0.014, ...wear });
     wet(land, { porosity: 0.8, puddles: 0.8, ground: -0.02 });
     wet(plaster, { porosity: 0.85, puddles: 0, band: 0.45 });
     wet(ashlar, { porosity: 0.45, height: 'mgS.h', heightMid: hm('ashlar') });

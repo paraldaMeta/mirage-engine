@@ -14,8 +14,10 @@ export interface MaterialHooks {
   output?: string;
   uniforms?: Record<string, THREE.IUniform>;
   defines?: Record<string, string | number | boolean>;
-  /** Specular AA on the roughness: default where a hook mentions roughnessFactor; false never; a string: a preprocessor #if expression. */
-  specAA?: boolean | string;
+  /** Specular AA on the roughness: default where a hook mentions roughnessFactor; false never; a string: a preprocessor #if expression; a number: always, with that strength (1 = the default, 0 = off). */
+  specAA?: boolean | string | number;
+  /** A preprocessor #if expression the specular AA is wrapped in as well (withWet: '!defined(MG_WET)'). */
+  specAAIf?: string;
   /** Called with the material once patch() has set it up (not part of the program key). */
   attach?: (material: THREE.Material) => void;
 }
@@ -43,3 +45,5 @@ export interface MaterialKit {
 export function patch<M extends THREE.Material>(material: M, hooks: MaterialHooks, uniforms: UniformSet): M;
 export function createMaterials(uniforms: UniformSet): MaterialKit;
 export const PROC: ProceduralSurfaces;
+/** The specular AA GLSL, guarded: float mgSpecAA(float roughness, vec3 viewNormal[, float strength]). Every patch()ed lit material has it; paste it into a shader of your own and call it after the last normal edit. */
+export const SPEC_AA_GLSL: string;

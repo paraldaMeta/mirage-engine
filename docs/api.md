@@ -39,6 +39,7 @@ count of stable and experimental exports, and how a name is promoted: [STABILITY
 | `patch(material, hooks, G)` | stable | add GLSL hooks to a three.js material (vertex, albedo, roughness, normal, emissive, lighting, output) |
 | `createTextures(world, { manifest, url, anisotropy })` | stable | the optional world-space texture layer for CC0 PBR sets |
 | `PROC` | stable | ready hook sets: `plaster`, `stone`, `wood`, `terracotta` |
+| `SPEC_AA_GLSL` | experimental | the specular AA GLSL, guarded: `mgSpecAA(roughness, viewNormal[, strength])` widens the roughness by the shading normal's screen-space variance; every patched lit material has it, paste it into a shader of your own |
 | `createTextures(world, { manifest, url, anisotropy, decode, ktx2 })` | stable | the optional world-space texture layer for CC0 PBR sets; opt-ins (experimental): `decode: 'bitmap'` decodes off the main thread (same pixels), `ktx2` loads `.ktx2` files (`@miragekit/core/ktx2`); `tex.textures()` lists its textures |
 | `TEX_GLSL` | stable | the GLSL of the texture layer (`mgTexTri`, `mgTexWall`, `mgTexGround`, …) |
 | `glslName(name)` | stable | how a texture set name is spelled in `MG_TEX_<name>` (`'stone-wall'` → `stone_2d_wall`; plain names unchanged) |
@@ -70,7 +71,7 @@ count of stable and experimental exports, and how a name is promoted: [STABILITY
 | `withRelief(hooks)` | experimental | put the relief GLSL and uniforms in front of a hooks object |
 | `renderHeight(name, und, swipe)` | experimental | GLSL declaring a hand-applied render's height (m), faded with distance |
 | `renderShade(name)` | experimental | `output` hook snippet: shade the render's hollows |
-| `withWet(hooks, options)` | experimental | wet surfaces on a hooks object: damp → soaked → standing water (puddles), run-off streaks, a damp band at the ground, rain rings; options `porosity`, `ground`, `band`, `puddles`, `height`, `heightMid`, `heightScale` |
+| `withWet(hooks, options)` | experimental | wet surfaces on a hooks object: damp → soaked → standing water (puddles), run-off streaks, a damp band at the ground, rain rings; options `porosity`, `ground`, `band`, `puddles`, `height`, `heightMid`, `heightScale`, `wear`, `wearDepth`, `shelter`, `rim`, `ripples`, `specAA` |
 | `setWetness(level)` | experimental | wetness 0 (off: the wet code not compiled; crossing 0 recompiles the opted-in materials) .. 1 (full puddles); page-global |
 | `setRain(intensity)` | experimental | rain 0 .. 1: ripples on standing water and the rain kit's streak density; page-global |
 | `WET` | experimental | the wetness's page-global uniforms (`uWet`, `uRain`) |

@@ -25,6 +25,18 @@ export interface WetOptions {
   heightMid?: number;
   /** Bed height (m) per unit of `height` (0.012). */
   heightScale?: number;
+  /** A GLSL float 0..1 in scope in the metalness hook: worn ruts, joints, round drains. They sit `wearDepth` lower and fill first (null). */
+  wear?: string | null;
+  /** How much lower (m) a fully worn spot sits (0.012). */
+  wearDepth?: number;
+  /** 0..1 where the rain does not reach (under an awning, indoors): dry and matte there. A number, a GLSL float or a { value } uniform (null: none). */
+  shelter?: number | string | THREE.IUniform<number> | null;
+  /** 0..1: a thin darker damp band round each puddle and an eased (meniscus) water edge. Default 1 when `wear` or `shelter` is given, else 0. */
+  rim?: number | null;
+  /** Rain rings' strength on this material's standing water: 0 off, 1 default, more = stronger (1). Only while setRain > 0. */
+  ripples?: number;
+  /** The specular AA's strength while wet (the shading normal's screen-space variance widens the roughness): 0 / false off, 1 default. */
+  specAA?: number | boolean;
 }
 /** Wetness, puddles and rain ripples on a hooks object (Standard / Physical materials). */
 export function withWet(hooks?: MaterialHooks, options?: WetOptions): MaterialHooks;
