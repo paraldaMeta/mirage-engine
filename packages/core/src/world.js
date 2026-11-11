@@ -16,6 +16,7 @@ import { byteTargets } from './byte-targets.js';
 import * as geom from './geom.js';
 import { rng } from './rng.js';
 import { createLighting } from './lighting.js';
+import { lampPoolConfig, createLampPool } from './lamppool.js';
 
 // ---------------------------------------------------------------------------
 // createWorldRenderer(config): one world = renderer + scene + sky + key light + fog + pipeline + day/night,
@@ -110,6 +111,9 @@ export function createWorldRenderer(config = {}) {
   scene.add(sun, sun.target);
   // realtime lighting features (opt-in, lighting.js): cascades, probe GI, reflection probes, clustered local lights
   const lighting = config.lighting ? createLighting({ renderer, scene, sun, G, keyDir, quality, Q, soft: sscfg, envProbe, capture: lightCapture, skyVisible: (v) => { sky.visible = v; } }, config.lighting) : null;
+  // the lamp pool (opt-in, lamppool.js): every lamp lights its surroundings, beyond the few real PointLights
+  const lpcfg = lampPoolConfig(config.lampPool);
+  const lampPool = lpcfg ? createLampPool({ renderer, scene, G, injector: lighting && lighting.injector, light2: l2cfg }, lpcfg) : null;
 
   const pipeline = new Pipeline(renderer, { width: width * pixelRatio, height: height * pixelRatio, msaa: device.msaa, aoSamples: Q.aoSamples });
   if (l2cfg) pipeline.useLight2(l2cfg, { sun, G });
@@ -314,7 +318,9 @@ export function createWorldRenderer(config = {}) {
       await compile();
       scene.environment = null;
     }
-    if (lighting) { lighting.adopt(); await compile(); }
+    if (lighting) lighting.adopt();
+    if (lampPool) lampPool.adopt();
+    if (lighting || lampPool) await compile();
     captureEnv(true);
     if (warm) return { warmMs: warmUp() };
   }
@@ -541,6 +547,7 @@ export function createWorldRenderer(config = {}) {
     if (disposed) return;
     disposed = true;
     updates = [];   // a disposed world holds no callback (and what they close over) alive
+    if (lampPool) lampPool.dispose();   // before lighting: both chain scene.onBeforeRender
     pipeline.dispose(); envLight.dispose(); skyLut.dispose(); if (lighting) lighting.dispose();
     const mats = new Set();
     scene.traverse((o) => { o.geometry && o.geometry.dispose(); for (const m of [].concat(o.material || [])) mats.add(m); });
@@ -565,7 +572,7 @@ export function createWorldRenderer(config = {}) {
     return () => { if (on) { on = false; const i = updates.lastIndexOf(fn); if (i >= 0) updates = updates.filter((_, k) => k !== i); } };
   } };
   return {
-    renderer, scene, camera, sun, sky, stars, pipeline, ctx, G, keyDir, mat, geom, rng, post, device, light2: l2cfg, dynamicRes: dynRes, softShadows: sscfg, lighting,
+    renderer, scene, camera, sun, sky, stars, pipeline, ctx, G, keyDir, mat, geom, rng, post, device, light2: l2cfg, dynamicRes: dynRes, softShadows: sscfg, lighting, lampPool,
     /** the moving frames' render scale (1 = the canvas; below 1 only with `dynamicRes`) */
     get resolutionScale() { return resScale; },
     /** forget the adapted exposure (auto exposure): the next frame is metered on its own, e.g. after a teleport */
