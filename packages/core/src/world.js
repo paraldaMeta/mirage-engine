@@ -1,6 +1,6 @@
 // Mirage original code. Techniques informed by Golden Temple by Leon Lin (MIT) — see NOTICE.
 import * as THREE from 'three';
-import { createEnv } from './env.js';
+import { createEnv, writeAmbientVolumes, disposeAmbient } from './env.js';
 import { installFog, FOG, retainChunks, releaseChunks } from './fog.js';
 import { createSky, createSkyUniforms, createSkyLut } from './sky.js';
 import { createStars } from './stars.js';
@@ -512,19 +512,15 @@ export function createWorldRenderer(config = {}) {
     });
   }
 
-  /** Interiors: [{ min: [x,y,z], max: [x,y,z], factor = 0.3, soft = 0.6 }] scale the image-based light inside
-   *  each box (up to 8). Recaptures the environment, so call it before prepare() or after building. */
-  function setAmbientVolumes(list = []) {
-    const n = Math.min(list.length, G.uAmbLo.value.length);
-    for (let i = 0; i < n; i++) {
-      const v = list[i];
-      G.uAmbLo.value[i].set(v.min[0], v.min[1], v.min[2], v.soft ?? 0.6);
-      G.uAmbHi.value[i].set(v.max[0], v.max[1], v.max[2], v.factor ?? 0.3);
-    }
-    const was = G.uAmbN.value > 0;
-    G.uAmbN.value = n;
-    if (was !== n > 0) scene.traverse((o) => { for (const m of [].concat(o.material || [])) if (m.userData.hooks) m.needsUpdate = true; });
+  /** Interiors: [{ min: [x,y,z], max: [x,y,z], factor = 0.3, soft = 0.6, tint = [1, 1, 1] }] scale the image-based
+   *  light inside each box (by factor x tint per channel). Up to 8 untinted boxes take the uniform path, more or
+   *  tinted ones a grid (env.js writeAmbientVolumes; { grid: true } forces it). Recompiles the patched materials when
+   *  the path changes and recaptures the environment, so call it before prepare() or after building. */
+  function setAmbientVolumes(list = [], options = {}) {
+    const { recompile, info } = writeAmbientVolumes(G, list, options);
+    if (recompile) scene.traverse((o) => { for (const m of [].concat(o.material || [])) if (m.userData.hooks) m.needsUpdate = true; });
     envState = 'instant';
+    return info;
   }
 
   function resize(wd, ht) {
@@ -542,6 +538,7 @@ export function createWorldRenderer(config = {}) {
     disposed = true;
     updates = [];   // a disposed world holds no callback (and what they close over) alive
     pipeline.dispose(); envLight.dispose(); skyLut.dispose(); if (lighting) lighting.dispose();
+    disposeAmbient(G);
     const mats = new Set();
     scene.traverse((o) => { o.geometry && o.geometry.dispose(); for (const m of [].concat(o.material || [])) mats.add(m); });
     for (const m of mats) m.dispose();

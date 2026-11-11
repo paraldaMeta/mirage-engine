@@ -1,7 +1,7 @@
 import type * as THREE from 'three';
 import type * as geom from './geom.js';
 import type { rng } from './rng.js';
-import type { EnvironmentUniforms, createEnv } from './env.js';
+import type { EnvironmentUniforms, createEnv, AmbientVolumesInfo, AmbientVolumesOptions } from './env.js';
 import type { MaterialKit } from './materials.js';
 import type { Pipeline, PostSettings } from './post.js';
 import type { Light2Option, Light2Settings } from './light2.js';
@@ -14,7 +14,9 @@ import type { Quality, DeviceProfile } from './device.js';
 export type XYZ = readonly [number, number, number];
 export type RenderCamera = THREE.PerspectiveCamera | THREE.OrthographicCamera;
 export interface ShadowRegion { center: XYZ; radius: number }
-export interface AmbientVolume { min: XYZ; max: XYZ; factor?: number; soft?: number }
+/** inside the box the image-based light is scaled by factor (default 0.3) x tint (linear RGB, default [1, 1, 1]) per
+ *  channel, ramping back to 1 over soft metres (default 0.6) outside it */
+export interface AmbientVolume { min: XYZ; max: XYZ; factor?: number; soft?: number; tint?: XYZ }
 export interface WorldRendererOptions {
   canvas?: HTMLCanvasElement; renderer?: THREE.WebGLRenderer;
   width?: number; height?: number; pixelRatio?: number; quality?: Quality;
@@ -107,7 +109,9 @@ export interface WorldRenderer {
   resize(width: number, height: number): void;
   /** Call after setTime() or prepare(). */
   captureEnv(instant?: boolean): void;
-  setAmbientVolumes(volumes?: readonly AmbientVolume[]): void;
+  /** up to 8 untinted boxes: the uniform path (as before); more, or a tint: a grid over x / z (`grid: true` forces it).
+   *  Returns which path and its size. */
+  setAmbientVolumes(volumes?: readonly AmbientVolume[], options?: AmbientVolumesOptions): AmbientVolumesInfo;
   /** call after `webglcontextrestored`: re-bakes the sky, the image-based light and probe lighting (see `@miragekit/core/platform`) */
   contextRestored(): void;
   /** Releases pipeline, environment light and scene geometries; an injected renderer stays owned by its host.
