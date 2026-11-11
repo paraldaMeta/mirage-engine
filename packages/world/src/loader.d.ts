@@ -3,7 +3,8 @@ import type { RandomStream } from '@miragekit/core/rng';
 import type { WorldContext } from '@miragekit/core/world';
 import type { PlanInput, DefinedPlan, XYZ } from './plan.js';
 
-export interface AmbientVolume { min: XYZ; max: XYZ; factor?: number; soft?: number; [custom: string]: unknown }
+/** tint: linear RGB on top of factor (world.setAmbientVolumes: more than 8 boxes, or a tint, take its grid path) */
+export interface AmbientVolume { min: XYZ; max: XYZ; factor?: number; soft?: number; tint?: XYZ; [custom: string]: unknown }
 export interface Anchor { pos: XYZ; rotY?: number; [custom: string]: unknown }
 export type AnchorOffers = Record<string, readonly Anchor[]>;
 export type ResolvedAnchor = Anchor & { from: string };

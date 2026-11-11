@@ -1,10 +1,10 @@
 // Mirage original code. Techniques informed by Golden Temple by Leon Lin (MIT) — see NOTICE.
 export { createWorldRenderer } from './world.js';
 export { createEnv, GOLDEN, dirFromElevAz, elevAzOf, WIND_GLSL } from './env.js';
-export { createSky, createSkyUniforms, createSkyLut } from './sky.js';
+export { createSky, createSkyUniforms, createSkyLut, SKY_DUSK_DEFAULTS, skyDuskConfig } from './sky.js';
 export { ATMO, ATMOSPHERE_GLSL, transmit, transmitAtGround, scatter, skyLightAt } from './atmosphere.js';
 export { installFog, FOG } from './fog.js';
-export { skyState, lightAt } from './daynight.js';
+export { skyState, lightAt, gradeConfig, gradeAt, GRADE_PRESETS } from './daynight.js';
 export { skyAt, placeDate, placeClock, dirFromAltAz } from './sky-time.js';
 export { createStars } from './stars.js';
 export { Pipeline, DEFAULT_POST } from './post.js';
@@ -12,7 +12,8 @@ export { PostFX, FX_DEFAULTS, postFromQuery, parseCube, makeLut, lutTexture, ape
 export type { LutData } from './postfx.js';
 export { LIGHT2_DEFAULTS, light2Config, installLight2, addLampSource, LampShadows } from './light2.js';
 export { SOFTSHADOW_DEFAULTS, softShadowConfig, installSoftShadows } from './softshadow.js';
-export { createLighting, CSM_DEFAULTS, GI_DEFAULTS, LIGHTS_DEFAULTS, PROBE_DEFAULTS, SCREEN_DEFAULTS, SCREEN_POST } from './lighting.js';
+export { createLighting, CSM_DEFAULTS, GI_DEFAULTS, BOUNCE_DEFAULTS, LIGHTS_DEFAULTS, PROBE_DEFAULTS, SCREEN_DEFAULTS, SCREEN_POST } from './lighting.js';
+export { LAMPPOOL_DEFAULTS, lampPoolConfig, createLampPool } from './lamppool.js';
 export { patch, createMaterials, PROC } from './materials.js';
 export { NOISE_GLSL } from './noise.js';
 export { rng, hash32, sfc32, valueNoise2, fbm2 } from './rng.js';
@@ -30,8 +31,8 @@ export * as geom from './geom.js';
 
 export type { WorldRenderer, WorldRendererOptions, WorldContext, RenderFrameOptions, ConvergeResult, RenderCamera, ShadowRegion, AmbientVolume, XYZ } from './world.js';
 export type { EnvironmentUniforms } from './env.js';
-export type { SkyUniforms } from './sky.js';
-export type { SkyTime, SkyState, LightState, FixedSun, CalendarTime } from './daynight.js';
+export type { SkyUniforms, SkyOption, SkyDuskOption, SkyDuskSettings } from './sky.js';
+export type { SkyTime, SkyState, LightState, FixedSun, CalendarTime, GradeLook, GradeLookPreset, GradeSettings, GradeOption, GradeOptionObject } from './daynight.js';
 export type { Place, AstronomicalSky, SunPosition, MoonPosition } from './sky-time.js';
 export type { PostSettings } from './post.js';
 export type { MaterialKit, MaterialHooks, UniformSet } from './materials.js';
@@ -46,7 +47,8 @@ export type { WetOptions } from './wet.js';
 export type { Quality, DeviceProfile } from './device.js';
 export type { SoftShadowSettings, SoftShadowOption } from './softshadow.js';
 export { writeGLB } from './gltf-write.js';
-export type { Lighting, LightingOption, CsmSettings, GiSettings, LightsSettings, ReflectionProbe } from './lighting.js';
+export type { Lighting, LightingOption, CsmSettings, GiSettings, BounceSettings, LightsSettings, ReflectionProbe } from './lighting.js';
+export type { LampPool, LampPoolOption, LampPoolSettings, PoolLampInput } from './lamppool.js';
 export { createSimplifier, simplify, createChain } from './simplify.js';
 export type { SimplifyMesh, SimplifiedLevel, Simplifier, LodChain } from './simplify.js';
 export { chunkGeometry, chunkObject } from './chunk.js';

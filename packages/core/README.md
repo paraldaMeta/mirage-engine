@@ -44,14 +44,17 @@ requestAnimationFrame(loop);
 | `post` | `DEFAULT_POST` | `exposure (0.4), temperature, saturation, contrast, lift, vignette, tonemap ('aces' \| 'agx' \| 'neutral'), sharpen, grain, bloom, bloomRadius, ao, aoRadius, aoPower, aoLit, autoExposure, aeKey, aeNight, aeRange, aeUp, aeDown, sky, dof (lens radius m, 0 = off), focus (m)` (the opt-in ones: see "Ambient-only AO, auto exposure, dynamic resolution") |
 | `spp` | per quality | sub-frames per frame |
 | `wind` | `{ dir: [0.8, 0.6], strength: 1 }` | for `mgWind()` in vertex hooks |
-| `clouds` | `0.35` | cloud cover 0..1 |
+| `clouds` | `0.35` | cloud cover 0..1 (`0.5` with the dusk sky) |
+| `sky` | off | `{ dusk: true }` or `{ dusk: { haze, night, airglow, cover } }` overriding `SKY_DUSK_DEFAULTS`: twilight colours, a darker night dome, a hazy horizon, altocumulus (see "The dusk sky") |
 | `shadowMapSize`, `mobile`, `preserveDrawingBuffer` | | overrides |
 | `dynamicRes` | off | `true` or `{ target: 60 fps, min: 0.6, step: 0.1 }`: moving frames render smaller when they run over budget (see below) |
 | `light2` | off | `true` or `{ ls, ssr, vol, bloom }` overriding `LIGHT2_DEFAULTS` (each part `false` to drop it): lamp shadows, screen-space reflections, volumetric light, mixed bloom (see below) |
+| `lampPool` | off | `true` or fields overriding `LAMPPOOL_DEFAULTS`: every lamp lights its surroundings, beyond the few real PointLights (see "Lamp pool") |
 | `softShadows` | off | `true` or fields overriding `SOFTSHADOW_DEFAULTS`: contact-hardening soft sun shadows, per pixel, in still and walking frames alike (see below) |
+| `grade` | off | `true` or `{ strength, nightAdapt, lampTint, noon, golden, dusk, night }` (look overrides of `GRADE_PRESETS`): the time-of-day grade and a darker night (see below) |
 | `reducedMotion` | off | `true` or `{ sway: 0.25, rain: 0.4 }`: reduced motion from the start (see "Reduced motion"); @miragekit/play sets it from `prefers-reduced-motion` |
 
-Returns `{ renderer, scene, camera, sun, sky, stars, pipeline, ctx, G, keyDir, mat, geom, rng, post, device, light2, softShadows,
+Returns `{ renderer, scene, camera, sun, sky, stars, pipeline, ctx, G, keyDir, mat, geom, rng, post, device, light2, grade, softShadows,
 light, state, exposure, setTime(time, { ease }), tick(dt), prepare(), renderFrame(T, opts), resize(w, h), dispose(), captureEnv(),
 setAmbientVolumes(list), setReducedMotion(option), reducedMotion, renderTransparent(T, opts) }`.
 light, state, exposure, setTime(time, { ease }), tick(dt), prepare({ warm }), renderFrame(T, opts), resize(w, h), dispose(), captureEnv(),
@@ -73,9 +76,19 @@ setAmbientVolumes(list) }`. `prepare({ warm: true })` (opt-in) also draws one di
 - `dispose()` frees the scene's geometries and materials, the shadow map, the post and environment targets, and
   the renderer if the world made it. Take out of the scene anything you still need first (`mountWorld` does this for
   its `root`).
-- `setAmbientVolumes([{ min, max, factor = 0.3, soft = 0.6 }])` (up to 8 boxes): the image-based light is scaled by
-  `factor` inside each box (interiors), ramping over `soft` metres. Compiled in only while a world has volumes, so
-  worlds without them render exactly as before. `@miragekit/world` passes modules' `ambientVolumes` here.
+- `setAmbientVolumes([{ min, max, factor = 0.3, soft = 0.6, tint = [1, 1, 1] }], { grid })`: the image-based light
+  is scaled by `factor` x `tint` (per channel: warm light bounced off sunlit walls, a cool blue shade) inside each box
+  (interiors), ramping back over `soft` metres outside it; overlapping boxes multiply. Compiled in only while a world
+  has volumes, so worlds without them render exactly as before. `@miragekit/world` passes modules' `ambientVolumes`
+  here. Two paths, chosen by the list (the call returns `{ path, boxes, cells, maxPerCell, overfull, cellSize }`):
+  - **uniform**: up to 8 boxes without a tint, a loop over all of them; the original code, bit-identical.
+  - **grid**: more boxes (a town's hundreds of rooms) or any tint (`grid: true` forces it): the boxes sit in a float
+    data texture behind a 2D grid over x / z, cells sized near the median room, and a pixel visits only the boxes
+    listed in its cell, inside the y range they reach. The cost follows the boxes per cell, not the boxes in the
+    world (Nizwa probe, M4 Pro, 1280 x 720: 1,000 rooms cost what 8 do). A cell lists at most 16 (`AMB_PER_CELL`,
+    the loop's constant bound; a bound read from the texture made every material 5 - 7 ms slower on ANGLE /
+    Metal): cells shrink until each fits, and a pile of more than 16 boxes over one spot keeps its 16 darkest, with
+    a warning. Changing the path recompiles the patched materials once; changing boxes within a path does not.
 - `ctx` = `{ THREE, renderer, scene, camera, G, keyDir, mat, geom, rng, quality, place, onUpdate(fn) }` for
   world-building modules; `onUpdate(fn(t))` runs before every sub-frame.
 
@@ -116,6 +129,55 @@ patched and a world renders bit-identical to before.
 - Install before the first compile: with `config.renderer` shared by an earlier world, programs that renderer
   compiled before light2 was installed are reused without it (three's program cache does not see chunk edits).
 
+## Lamp pool (opt-in): `lampPool`
+
+Three shades every PointLight in every pixel, so a world keeps a handful of real lights near the eye and its other
+lamps are bright dots. The lamp pool lights them all:
+
+```js
+const world = createWorldRenderer({ ..., lampPool: true });
+world.lampPool.set(lanterns.map((a) => ({ pos: a.flame, range: 6, power: 1.2, normal: a.wallNormal, back: 0.42 })));
+```
+
+- **What a lamp is.** A point light shaded inside the lit materials with three's own falloff and the material's own
+  BRDF (albedo, roughness, normal maps, specular, as a `PointLight` with the same `power` / `range` / `decay` /
+  `color`), held as data: 3 texels of one float texture. The frustum is cut into 16 x 9 x 24 cells (lights.js's);
+  per cell the CPU lists the lamps that reach it (the nearest `perCell` kept), and a pixel loops over its cell only.
+  Adding a lamp compiles nothing. `power` follows the world's lamp level (`G.uLampGain`, 0 by day: the loop is
+  skipped); lamps beyond `far` (200 m) fade out over the last `fade` (40 m).
+- **Real lights and the pool.** A visible PointLight within 3 cm of a pool lamp is that lamp's real light; the pool
+  adds what it lacks (1 - its intensity / the lamp's, every render). A module that hands a few PointLights to the
+  lamps nearest the eye with a smooth weight gets a near-seamless hand-off: real + pool is the whole lamp at every
+  weight, except where the pool's wall cut (below) and the PointLight disagree. The Nizwa probe at 21:00, the camera
+  3 m from a lamp, its 4 real lights on vs hidden (the pool lighting all 36 lamps): max 1-10 levels per lamp, the
+  rest where a PointLight leaks past the cut (it was up to 65 before `thick`).
+- **light2.** Pool lamps are lamp-shadow candidates at full power, and a PointLight on one is folded into it: the 4
+  shadow slots go to the most important lamps, real light or not, and the pool's loop reads them by position, so a
+  slot shadows the whole lamp. They scatter in the volumetric pass like the real ones.
+- **Leaks.** A lamp without a slot has no shadow: it lights every surface facing it within `range`, through walls.
+  `normal` (the wall's outward normal) and `back` (flame to wall face, m) stop it `soft` m (0.15) past `thick` m (0.4)
+  behind the wall face it hangs on: door and window reveals and arch soffits within `thick` keep the light a
+  PointLight gives them (the hand-off does not flip them), a wall at least `thick` + `soft` thick stays dark on its
+  far side. That removes the usual leak (the room or street behind that wall). Still leaking: through a second
+  wall or a floor between lamp and surface (a room across a lane narrower than `range`, the floor above), round
+  corners and piers; a lamp without `normal` leaks every way. Short ranges keep it local.
+- **Captures.** Pool lamps light the environment and probe captures like PointLights do (`captures: false` to skip).
+- **Real lights found.** The scene's PointLights are looked for again every 30 renders and before every still frame
+  (never by the clock); one counts only while it is visible and still in the scene. light2's slot for a pool lamp is
+  keyed by its place (or its `id`), so removing another lamp moves no shadow. An XR (array) camera takes the list
+  path, not the clusters (each eye draws its own viewport).
+  An orthographic camera loops over every lamp within `far` (correct, not culled).
+- **Why not deferred light volumes.** Mirage keeps no G-buffer: a box per lamp added after the opaque pass knows no
+  albedo, roughness or normal map (a dark door would glow like plaster) and would have to sit between the opaque and
+  transparent halves of the one scene render. In the materials the pool is the same light as a PointLight.
+- **Cost** (nizwa probe `tools/bench.mjs`, walk view, 1440 x 900, 21:00, Apple M4 Pro shared with other jobs; best
+  of 5 interleaved rounds per spot, so +-0.5 ms is noise): the 36 lanterns 0 to +0.9 ms over the 4 real lights alone
+  (forecourt 7.56 -> 8.43, wall 6.47 -> 6.80, tower foot 10.17 -> 10.11, far 5.22 -> 5.49); 336 lamps (300 scattered
+  over the fort, no walls: a town's density) +2.1 to +5.1 ms (9.89, 9.47, 15.23, 7.36). Binning 0.1-0.6 ms of CPU
+  when the camera moves; at 336 lamps some cells pass `perCell` (32) and drop their farthest lamps.
+- `world.lampPool`: `set(lamps)`, `add(lamp)`, `update(i, fields)`, `clear()`, `count`, `info` (`active`, `real`,
+  `indices`, `clipped`, `binMs`, `mode`). Off, nothing of this exists and frames are bit-identical to before.
+
 ## Ambient-only AO, auto exposure, dynamic resolution (opt-in)
 
 All three are off by default; off, frames are bit-identical to before.
@@ -142,6 +204,58 @@ All three are off by default; off, frames are bit-identical to before.
   probes. An app with its own frame cap sets `world.dynamicRes.cap` (fps) so the cap is not read as a slow GPU;
   @miragekit/play does this from `maxFps` and the power saver. `pipeline.w / h` stay the output size; the render size
   is `pipeline.rw / rh`.
+## Time-of-day grade (opt-in): `grade`
+
+`createWorldRenderer({ ..., grade: true })` (or an object: `{ strength: 0.7, golden: { saturation: 1.3 } }`). Off,
+the grade program is the plain one and a world renders bit-identical to before (hello-courtyard hero@golden,
+basin@12:00, pergola@21:00, gate@17:22: 0 px against the commit before it).
+
+- **What it does.** A look per hour, keyed by the sun's elevation: `night` (≤ −12°), `dusk` (−4°), `golden` (2–10°),
+  `noon` (≥ 25°), eased between (`GRADE_PRESETS`). A look has an exposure (EV), temperature and tint (added to the
+  white balance), saturation and contrast, `tonemapMix` (the AgX share of an ACES / AgX blend; null keeps
+  `post.tonemap`), display-referred split toning (`shadowTint`, `hiTint`), an sRGB black point (`black`), an S-curve
+  on luma (`curve`, hue kept), `punch` (the AgX branch steeper and more saturated: AgX-punchy), `clarity` (local
+  contrast against a 1/16-size local mean of its own), `highlightWarmth` (the bright end leans warm, as film's halation), a
+  display-referred RGB `lift` and a display `gamma`. The lamps tint the highlights as they come on (`lampTint` by
+  `light.lamp`). Ported from the Nizwa Golden Hour project's day-night grade and post (which descend from Golden Temple's);
+  its lens flare and screen-space god rays are `post.flare` / `post.godrays` (below).
+- **Night.** `lightAt`'s exposure adapts the eye up to 40x at night, which lifts the whole frame; `nightAdapt` (0.45)
+  takes back that share of it (in log: at 21:00 an exposure of 5 becomes 2.4). The lamps' gain follows the graded
+  exposure, so they stay as bright while the walls go dark; with auto exposure on, its target moves with it (it does
+  not undo the darker night). The adaptation follows the exposure in use, so `setTime(t, { ease: true })` eases it
+  in with the exposure. Paths that expose the frame themselves read `world.gradeLook`: the XR direct path applies its
+  exposure, white balance, saturation and contrast; the GLB / USDZ export takes its exposure out of the lamps' gain.
+- **Live.** `world.grade` (the settings; `strength` 0..1 mixes every term from neutral, the tone-map blend from
+  `post.tonemap`, so 0 is the world's own look) is read every frame;
+  `gradeAt(light, state, settings)` is the pure function behind it (`post.grade` carries the look to the pipeline, so
+  a host driving `Pipeline` itself can pass one).
+- **Cost** (Nizwa probe, 1440 x 900, Apple M4 Pro, GPU shared with other work, so ranges): the grade pass +0.04-0.1 ms
+  (0.14-0.2 ms plain); `clarity` draws a 1/16-size pass of its own (+0.07-0.3 ms) whenever it is above 0 (the bloom's
+  blur is not reused: it is wider and high-passed, so clarity would change with the bloom path). Walking frames, 8 spots x 2 runs interleaved: 10.33 -> 10.43 ms mean, inside the noise.
+- **Limits.** One set of looks for every view (no per-shot grade). The grade cannot make bounce light or a sky: on the
+  Nizwa probe at 17:00 the sunlit plaster comes within about 0-20 levels of Nizwa's per channel (it was 32-40 levels
+  short in red before), the shade stays greyer (no bounce) and the dusk sky stays Mirage's.
+## God rays and the sun's lens flare (opt-in): `post.godrays`, `post.flare`
+
+The two lens effects Golden Temple and Nizwa have, off by default (frames bit-identical to before); details,
+evidence and costs in `docs/post.md`.
+
+```js
+createWorldRenderer({ canvas, post: { godrays: 1, flare: 1 } });   // or ?godrays=1&flare=1 through postFromQuery
+```
+
+- **`post.godrays`** (1 = Nizwa-like): screen-space light shafts, the cheap alternative to light2's volumetric light.
+  The sky round the sun is blurred toward it at half resolution and shows only where something (a wall, a palm)
+  hides part of it, tinted by the sun's colour, fading with the air in front of each surface. With light2's
+  volumetric light marching the sun on the same frame, the god rays are weighted by `godraysVol` (0.35; 0 leaves the
+  shafts to light2). `godraysDecay` (0.965), `godraysThreshold` (0.3 x the sun's luminance).
+- **`post.flare`** (1 = Nizwa-like): veiling glare, six ghosts along the line from the sun through the centre and a
+  faint halo, when 16 depth taps over the sun's disc see the sky (a sun behind a wall or a frond leaves none).
+- Both scale with the sun's radiance at the ground (weaker and redder toward the horizon) and draw nothing at
+  night, below the horizon, with the sun behind the camera or under an orthographic camera. Stills stay
+  bit-identical run to run; moving frames ease them through a short history (no shimmer under TAA). Cost at
+  1280 x 720 with the sun in view: +0.19 ms (god rays), +0.0 ms (flare); at 2560 x 1440, +1.3 / +0.3 ms.
+
 ## Soft sun shadows (opt-in): `softShadows`
 
 `createWorldRenderer({ ..., softShadows: true })` (or an object: `{ sunAngle: 1.5 }`). Off, nothing is patched and
@@ -181,6 +295,53 @@ a world renders bit-identical to before.
   its penumbra is noisier per frame (the average converges). The blocker distance is a per-tap median, so
   overlapping casters at very different heights average to one penumbra (PCSS's usual approximation). Install
   before the first compile (as light2).
+
+## The dusk sky (opt-in): `sky: { dusk }`
+
+`createWorldRenderer({ ..., sky: { dusk: true } })` (or `{ dusk: { haze: 2.5, night: 0.5, airglow: 1, cover: 0.5 } }`).
+Off, the sky's shaders are the same text as before and every frame is bit-identical. Made for the hours the default
+sky is weakest at: after sunset it is a flat bright blue with a hard horizon, black below it where no ground
+reaches.
+
+- **Air** (baked into the sky's direction tables per `setTime`, so no per-pixel cost): the aerosol x `haze` (a
+  paler, softer horizon by day, a wide warm glow round a low Sun or Moon); multiple scattering lit by the light
+  that reaches each point just above its own elevation (reddened at sunset, gone in Earth's shadow) plus a quarter
+  of the old day-blue term. Day skies change little; twilight gets a warm horizon under the set Sun, a blue-grey
+  Earth's shadow and a pink band above it, then a blue hour, and is darker than before (about a third from 2° below
+  the horizon on: the image-based light follows, so a scene at dusk is darker too).
+- **Night**: the airglow brightens toward the horizon (it shines from a shell ~90 km up). The dome as seen is x
+  `night` once the Sun is 10° down (ramping from 2°): a moonlit sky reads as night instead of a day sky at a high
+  exposure. Environment captures keep the dome as lit, so the light the night sky gives is unchanged.
+- **Below the horizon**, where no ground reaches: the horizon's air, then what the world's haze makes of far
+  ground (fog.js's in-scatter at infinite distance, colour and glow toward the light), so the far edge of a ground
+  plane meets the sky without a black band.
+- **Clouds**: altocumulus (coverage patches stretched along the wind, puffy cells of two cell-noise scales),
+  self-shadowed by four taps toward the light, forward / back scattering, powder and a silver lining; lit by the Sun,
+  by the Moon once the Sun is 4° down, thinner and sky-lit without sunlight. `cover` (0.5) applies when the world's
+  `clouds` is not given; they drift with the scene clock as before (still frames stay bit-identical).
+- **Cost** (nizwa-probe, 1440 x 900, one sub-frame + TAA, Apple M4 Pro shared with other jobs, off and on interleaved,
+  3 rounds): the clouds are the only per-pixel part, +0.2–0.4 ms (min of the rounds) with the sky filling the frame,
+  within the noise on a street view; `setTime` (the table bake) 0.34 -> 0.36 ms. Load: one more sky program.
+- Techniques (the altocumulus cells, the night cloud look, the below-horizon fill) ported from the author's own
+  Nizwa engine; the probe that asked for it: `probes/nizwa-probe` (`?sky=dusk`), hello-courtyard `?sky=dusk`.
+## Bounce light (opt-in, experimental): `lighting: { bounce }`
+
+`createWorldRenderer({ ..., lighting: { bounce: true } })` (the box is the `shadow` volume in x / z and the built
+heights in y) or `{ bounce: { min, max, spacing: 2, layers: 8, curve: 2, strength: 1 } }`. Warm light from sunlit
+walls and ground into the shade beside them, and the sky occlusion of lanes and courts, as a factor on the lit
+materials' image-based diffuse light: local probe light / the light of a probe at `envProbe`, so the world's
+calibrated level stays and only the local variation is added. The probes (2 m apart by default) are gathered on the
+GPU from a height field of the scene, drawn once from above with its own materials (albedo and height), not from a
+cube render per probe: Nizwa Fort (1.6 M triangles, 42,240 probes) prepares in about 10 ms of drawing and 30-40 ms
+of baking, against 51 s for `gi`. Re-baked with every recapture of the image-based light: at once for a still
+(repeatable), over ~30 frames and eased for a running clock. Neither the height field nor the environment capture
+sees the last bake (no feedback), nor the ambient volumes (grid path included); rays leaving the map see open
+ground. Re-capturing at the same time repeats the image within a few levels (the capture's own bounce, as without
+`bounce`). Without `bounce` nothing of it is built and
+stills are bit-identical. Limits: one height per (x, z), so under an arch, a roof or a floor it leaves the light as it
+is (ambient volumes handle rooms); no local lamps; not together with `gi` over the same area.
+`world.lighting.bounce.info` / `.strength` / `.bake()`; settings `BOUNCE_DEFAULTS`; details and measurements in
+[docs/lighting.md](../../docs/lighting.md).
 
 ## Materials: `world.mat`
 
@@ -418,7 +579,7 @@ const up = createUploadBudget(world.renderer, { bytes: 8 << 20 }).add(tex.textur
 ## Also exported
 
 `skyAt(date, place)`, `placeDate(day, time, tzHours)`, `placeClock(date, tzHours)` (astronomy, pure JS);
-`skyState`, `lightAt` (pure light model); `transmit`, `scatter`, `skyLightAt` (the atmosphere on the CPU);
+`skyState`, `lightAt` (pure light model); `GRADE_PRESETS`, `gradeConfig`, `gradeAt` (the time-of-day grade); `transmit`, `scatter`, `skyLightAt` (the atmosphere on the CPU);
 `createSky`, `createStars`, `Pipeline`, `installFog`, `LIGHT2_DEFAULTS`, `light2Config`, `installLight2`, `addLampSource`, `LampShadows`, `SOFTSHADOW_DEFAULTS`, `softShadowConfig`, `installSoftShadows`, `createLod`, `deviceProfile`, `createEnvLight`, `TEX_GLSL`,
 `geom.*`, `NOISE_GLSL`.
 `npm test -w @miragekit/core` runs `check.mjs`.

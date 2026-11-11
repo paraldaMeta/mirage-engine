@@ -26,7 +26,7 @@ const modules = [
   { name: 'walls', build(ctx) { order.push('walls'); ctx.root.add(new THREE.Mesh(new THREE.BoxGeometry())); return { r: ctx.R.float() }; }, anchors: (ctx, b) => ({ lamps: [{ pos: [1, 2, 3], rotY: 0 }] }) },
   { name: 'broken', build(ctx) { ctx.root.add(new THREE.Mesh(new THREE.BoxGeometry())); ctx.onUpdate(() => {}); throw new Error('deliberate'); }, anchors: { lamps: [{ pos: [9, 9, 9] }] } },
   { name: 'props', build(ctx) { order.push('props'); }, finalize(ctx) { order.push('props:finalize'); for (const _ of ctx.anchors.lamps) ctx.root.add(new THREE.PointLight()); } },
-  { name: 'room', build() { return {}; }, ambientVolumes: [{ min: [0, 0, 0], max: [1, 1, 1] }] },
+  { name: 'room', build() { return {}; }, ambientVolumes: [{ min: [0, 0, 0], max: [1, 1, 1], tint: [0.9, 0.8, 0.7] }] },
 ];
 const out = await buildWorld(world, { plan, modules, log: quiet });
 ok(order.join() === 'walls,props,props:finalize', 'order: ' + order.join());
@@ -34,7 +34,7 @@ ok(out.report.failed.length === 1 && out.report.failed[0].name === 'broken', 'fa
 ok(!scene.children.some((c) => c.name === 'broken') && updates.length === 0, 'failed module dropped with its updates');
 ok(out.anchors.lamps.length === 1 && out.anchors.lamps[0].from === 'walls', 'anchors merged (not from the failed module)');
 ok(scene.getObjectByName('props:finalize').children.length === 1, 'finalize consumed anchors');
-ok(world.vols.length === 1 && world.vols[0].from === 'room', 'ambient volumes');
+ok(world.vols.length === 1 && world.vols[0].from === 'room' && world.vols[0].tint[2] === 0.7, 'ambient volumes (a tint passes through)');
 ok(out.modules.walls.r === rng('t/walls').float(), 'per-module rng');
 
 // A consumer may precede its producers. Failed or empty offers cannot satisfy it.
@@ -91,6 +91,7 @@ ok(out.modules.walls.r === rng('t/walls').float(), 'per-module rng');
       null,
       { name: 'empty', build(ctx) { ctx.root.add(new THREE.Mesh(new THREE.BufferGeometry())); } },
       { name: 'badvol', build() {}, ambientVolumes: [{ factor: 0.2 }] },
+      { name: 'badtint', build() {}, ambientVolumes: [{ min: [0, 0, 0], max: [1, 1, 1], tint: [1, 1] }] },
       { name: 'hut', build(ctx) { ctx.root.add(new THREE.Mesh(geo)); }, ambientVolumes: [{ min: [0, 0, 0], max: [1, 1, 1] }], finalize() { throw new Error('hut fails'); } },
       { name: 'box', build(ctx) { ctx.root.add(new THREE.Mesh(new THREE.BoxGeometry())); ctx.collider(new THREE.Mesh(new THREE.BoxGeometry())); } },
       { name: 'box', build(ctx) { ctx.root.add(new THREE.Mesh(new THREE.BoxGeometry())); } },
@@ -99,7 +100,7 @@ ok(out.modules.walls.r === rng('t/walls').float(), 'per-module rng');
   } catch (e) { error = e; }
   ok(!error, 'build survives a null module, an empty mesh and a malformed volume (' + (error && error.message) + ')');
   const failed = out3.report.failed.map((f) => `${f.name}:${f.phase}`).sort().join();
-  ok(failed === 'badvol:build,box:build,hut:finalize,null:build', 'failures: ' + failed);
+  ok(failed === 'badtint:build,badvol:build,box:build,hut:finalize,null:build', 'failures: ' + failed);
   ok(!(w3.vols || []).some((v) => v.from === 'hut'), "a dropped module's ambient volumes are not applied");
   ok(disposed === 1, "a dropped module's geometry is released");
   const rows = Object.fromEntries(out3.report.modules.map((r) => [r.name + (r.ok ? '' : '!'), r.tris]));

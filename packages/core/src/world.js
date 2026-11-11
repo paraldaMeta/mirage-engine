@@ -1,10 +1,10 @@
 // Mirage original code. Techniques informed by Golden Temple by Leon Lin (MIT) — see NOTICE.
 import * as THREE from 'three';
-import { createEnv } from './env.js';
+import { createEnv, writeAmbientVolumes, disposeAmbient } from './env.js';
 import { installFog, FOG, retainChunks, releaseChunks } from './fog.js';
-import { createSky, createSkyUniforms, createSkyLut } from './sky.js';
+import { createSky, createSkyUniforms, createSkyLut, skyDuskConfig } from './sky.js';
 import { createStars } from './stars.js';
-import { skyState, lightAt } from './daynight.js';
+import { skyState, lightAt, gradeConfig, gradeAt } from './daynight.js';
 import { Pipeline, DEFAULT_POST } from './post.js';
 import { installLight2, light2Config } from './light2.js';
 import { installSoftShadows, softShadowConfig, softShadowUniforms, softShadowsIdle } from './softshadow.js';
@@ -16,6 +16,7 @@ import { byteTargets } from './byte-targets.js';
 import * as geom from './geom.js';
 import { rng } from './rng.js';
 import { createLighting } from './lighting.js';
+import { lampPoolConfig, createLampPool } from './lamppool.js';
 
 // ---------------------------------------------------------------------------
 // createWorldRenderer(config): one world = renderer + scene + sky + key light + fog + pipeline + day/night,
@@ -96,9 +97,10 @@ export function createWorldRenderer(config = {}) {
   scene.environmentIntensity = envIntensity;
   scene.fog = new THREE.FogExp2(0x8899aa, fogCfg.density);   // FogExp2 switches on Mirage's aerial perspective
   const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 2000);
-  const skyU = createSkyUniforms();
+  const dusk = skyDuskConfig(config.sky);   // the dusk sky (opt-in, sky.js): twilight, night, haze, altocumulus
+  const skyU = createSkyUniforms(dusk ? { dusk } : undefined);
   const skyLut = createSkyLut(renderer, skyU);   // the sky's air, baked per setTime instead of marched per pixel
-  skyU.uCloudCover.value = clouds;
+  skyU.uCloudCover.value = dusk && config.clouds === undefined ? dusk.cover : clouds;
   const sky = createSky(skyU);
   const stars = createStars(skyU);
   scene.add(sky, stars);
@@ -109,11 +111,19 @@ export function createWorldRenderer(config = {}) {
   sun.shadow.bias = -0.0002; sun.shadow.normalBias = 0.02; sun.shadow.radius = 1;
   scene.add(sun, sun.target);
   // realtime lighting features (opt-in, lighting.js): cascades, probe GI, reflection probes, clustered local lights
-  const lighting = config.lighting ? createLighting({ renderer, scene, sun, G, keyDir, quality, Q, soft: sscfg, envProbe, capture: lightCapture, skyVisible: (v) => { sky.visible = v; } }, config.lighting) : null;
+  const lighting = config.lighting ? createLighting({ renderer, scene, sun, G, keyDir, quality, Q, soft: sscfg, envProbe, shadow, msaa: device.msaa, capture: lightCapture, skyVisible: (v) => { sky.visible = v; } }, config.lighting) : null;
+  // the lamp pool (opt-in, lamppool.js): every lamp lights its surroundings, beyond the few real PointLights
+  const lpcfg = lampPoolConfig(config.lampPool);
+  const lampPool = lpcfg ? createLampPool({ renderer, scene, G, injector: lighting && lighting.injector, light2: l2cfg }, lpcfg) : null;
 
   const pipeline = new Pipeline(renderer, { width: width * pixelRatio, height: height * pixelRatio, msaa: device.msaa, aoSamples: Q.aoSamples });
   if (l2cfg) pipeline.useLight2(l2cfg, { sun, G });
+  pipeline.lensSun = { dir: skyU.uSunDir.value, G };   // post.godrays / post.flare (postfx.js): where the sun is, how bright
   if (lighting && lighting.screen) pipeline.screen = lighting.screen;
+  // the time-of-day grade (opt-in, daynight.js gradeConfig / gradeAt): the hour's look rides on P.grade
+  const grade = gradeConfig(config.grade);
+  if (grade) pipeline.useGrade();
+  let look = null;
   // dynamic resolution (opt-in, moving frames only): the pipeline renders at resScale x the canvas and the grade pass
   // stretches it; still frames always render at full size, so they stay bit-identical
   const dynRes = dynamicResConfig(config.dynamicRes);
@@ -174,7 +184,19 @@ export function createWorldRenderer(config = {}) {
   let taaValid = false, taaK = 0, lastMoving = 0, seenWet = wetVersion();
   const prevVP = new THREE.Matrix4(), curVP = new THREE.Matrix4(), invVP = new THREE.Matrix4();
 
-  const setLampGain = () => { G.uLampGain.value = light.lamp * Math.pow(exposure, -0.9); };
+  // with the grade, its exposure counts too: a darker night keeps its lamps as bright
+  const setLampGain = () => { G.uLampGain.value = light.lamp * Math.pow(look ? exposure * look.exposure : exposure, -0.9); };
+  // the frame's post settings: the world's post, its exposure and white balance, and the grade's look (when on)
+  function framePost() {
+    const P = { ...post, exposure: post.exposure * exposure, temperature: post.temperature + light.warmth };
+    if (P.autoExposure > 0) P.aeKey = post.aeKey * Math.pow(2, -(post.aeNight || 0) * Math.min(1, Math.max(0, light.lamp)));
+    if (grade) {
+      look = gradeAt(light, state, grade, exposure); setLampGain();
+      P.exposure *= look.exposure; P.aeKey *= look.exposure;   // auto exposure aims as much lower: it does not undo the night
+      P.temperature += look.temperature; P.saturation *= look.saturation; P.contrast *= look.contrast; P.grade = look;
+    }
+    return P;
+  }
 
   /** time: see README. { ease: true } for a running clock: exposure adapts over ~1 s, the image-based light is
    *  recaptured only when the light changed enough and cross-fades in tick(dt). Without it everything snaps. */
@@ -197,6 +219,7 @@ export function createWorldRenderer(config = {}) {
     skyLut.bake();
     G.uLamp.value = L.lamp; G.uSkyLight.value = L.skyLight; G.uNight.value = L.night;
     expTarget = L.exposure;
+    if (grade) look = gradeAt(L, state, grade, ease ? exposure : expTarget);
     if (!ease) { exposure = expTarget; envState = 'instant'; }
     else if (envState !== 'instant') {
       const moved = keyDir.angleTo(lastCap.dir) > 0.5 * Math.PI / 180;
@@ -267,10 +290,15 @@ export function createWorldRenderer(config = {}) {
     // objects marked userData.mgNoCapture (the rain kit's streaks) stay out of the image-based light
     const hidden = [];
     scene.traverse((o) => { if (o.userData.mgNoCapture && o.visible) { o.visible = false; hidden.push(o); } });
-    for (let pass = 0; pass < (instant ? 2 : 1); pass++) {
-      envLight.capture(scene, envProbe, { instant });
-      scene.environment = envLight.texture;
-    }
+    // bounce light (lighting.bounce) stays out of the capture: the bake divides by it (a capture holding the last
+    // bake fed back, and repeated setTime stills drifted)
+    const bnBack = lighting && lighting.bounce ? lighting.bounce.suspend() : null;
+    try {
+      for (let pass = 0; pass < (instant ? 2 : 1); pass++) {
+        envLight.capture(scene, envProbe, { instant });
+        scene.environment = envLight.texture;
+      }
+    } finally { if (bnBack) bnBack(); }
     stars.visible = true; skyU.uCapture.value = 0;
     for (const o of hidden) o.visible = true;
     softShadowsIdle();
@@ -286,7 +314,9 @@ export function createWorldRenderer(config = {}) {
     const hidden = [], sm = renderer.shadowMap, auto = sm.autoUpdate;
     scene.traverse((o) => { if ((o.userData.mgNoCapture || (o.userData.mgDynamic && o.parent === scene)) && o.visible) { o.visible = false; hidden.push(o); } });
     stars.visible = false; skyU.uCapture.value = 1; sm.autoUpdate = false; sm.needsUpdate = true;
+    const bnBack = lighting && lighting.bounce ? lighting.bounce.suspend() : null;
     try { return fn(); } finally {
+      if (bnBack) bnBack();
       stars.visible = true; skyU.uCapture.value = 0; sm.autoUpdate = auto;
       for (const o of hidden) o.visible = true;
       softShadowsIdle();
@@ -314,7 +344,12 @@ export function createWorldRenderer(config = {}) {
       await compile();
       scene.environment = null;
     }
-    if (lighting) { lighting.adopt(); await compile(); }
+    if (lighting) lighting.adopt();
+    if (lampPool) lampPool.adopt();
+    if (lighting || lampPool) await compile();
+    // the lighting parts act on the image-based light: their programs are the ones WITH the environment (compiled
+    // here in parallel; without this every lit material of a big world was linked one by one in the first capture)
+    if (lighting) { scene.environment = envLight.texture; await compile(); scene.environment = null; }
     captureEnv(true);
     if (warm) return { warmMs: warmUp() };
   }
@@ -359,10 +394,10 @@ export function createWorldRenderer(config = {}) {
     let spp = opts.spp ?? config.spp ?? Q.spp;
     const taa = !!opts.taa;
     if (taa) spp = 1; else taaValid = false;
+    if (!taa && lampPool) lampPool.rescan();   // a still frame sees the PointLights the scene has now
     const dt = opts.dt ?? 1 / 60, shutter = opts.shutter ?? (reduced ? 0 : 0.5);
     const sh = opts.shadow || shadow;
-    const P = { ...post, exposure: post.exposure * exposure, temperature: post.temperature + light.warmth };
-    if (P.autoExposure > 0) P.aeKey = post.aeKey * Math.pow(2, -(post.aeNight || 0) * Math.min(1, Math.max(0, light.lamp)));
+    const P = framePost();
     const now = performance.now();
     // the seconds since the last moving frame, for auto exposure (still frames are metered on their own)
     const frameDt = taa ? (lastMoving ? Math.min((now - lastMoving) / 1000, 0.25) : 1 / 60) : 0;
@@ -498,8 +533,7 @@ export function createWorldRenderer(config = {}) {
     calm(() => {
       if (!light) setTime(time);
       if (envState === 'instant') { const xe = renderer.xr.enabled; renderer.xr.enabled = false; try { captureEnv(true); } finally { renderer.xr.enabled = xe; } }
-      const P = { ...post, exposure: post.exposure * exposure, temperature: post.temperature + light.warmth };
-      if (P.autoExposure > 0) P.aeKey = post.aeKey * Math.pow(2, -(post.aeNight || 0) * Math.min(1, Math.max(0, light.lamp)));
+      const P = framePost();
       writeFog();
       if (opts.fog !== undefined) scene.fog.density *= opts.fog;
       G.uTime.value = T; G.uFrame.value = 0;
@@ -512,19 +546,15 @@ export function createWorldRenderer(config = {}) {
     });
   }
 
-  /** Interiors: [{ min: [x,y,z], max: [x,y,z], factor = 0.3, soft = 0.6 }] scale the image-based light inside
-   *  each box (up to 8). Recaptures the environment, so call it before prepare() or after building. */
-  function setAmbientVolumes(list = []) {
-    const n = Math.min(list.length, G.uAmbLo.value.length);
-    for (let i = 0; i < n; i++) {
-      const v = list[i];
-      G.uAmbLo.value[i].set(v.min[0], v.min[1], v.min[2], v.soft ?? 0.6);
-      G.uAmbHi.value[i].set(v.max[0], v.max[1], v.max[2], v.factor ?? 0.3);
-    }
-    const was = G.uAmbN.value > 0;
-    G.uAmbN.value = n;
-    if (was !== n > 0) scene.traverse((o) => { for (const m of [].concat(o.material || [])) if (m.userData.hooks) m.needsUpdate = true; });
+  /** Interiors: [{ min: [x,y,z], max: [x,y,z], factor = 0.3, soft = 0.6, tint = [1, 1, 1] }] scale the image-based
+   *  light inside each box (by factor x tint per channel). Up to 8 untinted boxes take the uniform path, more or
+   *  tinted ones a grid (env.js writeAmbientVolumes; { grid: true } forces it). Recompiles the patched materials when
+   *  the path changes and recaptures the environment, so call it before prepare() or after building. */
+  function setAmbientVolumes(list = [], options = {}) {
+    const { recompile, info } = writeAmbientVolumes(G, list, options);
+    if (recompile) scene.traverse((o) => { for (const m of [].concat(o.material || [])) if (m.userData.hooks) m.needsUpdate = true; });
     envState = 'instant';
+    return info;
   }
 
   function resize(wd, ht) {
@@ -541,7 +571,9 @@ export function createWorldRenderer(config = {}) {
     if (disposed) return;
     disposed = true;
     updates = [];   // a disposed world holds no callback (and what they close over) alive
+    if (lampPool) lampPool.dispose();   // before lighting: both chain scene.onBeforeRender
     pipeline.dispose(); envLight.dispose(); skyLut.dispose(); if (lighting) lighting.dispose();
+    disposeAmbient(G);
     const mats = new Set();
     scene.traverse((o) => { o.geometry && o.geometry.dispose(); for (const m of [].concat(o.material || [])) mats.add(m); });
     for (const m of mats) m.dispose();
@@ -565,12 +597,15 @@ export function createWorldRenderer(config = {}) {
     return () => { if (on) { on = false; const i = updates.lastIndexOf(fn); if (i >= 0) updates = updates.filter((_, k) => k !== i); } };
   } };
   return {
-    renderer, scene, camera, sun, sky, stars, pipeline, ctx, G, keyDir, mat, geom, rng, post, device, light2: l2cfg, dynamicRes: dynRes, softShadows: sscfg, lighting,
+    renderer, scene, camera, sun, sky, stars, pipeline, ctx, G, keyDir, mat, geom, rng, post, device, light2: l2cfg, grade, dynamicRes: dynRes, softShadows: sscfg, lighting, lampPool,
     /** the moving frames' render scale (1 = the canvas; below 1 only with `dynamicRes`) */
     get resolutionScale() { return resScale; },
     /** forget the adapted exposure (auto exposure): the next frame is metered on its own, e.g. after a teleport */
     resetExposure: () => pipeline.resetExposure(),
     get light() { return light; }, get state() { return state; }, get exposure() { return exposure; },
+    /** the time-of-day grade's current look (daynight.js gradeAt), null without `grade`: paths that expose the frame
+     *  themselves (XR direct, export) apply its exposure, or the lamps (whose gain counts it) come out too bright */
+    get gradeLook() { return look; },
     /** reduced motion in use ({ sway, rain }), null when off; set it with setReducedMotion(true | { sway, rain } | false) */
     get reducedMotion() { return reduced; },
     setReducedMotion, renderTransparent,

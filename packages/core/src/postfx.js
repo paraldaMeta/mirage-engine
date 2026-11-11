@@ -14,9 +14,10 @@ import * as THREE from 'three';
 //   scene -> velocity (camera motion from depth, then moving / skinned objects drawn over it)
 //         -> taa2: reproject by velocity, clip in YCoCg, write a full-size frame (the temporal upscaler when the
 //            scene was rendered smaller: post.upscale, or dynamic resolution)
-//         -> bokeh (lens blur from depth) -> motionBlur (along velocity) -> bloomPyramid -> grade (+ lut, chroma)
+//         -> bokeh (lens blur from depth) -> motionBlur (along velocity) -> rcas -> godrays -> bloomPyramid -> flare
+//         -> grade (+ lut, chroma)
 // Stills (spp > 1) never use the temporal passes: they integrate lens and shutter by accumulation and stay
-// bit-identical run to run; bloomPyramid, lut and chroma apply to both.
+// bit-identical run to run; godrays, bloomPyramid, flare, lut and chroma apply to both.
 // ---------------------------------------------------------------------------
 
 /** Defaults of the opt-in passes (spread into DEFAULT_POST). 0 / null = off. */
@@ -32,6 +33,11 @@ export const FX_DEFAULTS = {
   lutStrength: 1,
   chroma: 0,         // chromatic aberration: the red / blue shift at the frame corner, in % of the frame's half diagonal
   rcas: 0,           // 0..1: contrast-adaptive sharpening of moving frames after the temporal resolve / upscaler (0 = off)
+  godrays: 0,        // screen-space light shafts from the sun (the bright sky round it blurred toward it), strength; 0 = off
+  godraysDecay: 0.965,   // fall-off per tap of the radial blur (24 taps a pass, 3 passes)
+  godraysThreshold: 0.3, // sky dimmer than this x the sun's (key light's) luminance casts weaker shafts (clouds, the sky away from the sun)
+  godraysVol: 0.35,  // weight of the god rays while light2's volumetric light marches the sun's own shafts (0 = leave them to it)
+  flare: 0,          // the sun's lens flare (veiling glare, ghosts, halo), tested against the depth buffer, strength; 0 = off
 };
 
 const VS = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }';
@@ -94,10 +100,11 @@ export function lutTexture({ size, data }) {
 }
 
 /** URL flags -> post settings (only the keys present): ?taa2=1&upscale=0.67&mb=0.5&bokeh=1&lens=0.03&focus=6&bloom=0.15
- *  &bloom2=1&chroma=0.6&lut=warm|cool|bleach. Q: a URLSearchParams. */
+ *  &bloom2=1&chroma=0.6&lut=warm|cool|bleach&godrays=0.5&flare=1. Q: a URLSearchParams. */
 export function postFromQuery(Q) {
   const o = {}, num = (k, to = k) => { if (Q.has(k) && Number.isFinite(+Q.get(k))) o[to] = +Q.get(k); };
   num('taa2'); num('upscale'); num('mb', 'motionBlur'); num('bokeh'); num('lens', 'dof'); num('focus'); num('bloom'); num('bloom2', 'bloomPyramid'); num('chroma');
+  num('godrays'); num('flare');
   num('ssr', 'ssr2'); num('ssrrough', 'ssrRough'); num('ssgi'); num('girange', 'ssgiRange'); num('girays', 'ssgiRays'); num('contact'); num('rcas');   // screen.js (lighting.screen)
   const L = { warm: ([r, g, b]) => [r ** 0.92, g, b ** 1.12], cool: ([r, g, b]) => [r ** 1.1, g, b ** 0.9],
     bleach: ([r, g, b]) => { const l = 0.2126 * r + 0.7152 * g + 0.0722 * b, s = (x) => { const m = l + (x - l) * 0.55; return m * m * (3 - 2 * m); }; return [s(r), s(g), s(b)]; } }[Q.get('lut')];
@@ -168,7 +175,7 @@ export class PostFX {
   }
   fit() { this.valid = this.valid && this.pp.w === this._w && this.pp.h === this._h; this._w = this.pp.w; this._h = this.pp.h; }
   /** Forget the history (a cut, a teleport, a resize). */
-  reset() { this.valid = false; }
+  reset() { this.valid = false; this.hist = {}; }
 
   /** The next sub-pixel offset of the projection, in render pixels (-0.5..0.5): Halton(2, 3), a longer sequence
    *  the smaller the scene is rendered (every output pixel needs its own samples). */
@@ -459,6 +466,181 @@ export class PostFX {
     this._apply(m);
   }
 
+  // The sun on screen for the lens passes (godrays, flare), or null when there is none to draw: no sun given
+  // (pp.lensSun = { dir, G }: the world renderer's sun direction and uniforms), the key light is the moon or off
+  // (night, below the horizon), the camera is orthographic or faces away. uv: the sun's direction projected (it
+  // may lie off screen); front: the cosine between it and the view axis; col: the key light's radiance (the sun
+  // through the air: dims and reddens toward the horizon); lk: its luminance; rpx: the sun disc's radius in pixels.
+  _sun(camera) {
+    const L = this.pp.lensSun;
+    if (!L || !camera || !camera.isPerspectiveCamera) return null;
+    const kd = L.G.uKeyDir.value, col = L.G.uKeyColor.value, lk = 0.2126 * col.x + 0.7152 * col.y + 0.0722 * col.z;
+    if (!(lk > 1e-4) || kd.dot(L.dir) < 0.999) return null;
+    const v = (this._sv || (this._sv = new THREE.Vector3())).copy(L.dir).transformDirection(camera.matrixWorldInverse);
+    const front = -v.z;
+    if (front < 0.05) return null;
+    const c = (this._sc || (this._sc = new THREE.Vector4())).set(v.x, v.y, v.z, 0).applyMatrix4(camera.projectionMatrix);
+    const e5 = camera.projectionMatrix.elements[5];
+    return { uv: [c.x / c.w * 0.5 + 0.5, c.y / c.w * 0.5 + 0.5], front, col, lk, rpx: 0.0047 * 0.5 * this.pp.h * e5 };   // 0.0047: sky.js's disc
+  }
+
+  // added into pp.accRT (the frame before the grade), its alpha (the weight sum) left alone
+  _addMat(name, fs, uniforms) {
+    return this.mat(name, () => quadMat(fs, uniforms, { transparent: true, blending: THREE.CustomBlending, blendEquation: THREE.AddEquation,
+      blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor, blendSrcAlpha: THREE.ZeroFactor, blendDstAlpha: THREE.OneFactor }));
+  }
+
+  // Moving frames only: ease a lens buffer (src) toward this frame through a history of its own, the history shifted by
+  // how far the sun moved on screen when `follow` (the shafts hang on the sun). The depth the lens passes test is the
+  // jittered sub-frame's, and they run after the temporal resolve, so without this a palm frond's edge would make
+  // them shimmer. A still (live false: returns src, draws nothing), a resize or a jump of the sun starts again.
+  _ease(name, src, uv, live, alpha, follow) {
+    const e = (this.hist || (this.hist = {}))[name] || (this.hist[name] = { i: 0, valid: false, uv: [0, 0] });
+    if (!live) { e.valid = false; return src; }
+    const w = src.width, h = src.height, nf = src.texture.minFilter === THREE.NearestFilter ? { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter } : {};
+    const prev = this.rt(name + (e.i ? 1 : 0), w, h, nf), next = this.rt(name + (e.i ? 0 : 1), w, h, nf);
+    const dx = uv[0] - e.uv[0], dy = uv[1] - e.uv[1];
+    const ok = e.valid && e.w === w && e.h === h && Math.abs(dx) + Math.abs(dy) < 0.1;
+    const m = this.mat('ease', () => quadMat(/* glsl */ `
+      varying vec2 vUv; uniform sampler2D tCur, tHist; uniform vec2 uShift; uniform float uA;
+      void main(){
+        vec4 c = texture2D(tCur, vUv);
+        vec2 q = vUv - uShift;
+        bool off = uA >= 1.0 || any(lessThan(q, vec2(0.0))) || any(greaterThan(q, vec2(1.0)));
+        gl_FragColor = off ? c : mix(texture2D(tHist, q), c, uA);
+      }`, { tCur: { value: null }, tHist: { value: null }, uShift: { value: new THREE.Vector2() }, uA: { value: 1 } }));
+    const u = m.uniforms;
+    u.tCur.value = src.texture; u.tHist.value = prev.texture; u.uShift.value.set(follow ? dx : 0, follow ? dy : 0); u.uA.value = ok ? alpha : 1;
+    this.pp._draw(m, next);
+    Object.assign(e, { i: e.i ^ 1, valid: true, w, h, uv: [uv[0], uv[1]] });
+    return next;
+  }
+
+  /** godrays: screen-space light shafts. At half resolution, a mask of the sky (depth at the far plane) round the
+   *  sun's screen position (a Gaussian kernel, 1/e at a sixth of the frame height; sky dimmer than
+   *  P.godraysThreshold x the sun's luminance counts less: clouds, the dark sky away from the sun) is blurred along
+   *  the line to the sun in three passes (24 taps each, decaying by P.godraysDecay), with the same blur of the
+   *  plain sky mask and of the kernel alone. Their ratio says how much of the sky round the sun something hides
+   *  along a pixel's line to it: shafts only show there (an open sky keeps the glow its own aureole gives it, as
+   *  light2's volumetric light does). The result is tinted by the key light's radiance (the sun through the air),
+   *  faded with the distance from the sun and by the air in front of the surface (1 - exp(-z / 20 m): a near wall
+   *  gets little, the sky all), and added before the bloom. The start of each blur is dithered by a per-pixel
+   *  pattern stepped by `jk` (the sub-frame / TAA index: constant for a still, so stills stay bit-identical); moving
+   *  frames (live) ease the result through a history that follows the sun. vol: light2's volumetric light marched the
+   *  sun this frame (its own shafts are there already): the god rays are weighted by P.godraysVol instead of 1. */
+  godrays(P, camera, jk = 0, vol = false, live = false) {
+    const s = this._sun(camera);
+    if (!s) return;
+    const k = P.godrays * (vol ? Math.max(0, P.godraysVol ?? 0.35) : 1) * THREE.MathUtils.smoothstep(s.front, 0.05, 0.3);
+    if (!(k > 0)) return;
+    const pp = this.pp, hw = Math.ceil(pp.w / 2), hh = Math.ceil(pp.h / 2), A = this.rt('grA', hw, hh), B = this.rt('grB', hw, hh);
+    const mask = this.mat('grMask', () => quadMat(/* glsl */ `
+      varying vec2 vUv; uniform sampler2D tColor, tDepth; uniform vec2 uSun, uPx, uNF; uniform float uAspect, uK;
+      ${SUB}
+      float zf;
+      // x: the bright sky, y: the sky (whatever its brightness)
+      vec2 tap(vec2 q){
+        float z = texS(tDepth, q).x; zf = max(zf, z);
+        if (z < 1.0) return vec2(0.0);   // something stands in front of the sky
+        return vec2(min(dot(min(texture2D(tColor, q).rgb, vec3(32000.0)), vec3(0.2126, 0.7152, 0.0722)) * uK, 1.0), 1.0);
+      }
+      void main(){
+        // the four output pixels under this half-size one
+        zf = 0.0;
+        vec2 m = tap(vUv + vec2(-0.5, -0.5) * uPx) + tap(vUv + vec2(0.5, -0.5) * uPx) + tap(vUv + vec2(-0.5, 0.5) * uPx) + tap(vUv + vec2(0.5, 0.5) * uPx);
+        vec2 d = (vUv - uSun) * vec2(uAspect, 1.0);
+        float g = exp(-40.0 * dot(d, d));
+        // w: how much air lies in front of the farthest of the four (the shafts hang in it: a near wall gets little of
+        // them, the sky all; the farthest, so a thin frond counts as the sky behind it)
+        float air = zf >= 1.0 ? 1.0 : 1.0 - exp(-uNF.x * uNF.y / (uNF.y - zf * (uNF.y - uNF.x)) / 20.0);
+        gl_FragColor = vec4(0.25 * m * g, g, air);   // z: the kernel alone (an open sky everywhere)
+      }`, { tColor: { value: null }, tDepth: { value: null }, uSun: { value: new THREE.Vector2() }, uPx: { value: new THREE.Vector2() }, uNF: { value: new THREE.Vector2() }, uAspect: { value: 1 }, uK: { value: 1 }, ...pp.sub }));
+    const blur = this.mat('grBlur', () => quadMat(/* glsl */ `
+      varying vec2 vUv; uniform sampler2D tIn; uniform vec2 uSun; uniform float uStep, uDecay, uJ;
+      ${IGN}
+      void main(){
+        vec2 dl = (uSun - vUv) * uStep;
+        vec2 uv = vUv + dl * fract(ign(gl_FragCoord.xy) + uJ * 0.618034);
+        vec3 s = vec3(0.0); float w = 1.0, ws = 0.0;
+        for (int i = 0; i < 24; i++){ s += texture2D(tIn, uv).rgb * w; ws += w; w *= uDecay; uv += dl; }
+        gl_FragColor = vec4(s / ws, texture2D(tIn, vUv).a);   // the air is the pixel's own, not blurred
+      }`, { tIn: { value: null }, uSun: { value: new THREE.Vector2() }, uStep: { value: 0.02 }, uDecay: { value: 0.965 }, uJ: { value: 0 } }));
+    const add = this._addMat('grAdd', /* glsl */ `
+      varying vec2 vUv; uniform sampler2D tIn; uniform vec3 uTint; uniform vec2 uSun; uniform float uAspect;
+      void main(){
+        vec2 d = (vUv - uSun) * vec2(uAspect, 1.0);
+        // shafts only: the share of the kernel along this pixel's path to the sun that something hides (an open sky
+        // already carries its own glow round the sun: light2's volumetric light makes the same choice)
+        vec4 r = texture2D(tIn, vUv);
+        float hid = smoothstep(0.05, 0.4, 1.0 - r.y / max(r.z, 1e-6));
+        gl_FragColor = vec4(uTint * (r.x * hid * r.w * exp(-3.0 * dot(d, d))), 1.0);
+      }`, { tIn: { value: null }, uTint: { value: new THREE.Vector3() }, uSun: { value: new THREE.Vector2() }, uAspect: { value: 1 } });
+    const m = mask.uniforms;
+    m.tColor.value = pp.accRT.texture; m.tDepth.value = pp.sceneRT.depthTexture; m.uSun.value.fromArray(s.uv); m.uPx.value.set(1 / pp.w, 1 / pp.h);
+    m.uNF.value.set(camera.near, camera.far); m.uAspect.value = pp.w / pp.h; m.uK.value = 1 / (s.lk * Math.max(1e-3, P.godraysThreshold ?? 0.3));
+    pp._draw(mask, A);
+    // three passes, each reaching further toward the sun (24 taps x step: 0.29, 0.72, 0.96 of the way)
+    const b = blur.uniforms;
+    b.uSun.value.fromArray(s.uv); b.uDecay.value = Math.min(1, Math.max(0.5, P.godraysDecay ?? 0.965)); b.uJ.value = jk % 8;
+    [[A, B, 0.012], [B, A, 0.03], [A, B, 0.04]].forEach(([src, dst, st]) => { b.tIn.value = src.texture; b.uStep.value = st; pp._draw(blur, dst); });
+    const R = this._ease('grH', B, s.uv, live, 0.2, true), u = add.uniforms;
+    u.tIn.value = R.texture; u.uSun.value.fromArray(s.uv); u.uAspect.value = pp.w / pp.h; u.uTint.value.copy(s.col).multiplyScalar(k);
+    pp._accView(false);
+    pp._draw(add, pp.accRT);
+  }
+
+  /** flare: the sun's lens flare, added after the bloom. Its visibility is measured on the GPU (no read-back) by 16
+   *  depth taps over a disc 1.25 x the sun's (a sun behind a wall or a palm frond, or off the frame, leaves none;
+   *  half hidden, half the flare); the flare is a veiling glare round the sun, six ghosts along the line from the
+   *  sun through the frame's centre and a faint halo ring, all x the key light's radiance (the sun through the air:
+   *  weaker and redder toward the horizon, nothing at night; the moon makes none) x P.flare. No noise: stills stay
+   *  bit-identical; moving frames (live) ease the visibility over a few frames (the depth taps are jittered). */
+  flare(P, camera, live = false) {
+    const s = this._sun(camera);
+    if (!s || !(P.flare > 0)) return;
+    const pp = this.pp, V = this.rt('flVis', 1, 1, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter });
+    const vis = this.mat('flVis', () => quadMat(/* glsl */ `
+      uniform sampler2D tDepth; uniform vec2 uSun, uR;
+      ${SUB}
+      void main(){
+        float v = 0.0;
+        for (int i = 0; i < 16; i++){
+          float r = sqrt((float(i) + 0.5) / 16.0), a = float(i) * 2.3999632;
+          vec2 q = uSun + vec2(cos(a), sin(a)) * r * uR;
+          bool on = all(greaterThanEqual(q, vec2(0.0))) && all(lessThanEqual(q, vec2(1.0)));
+          if (on && texS(tDepth, q).x >= 1.0) v += 1.0;
+        }
+        gl_FragColor = vec4(v / 16.0, 0.0, 0.0, 1.0);
+      }`, { tDepth: { value: null }, uSun: { value: new THREE.Vector2() }, uR: { value: new THREE.Vector2() }, ...pp.sub }));
+    const fl = this._addMat('flare', /* glsl */ `
+      varying vec2 vUv; uniform sampler2D tVis; uniform vec2 uSun, uAsp; uniform vec3 uCol;
+      void main(){
+        float vis = texture2D(tVis, vec2(0.5)).r;
+        if (vis <= 0.0) { gl_FragColor = vec4(0.0); return; }
+        vec2 axis = vec2(0.5) - uSun;
+        vec3 acc = vec3(0.0);
+        // ghosts: discs along the line from the sun through the centre, a little brighter at the rim
+        // (where along the line, radius) and colour
+        vec2 gp[6]; gp[0] = vec2(0.55, 0.035); gp[1] = vec2(0.85, 0.06); gp[2] = vec2(1.15, 0.025); gp[3] = vec2(1.42, 0.11); gp[4] = vec2(1.75, 0.045); gp[5] = vec2(2.1, 0.16);
+        vec3 gc[6]; gc[0] = vec3(1.0, 0.6, 0.25); gc[1] = vec3(0.35, 0.8, 0.6); gc[2] = vec3(1.0, 0.45, 0.3); gc[3] = vec3(0.4, 0.55, 1.0); gc[4] = vec3(0.9, 0.8, 0.4); gc[5] = vec3(0.5, 0.75, 1.0);
+        for (int i = 0; i < 6; i++){
+          float d = length((vUv - uSun - axis * gp[i].x) * uAsp), r = gp[i].y;
+          acc += gc[i] * smoothstep(r, r * 0.75, d) * (0.35 + 0.65 * smoothstep(0.0, r, d)) * 0.05;
+        }
+        float ds = length((vUv - uSun) * uAsp);
+        acc += vec3(1.0, 0.7, 0.4) * smoothstep(0.30, 0.34, ds) * smoothstep(0.40, 0.34, ds) * 0.008;   // a faint halo
+        acc += vec3(1.0, 0.72, 0.45) * exp(-7.0 * ds) * 0.12;   // veiling glare
+        gl_FragColor = vec4(acc * vis * uCol, 1.0);
+      }`, { tVis: { value: null }, uSun: { value: new THREE.Vector2() }, uAsp: { value: new THREE.Vector2() }, uCol: { value: new THREE.Vector3() } });
+    const r = Math.max(1.5, 1.25 * s.rpx);
+    vis.uniforms.tDepth.value = pp.sceneRT.depthTexture; vis.uniforms.uSun.value.fromArray(s.uv); vis.uniforms.uR.value.set(r / pp.w, r / pp.h);
+    pp._draw(vis, V);
+    const u = fl.uniforms;
+    u.tVis.value = this._ease('flH', V, s.uv, live, 0.3, false).texture; u.uSun.value.fromArray(s.uv); u.uAsp.value.set(pp.w / pp.h, 1); u.uCol.value.copy(s.col).multiplyScalar(P.flare);
+    pp._accView(false);
+    pp._draw(fl, pp.accRT);
+  }
+
   /** bloomPyramid: halve the frame six times (13 taps; the first step weights by 1 / (1 + luma), so one very hot
    *  pixel does not flicker as a whole blob), walk back up through a 3 x 3 tent, each level mixed into the next
    *  finer one, and mix the result into pp.accRT by P.bloom. No threshold: energy is moved, not added. Returns
@@ -525,6 +707,6 @@ export class PostFX {
   dispose() {
     for (const t of Object.values(this.rts)) t.dispose();
     for (const m of Object.values(this.mats)) m.dispose();
-    this.rts = {}; this.mats = {};
+    this.rts = {}; this.mats = {}; this.hist = {};
   }
 }

@@ -66,7 +66,10 @@ export const XR_FIT = { GAIN: 1.4, VEIL: 1.0, VEIL_SAT: 0.5 };
 export function setGrade(world, { mean = null, out = XR_GRADE } = {}) { return grade(world, mean, out); }
 // the same, positional and allocation-free (the XR frame calls it every frame)
 function grade(world, mean, out) {
-  const P = world.post, L = world.light, E = P.exposure * world.exposure, t = P.temperature + (L ? L.warmth : 0);
+  // the time-of-day grade's look (world.gradeLook, null without it): its exposure, white balance, saturation and
+  // contrast, as the desktop frame gets them (the lamps' gain already counts its exposure)
+  const K = world.gradeLook || null;
+  const P = world.post, L = world.light, E = P.exposure * world.exposure * (K ? K.exposure : 1), t = P.temperature + (L ? L.warmth : 0) + (K ? K.temperature : 0);
   // UnrealBloomPass (threshold 0) adds strength x sum(mix(f, 1.2 - f, radius)) x a blurred copy of the frame; a blur
   // that wide is part the pixel itself (GAIN), part the frame's mean radiance (VEIL): `mean` (rgb, measured: the
   // meter in createXR), else the haze colour stands in
@@ -77,7 +80,7 @@ function grade(world, mean, out) {
   const l = 0.2126 * r + 0.7152 * g + 0.0722 * b;
   out[0] = E * (1 + 0.1 * t); out[1] = E; out[2] = E * (1 - 0.12 * t); out[3] = 1 + B * XR_FIT.GAIN;
   out[4] = (l + (r - l) * XR_FIT.VEIL_SAT) * B * XR_FIT.VEIL; out[5] = (l + (g - l) * XR_FIT.VEIL_SAT) * B * XR_FIT.VEIL; out[6] = (l + (b - l) * XR_FIT.VEIL_SAT) * B * XR_FIT.VEIL;
-  out[7] = P.saturation ?? 1; out[8] = P.contrast ?? 1; out[9] = P.lift ?? 0; out[10] = 0; out[11] = 0;
+  out[7] = (P.saturation ?? 1) * (K ? K.saturation : 1); out[8] = (P.contrast ?? 1) * (K ? K.contrast : 1); out[9] = P.lift ?? 0; out[10] = 0; out[11] = 0;
   return out;
 }
 

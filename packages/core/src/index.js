@@ -1,17 +1,18 @@
 // Mirage original code. Techniques informed by Golden Temple by Leon Lin (MIT) — see NOTICE.
 export { createWorldRenderer } from './world.js';
 export { createEnv, GOLDEN, dirFromElevAz, elevAzOf, WIND_GLSL } from './env.js';
-export { createSky, createSkyUniforms, createSkyLut } from './sky.js';
+export { createSky, createSkyUniforms, createSkyLut, SKY_DUSK_DEFAULTS, skyDuskConfig } from './sky.js';
 export { ATMO, ATMOSPHERE_GLSL, transmit, transmitAtGround, scatter, skyLightAt } from './atmosphere.js';
 export { installFog, FOG } from './fog.js';
-export { skyState, lightAt } from './daynight.js';
+export { skyState, lightAt, gradeConfig, gradeAt, GRADE_PRESETS } from './daynight.js';
 export { skyAt, placeDate, placeClock, dirFromAltAz } from './sky-time.js';
 export { createStars } from './stars.js';
 export { Pipeline, DEFAULT_POST } from './post.js';
 export { PostFX, FX_DEFAULTS, postFromQuery, parseCube, makeLut, lutTexture, apertureRadius, halton } from './postfx.js';
 export { LIGHT2_DEFAULTS, light2Config, installLight2, addLampSource, LampShadows } from './light2.js';
 export { SOFTSHADOW_DEFAULTS, softShadowConfig, installSoftShadows } from './softshadow.js';
-export { createLighting, CSM_DEFAULTS, GI_DEFAULTS, LIGHTS_DEFAULTS, PROBE_DEFAULTS, SCREEN_DEFAULTS, SCREEN_POST } from './lighting.js';
+export { createLighting, CSM_DEFAULTS, GI_DEFAULTS, BOUNCE_DEFAULTS, LIGHTS_DEFAULTS, PROBE_DEFAULTS, SCREEN_DEFAULTS, SCREEN_POST } from './lighting.js';
+export { LAMPPOOL_DEFAULTS, lampPoolConfig, createLampPool } from './lamppool.js';
 export { patch, createMaterials, PROC } from './materials.js';
 export { NOISE_GLSL } from './noise.js';
 export { rng, hash32, sfc32, valueNoise2, fbm2 } from './rng.js';

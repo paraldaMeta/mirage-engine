@@ -1,26 +1,33 @@
 import type * as THREE from 'three';
 import type * as geom from './geom.js';
 import type { rng } from './rng.js';
-import type { EnvironmentUniforms, createEnv } from './env.js';
+import type { EnvironmentUniforms, createEnv, AmbientVolumesInfo, AmbientVolumesOptions } from './env.js';
 import type { MaterialKit } from './materials.js';
 import type { Pipeline, PostSettings } from './post.js';
 import type { Light2Option, Light2Settings } from './light2.js';
 import type { SoftShadowOption, SoftShadowSettings } from './softshadow.js';
 import type { Lighting, LightingOption } from './lighting.js';
-import type { SkyTime, SkyState, LightState } from './daynight.js';
+import type { LampPool, LampPoolOption } from './lamppool.js';
+import type { SkyTime, SkyState, LightState, GradeOption, GradeSettings } from './daynight.js';
 import type { Place } from './sky-time.js';
 import type { Quality, DeviceProfile } from './device.js';
+import type { SkyOption } from './sky.js';
 
 export type XYZ = readonly [number, number, number];
 export type RenderCamera = THREE.PerspectiveCamera | THREE.OrthographicCamera;
 export interface ShadowRegion { center: XYZ; radius: number }
-export interface AmbientVolume { min: XYZ; max: XYZ; factor?: number; soft?: number }
+/** inside the box the image-based light is scaled by factor (default 0.3) x tint (linear RGB, default [1, 1, 1]) per
+ *  channel, ramping back to 1 over soft metres (default 0.6) outside it */
+export interface AmbientVolume { min: XYZ; max: XYZ; factor?: number; soft?: number; tint?: XYZ }
 export interface WorldRendererOptions {
   canvas?: HTMLCanvasElement; renderer?: THREE.WebGLRenderer;
   width?: number; height?: number; pixelRatio?: number; quality?: Quality;
   /** Missing fields keep their defaults (lat 0, lon 0, height 0, tzHours 0). */
   place?: Partial<Place>; time?: SkyTime; shadow?: ShadowRegion; envProbe?: XYZ;
   envIntensity?: number; envFade?: number; wind?: NonNullable<Parameters<typeof createEnv>[0]>['wind'];
+  /** Opt-in sky looks (off by default): `{ dusk: true }` twilight colours, a darker night dome, a hazy horizon,
+   *  altocumulus (sky.js). Without it the sky renders exactly as before. */
+  sky?: SkyOption;
   clouds?: number; fog?: Partial<{ density: number; groundDensity: number; height: number; air: number; level: number; color: number; glow: number }>;
   post?: Partial<PostSettings>; preserveDrawingBuffer?: boolean; mobile?: boolean; byteTargets?: boolean; shadowMapSize?: number; spp?: number;
   /** A multisampled, XR-compatible context, so a WebXR session (@miragekit/play/xr) gets MSAA. Pass `(await xrSupport()).vr`. */
@@ -33,6 +40,12 @@ export interface WorldRendererOptions {
   softShadows?: SoftShadowOption;
   /** Realtime lighting features (off by default, each one opt-in): cascaded sun shadows, probe GI, reflection probes, clustered local lights. */
   lighting?: LightingOption;
+  /** The time-of-day grade (off by default): split toning, black point, S-curve, ACES / AgX-punchy blend, clarity, highlight warmth and a darker
+   *  night, keyed by the sun's elevation and the lamp level (GRADE_PRESETS; daynight.js gradeAt). */
+  grade?: GradeOption;
+  /** Every lamp lights its surroundings, beyond the few real PointLights (off by default): a clustered pool of lamps
+   *  shaded in the lit materials, filled with `world.lampPool.set(...)`. */
+  lampPool?: LampPoolOption;
   /** Reduced motion from the start (off by default; @miragekit/play follows prefers-reduced-motion): see setReducedMotion. */
   reducedMotion?: boolean | Partial<ReducedMotionSettings>;
 }
@@ -79,10 +92,14 @@ export interface WorldRenderer {
   readonly resolutionScale: number;
   /** Auto exposure: forget the adapted exposure, so the next frame is metered on its own (after a teleport or cut). */
   resetExposure(): void;
+  /** The time-of-day grade's settings in use (live: `strength`, `nightAdapt`, the looks; read every frame), null when off. */
+  grade: GradeSettings | null;
   /** The soft-shadow settings in use (live: `on`, `sunAngle`, …), null when off. */
   softShadows: SoftShadowSettings | null;
   /** The lighting features of the `lighting` option, null when off. */
   lighting: Lighting | null;
+  /** The lamp pool of the `lampPool` option, null when off. */
+  lampPool: LampPool | null;
   /** Null before setTime(), prepare() or the first renderFrame(). */
   readonly light: LightState | null; readonly state: SkyState | null; readonly exposure: number;
   setTime(time: SkyTime, options?: { ease?: boolean }): LightState;
@@ -107,7 +124,9 @@ export interface WorldRenderer {
   resize(width: number, height: number): void;
   /** Call after setTime() or prepare(). */
   captureEnv(instant?: boolean): void;
-  setAmbientVolumes(volumes?: readonly AmbientVolume[]): void;
+  /** up to 8 untinted boxes: the uniform path (as before); more, or a tint: a grid over x / z (`grid: true` forces it).
+   *  Returns which path and its size. */
+  setAmbientVolumes(volumes?: readonly AmbientVolume[], options?: AmbientVolumesOptions): AmbientVolumesInfo;
   /** call after `webglcontextrestored`: re-bakes the sky, the image-based light and probe lighting (see `@miragekit/core/platform`) */
   contextRestored(): void;
   /** Releases pipeline, environment light and scene geometries; an injected renderer stays owned by its host.

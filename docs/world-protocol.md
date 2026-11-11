@@ -62,8 +62,10 @@ main.js passes, e.g. the texture layer), `onUpdate(fn)`, `collider(mesh)`, `log(
   every other module builds as usual. `buildWorld` returns `report.failed`.
 - **Randomness**: `ctx.R` is seeded by `plan.seed/name`, so adding draws in one module never moves another
   module's trees. Never use `Math.random`.
-- **Ambient volumes**: boxes where the image-based light is scaled by `factor` (interiors); the loader hands them
-  to the core (`world.setAmbientVolumes`), at most 8.
+- **Ambient volumes**: boxes where the image-based light is scaled by `factor` (interiors), per channel by an optional
+  `tint: [r, g, b]` (warm light bounced off sunlit walls, cool shade); the loader hands them to the core
+  (`world.setAmbientVolumes`). Up to 8 untinted boxes take the original uniform path; more (a town's hundreds of
+  rooms) or tinted ones a grid over x / z whose per-pixel cost is the boxes in one cell, not the whole list.
 
 ## 3. Anchors
 
