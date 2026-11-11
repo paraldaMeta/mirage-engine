@@ -2,6 +2,9 @@
 // (Nizwa's lanterns are part of its props module, which is not ported here); the light pool follows Nizwa's
 // props.js updateLights (4 lights, no steps when a lamp hands over to the next), so both engines pay for the same
 // number of lights. With light2 on, Mirage gives these lights shadow slots by itself.
+// With the world's lamp pool on (?pools=1, main.js; @miragekit/core lamppool.js) every lantern is also a pool lamp:
+// the pool lights the lanterns the four real lights do not reach (gap 3 of REPORT.md) and adds what a fading real
+// light lacks, so the hand-off stays seamless. The wall a lantern hangs on stops its light (normal + back).
 import * as THREE from 'three';
 
 const ARM = 0.42, DROP = 0.14;   // the flame: this far out of the wall and below the bracket plate (Nizwa's wallLantern)
@@ -26,6 +29,7 @@ export default {
       bodies.setMatrixAt(i, m.compose(p, q, one.clone().multiplyScalar(s)));
       arms.setMatrixAt(i, m.compose(new THREE.Vector3(a.pos[0] + nx * ARM * s / 2, a.pos[1] + 0.075 * s, a.pos[2] + nz * ARM * s / 2), q, one.clone().multiplyScalar(s)));
       points.push(p);
+      if (world.lampPool) world.lampPool.add({ pos: [p.x, p.y, p.z], range: 6, power: 0.9 * 1.3, color: [1.0, 0.56, 0.25], normal: [nx, 0, nz], back: ARM * s + 0.05, near: 0.16 });
     });
     for (const im of [caps, bodies, arms]) { im.castShadow = im !== bodies; im.userData.collide = false; im.computeBoundingSphere(); root.add(im); }
     const pool = [];
