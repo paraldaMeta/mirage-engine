@@ -1,7 +1,7 @@
 # Releasing
 
-The checklist for a release of the `@mirage/*` packages. **Nothing here has been run**: 1.0.0 is not tagged and
-not published, and the package names on npm are not settled (CHANGELOG). Every step that leaves this machine
+The checklist for a release of the `@mirage/*` packages. 1.0.0 is tagged (`v1.0.0`, a GitHub release, 2026-11-11) and **not
+published to npm**: the package names there are not settled (CHANGELOG), so sections 2 to 4 have not been run. Every step that leaves this machine
 (push, tag, publish, visibility) is the owner's, by hand or by approving the workflow; agents stop before it.
 The historic first-release notes are in [RELEASE.md](RELEASE.md).
 

@@ -2,7 +2,7 @@
 
 All notable changes. From 1.0.0 on, versions follow semver for the stable API in `docs/api.md`.
 
-## 1.0.0 — unreleased (not tagged, not published)
+## 1.0.0 — 2026-11-11 (tagged `v1.0.0`; not published to npm)
 
 The first version with an API promise: the names marked *stable* in `docs/api.md` change only in a major release.
 It is `main` since 0.2.0, plus Codex's development chain (`codex/mirage-gpu-ci`, built on a machine without a GPU
