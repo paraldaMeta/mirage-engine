@@ -306,6 +306,19 @@ assert.equal(typeof game.createDestructibles, 'function', 'exported from @mirage
   assert.ok(moved === 1 && !can.broken && z < -2.2, `a can knocked off its spot (moving ${moved}, z ${z.toFixed(2)}, y ${y.toFixed(2)})`);
   assert.ok(d.moving.length === 0 && im.instanceMatrix.array[2 * 16] !== 0 && Math.abs(im.instanceMatrix.array[2 * 16 + 14] + 2) > 0.2, 'asleep: back in its instance, where it came to rest');
   d.reset(); assert.ok(Math.abs(im.instanceMatrix.array[2 * 16 + 14] + 2) < 1e-6, 'reset: back on its spot');
+  { // a per-instance attribute (a label) goes with the moving copy: its own, the right length, the instance's value
+    const g = new THREE.CylinderGeometry(0.033, 0.033, 0.12, 6), lab = new THREE.InstancedBufferAttribute(new Float32Array([0, 0, 0.25, 0.5, 0.75, 0.125]), 2);
+    g.setAttribute('lab', lab);
+    const m2 = new THREE.InstancedMesh(g, new THREE.MeshStandardMaterial(), 3);
+    for (let i = 0; i < 3; i++) m2.setMatrixAt(i, new THREE.Matrix4().makeTranslation(i * 0.15, 0.06, -6));
+    root.add(m2); root.updateMatrixWorld(true);
+    for (let i = 0; i < 3; i++) d.add({ id: 'lab' + i, draw: { mesh: m2, index: i }, material: 'thinMetal', mover: { shape: 'cylinder', breakable: false } });
+    d.hit({ ray: { origin: [0.3, 0.09, -4], dir: [0, 0, -1] }, damage: 22 });
+    const L = [...root.children].find((o) => o.name.endsWith(':moving') && o.geometry.attributes.lab);
+    const a = L?.geometry.attributes.lab;
+    assert.ok(a && a !== lab && a.count >= 3 && a.array[0] === 0.75 && a.array[1] === 0.125, `a moving copy keeps its instance's own attributes (lab ${a ? [a.array[0], a.array[1]] : 'none'})`);
+    d.reset();
+  }
   // spill and steam
   d.add({ id: 'jug', material: 'liquid', box: box([3, 0.3, -2]), behave: { spillLiquid: { conductive: true } } });
   d.add({ id: 'pipe', material: 'thinMetal', health: 20, box: box([5, 1.5, -2], [1, 0.05, 0.05]), behave: { ventSteam: { duration: 3 } } });

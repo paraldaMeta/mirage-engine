@@ -474,7 +474,20 @@ export function createMoverLayers(max = 64) {
   function layer(src) {
     let L = layers.get(src);
     if (!L) {
-      const m = new THREE.InstancedMesh(src.geometry, src.material, max);
+      // per-instance attributes of the source's geometry (a label offset, a tint): the layer gets its own, max long,
+      // and take() copies the moving instance's values into its slot (shared, they were the wrong length and the
+      // slot read another instance's values)
+      const inst = Object.entries(src.geometry.attributes).filter(([, a]) => a.isInstancedBufferAttribute);
+      let geo = src.geometry;
+      if (inst.length) {
+        geo = new THREE.BufferGeometry();
+        for (const [k, a] of Object.entries(src.geometry.attributes)) geo.setAttribute(k, a.isInstancedBufferAttribute ? new THREE.InstancedBufferAttribute(new a.array.constructor(max * a.itemSize), a.itemSize, a.normalized) : a);
+        if (src.geometry.index) geo.setIndex(src.geometry.index);
+        geo.boundingSphere = src.geometry.boundingSphere; geo.boundingBox = src.geometry.boundingBox;
+        for (const g of src.geometry.groups) geo.addGroup(g.start, g.count, g.materialIndex);
+      }
+      const m = new THREE.InstancedMesh(geo, src.material, max);
+      m.userData.ownGeometry = geo !== src.geometry;
       m.name = (src.name || 'instances') + ':moving'; m.count = 0; m.frustumCulled = false; m.castShadow = src.castShadow; m.receiveShadow = src.receiveShadow;
       m.userData.collide = false; m.userData.mgDynamic = true; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       if (src.instanceColor) m.setColorAt(0, new THREE.Color(1, 1, 1));
@@ -491,6 +504,11 @@ export function createMoverLayers(max = 64) {
     if (!L.free.length && L.used >= max) return null;
     const s = L.free.length ? L.free.pop() : L.used++;
     if (src.instanceColor) { const c = src.instanceColor.array; L.mesh.instanceColor.array.set(c.subarray(index * 3, index * 3 + 3), s * 3); L.mesh.instanceColor.needsUpdate = true; }
+    if (L.mesh.userData.ownGeometry) for (const [k, a] of Object.entries(src.geometry.attributes)) {
+      if (!a.isInstancedBufferAttribute) continue;
+      const to = L.mesh.geometry.attributes[k], n = a.itemSize;
+      to.array.set(a.array.subarray(index * n, index * n + n), s * n); to.needsUpdate = true;
+    }
     L.mesh.count = Math.max(L.mesh.count, s + 1);
     return { L, s };
   }
@@ -503,6 +521,6 @@ export function createMoverLayers(max = 64) {
   }
   function give(t) { if (!t) return; t.L.mesh.setMatrixAt(t.s, ZERO); t.L.mesh.instanceMatrix.needsUpdate = true; t.L.free.push(t.s); }
   function clear() { for (const L of layers.values()) { L.mesh.count = 0; L.used = 0; L.free.length = 0; } }
-  function dispose() { for (const L of layers.values()) { L.mesh.removeFromParent(); L.mesh.dispose(); } layers.clear(); }
+  function dispose() { for (const L of layers.values()) { L.mesh.removeFromParent(); L.mesh.dispose(); if (L.mesh.userData.ownGeometry) L.mesh.geometry.dispose(); } layers.clear(); }
   return { take, set, give, clear, dispose, layers };
 }

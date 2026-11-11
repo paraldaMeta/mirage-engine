@@ -41,6 +41,9 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
   0.7 ms a frame, debris and marks at their caps, heap flat; Chrome demo `examples/demos/destruct` (a shooting range)
   idle cost inside the run-to-run spread, 7.5 ms a frame under the stress. Checked by `packages/game/destruct.check.mjs`
   (in `npm test`) and `examples/demos/destruct/destruct-check.mjs`.
+- @miragekit/game destructibles: a mover's moving copy has its own per-instance attributes (a label offset, a tint),
+  copied from the instance that moves (the copy shared the source's, the wrong length: a can knocked off a shelf read
+  another can's label, and past the source's count the attribute was out of range).
 - @miragekit/core: `world.lampPool.scale(i, k)` dims or switches off one pool lamp without a rebuild (one record is
   rewritten; re-binning only when the set of lit lamps changes), `scaleOf(i)`, `lit` (lamps with power left).
 - @miragekit/game: `createUI`'s text is a table (`UI_STRINGS`, English, exported; experimental): `startGame(world,
