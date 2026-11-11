@@ -109,7 +109,7 @@ export function createWorldRenderer(config = {}) {
   sun.shadow.bias = -0.0002; sun.shadow.normalBias = 0.02; sun.shadow.radius = 1;
   scene.add(sun, sun.target);
   // realtime lighting features (opt-in, lighting.js): cascades, probe GI, reflection probes, clustered local lights
-  const lighting = config.lighting ? createLighting({ renderer, scene, sun, G, keyDir, quality, Q, soft: sscfg, envProbe, capture: lightCapture, skyVisible: (v) => { sky.visible = v; } }, config.lighting) : null;
+  const lighting = config.lighting ? createLighting({ renderer, scene, sun, G, keyDir, quality, Q, soft: sscfg, envProbe, shadow, msaa: device.msaa, capture: lightCapture, skyVisible: (v) => { sky.visible = v; } }, config.lighting) : null;
 
   const pipeline = new Pipeline(renderer, { width: width * pixelRatio, height: height * pixelRatio, msaa: device.msaa, aoSamples: Q.aoSamples });
   if (l2cfg) pipeline.useLight2(l2cfg, { sun, G });
@@ -314,7 +314,9 @@ export function createWorldRenderer(config = {}) {
       await compile();
       scene.environment = null;
     }
-    if (lighting) { lighting.adopt(); await compile(); }
+    // the lighting parts act on the image-based light: their programs are the ones WITH the environment (compiled
+    // here in parallel; without this every lit material of a big world was linked one by one in the first capture)
+    if (lighting) { lighting.adopt(); await compile(); scene.environment = envLight.texture; await compile(); scene.environment = null; }
     captureEnv(true);
     if (warm) return { warmMs: warmUp() };
   }
