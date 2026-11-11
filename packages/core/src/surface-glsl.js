@@ -1400,13 +1400,28 @@ export const LIVE_GLSL = {
   neon: /* glsl */ `
 vec3 msEmit = vec3(0.0);
 MsS ms_neon(vec2 u){
-  // the gas column glows brightest along the tube's axis (where the view meets the glass head-on); the glass
-  // round it is clear and reflects; the colour stays saturated, a hot core whitens a little
+  // the gas column glows brightest along the tube's axis (where the view meets the glass head-on); the glass wall
+  // seen edge-on at the silhouette is clear (a thin rim that reflects instead of glowing); the colour stays
+  // saturated, a hot core whitens a little. A flat or large surface (no tube curvature) glows as diffused glass,
+  // dimmer; the radiance is capped softly per hue (it saturates, it never clips to white over a large area)
   vec3 V = normalize(cameraPosition - mgWorldPos), N = normalize(mgWorldNormal);
   float c = abs(dot(V, N));
-  float core = pow(c, 3.0), body = smoothstep(0.0, 0.6, c);
-  msEmit = msA.rgb * msA.a * msB.x * (0.15 + 0.55 * body + 0.6 * core) + vec3(1.0) * msA.a * msB.x * 0.08 * pow(c, 12.0);
-  return MsS(mix(vec3(0.02), msA.rgb * 0.6, msB.x), 0.06, 0.5, 0.0, 1.0);
+  float curv = length(fwidth(N)) / max(length(fwidth(mgWorldPos)), 1e-5);
+  float tube = smoothstep(4.0, 30.0, curv);
+  float core = pow(c, 3.0), body = smoothstep(0.0, 0.6, c), rim = (1.0 - smoothstep(0.06, 0.28, c)) * tube;
+  float I = msA.a * msB.x * mix(0.08, 1.0, tube);
+  vec3 e = msA.rgb * I * (0.15 + 0.55 * body + 0.6 * core) * (1.0 - 0.7 * rim) + vec3(1.0) * I * 0.08 * pow(c, 12.0) * tube;
+  float mx = max(e.r, max(e.g, e.b)), cap = 1.6 * msA.a + 1e-3;
+  e *= cap * (1.0 - exp(-mx / cap)) / max(mx, 1e-5);
+  // on a tube mapped with 'uv' (uv.y along it, uvScale its length): the electrode caps at its two ends (metal, dark)
+  // and the support clips along it
+  float L = msUVScale, y = msUVraw.y * L;
+  float elec = msD.y > 0.0 ? 1.0 - step(msD.y, min(y, L - y)) : 0.0;
+  float sup = msD.z > 0.0 ? msLine(mod(y + 0.5 * msD.z, msD.z) - 0.5 * msD.z, 0.005) * (1.0 - elec) : 0.0;
+  msEmit = e * (1.0 - elec) * (1.0 - 0.9 * sup);
+  vec3 alb = mix(mix(vec3(0.02), msA.rgb * 0.6, msB.x), vec3(0.3, 0.3, 0.32), elec);
+  alb = mix(alb, vec3(0.04), sup);
+  return MsS(alb, mix(0.06, 0.4, max(elec, sup)), 0.5, 0.0, 1.0);
 }`,
   // A: colour rgb, intensity   B: on, end darkening, -, -
   fluorescent: /* glsl */ `

@@ -94,7 +94,8 @@ function show({ s = 'concrete', light, wet = 0, view = 'far', mode = Q.get('mode
   add(GEO.wall, mk('wall'), 0, 1.0, -1.0);
   add(GEO.sphere, mk('tri'), -0.6, 0.3, 0.35);
   add(GEO.cube, mk('tri'), 0.55, 0.3, 0.15);
-  if (['neon', 'fluorescent'].includes(kind)) add(GEO.tube, mk('tri'), 0, 1.2, -0.5);
+  // a tube, mapped along its length (uv.y, 1.4 m): the neon's electrode caps and support clips sit on it
+  if (['neon', 'fluorescent'].includes(kind)) add(GEO.tube, kind === 'neon' ? (() => { const m = lib.material(SURFACES.neon({ ...opts, electrodes: opts.electrodes ?? 0.03, supports: opts.supports ?? 0.35 }), { mapping: 'uv', uvScale: 1.4 }); mats.push(m); return m; })() : mk('tri'), 0, 1.2, -0.5);
   if (light && light !== current?.light) { setRig(light); world.setTime(TIMES[light]); }
   const L = light || current?.light || Q.get('light') || 'studio';
   const night = L === 'night';

@@ -290,8 +290,8 @@ const KINDS = {
   neon: {
     family: 'emissive', variants: ['tube'], tile: 1, depth: 0.0001, live: true, porosity: 0,
     refs: { albedo: [0, 0.7], rough: [0.03, 0.1], metal: 0, note: 'glass tube F0 0.04; the gas column saturated (neon red, argon-mercury blue / phosphor colours)' },
-    defaults: { color: [1.0, 0.16, 0.5], intensity: 9, on: 1, dayFloor: 0.03 },
-    pack: (o) => ({ A: [...o.color, o.intensity], B: [o.on, 0, 0, 0], C: [0, 0, 0, 0], D: [o.dayFloor, 0, 0, 0] }),
+    defaults: { color: [1.0, 0.16, 0.5], intensity: 9, on: 1, dayFloor: 0.03, electrodes: 0, supports: 0 },
+    pack: (o) => ({ A: [...o.color, o.intensity], B: [o.on, 0, 0, 0], C: [0, 0, 0, 0], D: [o.dayFloor, o.electrodes, o.supports, 0] }),
   },
   fluorescent: {
     family: 'emissive', variants: ['tube'], tile: 1, depth: 0.0001, live: true, porosity: 0,
