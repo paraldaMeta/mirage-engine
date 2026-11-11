@@ -102,7 +102,7 @@ export function surfaceLib(world) { let l = LIBS.get(world.renderer); if (!l) LI
 const ATTR = { vertexDecl: ' attribute float ndR; attribute vec3 ndD; varying float vNdR; varying vec3 vNdD;', vertexWorld: '\n vNdR = ndR; vNdD = ndD; msOP = position; msON = normal;\n' };
 /** extend library hooks: the texture rides on the bind pose (skinned, batched: it sticks to the part), per-vertex
  *  roughness, decals, an optional rim (the enemies' outline) */
-function extend(h, { decals = false, rim = null } = {}) {
+function extend(h, { decals = false, rim = null, glow = null } = {}) {
   const o = { ...h, uniforms: { ...h.uniforms } };
   o.vertexDecl = (h.vertexDecl || '') + ATTR.vertexDecl;
   o.vertexWorld = (h.vertexWorld || '') + ATTR.vertexWorld;
@@ -114,6 +114,13 @@ function extend(h, { decals = false, rim = null } = {}) {
   o.roughness = (h.roughness || '') + '\nif (vNdR > 0.0) roughnessFactor = vNdR;';
   o.metalness = (h.metalness || '') + '\nif (vNdR > 0.0 || vNdD.z > 0.5) metalnessFactor = 0.0;';
   if (rim) { o.uniforms.uNdRim = rim; o.output = (h.output || '') + '\noutgoingLight += uNdRim * pow(1.0 - clamp(abs(dot(normalize(normal), normalize(vViewPosition))), 0.0, 1.0), 2.2);'; }
+  // glow: the lights drawn in the shell's own mesh (one draw, not two): a vertex whose ndR is -1 is lit as the kit's
+  // glow material lit it (unlit: its vertex colour x the glow colour x the lamp level), whatever the surface says
+  if (glow) {
+    o.uniforms.ndGlow = glow;
+    o.fragmentDecl += ' uniform vec3 ndGlow;';
+    o.output = (o.output || '') + '\nif (vNdR < -0.5) outgoingLight = vColor.rgb * ndGlow * max(uLampGain, 0.03);';
+  }
   return o;
 }
 /** a wet film by the world's wetness (WET.uWet: night rain), without the wet layer's textures (a skinned or batched
@@ -124,11 +131,12 @@ const wet = (h, porosity) => ({ ...h, uniforms: { ...h.uniforms, ndWet: WET.uWet
   roughness: h.roughness + '\nroughnessFactor = mix(roughnessFactor, roughnessFactor * 0.35 + 0.03, clamp(ndWk, 0.0, 1.0));' });
 /** shell: powder coat over the vertex colour; metal: anodised aluminium. opts: rim (a { value: Vector3 } uniform),
  *  decals (the decal sampler in the shell; batched meshes draw their decals apart) */
-export function robotMaterials(world, { rim = null, key = 'default', decals = true, wear = 0.6 } = {}) {
+export function robotMaterials(world, { rim = null, key = 'default', decals = true, wear = 0.6, glow = null } = {}) {
   const cache = (world.__ndRobotMats ||= {});
   if (cache[key]) return cache[key];
   const lib = surfaceLib(world), mat = world.mat;
-  const shellH = extend(lib.hooks(SURFACES.powderCoat({ variant: 'powder', color: [0.8, 0.8, 0.8], roughness: 0.42, dirt: 0, edgeWear: wear }), { space: 'object', mode: 'procedural' }), { decals, rim });
+  // glow: a { value: Color } uniform: the shell also draws the parts of slot 'l' (robot-rig bySlot, lightsInShell)
+  const shellH = extend(lib.hooks(SURFACES.powderCoat({ variant: 'powder', color: [0.8, 0.8, 0.8], roughness: 0.42, dirt: 0, edgeWear: wear }), { space: 'object', mode: 'procedural' }), { decals, rim, glow });
   const metalH = extend(lib.hooks(SURFACES.aluminium({ variant: 'anodised', color: [0.62, 0.63, 0.66], roughness: 0.34, dirt: 0 }), { space: 'object', mode: 'procedural' }), { rim });
   const shell = mat.std({ vertexColors: true, roughness: 1, metalness: 1 }, wet(shellH, 0.08)); shell.name = 'robot-shell';
   const metal = mat.std({ vertexColors: true, roughness: 1, metalness: 1 }, wet(metalH, 0.05)); metal.name = 'robot-metal';

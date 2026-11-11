@@ -27,6 +27,10 @@ function bySlot(perBone, boneIndex) {
     const L = list.filter((p) => p.slot === slot);
     if (L.length) out[slot].push(skinned(L, boneIndex(bone)));
   }
+  // the lights go into the shell's mesh, marked ndR -1 (robot-kit's shell material draws them as its glow): a
+  // robot is two skinned meshes (shell, metal), not three
+  for (const g of out.l) { g.attributes.ndR.array.fill(-1); out.s.push(g); }
+  out.l = [];
   const merge = (gs) => { if (!gs.length) return null; const all = new THREE.BufferGeometry(), n = gs.reduce((s, g) => s + g.attributes.position.count, 0);
     for (const [k, w, T] of [['position', 3, Float32Array], ['normal', 3, Float32Array], ['uv', 2, Float32Array], ['color', 3, Float32Array], ['ndR', 1, Float32Array], ['ndD', 3, Float32Array], ['skinIndex', 4, Uint16Array], ['skinWeight', 4, Float32Array]]) {
       const a = new T(n * w); let o = 0; for (const g of gs) { a.set(g.attributes[k].array, o); o += g.attributes[k].array.length; } all.setAttribute(k, new THREE.BufferAttribute(a, w));
@@ -35,10 +39,15 @@ function bySlot(perBone, boneIndex) {
   return { s: merge(out.s), m: merge(out.m), l: merge(out.l) };
 }
 const GEO = new Map();
-/** the geometry of a humanoid enemy (cached per look, level and number): { s, m, l } skinned to the rig's bones */
-export function humanoidMeshes(look, lod, kit, boneNames) {
-  const key = [look, lod, JSON.stringify(kit)].join(':');
-  if (!GEO.has(key)) GEO.set(key, bySlot(humanoidRig(humanoid(look, lod, kit)), (b) => boneNames.indexOf(b)));
+/** the geometry of a humanoid enemy (cached per look, level, kit and `extraKey`): { s, m } skinned to the rig's bones,
+ *  the lights in s (bySlot). extra: { bone: parts already in the rig's bind space } (the rifle in the hand) */
+export function humanoidMeshes(look, lod, kit, boneNames, extra = null, extraKey = '') {
+  const key = [look, lod, JSON.stringify(kit), extraKey].join(':');
+  if (!GEO.has(key)) {
+    const per = humanoidRig(humanoid(look, lod, kit));
+    for (const [b, list] of Object.entries(extra || {})) (per[b] ||= []).push(...list);
+    GEO.set(key, bySlot(per, (b) => boneNames.indexOf(b)));
+  }
   return GEO.get(key);
 }
 export const tris = (g) => (g ? g.attributes.position.count / 3 : 0);
@@ -112,11 +121,12 @@ function houndGeometry(style, lod, boneOf, D) {
 const LEGS = [['FL', 1, 1], ['FR', -1, 1], ['HL', 1, -1], ['HR', -1, -1]];
 
 /**
- * A robot dog: { root, model, bones, meshes: [[s, m, l] per lod], tip, D, pose(state, dt) }. style 'scout' | 'hauler'.
+ * A robot dog: { root, model, bones, meshes: [[s, m] per lod], tip, D, pose(state, dt) }. style 'scout' | 'hauler'.
+ * mats: { shell (with robot-kit's glow: it draws the lights too), metal }.
  * pose: { speed (m/s), dist (m travelled, drives the trot), crouch 0..1, leap 0..1 (in the air), dead (s since), aim
  * (the turret's yaw offset) }
  */
-export function createHound({ style, mats, light }) {
+export function createHound({ style, mats }) {
   const D = quadrupedDims(style);
   const names = ['root', 'body', 'turret', ...LEGS.flatMap(([n]) => [n + 'U', n + 'L'])], bones = {};
   const rest = { root: [0, 0, 0], body: [0, D.stand, 0], turret: [0, D.stand, 0] };
@@ -131,7 +141,7 @@ export function createHound({ style, mats, light }) {
   const reach = new THREE.Sphere(new THREE.Vector3(0, D.stand * 0.7, 0.05), D.L * 0.85 + 0.25);
   const meshes = [0, 1, 2].map((lod) => {
     const g = houndGeometry(style, lod, boneOf, D);
-    return [['s', mats.shell], ['m', mats.metal], ['l', light]].filter(([k]) => g[k]).map(([k, m]) => {
+    return [['s', mats.shell], ['m', mats.metal]].filter(([k]) => g[k]).map(([k, m]) => {   // (the lights are in the shell: bySlot)
       const sm = new THREE.SkinnedMesh(g[k], m); sm.bind(skeleton, new THREE.Matrix4());
       sm.boundingSphere = reach; sm.frustumCulled = true; sm.castShadow = k === 's' && lod < 2; sm.receiveShadow = true; sm.visible = lod === 0;
       sm.name = 'robot-' + k;

@@ -14,7 +14,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { createRigModel, createAnimator, createNavGrid, createNavAgent, createNavCrowd, createSenses, solveLookAt, blend1d } from '@miragekit/play';
 import { FX } from './fx.js';
-import { robotMaterials, part, mergeParts, ext, tf, COL } from '../modules/robot-kit.js';
+import { robotMaterials, part, mergeParts, ext, tf, moved, COL } from '../modules/robot-kit.js';
 import { humanoidMeshes, robotClips, CLIP_SPEED, createHound } from './robot-rig.js';
 
 const q = (x, y, z) => new THREE.Quaternion().setFromEuler(new THREE.Euler(x, y, z)).toArray();
@@ -94,6 +94,10 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
   // so sharing them cost a program lookup per robot per pass
   const plain = robotMaterials(world, { rim, key: 'enemies-plain' });
   const visorPlain = Object.fromEntries(Object.entries(KIND).map(([k, v]) => [k, mat.glow(v.visor, 7, { vertexColors: true })]));
+  // per kind a shell that also draws the lights (robot-kit's glow: its colour follows visorMat's, the flare and the
+  // jam's stutter included) and the rifle: a robot is two skinned meshes a pass (shell, metal), not five meshes
+  const glowU = Object.fromEntries(Object.keys(KIND).map((k) => [k, { value: new THREE.Color() }]));
+  const shellOf = Object.fromEntries(Object.keys(KIND).map((k) => [k, robotMaterials(world, { rim, key: 'enemies-' + k, glow: glowU[k] }).shell]));
   const extra = extraClips(), CLIPS = robotClips(), BLEND = [0, CLIP_SPEED.walk[0], CLIP_SPEED.run[0]], bw = new Float32Array(3);
   const list = [], byZone = {}, hounds = [];
   let nav = null, crowd = null, senses = null, rnd = 0x9e3779b9;
@@ -101,7 +105,8 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
   const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3();
 
   // the parts are the robot kit's (modules/robot-kit.js), skinned rigidly to the rig's bones (game/robot-rig.js):
-  // three meshes (shell, metal, lights) at each of three levels of detail, the geometry shared per kind
+  // two meshes (the shell with the lights and the rifle, the metal) at each of three levels of detail, the geometry
+  // shared per kind
   function build(def) {
     const kk = def.kind || 'grunt', K = KIND[kk];
     if (K.type === 'hound') return buildHound(def, K, kk);
@@ -114,21 +119,23 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
     // after the fall): without it every skinned part was drawn in every pass (each lamp's six shadow faces, the
     // mirror, the sun) wherever the robot stood
     const reach = new THREE.Sphere(new THREE.Vector3(0, 0.85, -0.25), 1.9);
+    // the rifle in the right hand, along the hand's own -X (the arm's axis): a receiver, a shroud, a magazine, a stock,
+    // an optic (the marksman: a long barrel, a scope and a folded bipod); the muzzle's tip lit. Skinned to the hand
+    // in the shell's mesh: its parts moved into the bind space (the hand's bind pose x the grip's offset)
+    const sniper = K.name === 'marksman', grip = new THREE.Matrix4().makeTranslation(-0.1, -0.02, 0.02), muzzle = [sniper ? -0.98 : -0.6, 0.03, 0];
+    const sk = rig.mesh.skeleton, toBind = new THREE.Matrix4().copy(rig.mesh.bindMatrixInverse).multiply(sk.boneInverses[names.indexOf('RightHand')].clone().invert()).multiply(grip);
+    const inHand = { RightHand: moved([...rifle(sniper), part(tf(new THREE.CylinderGeometry(0.012, 0.012, 0.012, 8).rotateZ(Math.PI / 2), muzzle), 'l', [1, 1, 1])], toBind) };
     const sets = [0, 1, 2].map((lod) => {
-      const g = humanoidMeshes(K.look, lod, kit, names);
-      return [['s', mats.shell], ['m', mats.metal], ['l', visorMat[kk]]].filter(([k]) => g[k]).map(([k, m]) => {
+      const g = humanoidMeshes(K.look, lod, kit, names, inHand, sniper ? 'rifle-long' : 'rifle');
+      return [['s', shellOf[kk]], ['m', mats.metal]].filter(([k]) => g[k]).map(([k, m]) => {
         const sm = new THREE.SkinnedMesh(g[k], m); sm.bind(rig.mesh.skeleton, rig.mesh.bindMatrix);
         sm.boundingSphere = reach; sm.frustumCulled = true; sm.castShadow = k === 's'; sm.receiveShadow = true; sm.visible = lod === 0;
         sm.name = 'robot-' + k;   // (main.js: the metal parts and the rifle stay out of the wet street's mirror)
         rig.root.add(sm); return sm;
       });
     });
-    // the rifle in the right hand, along the hand's own -X (the arm's axis): a receiver, a shroud, a magazine, a stock,
-    // an optic (the marksman: a long barrel, a scope and a folded bipod); the muzzle's tip lit
-    const gun = new THREE.Group(); B.RightHand.add(gun); gun.position.set(-0.1, -0.02, 0.02);
-    const sniper = K.name === 'marksman';
-    const gunMesh = new THREE.Mesh(rifle(sniper), plain.shell); gunMesh.castShadow = false; gunMesh.name = 'robot-gun'; gun.add(gunMesh);
-    const tip = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.012, 8).rotateZ(Math.PI / 2), visorPlain[kk]); tip.position.set(sniper ? -0.98 : -0.6, 0.03, 0); gun.add(tip);
+    // where the shots start (the muzzle, on the hand)
+    const tip = new THREE.Object3D(); B.RightHand.add(tip); tip.position.set(-0.1 + muzzle[0], -0.02 + muzzle[1], 0.02 + muzzle[2]);
     // the shield sentinel's kit: a curved energy shield carried in front, its emitter a lit node on the lower rim
     let shield = null, emitter = null, beam = null;
     if (K.name === 'shield') {
@@ -197,7 +204,7 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
   /** a hound (a robot dog, game/robot-rig.js): no rig, no animator; a stand-in for the animator's calls that poses
    *  the dog in code from its speed, the distance it covered, a crouch (the tell), a leap and a fall */
   function buildHound(def, K, kk) {
-    const dog = createHound({ style: K.style, mats, light: visorMat[kk] });
+    const dog = createHound({ style: K.style, mats: { shell: shellOf[kk], metal: mats.metal } });
     dog.root.scale.setScalar(K.scale); dog.model.scale.setScalar(1 / K.scale);
     const st = { speed: 0, dist: 0, crouch: 0, leap: 0, dead: 0, aim: 0 };
     const anim = { post: [], dt: 0,
@@ -210,7 +217,7 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
     anim.update(0);
     return e;
   }
-  /** the rifle's geometry (shell material, vertex colours): extruded profiles along -x, a shroud, a magazine, an optic */
+  /** the rifle's parts (shell slot, vertex colours): extruded profiles along -x, a shroud, a magazine, an optic */
   function rifle(sniper) {
     const k = [];
     const put = (g, c, p = [0, 0, 0], r = [0, 0, 0]) => k.push(part(tf(g, p, r), 's', c));
@@ -222,7 +229,7 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
     put(new RoundedBoxGeometry(0.1, 0.04, 0.035, 1, 0.01), COL.carbon, [-0.06, 0.08, 0]);
     put(new THREE.CylinderGeometry(sniper ? 0.024 : 0.016, sniper ? 0.024 : 0.016, sniper ? 0.22 : 0.06, 10).rotateZ(Math.PI / 2), COL.glass, [-0.06, sniper ? 0.11 : 0.105, 0]);
     if (sniper) for (const s of [-1, 1]) put(new THREE.CylinderGeometry(0.006, 0.005, 0.24, 5).rotateZ(Math.PI / 2 - 0.08), COL.graphite, [-0.72, -0.005, s * 0.018]);   // the bipod, folded along the barrel
-    return mergeParts(k);
+    return k;
   }
   /** the shield's projector on the lower rim: a rounded housing */
   function projector() { return mergeParts([part(new RoundedBoxGeometry(0.46, 0.06, 0.07, 2, 0.02), 's', COL.carbon), part(tf(new RoundedBoxGeometry(0.3, 0.02, 0.02, 1, 0.008), [0, 0.04, 0.01]), 's', COL.amber)]); }
@@ -669,7 +676,7 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
       let hot = 0, jammed = 0;
       for (const e of list) if (!e.dead && e.K === KIND[k]) { if (e.tele > 0 || e.charge > 0) hot = 1; if (e.jam > 0 || e.stun > 0) jammed = 1; }
       visorMat[k].color.setRGB(...KIND[k].visor).multiplyScalar(7 * (1 + 2.2 * hot * (0.6 + 0.4 * Math.sin(game.time * 40))) * (jammed && Math.sin(game.time * 23) > 0.3 ? 0.15 : 1));
-      visorPlain[k].color.copy(visorMat[k].color);
+      visorPlain[k].color.copy(visorMat[k].color); glowU[k].value.copy(visorMat[k].color);
     }
     rim.value.set(0.05, 0.11, 0.14).multiplyScalar(1 + 5 * env.rim);
     return moved;
