@@ -49,6 +49,7 @@ requestAnimationFrame(loop);
 | `shadowMapSize`, `mobile`, `preserveDrawingBuffer` | | overrides |
 | `dynamicRes` | off | `true` or `{ target: 60 fps, min: 0.6, step: 0.1 }`: moving frames render smaller when they run over budget (see below) |
 | `light2` | off | `true` or `{ ls, ssr, vol, bloom }` overriding `LIGHT2_DEFAULTS` (each part `false` to drop it): lamp shadows, screen-space reflections, volumetric light, mixed bloom (see below) |
+| `lampPool` | off | `true` or fields overriding `LAMPPOOL_DEFAULTS`: every lamp lights its surroundings, beyond the few real PointLights (see "Lamp pool") |
 | `softShadows` | off | `true` or fields overriding `SOFTSHADOW_DEFAULTS`: contact-hardening soft sun shadows, per pixel, in still and walking frames alike (see below) |
 | `grade` | off | `true` or `{ strength, nightAdapt, lampTint, noon, golden, dusk, night }` (look overrides of `GRADE_PRESETS`): the time-of-day grade and a darker night (see below) |
 | `reducedMotion` | off | `true` or `{ sway: 0.25, rain: 0.4 }`: reduced motion from the start (see "Reduced motion"); @miragekit/play sets it from `prefers-reduced-motion` |
@@ -117,6 +118,48 @@ patched and a world renders bit-identical to before.
   and bloom but no lamp shadows (a console warning says so). Worlds without light2 publish no lamp slots.
 - Install before the first compile: with `config.renderer` shared by an earlier world, programs that renderer
   compiled before light2 was installed are reused without it (three's program cache does not see chunk edits).
+
+## Lamp pool (opt-in): `lampPool`
+
+Three shades every PointLight in every pixel, so a world keeps a handful of real lights near the eye and its other
+lamps are bright dots. The lamp pool lights them all:
+
+```js
+const world = createWorldRenderer({ ..., lampPool: true });
+world.lampPool.set(lanterns.map((a) => ({ pos: a.flame, range: 6, power: 1.2, normal: a.wallNormal, back: 0.42 })));
+```
+
+- **What a lamp is.** A point light shaded inside the lit materials with three's own falloff and the material's own
+  BRDF (albedo, roughness, normal maps, specular, as a `PointLight` with the same `power` / `range` / `decay` /
+  `color`), held as data: 3 texels of one float texture. The frustum is cut into 16 x 9 x 24 cells (lights.js's);
+  per cell the CPU lists the lamps that reach it (the nearest `perCell` kept), and a pixel loops over its cell only.
+  Adding a lamp compiles nothing. `power` follows the world's lamp level (`G.uLampGain`, 0 by day: the loop is
+  skipped); lamps beyond `far` (200 m) fade out over the last `fade` (40 m).
+- **Real lights and the pool.** A visible PointLight within 3 cm of a pool lamp is that lamp's real light; the pool
+  adds what it lacks (1 - its intensity / the lamp's, every render). A module that hands a few PointLights to the
+  lamps nearest the eye with a smooth weight gets a seamless hand-off: real + pool is the whole lamp at every weight.
+  The nizwa probe at 21:00, its 4 real lights on vs hidden (the pool lighting all 36 lamps): max 1 level, 0.3 % of
+  the pixels differ (light2 on), max 2 / 0.8 % (light2 off).
+- **light2.** Pool lamps are lamp-shadow candidates at full power, and a PointLight on one is folded into it: the 4
+  shadow slots go to the most important lamps, real light or not, and the pool's loop reads them by position, so a
+  slot shadows the whole lamp. They scatter in the volumetric pass like the real ones.
+- **Leaks.** A lamp without a slot has no shadow: it lights every surface facing it within `range`, through walls.
+  `normal` (the wall's outward normal) and `back` (flame to wall face, m) stop it `soft` m (0.15) behind the wall it
+  hangs on, which removes the usual leak (the room or street behind that wall). Still leaking: through a second
+  wall or a floor between lamp and surface (a room across a lane narrower than `range`, the floor above), round
+  corners and piers; a lamp without `normal` leaks every way. Short ranges keep it local.
+- **Captures.** Pool lamps light the environment and probe captures like PointLights do (`captures: false` to skip).
+  An orthographic camera loops over every lamp within `far` (correct, not culled).
+- **Why not deferred light volumes.** Mirage keeps no G-buffer: a box per lamp added after the opaque pass knows no
+  albedo, roughness or normal map (a dark door would glow like plaster) and would have to sit between the opaque and
+  transparent halves of the one scene render. In the materials the pool is the same light as a PointLight.
+- **Cost** (nizwa probe `tools/bench.mjs`, walk view, 1440 x 900, 21:00, Apple M4 Pro shared with other jobs; best
+  of 5 interleaved rounds per spot, so +-0.5 ms is noise): the 36 lanterns 0 to +0.9 ms over the 4 real lights alone
+  (forecourt 7.56 -> 8.43, wall 6.47 -> 6.80, tower foot 10.17 -> 10.11, far 5.22 -> 5.49); 336 lamps (300 scattered
+  over the fort, no walls: a town's density) +2.1 to +5.1 ms (9.89, 9.47, 15.23, 7.36). Binning 0.1-0.6 ms of CPU
+  when the camera moves; at 336 lamps some cells pass `perCell` (32) and drop their farthest lamps.
+- `world.lampPool`: `set(lamps)`, `add(lamp)`, `update(i, fields)`, `clear()`, `count`, `info` (`active`, `real`,
+  `indices`, `clipped`, `binMs`, `mode`). Off, nothing of this exists and frames are bit-identical to before.
 
 ## Ambient-only AO, auto exposure, dynamic resolution (opt-in)
 

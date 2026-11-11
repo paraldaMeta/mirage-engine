@@ -12,6 +12,8 @@
 //      ?grade=1 the time-of-day grade (@miragekit/core daynight.js: split toning, black point, curve, ACES / AgX mix,
 //      punch, clarity, highlight warmth, a darker night); &gradek=0..1 its strength
 //      ?sky=dusk the dusk sky (@miragekit/core sky.js): twilight colours, a darker night dome, a hazy horizon, altocumulus
+//      ?lamppool=1 the lanterns are lit by the lamp pool (@miragekit/core lamppool.js) instead of PointLights;
+//      &lampreal=1 keeps the PointLights too (the pool then adds nothing: the A/B of the hand-off)
 //      Enter VR / Enter AR appear in a WebXR browser: docs/xr.md
 import { createWorldRenderer, createTextures, placeDate, pickQuality, setRelief, setWetness, setRain, postFromQuery } from '@miragekit/core';
 import { buildWorld } from '@miragekit/world';
@@ -59,7 +61,7 @@ const lighting = ['csm', 'gi', 'probes'].some(LF) || (NL && !stock) || SCR ? {
 // the dusk sky (opt-in): ?sky=dusk
 const sky = Q.get('sky') === 'dusk' ? { dusk: true } : undefined;
 const ed = editable(plan, edits);   // with an empty layer: the plan itself, and every ed. call below does nothing
-const world = createWorldRenderer({ quality, byteTargets: Q.get('bytetargets') === '1', xr: xrs.vr || xrs.ar, light2, softShadows, grade, lighting: ed.lighting(lighting), dynamicRes: Q.get('dynres') ? (Q.get('dynres') === '1' || { target: +Q.get('dynres') }) : (caps?.settings.dynamicRes ?? false),
+const world = createWorldRenderer({ quality, byteTargets: Q.get('bytetargets') === '1', xr: xrs.vr || xrs.ar, light2, softShadows, grade, lampPool: Q.get('lamppool') === '1', lighting: ed.lighting(lighting), dynamicRes: Q.get('dynres') ? (Q.get('dynres') === '1' || { target: +Q.get('dynres') }) : (caps?.settings.dynamicRes ?? false),
   canvas, width: W, height: H, place, time: date || 'golden', preserveDrawingBuffer: true,
   shadow: { center: [0, 2, 0], radius: 17 }, envProbe: [0, 2.2, 0],
   fog: { groundDensity: 0.0022, height: 30 }, ...(sky ? { sky } : {}),
@@ -72,7 +74,7 @@ const tex = createTextures(world, { manifest, url: (f) => urls['./tex/' + f] });
 // wetness (opt-in): ?wet=0.8 re-patches the ground and masonry materials, ?rain=1 adds the streaks
 const wet = Q.has('wet') || Q.has('rain');
 if (wet) { setWetness(+(Q.get('wet') ?? 0)); setRain(+(Q.get('rain') ?? 0)); }
-const buildOpts = (p) => ({ plan: p, modules: modules({ broken: Q.has('broken') }), shared: { tex, detail: !Q.has('nodetail'), ...(wet ? { wet: true } : {}) } });
+const buildOpts = (p) => ({ plan: p, modules: modules({ broken: Q.has('broken') }), shared: { tex, detail: !Q.has('nodetail'), ...(wet ? { wet: true } : {}), ...(Q.get('lampreal') === '1' ? { lampReal: true } : {}) } });
 const built = await buildWorld(world, buildOpts(ed.plan));
 const rain = Q.has('rain') ? addRain({ ...world.ctx, root: world.scene }) : null;
 

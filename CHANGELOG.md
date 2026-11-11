@@ -20,6 +20,11 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
   toward the horizon and a night dome seen darker than the light it gives, the world's far haze below the horizon
   instead of black, altocumulus clouds at a fuller default cover. Off, the sky is bit-identical; on, +0.2–0.4 ms with
   the sky filling a 1440 x 900 frame. nizwa-probe and hello-courtyard: `?sky=dusk`.
+- @miragekit/core: the lamp pool (`createWorldRenderer({ lampPool: true })`, `world.lampPool.set(lamps)`; opt-in,
+  off = bit-identical): every lamp of a town lights its surroundings through the lit materials (clustered, three's
+  falloff and BRDF), not only the few PointLights near the eye; a PointLight on a pool lamp takes its share, so the
+  hand-off is seamless; a lamp's wall stops its light; with light2 the shadow slots go to the best pool lamps.
+  Closes gap 3 of the Nizwa probe (`probes/nizwa-probe` `?pools=1`); hello-courtyard `?lamppool=1`.
 
 **Fixes**
 - `mirage-package` (single-file builds) no longer inlines three's default Draco and Basis decoder files (~2.5 MB),

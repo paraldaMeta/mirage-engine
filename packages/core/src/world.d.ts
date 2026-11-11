@@ -7,6 +7,7 @@ import type { Pipeline, PostSettings } from './post.js';
 import type { Light2Option, Light2Settings } from './light2.js';
 import type { SoftShadowOption, SoftShadowSettings } from './softshadow.js';
 import type { Lighting, LightingOption } from './lighting.js';
+import type { LampPool, LampPoolOption } from './lamppool.js';
 import type { SkyTime, SkyState, LightState, GradeOption, GradeSettings } from './daynight.js';
 import type { Place } from './sky-time.js';
 import type { Quality, DeviceProfile } from './device.js';
@@ -40,6 +41,9 @@ export interface WorldRendererOptions {
   /** The time-of-day grade (off by default): split toning, black point, S-curve, ACES / AgX-punchy blend, clarity, highlight warmth and a darker
    *  night, keyed by the sun's elevation and the lamp level (GRADE_PRESETS; daynight.js gradeAt). */
   grade?: GradeOption;
+  /** Every lamp lights its surroundings, beyond the few real PointLights (off by default): a clustered pool of lamps
+   *  shaded in the lit materials, filled with `world.lampPool.set(...)`. */
+  lampPool?: LampPoolOption;
   /** Reduced motion from the start (off by default; @miragekit/play follows prefers-reduced-motion): see setReducedMotion. */
   reducedMotion?: boolean | Partial<ReducedMotionSettings>;
 }
@@ -92,6 +96,8 @@ export interface WorldRenderer {
   softShadows: SoftShadowSettings | null;
   /** The lighting features of the `lighting` option, null when off. */
   lighting: Lighting | null;
+  /** The lamp pool of the `lampPool` option, null when off. */
+  lampPool: LampPool | null;
   /** Null before setTime(), prepare() or the first renderFrame(). */
   readonly light: LightState | null; readonly state: SkyState | null; readonly exposure: number;
   setTime(time: SkyTime, options?: { ease?: boolean }): LightState;

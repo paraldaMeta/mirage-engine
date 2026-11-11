@@ -39,12 +39,24 @@ const gradeOpt = Q.get('grade') === '1' && {
 //      (twilight colours, a darker night dome, a hazy horizon, altocumulus); &haze= &night= &airglow= &cover= tune it
 const skyDusk = Q.get('sky') === 'dusk' ? { dusk: Object.fromEntries(['haze', 'night', 'airglow', 'cover'].filter((k) => Q.has(k)).map((k) => [k, +Q.get(k)])) } : null;
 // ----
+// ---- far-lamp pools (REPORT.md gap 3; @miragekit/core lamppool.js) ---------------------------------------------------
+//      ?pools=1        every lantern lights its wall and floor, not only the four real lights nearest the eye; the real
+//                      lights stay (the pool adds what they lack), light2 picks its shadow slots among all lanterns
+//      &poolstress=N   N more pool lamps over the fort's footprint (a town's worth of lamps, for the cost)
+const pools = Q.get('pools') === '1' ? true : null;
+const poolStress = pools ? +Q.get('poolstress') || 0 : 0;
+function addStressLamps(world, n) {
+  let s = 977;
+  const rnd = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
+  for (let i = 0; i < n; i++) world.lampPool.add({ pos: [-24 + rnd() * 102, 1.2 + rnd() * 3, -34 + rnd() * 68], range: 6, power: 1.17 });
+}
+// -----------------------------------------------------------------------------------------------------------------------
 
 const canvas = document.querySelector('canvas');
 canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
 const world = createWorldRenderer({
   canvas, width: W, height: H, quality, place: plan.place, time, preserveDrawingBuffer: true,
-  light2, softShadows: !off.has('soft'), dynamicRes: Q.get('dynres') === '1', grade: gradeOpt,
+  light2, softShadows: !off.has('soft'), dynamicRes: Q.get('dynres') === '1', grade: gradeOpt, ...(pools ? { lampPool: pools } : {}),
   shadow: { center: [24, 6, 0], radius: 62 }, envProbe: [20, 9, 36], envIntensity: 1,   // Nizwa's ENV.envIntensity (Mirage's default is 0.5)
   shadowMapSize: +Q.get('smap') || 4096,
   // ?gi=1: Mirage's irradiance probe volume over the fort (docs/lighting.md); off by default (not part of the brief)
@@ -62,6 +74,7 @@ const nz = nizwaContext(world, { walkers: () => (play && play.mode === 'walk' ? 
 // Nizwa's decimated twins of the big plaster meshes, picked per frame while moving (its walk.js does the same)
 world.ctx.onUpdate(() => { if (play && play.mode !== 'orbit' && !play.still) nz.lod.update(world.camera, { viewHalf: 0, heightPx: H }); });
 const built = await buildWorld(world, { plan, modules, shared: { nz } });
+if (poolStress) addStressLamps(world, poolStress);   // ?pools=1&poolstress=N (the block above)
 const tBuilt = performance.now();
 
 const focalToFov = (focal) => (2 * Math.atan(36 / (W / H) / (2 * focal)) * 180) / Math.PI;   // Nizwa's lens: a 36 mm wide sensor
@@ -83,6 +96,7 @@ if (mode === 'orbit' || Q.has('view') || explicit) place(explicit || plan.viewpo
 let tris = 0, meshes = 0;
 world.scene.traverse((o) => { if (o.isMesh && o.geometry.attributes.position) { meshes++; const g = o.geometry; tris += ((g.index ? g.index.count : g.attributes.position.count) / 3) * (o.isInstancedMesh ? o.count : 1); } });
 const info = { buildMs: Math.round(tBuilt - T0), readyMs: Math.round(tReady - T0), meshes, tris: Math.round(tris), report: built.report, bridge, tex: nz.tex.stats(), light: world.light,
+  ...(world.lampPool ? { lampPool: { lamps: world.lampPool.count } } : {}),
   lookPack: { light2: !!world.light2, softShadows: !!world.softShadows, aoLit: world.post.aoLit, autoExposure: world.post.autoExposure } };
 console.log('[info] ' + JSON.stringify({ ...info, report: undefined, light: undefined, failed: built.report.failed }));
 

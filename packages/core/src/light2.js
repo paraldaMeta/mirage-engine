@@ -21,6 +21,8 @@ import { onChunksRestored } from './fog.js';
 // finds a lamp's slot by its position. New slots draw at once (perFrame), stale ones refresh every refreshS seconds,
 // and the moving casters (top-level objects with userData.mgDynamic) one slot every dynEvery sub-frames.
 // Top-level objects with userData.mgLampCast === false (terrain, big ground meshes) are left out of the cubes.
+// With the lamp pool (lamppool.js) its lamps are sources too, and a PointLight on a pool lamp is folded into that
+// lamp: the slots go to the best lamps whether or not a real light sits on them, and the pool's loop reads them.
 //
 // The extra sampler is paid for by replacing three's DFG lookup table with its analytic fit (Karis 2014), and both
 // are compiled only for Standard / Physical / Lambert / Phong materials under THREE.FogExp2 (every Mirage world).
@@ -338,13 +340,23 @@ export class LampShadows {
         l.getWorldPosition(v);
         // distance 0 is three's "no cut-off": the shadow reaches where a decay-2 light falls to 1 % of 1 m
         const range = l.distance > 0 ? l.distance : Math.min(60, Math.sqrt(Math.max(l.intensity, 0) * 100));
-        c.push({ id: l.uuid, x: v.x, y: v.y, z: v.z, range, power: l.intensity, near: l.userData.lsNear ?? cfg.near, col: [l.color.r * l.intensity, l.color.g * l.intensity, l.color.b * l.intensity] });
+        c.push({ id: l.uuid, uuid: l.uuid, x: v.x, y: v.y, z: v.z, range, power: l.intensity, near: l.userData.lsNear ?? cfg.near, col: [l.color.r * l.intensity, l.color.g * l.intensity, l.color.b * l.intensity] });
       }
     }
     for (const fn of scene.userData.mgLampSources || []) {
       if (typeof fn !== 'function') continue;
       const a = fn(cp);
       if (a) for (const q of a) c.push({ ...q });
+    }
+    // the lamp pool (lamppool.js) offers its lamps at full power under a stable id: a PointLight on one of them is
+    // that lamp's real light (part of it), so it is folded into the pool's entry and the slot follows the lamp
+    if (c.some((q) => q.pool)) {
+      const pool = c.filter((q) => q.pool);
+      for (let i = c.length - 1; i >= 0; i--) {
+        const q = c[i];
+        if (q.pool || q.uuid === undefined) continue;   // PointLights only (a source has no uuid)
+        if (pool.some((p) => (p.x - q.x) ** 2 + (p.y - q.y) ** 2 + (p.z - q.z) ** 2 < 9e-4)) c.splice(i, 1);
+      }
     }
     const out = [];
     for (const q of c) {

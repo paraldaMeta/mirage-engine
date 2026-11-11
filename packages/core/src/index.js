@@ -12,6 +12,7 @@ export { PostFX, FX_DEFAULTS, postFromQuery, parseCube, makeLut, lutTexture, ape
 export { LIGHT2_DEFAULTS, light2Config, installLight2, addLampSource, LampShadows } from './light2.js';
 export { SOFTSHADOW_DEFAULTS, softShadowConfig, installSoftShadows } from './softshadow.js';
 export { createLighting, CSM_DEFAULTS, GI_DEFAULTS, LIGHTS_DEFAULTS, PROBE_DEFAULTS, SCREEN_DEFAULTS, SCREEN_POST } from './lighting.js';
+export { LAMPPOOL_DEFAULTS, lampPoolConfig, createLampPool } from './lamppool.js';
 export { patch, createMaterials, PROC } from './materials.js';
 export { NOISE_GLSL } from './noise.js';
 export { rng, hash32, sfc32, valueNoise2, fbm2 } from './rng.js';
