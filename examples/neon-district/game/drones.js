@@ -1,7 +1,7 @@
 // The kites: small flying drones. They do not walk the navgrid: each hovers on a slow orbit round the player, a few
 // metres up, stays out of solids by asking the walk grid whether a point is in the air (airAt), fires a single bolt
 // when the grid gives it a line to the player (gridRay), and falls when shot. Entities with save / load, like the
-// sentinels, and top-level mgDynamic objects so the lamps' shadow tiles follow them.
+// sentinels, and top-level mgDynamic objects (left out of the probe bakes; they cast no shadow, see build).
 // Two jobs: a kite (`kind` absent) shoots; a mender (`kind: 'mender'`, a green eye and a ring under it) shoots nothing
 // and mends damaged sentinels with a beam, keeping away from the player: kill it or hack it first.
 // A hacked kite is turned (turn(e, s)): its eye goes cyan, it hunts sentinels for `s` seconds and then burns out.
@@ -26,17 +26,25 @@ export function createDrones({ world, game, physics, plan, vfx, sfx, player, ass
     const kind = def.kind === 'mender' ? 'mender' : 'kite';
     const o = new THREE.Group(); o.name = def.id;
     const eyeMat = mat.glow(EYE[kind], 8);   // one each: a turned kite's eye changes colour
-    const add = (geo, m, p = [0, 0, 0], r = [0, 0, 0]) => { const k = new THREE.Mesh(geo, m); k.position.set(...p); k.rotation.set(...r); k.castShadow = true; k.userData.occlude = false; o.add(k); return k; };
-    add(new THREE.SphereGeometry(0.2, 18, 12).scale(1, 0.72, 1.25), shell);
-    add(new THREE.SphereGeometry(0.07, 12, 8), eyeMat, [0, -0.03, 0.22]);
+    const add = (geo, m, p = [0, 0, 0], r = [0, 0, 0], cast = false) => { const k = new THREE.Mesh(geo, m); k.position.set(...p); k.rotation.set(...r); k.castShadow = cast; k.userData.occlude = false; o.add(k); return k; };
+    // the parts that never move against the body are baked into one mesh per material (the shell; the eye and its
+    // ring or fin): a kite is six draws, not fifteen, in each of the passes it is drawn in. The rotors spin on their own.
+    const parts = { shell: [], eye: [] };
+    const bake = (k, geo, p = [0, 0, 0], r = [0, 0, 0]) => parts[k].push(geo.applyMatrix4(new THREE.Matrix4().compose(new THREE.Vector3(...p), new THREE.Quaternion().setFromEuler(new THREE.Euler(...r)), new THREE.Vector3(1, 1, 1))));
+    bake('shell', new THREE.SphereGeometry(0.2, 18, 12).scale(1, 0.72, 1.25));
+    bake('eye', new THREE.SphereGeometry(0.07, 12, 8), [0, -0.03, 0.22]);
     const rotors = [];
     for (const [x, z] of [[-0.34, 0.2], [0.34, 0.2], [-0.34, -0.24], [0.34, -0.24]]) {
-      add(new THREE.TorusGeometry(0.13, 0.014, 6, 20), shell, [x, 0.03, z], [Math.PI / 2, 0, 0]);
-      add(new THREE.BoxGeometry(Math.abs(x) - 0.08, 0.02, 0.03), shell, [x / 2, 0.01, z * 0.8]);
+      bake('shell', new THREE.TorusGeometry(0.13, 0.014, 6, 20), [x, 0.03, z], [Math.PI / 2, 0, 0]);
+      bake('shell', new THREE.BoxGeometry(Math.abs(x) - 0.08, 0.02, 0.03), [x / 2, 0.01, z * 0.8]);
       rotors.push(add(new THREE.BoxGeometry(0.24, 0.006, 0.02), shell, [x, 0.04, z]));
     }
-    if (kind === 'mender') add(new THREE.TorusGeometry(0.16, 0.012, 6, 24), eyeMat, [0, -0.17, 0], [Math.PI / 2, 0, 0]);   // the mender's ring
-    else add(new THREE.BoxGeometry(0.04, 0.02, 0.12), eyeMat, [0, -0.14, -0.05]);
+    if (kind === 'mender') bake('eye', new THREE.TorusGeometry(0.16, 0.012, 6, 24), [0, -0.17, 0], [Math.PI / 2, 0, 0]);   // the mender's ring
+    else bake('eye', new THREE.BoxGeometry(0.04, 0.02, 0.12), [0, -0.14, -0.05]);
+    // no shadow: a 0.4 m body 5-11 m up casts a blob nobody sees, and a moving caster near a shadowed lamp redraws that
+    // lamp's six shadow faces every frame (core lights.js leaves objects that cast nothing out of that)
+    add(world.geom.mergeGeometries(parts.shell, false), shell, [0, 0, 0], [0, 0, 0], false);
+    add(world.geom.mergeGeometries(parts.eye, false), eyeMat, [0, 0, 0], [0, 0, 0], false);
     o.userData.mgDynamic = true; o.userData.collide = false;
     o.position.set(...def.at);
     world.scene.add(o); onDispose(() => o.removeFromParent());

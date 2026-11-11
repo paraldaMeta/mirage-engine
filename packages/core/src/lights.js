@@ -177,7 +177,7 @@ export function createLights(w, cfg) {
     mgLA: { value: new THREE.Vector4(0, 0, 1 / cfg.atlas, cfg.bias) }, mgLB: { value: new THREE.Vector4(1, 1, 0.1, 1) },
   };
   const lights = [];   // { light, shadow, tile: null | { s, xy }, dirty, want, last: Float32Array(REC * 4), range, imp }
-  const tiles = tileAllocator(cfg.atlas);
+  let tiles = tileAllocator(cfg.atlas);
   const cubes = new Map();   // face px -> { rt, cam }
   const dist = distanceMaterial();
   const foldMat = new THREE.ShaderMaterial({
@@ -321,7 +321,12 @@ void main() { gl_FragDepth = clamp( textureLod( tCube, mgOctDec( vUv ), 0.0 ).r 
         dyn.set(o, d);
       }
       const e = o.matrixWorld.elements;
-      let moved = !!o.userData.mgAnimated;
+      // an object with nothing that casts (a drone whose parts cast no shadow) cannot change a tile: it dirties none
+      let casts = false;
+      o.traverseVisible((c) => { if (!casts && c.castShadow && (c.isMesh || c.isPoints || c.isLine || c.isSprite)) casts = true; });
+      const was = d.casts !== false; d.casts = casts;
+      if (!casts && !was) { d.e.set(e); d.c.setFromMatrixPosition(o.matrixWorld); continue; }   // (the frame it stops casting still redraws: its old shadow goes)
+      let moved = !!o.userData.mgAnimated || casts !== was;
       for (let k = 0; k < 16 && !moved; k++) if (e[k] !== d.e[k]) moved = true;
       if (!moved) continue;
       _v.setFromMatrixPosition(o.matrixWorld);
@@ -330,8 +335,12 @@ void main() { gl_FragDepth = clamp( textureLod( tCube, mgOctDec( vUv ), 0.0 ).r 
     }
     for (const o of dyn.keys()) if (o.parent !== scene) dyn.delete(o);
   }
-  function shadowFrame(cam) {
+  // still (renderFrame's still frames, not TAA or XR frames): tile sizes chosen for this view alone and every dirty tile drawn now, so a still
+  // does not depend on the views before it (moving frames keep the size bands and perFrame)
+  function shadowFrame(cam, still = false) {
     info.redrawsLastFrame = 0;
+    // a still lays the atlas out afresh (where a tile sits, and so how its edges filter, then depends on this view only)
+    if (still) { tiles = tileAllocator(cfg.atlas); for (const L of lights) L.tile = null; dirtyTex = true; }
     const eye = _t.setFromMatrixPosition(cam.matrixWorld);
     let n = 0;
     for (const L of lights) {
@@ -340,7 +349,7 @@ void main() { gl_FragDepth = clamp( textureLod( tCube, mgOctDec( vUv ), 0.0 ).r 
       L.imp = L.range / Math.max(L.pos.distanceTo(eye), L.range * 0.5);
       // the tile a light of this importance wants; it changes only when the importance left the current size's band
       const ideal = cfg.tileMax * Math.min(1, L.imp);
-      if (!L.want || ideal > L.want * 1.5 || ideal < L.want * 0.4) L.want = Math.max(cfg.tileMin, Math.min(cfg.tileMax, 2 ** Math.round(Math.log2(Math.max(ideal, 1)))));
+      if (still || !L.want || ideal > L.want * 1.5 || ideal < L.want * 0.4) L.want = Math.max(cfg.tileMin, Math.min(cfg.tileMax, 2 ** Math.round(Math.log2(Math.max(ideal, 1)))));
       if (!L.tile || L.tile.s !== L.want) {
         let s = L.want, xy = null;
         while (s >= cfg.tileMin && !(xy = tiles.alloc(s))) s >>= 1;
@@ -353,7 +362,7 @@ void main() { gl_FragDepth = clamp( textureLod( tCube, mgOctDec( vUv ), 0.0 ).r 
     const todo = lights.filter((L) => L.tile && (L.dirty || allDirty) && L.last[4] + L.last[5] + L.last[6] > 0).sort((p, q) => q.imp - p.imp);
     allDirty = false;
     for (const L of todo) L.dirty = true;
-    const now = todo.slice(0, first ? todo.length : cfg.perFrame);
+    const now = todo.slice(0, first || still ? todo.length : cfg.perFrame);
     if (now.length) { drawShadows(now); info.redrawsLastFrame = now.length; first = false; }
   }
   let first = true;
@@ -374,12 +383,12 @@ void main() { gl_FragDepth = clamp( textureLod( tCube, mgOctDec( vUv ), 0.0 ).r 
   return {
     cfg, part, uniforms: U, info, add, remove, atlas, get texture() { return tex; },
     get count() { return lights.length; },
-    frame(cam) {
+    frame(cam, dt = 1 / 60, still = false) {
       viewCam = cam; info.lights = lights.length;
       if (!lights.length) return;
       cam.updateMatrixWorld();
       if (writeRecords()) { dirtyTex = true; camKey = ''; }
-      shadowFrame(cam);
+      shadowFrame(cam, still);
       if (dirtyTex) writeRecords();   // a tile was (re)assigned above
       if (cfg.cluster && cam.isPerspectiveCamera) {
         const e = cam.matrixWorld.elements, p = cam.projectionMatrix.elements;

@@ -127,8 +127,8 @@ rounds, crosshair, recoil pattern, muzzle flash, tracer or projectile, casings a
   fire), a hit, a blast, a reload done, an empty magazine. The vibration option shortens the phone's pulses and scales
   the rumble's magnitudes.
 
-**The sound** (`game/gunsound.js`, rendered offline in JS into buffers and handed to the mixer with `audio.add`, a
-few ms of work a step after the first gesture, the carbine first). A shot is five layers: a 2-3 ms broadband snap
+**The sound** (`game/gunsound.js`, rendered offline in JS into buffers and handed to the mixer with `audio.add`,
+in the browser's idle time after the first gesture, not inside a frame, the carbine first). A shot is five layers: a 2-3 ms broadband snap
 through a high band, a band-passed crack with a fast decay, a thump falling from about 150 to 50 Hz, the mechanism's
 short metallic resonances (slide, bolt), and a low-passed body; then the room the player stands in, from the audio
 engine's zones: the alley a tight slapback (echoes 31 ms apart off its two walls), the street and the plaza a long
@@ -275,7 +275,9 @@ Apple M4 Pro, headless Chrome (ANGLE Metal), 1440 x 900 at pixel ratio 1, `node 
 Every variant is its own page in one Chrome and the rounds go round-robin over the pages; in a round each view is
 walked for 40 moving frames with a slow pan, each frame ended by a 1-pixel read-back. A cell is the median of the
 round medians in ms per frame, the bracket their lowest and highest. Other GPU jobs ran on the machine while this
-was measured: read the brackets. The table of quality levels below is from a quiet run of 6 rounds on the current build. The feature table further
+was measured: read the brackets. The table of quality levels below is from a quiet run of 6 rounds on the build before the city art, the close-up
+props, the cars, the street robots, the kit and the five guns; what they cost and what was won back is under
+"Frame budget". The feature table further
 down is older: it was taken before the lamp pool, the facades and the megastructure went in, on a run that other
 jobs disturbed (its high ends are those jobs), and is kept for what it says about the screen-space passes.
 
@@ -320,6 +322,129 @@ each costs. `lamps=100` (100 more clustered lamps along the street) shows only i
 occlusion culling and automatic LOD (`big=`) make no measurable difference: the block is 68 x 64 m, its buildings
 are a few boxes each and most of it is on screen or behind one wall, so they stay behind the flag.
 Not measured: any other GPU, a phone, pixel ratio 2.
+
+## Frame budget
+
+After the city art, the close-up props, the cars, the street robots, the kit and the five guns the game ran at 12.6-13.4
+(low), 22-23 (medium) and 25-27 ms (high) a frame at 1440 x 900; the targets are 10 / 16 / 20. What a frame drew, at
+the street view, medium (`renderer.info` per pass, four frames averaged):
+
+| pass | draws | triangles |
+|---|---|---|
+| the scene | 678 | 516 k |
+| the screen-space G-buffer (SSR) | ~290 | ~340 k |
+| the wet street's mirror (every 2nd frame; per frame) | ~250 | ~245 k |
+| one lamp's shadow tile, six faces (redrawn every frame) | 277 | 302 k |
+| the sun's shadow map | 123 | 65 k |
+| the velocity buffer (moving objects) | 147 | 56 k |
+| post | ~40 | 0 |
+| **all** | **1691** | **1525 k** |
+
+Where the multiplication was: every sentinel's three skinned meshes had `frustumCulled = false`, so each was drawn in
+all six faces of the lamp tile being redrawn (12 draws and 21 k triangles per sentinel per frame), in the mirror, in
+the sun's map and in the velocity buffer wherever it stood; each kite was 15 meshes, all casting, and its hover
+dirtied the nearest shadowed street lamp every frame; the view model and the close-up props (cans, bottles, the
+bar's goods, the stall's goods) were drawn into the mirror; the gun sounds were synthesised inside the step (2.8 ms a
+frame for the first seconds). The game adds draws over the world for those reasons, not for its effects or HUD.
+
+What changed (nothing removed, no prop, no gameplay; `perf.js`, `main.js`):
+
+- **Sentinels** (`game/enemies.js`): one fixed bounding sphere in the rig's space that holds every pose (arms out,
+  the aim, lying after the fall); the skinned meshes are culled by it in every pass. Core's velocity pass now culls a
+  skinned stand-in by the same sphere (CHANGELOG).
+- **Kites** (`game/drones.js`): the parts that do not move are one mesh per material (15 meshes -> 6); they cast no
+  shadow (a 0.4 m body 5-11 m up), and core's lamp tiles no longer redraw for a moving object that casts nothing.
+- **The mirror** draws one layer (`lighting.planar.layers`, `perf.js mirrorLayer`): everything but the view model
+  and the close-up props (`vending-*` goods and spirals, `bar-props`, `relay-props`, `stall-goods`, `grime-props`,
+  `clutter-props`, `shop-props`). `?mirrorall=1` puts them back.
+- **Wall bills and tags** (`modules/facades.js`): drawn as before into their own canvases, then copied into one
+  atlas: 2 draws instead of one per bill (47 fewer at the street).
+- **Vending goods** (`modules/vending.js`): an instanced set per row of machines instead of one for the district,
+  each culled with its row and drawn within 30 m (a can is then under 3 px; the lit window stays).
+- **The med kit's cross** is one mesh; **the gun sounds** are made in the browser's idle time (`game/sfx.js`).
+- **Tiers** (below): the mirror is redrawn every 3rd moving frame at medium and high (it keeps the matrix it was drawn
+  with, so it stays registered while the camera moves); medium has no screen-space reflections (the mirror covers the
+  street, the plaza and the pavements; cars and the bar keep their reflection probes); low's moon casts no shadow at
+  night.
+
+The tiers now:
+
+| | low (phones) | medium | high |
+|---|---|---|---|
+| render scale | 0.75 | 1 | 1 |
+| temporal AA (taa2) | - | yes | yes |
+| lamp shadow tiles, volumetric lamps, probe GI, bounce | - | yes | yes |
+| planar mirror | - | every 3rd frame, half size | every 3rd frame, half size |
+| screen-space reflections | - | - | yes |
+| SSGI, contact shadows, sun cascades, motion blur | - | - | yes |
+| sun / moon shadow map | by day and dusk (the moon casts none at night) | yes | yes (4096) |
+| dressing (`detail`) | 0.4 | 0.8 | 1 |
+| lens dirt, streaks, sharpening, chroma | - | yes | yes |
+
+Draws and triangles a frame at the street view, medium, averaged over four frames: 1691 / 1525 k before, about 800 /
+620 k after (a frame that draws the mirror: 1257 / 896 k, the measure table's last column). Times: see the table
+below (`scripts/measure.mjs --vs <old dist>` measures both builds in the same rounds, so a busy machine weighs on both).
+
+Measured on a machine other agents were loading (their playtests and stills ran throughout: the same build ran
+22-23 ms at medium alone, 29-30 ms here), 6 interleaved rounds, both builds in the same rounds: `vs` rows are the
+build before this pass. Read the ratios and the low ends of the brackets (the least disturbed rounds), not the
+medians as absolute numbers.
+
+| variant | alley | street west | bar inside | plaza | roof vista | calls, triangles (street) |
+|---|---|---|---|---|---|---|
+| vs game, low | 16.6 [12.3-22.3] | 15.0 [13.3-16.5] | 10.6 [8.6-11.8] | 13.3 [9.8-14.6] | 15.1 [12.3-17.1] | 677, 497 k |
+| game, low | 14.8 [11.2-16.5] | 15.7 [11.8-17.0] | 9.6 [7.3-12.0] | 10.3 [8.2-11.7] | 15.8 [11.1-16.4] | 444, 396 k |
+| vs game, medium | 27.7 [21.5-30.7] | 29.6 [23.1-29.9] | 20.6 [15.8-21.3] | 24.4 [18.1-26.4] | 27.1 [21.1-28.5] | 1898, 1693 k |
+| game, medium | 21.1 [15.2-23.4] | 23.2 [16.6-24.6] | 16.8 [12.8-18.6] | 19.9 [14.2-20.5] | 22.6 [16.0-23.4] | 1257, 896 k |
+| vs game, high | 33.5 [24.9-33.8] | 34.0 [27.2-37.1] | 25.5 [18.2-27.0] | 28.6 [20.7-29.7] | 33.0 [24.3-33.6] | 1886, 1705 k |
+| game, high | 26.1 [18.6-26.7] | 27.6 [19.7-28.1] | 20.1 [15.3-20.6] | 23.9 [16.4-24.6] | 27.3 [18.9-28.2] | 1483, 1232 k |
+
+| vs world, low | 15.2 [14.8-16.1] | 16.4 [15.1-17.1] | 11.3 [10.4-12.1] | 12.1 [11.6-13.5] | 15.4 [15.3-15.6] | 420, 393 k |
+| world, low | 14.3 [14.0-15.0] | 15.8 [15.1-16.1] | 9.7 [9.4-10.9] | 11.1 [9.1-11.8] | 12.5 [11.6-13.6] | 317, 337 k |
+| vs world, medium | 23.8 [21.9-25.5] | 27.1 [23.9-29.2] | 17.1 [16.7-17.8] | 20.9 [18.1-22.8] | 25.4 [21.9-27.0] | 949, 1123 k |
+| world, medium | 18.8 [17.7-19.7] | 20.4 [19.1-20.9] | 15.1 [13.3-16.4] | 16.6 [15.9-17.1] | 19.1 [18.0-21.3] | 751, 641 k |
+| vs world, high | 29.1 [27.3-31.5] | 32.1 [29.6-34.9] | 19.8 [17.4-22.2] | 24.9 [22.7-26.0] | 29.3 [27.1-31.8] | 940, 1135 k |
+| world, high | 24.6 [22.6-26.8] | 27.1 [24.3-27.8] | 17.9 [16.6-19.0] | 21.6 [19.7-22.9] | 25.5 [23.9-27.6] | 905, 928 k |
+
+After / before, medians: game medium 0.76-0.82, game high 0.78-0.81, game low 0.89-1.05 (low is bound by the lamp
+pool's shading per pixel, which this pass did not cut: `?pool=0` is a quarter of low's frame, `?percell=16` a tenth
+of it and visibly darkens the street, so both stay). Scaled to the quiet run of the old build (medium 22-23, high
+25-27, low 12.4-13.3 ms) that is about 17.5-18.5 at medium, 20-21.5 at high and 11.5-13 at low; the brackets' low
+ends (rounds the other jobs disturbed least) are 15.2-16.6 at medium, 18.6-19.7 at high and 11.1-11.8 at low in the
+alley, the street and on the roof. So high is about at its 20 ms, medium near its 16, low over its 10.
+
+## Image stability
+
+The owner saw distant buildings shimmer. `scripts/stability.mjs` draws the district (no robots firing) at two vistas,
+the street looking up at the towers and the relay's roof over the plaza, 48 frames still and 48 with a 1 degree a
+second pan, and measures per pixel the temporal standard deviation of luma (still) and the RMS of its second
+difference in time (pan: a steady slide cancels, a twinkle does not), over the upper (far) and lower (near) half.
+
+Medium, 960 x 600 (the 0..255 luma; before = the build before this pass):
+
+| vista | camera | far half, before | far half, after | far p99, before | far p99, after | near half, before / after |
+|---|---|---|---|---|---|---|
+| street, towers | still | 0.465 | 0.461 | 2.20 | 2.12 | 0.504 / 0.499 |
+| street, towers | pan 1°/s | 0.820 | 0.814 | 5.19 | 5.04 | 0.774 / 0.774 |
+| roof, plaza | still | 0.671 | 0.529 | 5.09 | 3.07 | 0.631 / 0.598 |
+| roof, plaza | pan 1°/s | 1.195 | 0.968 | 7.01 | 4.84 | 0.778 / 0.739 |
+
+High: the roof 0.67 -> 0.55 (still, p99 5.0 -> 3.2) and 1.18 -> 0.96 (pan, p99 6.9 -> 4.8); the street the same as at
+medium. The twinkling the maps showed (`--map dir`: the metric as an image beside the frame) was the LED wall over
+the plaza, the far window grids and the advert screens; it is gone or halved. Not reached: the 3x the owner asked
+for. What is left at both vistas is spread evenly over every geometric edge (the TAA's 3 x 3 neighbourhood clip
+moving with the jitter, core `postfx.js`), and the street vista was already near that floor.
+
+What changed: the facades' window grid (`modules/materials.js`: joints, lit rooms, glazing) goes over to its average
+before a window is under about three pixels, instead of letting the lit-room hash and the panes alias under the TAA
+jitter; the LED walls (`signs.js`), the advert screens' dots and scan lines and the ticker's LED text (`adverts.js`)
+fade their dot grids to the mean cover under ~3 px (the ticker samples its text continuously then), the scrolling
+glyph screens fade earlier; the camera's near plane is 0.1 m (was 0.08) and its far plane 1600 m (was 3000: the sky
+dome is 1000 m round the eye), for more depth resolution on the far facades; the bystander robots switch LOD at 13 and
+32 m (were 9 and 26) with wider hysteresis. Specular AA is already on in every patched lit material whose hooks set the
+roughness (the facades, the megastructure). The bloom pyramid's first downsample is Karis-weighted already.
+`?sharp=0` (no RCAS) lowers the far half's numbers by another 10-15 %; the sharpening is kept (it is part of the
+look). The rest of what the metric sees is the TAA's neighbourhood clip on geometric edges (core), not the district.
 
 The single file (`npm run package -w neon-district`): **3.53 MB (3,702,149 bytes)**, against the site's 5 MB budget. All of it is
 code (Rapier's WASM is 2.2 MB of it); there are no assets.
