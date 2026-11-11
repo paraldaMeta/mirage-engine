@@ -77,12 +77,14 @@ const v2 = (pts) => pts.map(([a, b]) => new THREE.Vector2(a, b));
 const DESIGNS = [
   { // the Slab: ~5.7 x 2.0 x 1.8 m in life; here 4.7 x 1.9 x 1.56
     name: 'slab', flat: true, clear: 0.26, hw: 0.95, nose: 2.35, tail: -2.35,
-    st: ST([[2.35, [[1.0, 0], [1.0, 0.8], [0.97, 0.9], [0.88, 0.93]]], [2.28, [[1.04, 0], [1.04, 0.86], [1.0, 0.95], [0.88, 0.95]]],
-      [1.02, [[1.2, 0], [1.2, 0.84], [1.13, 0.95], [0.88, 0.95]]], [-0.2, [[1.56, 0], [1.56, 0.6], [1.15, 0.95], [0.88, 0.95]]],
-      [-0.9, [[1.44, 0], [1.44, 0.66], [1.15, 0.95], [0.88, 0.95]]], [-2.28, [[1.21, 0], [1.21, 0.86], [1.15, 0.95], [0.88, 0.95]]],
-      [-2.35, [[1.17, 0], [1.17, 0.82], [1.12, 0.9], [0.88, 0.93]]]]),
+    // reference (in life / here at 0.81): L 5.8 / 4.7, W 2.0 / 1.9 (the footprint), H 1.8 / 1.48, wheelbase 3.81 / 3.12,
+    // tyre 0.88 / 0.72, the window's lower edge 1.27 / 1.04, steel down to 0.55 / 0.45 over black arch lips and sills
+    st: ST([[2.35, [[0.96, 0], [0.96, 0.8], [0.93, 0.9], [0.84, 0.93]]], [2.28, [[1.0, 0], [1.0, 0.86], [0.96, 0.95], [0.84, 0.95]]],
+      [1.02, [[1.13, 0], [1.13, 0.84], [1.05, 0.95], [0.84, 0.95]]], [-0.2, [[1.48, 0], [1.48, 0.6], [1.06, 0.95], [0.84, 0.95]]],
+      [-0.9, [[1.37, 0], [1.37, 0.66], [1.06, 0.95], [0.84, 0.95]]], [-2.28, [[1.13, 0], [1.13, 0.86], [1.06, 0.95], [0.84, 0.95]]],
+      [-2.35, [[1.09, 0], [1.09, 0.82], [1.04, 0.9], [0.84, 0.93]]]]),
     glass: [[0, 1, 2, 4], [1, 2, 2, 4]],
-    wheel: { r: 0.385, w: 0.3, rim: 0.24, axle: 1.56, kind: 'aero', tread: 'at' }, interior: { dash: 1.0, seats: [[0.05, 0.95], [-0.62, 0.95]], floor: 0.5, wheel: true, seatY: 0.14, recline: 0.24 },
+    wheel: { r: 0.36, w: 0.29, rim: 0.23, axle: 1.56, kind: 'aero', tread: 'at' }, interior: { dash: 0.98, seats: [[0.05, 0.95], [-0.55, 0.95]], floor: 0.46, wheel: true, seatY: 0.08, recline: 0.22 },
   },
   { // the Vane: ~4.5 x 1.95 x 1.15 m in life
     name: 'vane', flat: false, clear: 0.12, hw: 0.97, nose: 2.3, tail: -2.3,
@@ -362,19 +364,19 @@ function details(Dz, ci, CM, cb, sb, at, add, st) {
   };
   if (Dz.name === 'slab') {
     // the tail: one thin red bar across the tailgate's top edge, in a recessed black channel, its ends brighter
-    const tx = Dz.tail - 0.004, ty = 1.1, w = 2 * hw - 0.14;
+    const tx = Dz.tail - 0.004, ty = 1.02, w = 2 * hw - 0.14;
     add(sb, new THREE.BoxGeometry(0.03, 0.05, w + 0.04), CM.trim, at([tx + 0.008, ty, 0]), [0.012, 0.012, 0.014]);
     add(sb, new THREE.PlaneGeometry(w - 0.2, 0.022).rotateY(-HP), CM.glow, at([tx - 0.008, ty, 0]), [5.5, 0.35, 0.2]);
     for (const sz of [-1, 1]) add(sb, new THREE.PlaneGeometry(0.1, 0.028).rotateY(-HP), CM.glow, at([tx - 0.0085, ty, sz * (w / 2 - 0.06)]), [10, 0.7, 0.4]);
     add(sb, new THREE.PlaneGeometry(w, 0.03).rotateY(-HP), CM.lens, at([tx - 0.012, ty, 0]));
     for (const sz of [-1, 1]) add(sb, new THREE.PlaneGeometry(0.08, 0.025).rotateY(-HP), CM.glow, at([Dz.tail + 0.02, 0.42, sz * (hw - 0.14)]), [0.5, 0.03, 0.02]);   // red reflectors in the bumper
     // the nose: a thin white bar across, between two slim headlamp units
-    const nx = Dz.nose + 0.004, ny = 0.97;
+    const nx = Dz.nose + 0.004, ny = 0.93;
     add(sb, new THREE.BoxGeometry(0.025, 0.03, 2 * hw - 0.1), CM.trim, at([nx - 0.006, ny, 0]), [0.012, 0.012, 0.014]);
     add(sb, new THREE.PlaneGeometry(2 * hw - 0.5, 0.016).rotateY(HP), CM.glow, at([nx + 0.008, ny, 0]), [6, 6.2, 6.6]);
     for (const sz of [-1, 1]) unit(nx + 0.004, ny - 0.045, sz * (hw - 0.2), 0.24, 0.04, 1, [7, 7.2, 7.6]);
     // the bed cover's slats, a third brake light over the cab, door shut lines, the charge port
-    for (let i = 1; i < 7; i++) { const t = i / 7, xx = -0.9 + (-2.28 + 0.9) * t, yy = 1.44 + (1.21 - 1.44) * t; add(sb, new THREE.BoxGeometry(0.006, 0.004, 1.3), CM.trim, at([xx, yy + 0.002, 0], [0, 0, 0.165]), [0.01, 0.01, 0.01]); }
+    for (let i = 1; i < 7; i++) { const t = i / 7, xx = -0.9 + (-2.28 + 0.9) * t, yy = 1.37 + (1.13 - 1.37) * t; add(sb, new THREE.BoxGeometry(0.006, 0.004, 1.3), CM.trim, at([xx, yy + 0.002, 0], [0, 0, 0.165]), [0.01, 0.01, 0.01]); }
   } else if (Dz.name === 'vane') {
     // thin light blades: across the nose and the tail, set into black slots
     add(sb, new THREE.BoxGeometry(0.02, 0.02, 1.5), CM.trim, at([Dz.nose - 0.002, 0.47, 0]), [0.01, 0.01, 0.012]);

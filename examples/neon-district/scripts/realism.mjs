@@ -40,7 +40,8 @@ for (const i of [0, 1, 2]) {
   SHOTS.cars.push(carShot(i, 'front34', [3.6, 1.35, 2.6], [0, 0.7, 0]), carShot(i, 'rear34', [-3.6, 1.35, 2.4], [0, 0.7, 0]), carShot(i, 'side', [0, 1.0, 4.4], [0, 0.75, 0]),
     carShot(i, 'top', [0.2, 4.6, 0.6], [0, 0.6, 0]), carShot(i, 'wheel-f', [1.45, 0.45, 1.75], [1.45, 0.38, 0.9]), carShot(i, 'wheel-r', [-1.45, 0.45, 1.75], [-1.45, 0.38, 0.9]),
     carShot(i, 'nose', [4.4, 0.9, 0], [0, 0.7, 0]), carShot(i, 'tail', [-4.4, 0.95, 0], [0, 0.8, 0]), carShot(i, 'beads', [0.4, 1.5, 0.75], [0.2, 1.05, 0.55]),
-    carShot(i, 'canopy-side', [-0.3, 1.05, 2.3], [-0.3, 0.85, 0]), carShot(i, 'canopy-top', [-0.25, 2.9, 0.15], [-0.3, 0.8, 0]), carShot(i, 'canopy-34', [0.9, 1.6, 1.8], [-0.3, 0.85, 0]));
+    carShot(i, 'turn-front', [6.5, 0.9, 0], [0, 0.7, 0]), carShot(i, 'turn-side', [0, 0.85, 7.0], [0, 0.7, 0]), carShot(i, 'turn-rear', [-6.5, 0.9, 0], [0, 0.7, 0]), carShot(i, 'turn-top', [0.01, 9.0, 0], [0, 0, 0]),
+    carShot(i, 'wheel-side-f', [1.56, 0.4, 1.9], [1.56, 0.36, 0]), carShot(i, 'wheel-side-r', [-1.5, 0.4, 1.9], [-1.5, 0.36, 0]), carShot(i, 'canopy-side', [-0.3, 1.05, 2.3], [-0.3, 0.85, 0]), carShot(i, 'canopy-top', [-0.25, 2.9, 0.15], [-0.3, 0.8, 0]), carShot(i, 'canopy-34', [0.9, 1.6, 1.8], [-0.3, 0.85, 0]));
 }
 // ---- the civilians: where they stand (the machines' own `where`)
 // unit: a machines unit id (machineUnits); a: the camera's angle from the unit's front; d, h: distance and height
