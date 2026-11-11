@@ -10,6 +10,7 @@
     "build": "vite build",
     "preview": "vite preview --port 5195 --strictPort",
     "playtest": "node ../../packages/tools/src/playtest.mjs scenarios/playtest.json dist --out out/playtest",
+    "playtest:holdout": "node ../../packages/tools/src/playtest.mjs scenarios/holdout.json dist --out out/holdout",
     "snap": "node ../../packages/tools/src/snap.mjs dist --out out/snap",
     "check": "node ../../packages/tools/src/check-world.mjs dist",
     "package": "node ../../packages/tools/src/package.mjs ."

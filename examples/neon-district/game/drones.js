@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { airAt, gridRay } from '@miragekit/play';
 import { FX } from './fx.js';
 
-export function createDrones({ world, game, physics, plan, vfx, sfx, player, assist, onDispose }) {
+export function createDrones({ world, game, physics, plan, vfx, sfx, player, assist, onDispose, tune = { dmg: 1, hp: 1, acc: 1 } }) {
   const { mat } = world;
   const shell = mat.std({ color: new THREE.Color(0.06, 0.065, 0.08), roughness: 0.35, metalness: 0.85 });
   const eyeMat = mat.glow([1.0, 0.55, 0.1], 8), eyeBase = eyeMat.color.clone();
@@ -100,20 +100,29 @@ export function createDrones({ world, game, physics, plan, vfx, sfx, player, ass
         hot = 1;
         if ((e.tele -= dt) <= 0) {
           const from = [p[0] + Math.sin(e.yaw) * 0.25, p[1] - 0.05, p[2] + Math.cos(e.yaw) * 0.25], to = [player.feet[0], player.feet[1] + player.height * 0.7, player.feet[2]];
-          const hit = can && R() < Math.min(0.6, (0.5 - dist * 0.012) * (player.speed > 2.5 ? 0.6 : 1) * (0.4 + 0.6 * Math.min(1, player.exposed / 2.5)));
+          const hit = can && R() < Math.min(0.6 + 0.15 * (tune.acc - 1), tune.acc * (0.5 - dist * 0.012) * (player.speed > 2.5 ? 0.6 : 1) * (0.4 + 0.6 * Math.min(1, player.exposed / 2.5)));
           if (!hit) { to[0] += (R() - 0.5) * 2.4; to[1] -= 0.6 + R(); to[2] += (R() - 0.5) * 2.4; }
           const d = [to[0] - from[0], to[1] - from[1], to[2] - from[2]], l = Math.hypot(...d) || 1, dir = d.map((v) => v / l);
           let end = to;
           if (!hit) { const w = physics.ray(from, dir, 60, player.collider()); if (w) { end = w.point; vfx.burst(FX.impact, w.point, { direction: dir.map((v) => -v) }); } }
           vfx.beam({ from, to: end, width: 0.03, color: '#ffb040', intensity: 5, life: 0.09 });
           sfx.play('nd_bolt', { at: from, gain: 0.6, rate: 1.4, ref: 5 });
-          if (hit) player.hurt(5 * (assist ? 0.12 : 1), p);
+          if (hit) player.hurt(5 * (assist ? 0.12 : 1) * tune.dmg, p);
           e.next = 2.2 + R() * 1.6;
         }
       } else if (can && (e.next -= dt) <= 0) e.tele = 0.5;
     }
     eyeMat.color.copy(eyeBase).multiplyScalar(1 + 2.5 * hot * (0.6 + 0.4 * Math.sin(game.time * 40)));
   }
-  const api = { list, byZone, wake, damage, rayHit, update, start(g) { grid = g; }, get alive() { return list.filter((e) => !e.dead && e.active).length; } };
+  /** a fallen (or parked) kite in the air again at `at`, awake (the holdout's waves); hp: a factor over the difficulty's */
+  function revive(e, at, hp = 1) {
+    Object.assign(e, { hp: HP * tune.hp * hp, dead: false, deadT: 0, active: true, pos: at.slice(), vel: [0, 0, 0], vy: 0, tele: 0, next: 1.5 + R() * 2, ang: R() * 6.28 });
+    e.o.visible = true; e.o.position.set(...at); e.o.rotation.set(0, 0, 0);
+    return e;
+  }
+  /** out of play and out of sight, counted as dead: a free slot for revive() */
+  function park(e) { Object.assign(e, { dead: true, deadT: 99, active: false, tele: 0 }); e.o.visible = false; }
+  function retune() { for (const e of list) if (!e.dead) e.hp = HP * tune.hp; }
+  const api = { list, byZone, wake, damage, rayHit, update, revive, park, retune, start(g) { grid = g; }, get alive() { return list.filter((e) => !e.dead && e.active).length; } };
   return api;
 }

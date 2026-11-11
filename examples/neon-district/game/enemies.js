@@ -44,7 +44,8 @@ const KIND = {
 };
 const RANGE = 24, FOV = 130, FIRE_RANGE = 19;
 
-export function createEnemies({ world, game, physics, plan, vfx, sfx, player, assist, onDispose }) {
+// tune: the difficulty, { dmg, hp, acc } factors on damage dealt to the player, health and accuracy (all 1: as built)
+export function createEnemies({ world, game, physics, plan, vfx, sfx, player, assist, onDispose, tune = { dmg: 1, hp: 1, acc: 1 } }) {
   const { mat } = world;
   const armour = mat.std({ vertexColors: true, roughness: 0.42, metalness: 0.45 });
   const plate = mat.std({ color: new THREE.Color(0.03, 0.035, 0.045), roughness: 0.35, metalness: 0.9 });
@@ -205,8 +206,27 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
     e.hp = s.hp; e.dead = s.dead; e.pos = s.pos.slice(); e.yaw = s.yaw; e.active = s.active; e.state = s.dead ? 'dead' : 'post'; e.aim = 0; e.burst = 0; e.tele = 0; e.lastSeen = null; e.deadT = s.dead ? 99 : 0;
     e.rig.root.visible = s.shown && !s.dead; e.rig.root.position.set(...e.pos); e.rig.root.rotation.y = e.yaw; e.rig.root.scale.setScalar(e.K.scale);
     e.anim.reset(); e.anim.set('dead', false); e.anim.set('speed', 0); e.anim.setLayerWeight('aim', 0); e.anim.update(0);
-    if (e.agent) { e.agent.stop(); e.agent.walker.place(e.pos); }
+    if (e.agent) { e.agent.stop(); e.agent.walker.place(e.pos); e.pos = e.agent.pos; crowd.remove(e.agent); if (!e.dead) crowd.add(e.agent); }   // the agent's own array again, back in the crowd
   }
+  /** a dead (or parked) sentinel back on its feet at `at`, awake: the holdout's waves reuse the pool instead of
+   *  building new rigs. hp: a factor on its health over the difficulty's */
+  function revive(e, at, hp = 1) {
+    const p = (nav && nav.nearest(at, { snap: 2 })) || at.slice();
+    Object.assign(e, { hp: e.K.hp * tune.hp * hp, dead: false, deadT: 0, state: 'post', aim: 0, burst: 0, tele: 0, next: 1 + R() * 1.5, lastSeen: null, seenT: -1e9, shift: 0, wait: 0, t: 0, active: true, watch: 0, speed: 0 });
+    if (e.agent) { e.agent.stop(); e.agent.walker.place(p); e.pos = e.agent.pos; e.agent.speed = e.agent.walker.body.walk = e.agent.walker.body.run = e.K.speed; crowd.remove(e.agent); crowd.add(e.agent); } else e.pos = p.slice();
+    e.home = e.pos.slice();
+    const r = e.rig.root; r.visible = true; r.position.set(...e.pos); r.rotation.y = e.yaw; r.scale.setScalar(e.K.scale);
+    e.anim.reset(); e.anim.set('dead', false); e.anim.set('speed', 0); e.anim.setLayerWeight('aim', 0); e.anim.update(0);
+    return e;
+  }
+  /** out of play and out of sight, counted as dead: a free slot for revive() */
+  function park(e) {
+    Object.assign(e, { dead: true, state: 'dead', deadT: 99, active: false, burst: 0, tele: 0 });
+    e.rig.root.visible = false;
+    if (e.agent) { e.agent.stop(); crowd.remove(e.agent); }
+  }
+  /** the difficulty's health on every sentinel still standing (called when the player deploys) */
+  function retune() { for (const e of list) if (!e.dead) e.hp = e.K.hp * tune.hp; }
   for (const def of plan.enemies) build(def);
 
   /** once play exists: navigation on the player's walk grid */
@@ -274,7 +294,7 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
     const from = e.tip.getWorldPosition(new THREE.Vector3()), aimAt = new THREE.Vector3(player.feet[0], player.feet[1] + player.height * 0.77, player.feet[2]);
     const dist = from.distanceTo(aimAt), moving = player.speed > 2.5 ? 0.7 : 1;
     // the longer the player stands in their sight the surer the shot: leaning out of cover for a moment is cheap
-    const chance = Math.min(0.7, (0.5 - dist * 0.011) * moving * (e.K === KIND.heavy ? 0.85 : 1) * (0.3 + 0.7 * Math.min(1, player.exposed / 2.5)) * (player.crouch > 0.5 ? 0.7 : 1));
+    const chance = Math.min(0.7 + 0.15 * (tune.acc - 1), tune.acc * (0.5 - dist * 0.011) * moving * (e.K === KIND.heavy ? 0.85 : 1) * (0.3 + 0.7 * Math.min(1, player.exposed / 2.5)) * (player.crouch > 0.5 ? 0.7 : 1));
     const hit = R() < chance && seesPlayer(e);
     if (!hit) aimAt.add(tmp.set(R() - 0.5, R() - 0.3, R() - 0.5).multiplyScalar(1.6 + dist * 0.06));
     const dir = aimAt.clone().sub(from).normalize();
@@ -286,7 +306,7 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
     }
     vfx.beam({ from: from.toArray(), to: end.toArray(), width: 0.035, color: e.K === KIND.heavy ? '#ff5030' : '#50d8ff', intensity: 5, life: 0.09 });
     sfx.play('nd_bolt', { at: from.toArray(), gain: 0.8, ref: 5 });
-    if (hit) player.hurt(e.K.damage * (assist ? 0.12 : 1), e.pos);
+    if (hit) player.hurt(e.K.damage * (assist ? 0.12 : 1) * tune.dmg, e.pos);
     game.dirty = true;
   }
 
@@ -391,6 +411,6 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
     }
     return moved;
   }
-  const api = { list, byZone, start, update, damage, rayHit, noise, wake, alert, eyeOf, get alive() { return list.filter((e) => !e.dead && e.active).length; }, get nav() { return nav; } };
+  const api = { list, byZone, start, update, damage, rayHit, noise, wake, alert, eyeOf, revive, park, retune, tune, get alive() { return list.filter((e) => !e.dead && e.active).length; }, get nav() { return nav; } };
   return api;
 }

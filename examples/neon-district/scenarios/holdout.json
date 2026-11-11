@@ -1,0 +1,42 @@
+{
+ "title": "neon-district: the holdout on the relay roof",
+ "query": "start=1&mode=holdout&grain=0&assist=1&quality=medium&lang=en",
+ "w": 1280,
+ "h": 720,
+ "steps": [
+  {
+   "name": "roof",
+   "ms": 600,
+   "shot": false,
+   "expect": {
+    "errors": "== 0",
+    "onGround": "== true",
+    "paused": "== false",
+    "y": "~ 6 0.1",
+    "flags.holdout": "== true",
+    "flags.uplink": "== true"
+   }
+  },
+  {
+   "name": "first-wave",
+   "lookAt": [23.3, 7.2, -22.2],
+   "ms": 8000,
+   "shot": false,
+   "expect": {
+    "errors": "== 0",
+    "flags.wave": ">= 1",
+    "y": "~ 6 0.1"
+   }
+  },
+  {
+   "name": "holding",
+   "ms": 20000,
+   "expect": {
+    "errors": "== 0",
+    "flags.wave": ">= 1",
+    "y": "~ 6 0.1",
+    "paused": "== false"
+   }
+  }
+ ]
+}

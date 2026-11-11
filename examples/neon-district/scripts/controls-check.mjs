@@ -1,9 +1,12 @@
 #!/usr/bin/env node
-// Check: the shooter's controls beyond the keyboard, in the real Chrome with real events.
+// Check: the shooter's front end and controls beyond the keyboard, in the real Chrome with real events.
+//   title  without ?start=1: the title is up, the game paused and harmless, the camera flies; the keys change the
+//          mode and the difficulty (kept in the settings), Enter on DEPLOY starts the holdout on the relay roof
+//   holdout  ?start=1&mode=holdout&assist=1 for 40 s, a scripted gunner on the roof: a wave cleared or under way
 //   keys   C crouches, X leans, O opens the options panel (and a setting applies)
-//   pad    a standard-mapping gamepad (an injected Gamepad API shim): the stick walks, the right trigger fires, the
+//   pad    a standard-mapping gamepad (an injected Gamepad API shim): the d-pad works the title, A deploys, the stick walks, the right trigger fires, the
 //          left trigger aims, the right bumper reloads, Start opens the menu and B closes it
-//   touch  an emulated phone held sideways (844 x 390, touch): the start tap, the overlay's stick, the example's
+//   touch  an emulated phone held sideways (844 x 390, touch): the title fits, a tap on DEPLOY starts, the overlay's stick, the example's
 //          FIRE (held), AIM (toggle) and RLD buttons
 // usage: node scripts/controls-check.mjs [dist]      (build first: npm run build -w neon-district)
 import path from 'node:path';
@@ -33,6 +36,68 @@ async function open(browser, query, { mobile = false, pad = false } = {}) {
   return { page, errors };
 }
 const padSet = (page, o) => page.evaluate((o) => { for (const [k, v] of Object.entries(o.buttons || {})) window.__pad.buttons[k] = v; if (o.axes) window.__pad.axes = o.axes; }, o);
+const padTap = async (page, i) => { await padSet(page, { buttons: { [i]: 1 } }); await sleep(200); await padSet(page, { buttons: { [i]: 0 } }); await sleep(200); };
+const front = (page) => page.evaluate(() => { const m = window.__mirage, t = document.querySelector('.nt'), r = t?.getBoundingClientRect(); return { title: !!t && !t.hidden && !t.classList.contains('out') && r.width > 0, sel: m.game.title.selected, run: { ...m.game.run }, kept: JSON.parse(localStorage.getItem('mirage:neon-district:settings') || '{}').ndRun || null, started: m.g.ui.started, paused: m.g.game.paused, hp: m.game.player.hp, eye: m.world.camera.position.toArray(), gun: m.game.weapon.holder.visible, card: getComputedStyle(document.querySelector('.mg-start')).display, mode: m.play.mode, flags: { ...m.g.game.flags }, feet: m.game.player.feet.slice(), tally: document.querySelector('.nd-tally')?.textContent || '', wave: m.game.holdout.wave, state: m.game.holdout.state }; });
+
+{ // ---- the title: up, paused and harmless; the keys choose; Enter deploys
+  const b = await launch({ w: 1280, h: 720, args: ['--autoplay-policy=no-user-gesture-required'] });
+  const { page, errors } = await open(b, 'w=1280&h=720&lang=en');
+  let s = await front(page);
+  await sleep(3000);
+  const s2 = await front(page);
+  check('title', 'the title is up, the engine card hidden', s.title && s.card === 'none' && !s.started, `card ${s.card}`);
+  check('title', 'the game waits paused, nothing hurts the player', s2.paused && s2.hp === 100 && !s2.gun, `hp ${s2.hp}, view model ${s2.gun}`);
+  check('title', 'the camera flies the district', s.mode === 'orbit' && Math.hypot(s2.eye[0] - s.eye[0], s2.eye[1] - s.eye[1], s2.eye[2] - s.eye[2]) > 2, `moved ${Math.hypot(s2.eye[0] - s.eye[0], s2.eye[2] - s.eye[2]).toFixed(1)} m`);
+  await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowRight'); await page.keyboard.press('Tab'); await page.keyboard.press('ArrowRight'); await page.keyboard.press('ArrowRight'); await sleep(200);
+  s = await front(page);
+  check('title', 'arrows and Tab change the mode and the difficulty', s.run.mode === 'holdout' && s.run.difficulty === 'brutal' && s.sel === 'difficulty', `${s.run.mode} / ${s.run.difficulty}, on ${s.sel}`);
+  check('title', 'the choice is kept in the settings', s.kept && s.kept.mode === 'holdout' && s.kept.difficulty === 'brutal', JSON.stringify(s.kept));
+  await page.keyboard.press('ArrowLeft'); await page.keyboard.press('ArrowUp'); await page.keyboard.down('Shift'); await page.keyboard.press('Tab'); await page.keyboard.up('Shift'); await sleep(100);
+  s = await front(page);
+  check('title', 'still on the title, back on DEPLOY', !s.started && s.paused && s.sel === 'deploy' && s.run.difficulty === 'hard', `${s.sel}, ${s.run.difficulty}`);
+  await page.keyboard.press('Enter'); await sleep(1500);
+  s = await front(page);
+  check('title', 'Enter on DEPLOY starts the run', s.started && !s.paused && !s.title && s.gun && s.mode === 'walk', `started ${s.started}, paused ${s.paused}`);
+  check('title', 'the holdout puts the player on the relay roof', s.flags.holdout && Math.abs(s.feet[1] - 6) < 0.4, `feet ${s.feet.map((v) => v.toFixed(1))}`);
+  await sleep(6000);
+  s = await front(page);
+  check('title', 'the game runs: a wave comes, the HUD shows it', s.wave >= 1 && /WAVE 1/.test(s.tally) && /HARD/.test(s.tally), `wave ${s.wave} (${s.state}), tally "${s.tally}"`);
+  check('title', 'no console errors', errors.length === 0, errors[0] || '');
+  await page.screenshot({ path: path.join(here, '../out/title-deployed.png') }).catch(() => {});
+  await b.close();
+}
+{ // ---- the holdout, 40 s, a scripted gunner: it turns to the nearest sentinel or kite on the roof and holds F
+  const b = await launch({ w: 1280, h: 720, args: ['--autoplay-policy=no-user-gesture-required'] });
+  const { page, errors } = await open(b, 'w=1280&h=720&start=1&mode=holdout&lang=en');
+  const t0 = Date.now();
+  let firing = false, most = 0;
+  while (Date.now() - t0 < 40000) {
+    const aim = await page.evaluate(() => {
+      const m = window.__mirage, H = m.game.holdout, p = m.world.camera.position;
+      let best = null, bd = 26;
+      for (const e of H.foes) {
+        if (e.dead) continue;
+        const k = e.rig ? e.K.scale : 0, q = [e.pos[0], e.pos[1] + (e.rig ? 1.25 * k : 0), e.pos[2]], d = Math.hypot(q[0] - p.x, q[1] - p.y, q[2] - p.z);
+        if (Math.abs(e.pos[1] - (m.game.player.feet[1])) > 3.5 && e.rig) continue;   // still in the building
+        if (d < bd) { bd = d; best = q; }
+      }
+      if (!best) return false;
+      const dx = best[0] - p.x, dy = best[1] - p.y, dz = best[2] - p.z;
+      m.play.yaw = Math.atan2(dz, dx); m.play.pitch = Math.asin(dy / Math.hypot(dx, dy, dz));
+      return true;
+    });
+    if (aim !== firing) { firing = aim; if (aim) await page.keyboard.down('KeyF'); else await page.keyboard.up('KeyF'); }
+    most = Math.max(most, await page.evaluate(() => window.__mirage.game.holdout.wave));
+    await sleep(120);
+  }
+  await page.keyboard.up('KeyF');
+  const s = await front(page);
+  check('holdout', 'waves come and are fought (one cleared or one under way)', (s.flags.waves || 0) >= 1 || (s.wave >= 1 && s.state === 'fight'), `wave ${s.wave} (${s.state}), cleared ${s.flags.waves || 0}, kills ${s.flags.kills || 0}`);
+  check('holdout', 'the player is alive on the roof', !s.flags.over && s.hp > 0 && Math.abs(s.feet[1] - 6) < 0.6, `hp ${Math.round(s.hp)}, feet ${s.feet.map((v) => v.toFixed(1))}`);
+  check('holdout', 'no console errors', errors.length === 0, errors[0] || '');
+  await page.screenshot({ path: path.join(here, '../out/holdout.png') }).catch(() => {});
+  await b.close();
+}
 
 { // ---- keyboard extras: crouch, lean, the options panel
   const b = await launch({ w: 1280, h: 720, args: ['--autoplay-policy=no-user-gesture-required'] });
@@ -58,9 +123,14 @@ const padSet = (page, o) => page.evaluate((o) => { for (const [k, v] of Object.e
 { // ---- gamepad
   const b = await launch({ w: 1280, h: 720, args: ['--autoplay-policy=no-user-gesture-required'] });
   const { page, errors } = await open(b, 'w=1280&h=720', { pad: true });
+  await padTap(page, 13); await padTap(page, 13); await padTap(page, 15);
+  let f = await front(page);
+  check('pad', 'the d-pad works the title', f.title && !f.started && f.sel === 'difficulty' && f.run.difficulty === 'hard', `on ${f.sel}, ${f.run.difficulty}`);
+  await padTap(page, 12); await padTap(page, 12);
   await padSet(page, { buttons: { 0: 1 } }); await sleep(250); await padSet(page, { buttons: { 0: 0 } }); await sleep(300);
   let s = await state(page);
-  check('pad', 'A starts the game', s.started && !s.paused, `source ${s.source}`);
+  f = await front(page);
+  check('pad', 'A on DEPLOY starts the game', s.started && !s.paused && !f.title, `source ${s.source}`);
   const p0 = s.pos;
   await padSet(page, { axes: [0, -1, 0, 0] }); await sleep(900); await padSet(page, { axes: [0, 0, 0, 0] }); await sleep(200);
   s = await state(page);
@@ -86,9 +156,13 @@ const padSet = (page, o) => page.evaluate((o) => { for (const [k, v] of Object.e
 { // ---- touch
   const b = await launch({ w: 844, h: 390, args: ['--autoplay-policy=no-user-gesture-required'] });
   const { page, errors } = await open(b, '', { mobile: true });
-  await page.touchscreen.tap(422, 195); await sleep(500);
+  const fits = await page.evaluate(() => { const r = (s) => document.querySelector(s).getBoundingClientRect(), m = r('.nt-main'), l = r('.nt-legend'), rows = [...document.querySelectorAll('.nt-row')].map((e) => e.getBoundingClientRect());
+    return { inside: [m, l].every((b) => b.left >= 0 && b.top >= 0 && b.right <= innerWidth && b.bottom <= innerHeight), apart: l.left >= m.right || l.top >= m.bottom, rows: Math.min(...rows.map((b) => b.height)) }; });
+  check('touch', 'the title fits a phone held sideways', fits.inside && fits.apart && fits.rows >= 34, JSON.stringify(fits));
+  const go = await page.evaluate(() => { const r = document.querySelector('.nt-row.go').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
+  await page.touchscreen.tap(go[0], go[1]); await sleep(500);
   let s = await state(page);
-  check('touch', 'a tap starts the game', s.started && s.touch, `touch overlay ${s.touch}`);
+  check('touch', 'a tap on DEPLOY starts the game', s.started && s.touch, `touch overlay ${s.touch}`);
   const box = async (sel) => page.evaluate((sel) => { const r = document.querySelector(sel)?.getBoundingClientRect(); return r ? [r.left + r.width / 2, r.top + r.height / 2, r.width] : null; }, sel);
   const fire = await box('.nd-fire'), aim = await box('.nd-aim'), rel = await box('.nd-rel'), stick = await box('.mg-stick');
   check('touch', 'FIRE, AIM and RLD are on screen', !!(fire && aim && rel) && fire[0] < 844 && fire[1] < 390 && fire[2] >= 60, JSON.stringify({ fire, aim, rel }));

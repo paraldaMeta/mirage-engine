@@ -14,12 +14,21 @@ import { createHud } from './hud.js';
 import { createWeapon } from './weapon.js';
 import { createEnemies } from './enemies.js';
 import { createDrones } from './drones.js';
+import { createTitle } from './title.js';
 import { LANGS, pickLang } from './text.js';
 import { createAudioEngine, zonesFromPlan } from '@miragekit/game';
 
 export const VERSION = 1;
 const UPLINK_S = 40;
 export const lang = pickLang(new URLSearchParams(globalThis.location?.search || '')), T = LANGS[lang];
+// the modes and the difficulty (kept in the settings; ?mode= and ?difficulty= set them for one visit)
+export const MODES = ['mission', 'holdout'], DIFFS = ['standard', 'hard', 'brutal'], TITLE_HOURS = ['night', 'dusk', 'day'];
+/** factors on the damage the player takes, the enemies' health and their accuracy */
+export const TUNE = { standard: { dmg: 1, hp: 1, acc: 1 }, hard: { dmg: 1.4, hp: 1.3, acc: 1.15 }, brutal: { dmg: 2, hp: 1.6, acc: 1.35 } };
+// the holdout: sentinels come from the stair foot and the relay room, kites out of the air over the plaza
+const STAIR_FOOT = [[24.5, 0.16, -22], [26.2, 0.16, -22.2], [20, 0.16, -26], [16, 0.16, -22], [19, 0.16, -22.6], [12, 0.16, -27]];
+const SKY = [[13, 10.5, -17], [19, 11, -16], [16, 10, -10], [23, 10.5, -11], [10, 10, -8]];
+const BREAK_S = 9;
 
 export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour }) {
   const { game, physics, audio, root, plan, anchors, world, onDispose, input } = ctx;
@@ -39,8 +48,15 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
       if (player.hp <= 0) die();
     },
   };
-  const enemies = createEnemies({ world, game, physics, plan, vfx, sfx, player, assist, onDispose });
-  const drones = createDrones({ world, game, physics, plan, vfx, sfx, player, assist, onDispose });
+  // the run's choices: mode, difficulty and the title's hour, from the settings; the URL can set the first two
+  const kept = game.settings.ndRun || {};
+  const run = { mode: MODES.includes(kept.mode) ? kept.mode : 'mission', difficulty: DIFFS.includes(kept.difficulty) ? kept.difficulty : 'standard', hour: TITLE_HOURS.includes(kept.hour) ? kept.hour : 'night' };
+  if (MODES.includes(Q.get('mode'))) run.mode = Q.get('mode');
+  if (DIFFS.includes(Q.get('difficulty'))) run.difficulty = Q.get('difficulty');
+  const saveRun = () => { game.settings.ndRun = { mode: run.mode, difficulty: run.difficulty, hour: run.hour }; game.saveSettings(); };
+  const tune = { ...TUNE[run.difficulty] };
+  const enemies = createEnemies({ world, game, physics, plan, vfx, sfx, player, assist, onDispose, tune });
+  const drones = createDrones({ world, game, physics, plan, vfx, sfx, player, assist, onDispose, tune });
   // what a round can hit: the nearer of a sentinel and a kite; a hit knows whose it is (hit.owner.damage)
   const targets = { rayHit(o, d, max) { const a = enemies.rayHit(o, d, max), b = drones.rayHit(o, d, max); return a && b ? (a.t < b.t ? a : b) : a || b; }, noise: (p, r) => enemies.noise(p, r) };
   const wake = (zone) => { enemies.wake(zone, player.feet); drones.wake(zone); };
@@ -72,7 +88,7 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
   function toggleOptions() {
     const open = hud.options({ values: { ...opts, lang, hour: hour() }, onHour: (h) => setHour(h),
       onChange: (k, v) => { opts[k] = v; if (k === 'fov') weapon.S.fov = v; game.settings.nd = { ...opts }; game.saveSettings(); },
-      onClose: () => game.pause(false),
+      onClose: () => { if (!title.shown) game.pause(false); title.render(); },
       onLang: () => { const u = new URL(location.href); u.searchParams.set('lang', lang === 'zh' ? 'en' : 'zh'); location.href = u.href; } });
     if (open) { game.pause(true); if (document.pointerLockElement) document.exitPointerLock(); }
   }
@@ -125,6 +141,7 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
 
   // ---- pickups: walk over one to take it (when it is of use)
   const crateMat = mat.std({ color: new THREE.Color(0.1, 0.11, 0.09), roughness: 0.5, metalness: 0.6 }), white = mat.std({ color: new THREE.Color(0.6, 0.62, 0.64), roughness: 0.4 });
+  const pickups = {};
   for (const p of plan.pickups) {
     const o = new THREE.Group(), ammo = p.kind === 'ammo';
     const box = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.2, 0.22), ammo ? crateMat : white); box.castShadow = true;
@@ -132,7 +149,7 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
     o.add(box, tag); if (!ammo) { const t2 = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.205, 0.12), M.neon.green); o.add(t2); }
     o.position.set(p.at[0], p.at[1] + 0.32, p.at[2]); root.add(o);
     let t = R() * 6;
-    game.add({ id: p.id, object: o, update: (dt, gm) => {
+    game.add(pickups[p.id] = { id: p.id, object: o, update: (dt, gm) => {
       t += dt; o.rotation.y = t * 1.1; o.position.y = p.at[1] + 0.34 + Math.sin(t * 2) * 0.04;
       if (player.dead || Math.hypot(player.feet[0] - p.at[0], player.feet[2] - p.at[2]) > 0.95 || Math.abs(player.feet[1] - p.at[1]) > 1.2) return;
       if (ammo) { if (!weapon.give(48)) return; sfx.play('nd_ammo', { gain: 0.8 }); game.ui.toast(T.ammo); }
@@ -142,13 +159,14 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
   }
 
   // ---- checkpoints: cross the box, the game saves; a death loads it
-  const checkpoint = (id, quiet) => { game.set('cp_' + id, true); try { g.save('auto'); if (!quiet) game.ui.toast(T.checkpoint); if (id === 'roof') hud.radio(T.radio.roof); } catch { /* storage full or blocked: play on without it */ } };
+  const checkpoint = (id, quiet) => { if (H.on) return; game.set('cp_' + id, true); try { g.save('auto'); if (!quiet) game.ui.toast(T.checkpoint); if (id === 'roof') hud.radio(T.radio.roof); } catch { /* storage full or blocked: play on without it */ } };
   for (const c of plan.checkpoints) game.zone({ id: 'cp-' + c.id, box: c.box, once: true, enter: () => checkpoint(c.id) });
   game.add({ id: 'player',
     save: () => ({ hp: Math.round(player.hp), gun: weapon.save(), stats: { ...stats } }),
     load: (s) => { player.hp = Math.max(s.hp, 60); player.dead = false; player.lastHurt = -99; player.wantCrouch = false; weapon.load(s.gun); Object.assign(stats, s.stats, { deaths: stats.deaths }); stats.kills = game.flags.kills || 0; for (const k of Object.keys(held)) held[k] = false; } });
   function die() {
     player.dead = true; stats.deaths++; sfx.play('nd_death', { gain: 0.6 });
+    if (H.on) return holdoutOver();
     game.ui.message(T.deadTitle, T.deadBody, T.deadBtn);
     const dlg = document.querySelector('.mg-msg');
     const back = () => { dlg.removeEventListener('close', back); try { g.load('auto'); } catch { location.reload(); } };
@@ -179,7 +197,7 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
   const skyGain = 26000, said = { spotted: false, hurtT: -99 };
   let boltT = 9, thunderT = 0, endYaw = 0, endPitch = 0, reverb = null;
   try { reverb = createAudioEngine({ audio, voices: 24, zones: zonesFromPlan(plan), zoneOptions: { ambient: { reverb: 'outdoor', wet: 0.16 } } }); onDispose(() => reverb.dispose()); } catch { reverb = null; }
-  game.on('start', () => hud.radio(T.radio.start));
+  game.on('start', () => hud.radio(H.on ? T.radio.holdStart : T.radio.start));
 
   // ---- one fixed step
   game.system((dt) => {
@@ -229,13 +247,14 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
     else if (!player.dead && player.hp < 50 && game.time - player.lastHurt > 5) player.hp = Math.min(50, player.hp + dt * 9);
     if (shake > 0.01) { play.yaw += (R() - 0.5) * shake * 0.006; play.pitch += (R() - 0.5) * shake * 0.006; shake *= Math.exp(-dt * 9); }
     // the uplink: it runs for UPLINK_S seconds, and ends when the wave is down too
-    if (game.flags.uplink && !game.flags.done) {
+    if (H.on) holdout(dt);
+    else if (game.flags.uplink && !game.flags.done) {
       uplinkT = Math.min(UPLINK_S, uplinkT + dt);
       const left = enemies.byZone.wave.filter((e) => !e.dead).length + (drones.byZone.wave || []).filter((e) => !e.dead).length;
       if (uplinkT >= UPLINK_S && left === 0) {
         game.set('done', true); audio.play('done', { bus: 'sfx', gain: 0.9 });
         const acc = stats.shots ? Math.round(100 * stats.hits / stats.shots) : 0, points = (stats.deaths === 0 ? 1 : 0) + (acc >= 35 ? 1 : 0) + (game.time < 420 ? 1 : 0);
-        game.ui.message(T.doneTitle, T.doneBody({ rating: T.ratings[points], min: Math.floor(game.time / 60), sec: Math.round(game.time % 60), kills: stats.kills, acc, shots: stats.shots, heads: stats.heads, deaths: stats.deaths }), T.doneBtn);
+        game.ui.message(T.doneTitle, T.doneBody({ diff: T.front.diffs[run.difficulty], rating: T.ratings[points], min: Math.floor(game.time / 60), sec: Math.round(game.time % 60), kills: stats.kills, acc, shots: stats.shots, heads: stats.heads, deaths: stats.deaths }), T.doneBtn);
         hud.radio(T.radio.done); game.set('rating', points);
         checkpoint('done', true);
       } else if (Math.floor(uplinkT) !== Math.floor(uplinkT - dt) && uplinkT < UPLINK_S) sfx.play('nd_tick', { gain: 0.25 });
@@ -257,9 +276,88 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
     // the HUD
     const S = weapon.S;
     hud.update(dt, { hp: player.hp, dead: player.dead, mag: S.mag, reserve: S.reserve, reloading: S.reloading > 0, ads: S.ads, pos: p, yaw: play.yaw,
-      spread: (0.008 - 0.0055 * S.ads) + S.heat * 0.012 + Math.min(player.speed, 5) * 0.002, tally: `${stats.kills} ${T.down}${assist ? ' · ' + T.assist : ''}`,
-      uplink: game.flags.uplink && !game.flags.done ? uplinkT / UPLINK_S : null, uplinkText: uplinkT >= UPLINK_S ? T.uplinkReady : `${T.uplink} ${Math.round(100 * uplinkT / UPLINK_S)} %`, goal: goal(game) });
+      spread: (0.008 - 0.0055 * S.ads) + S.heat * 0.012 + Math.min(player.speed, 5) * 0.002,
+      tally: `${H.on ? T.waveN(Math.max(1, H.wave)) + ' · ' : ''}${stats.kills} ${T.down} · ${T.front.diffs[run.difficulty]}${assist ? ' · ' + T.assist : ''}`,
+      ...(H.on ? waveBar() : { uplink: game.flags.uplink && !game.flags.done ? uplinkT / UPLINK_S : null, uplinkText: uplinkT >= UPLINK_S ? T.uplinkReady : `${T.uplink} ${Math.round(100 * uplinkT / UPLINK_S)} %` }), goal: goal(game) });
   });
+
+  // ---- the holdout: endless waves at the relay roof, the uplink already running. The enemy and kite lists are fixed
+  // pools: a wave revives the dead (enemies.revive / drones.revive) instead of building new rigs.
+  const H = { on: false, wave: 0, state: 'break', t: 5, foes: [], queue: [], total: 0, spawnT: 0, callT: 0 };
+  const roof = plan.viewpoints.find((v) => v.name === 'roof'), roofAt = [roof.eye[0], K.roof, roof.eye[2]];
+  const roofKit = plan.pickups.filter((p) => Math.abs(p.at[1] - K.roof) < 0.5).map((p) => p.id);
+  const bestOf = () => (game.settings.ndBest || {})[run.difficulty] || 0;
+  function startHoldout() {
+    H.on = true; H.wave = 0; H.state = 'break'; H.t = 5; H.foes = []; H.queue = [];
+    for (const e of enemies.list) enemies.park(e);
+    for (const e of drones.list) drones.park(e);
+    game.set('holdout', true); game.set('uplink', true); game.set('cp_roof', true);
+    play.place(roof.eye, roof.look, 'walk');
+  }
+  const free = (list, shown) => list.filter((e) => e.dead && (!shown(e) || e.deadT > 3));
+  const reviveKite = (d, i, w, hp) => () => { drones.revive(d, SKY[(i + w) % SKY.length], hp); H.foes.push(d); };
+  function startWave() {
+    const w = ++H.wave;
+    game.set('wave', w);
+    const pool = free(enemies.list, (e) => e.rig.root.visible), sky = free(drones.list, (e) => e.o.visible);
+    const n = Math.min(pool.length, 2 + w), heavies = Math.min(Math.floor((w - 1) / 2), n - 1), kites = Math.min(sky.length, 1 + Math.floor((w - 1) / 2));
+    const hp = 1 + 0.07 * (w - 1);   // past the pool's size a wave grows in toughness
+    const big = pool.filter((e) => e.K.name === 'heavy'), small = pool.filter((e) => e.K.name !== 'heavy');
+    const pick = big.slice(0, heavies);
+    for (const e of [...small, ...big.slice(heavies)]) if (pick.length < n) pick.push(e);
+    H.queue = []; H.foes = []; H.total = pick.length + kites;
+    pick.forEach((e, i) => {
+      H.queue.push(() => { enemies.revive(e, STAIR_FOOT[i % STAIR_FOOT.length], hp); e.home = roofAt.slice(); enemies.alert(e, player.feet, 0.3 + R() * 0.5); H.foes.push(e); });
+      if (i < kites) H.queue.push(reviveKite(sky[i], i, w, hp));
+    });
+    for (let i = pick.length; i < kites; i++) H.queue.push(reviveKite(sky[i], i, w, hp));
+    H.state = 'fight'; H.spawnT = 0.4; H.callT = 2;
+    hud.radio(T.radio.wave(w)); game.ui.toast(T.waveN(w)); sfx.play('nd_alarm', { gain: 0.5 });
+  }
+  function holdout(dt) {
+    if (player.dead) return;
+    if (H.state === 'break') { if ((H.t -= dt) <= 0) startWave(); return; }
+    if (H.queue.length && (H.spawnT -= dt) <= 0) { H.queue.shift()(); H.spawnT = 0.9; }
+    // they know where the player is: whoever stands about, or has reached the last place it looked, comes again
+    if ((H.callT -= dt) <= 0) {
+      H.callT = 1.5;
+      for (const e of H.foes) if (e.rig && !e.dead && (e.state === 'post' || (e.state === 'search' && (e.agent.arrived || !e.agent.path)))) enemies.alert(e, player.feet, R() * 0.4);
+    }
+    if (!H.queue.length && H.foes.every((e) => e.dead)) {
+      H.state = 'break'; H.t = BREAK_S; game.set('waves', H.wave);
+      if (H.wave > bestOf()) { game.settings.ndBest = { ...(game.settings.ndBest || {}), [run.difficulty]: H.wave }; game.saveSettings(); }
+      for (const id of roofKit) if (!game.entities.has(id)) { const ent = pickups[id]; game.removed.delete(id); root.add(ent.object); game.add(ent); vfx.burst(FX.take, ent.object.position.toArray()); }
+      hud.radio(T.radio.cleared); game.ui.toast(T.waveClear); audio.play('done', { bus: 'sfx', gain: 0.6 });
+    }
+  }
+  const waveBar = () => {
+    if (H.state === 'fight') { const left = H.queue.length + H.foes.filter((e) => !e.dead).length; return { uplink: H.total ? 1 - left / H.total : 0, uplinkText: `${T.waveN(H.wave)} · ${T.hostiles(left)}` }; }
+    return { uplink: 1 - Math.max(0, H.t) / (H.wave ? BREAK_S : 5), uplinkText: T.nextWave(H.wave + 1, Math.ceil(Math.max(0, H.t))) };
+  };
+  function holdoutOver() {
+    const waves = game.flags.waves || 0, acc = stats.shots ? Math.round(100 * stats.hits / stats.shots) : 0;
+    game.ui.message(T.holdTitle, T.holdBody({ diff: T.front.diffs[run.difficulty], waves, kills: stats.kills, acc, shots: stats.shots, rating: T.ratings[Math.min(3, Math.floor(waves / 3))], best: Math.max(waves, bestOf()) }), T.holdBtn);
+    game.set('over', true);
+    const dlg = document.querySelector('.mg-msg');
+    const back = () => { dlg.removeEventListener('close', back); const u = new URL(location.href); u.searchParams.delete('start'); location.href = u.href; };
+    dlg.addEventListener('close', back);
+  }
+
+  // ---- the title: the camera flies the district, the game waits paused, DEPLOY starts the chosen run
+  const title = createTitle({ T, lang, plan, world, values: run, choices: { mode: MODES, difficulty: DIFFS, hour: TITLE_HOURS }, best: bestOf, onDispose,
+    optionsOpen: () => hud.optionsOpen, onOptions: toggleOptions,
+    onChange: (k, v) => { if (k === 'difficulty') Object.assign(tune, TUNE[v]); if (k === 'hour') setHour(v); saveRun(); },
+    onFrame: () => { play.turn(0, 0, 0); relight(); weapon.holder.visible = false; },
+    onDeploy: (ev) => { begin(); g.ui.begin(ev); } });
+  /** the run as chosen: the difficulty's health on everyone, the holdout's roof or the mission's spawn */
+  function begin() {
+    Object.assign(tune, TUNE[run.difficulty]); enemies.retune(); drones.retune();
+    weapon.holder.visible = true;
+    if (run.mode === 'holdout') startHoldout();
+    else if (play.mode !== 'walk') play.place(plan.spawn.eye, plan.spawn.look, 'walk');
+    endYaw = play.yaw; endPitch = play.pitch;
+    game.pause(false);
+  }
 
   const goal = (gm) => {
     if (gm.flags.done) return null;
@@ -272,7 +370,7 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
   };
 
   return {
-    player, weapon, enemies, drones, stats, hud, sfx, leaves, opts, toggleOptions,
+    player, weapon, enemies, drones, stats, hud, sfx, leaves, opts, toggleOptions, run, tune, title, holdout: H,
     /** once startGame has made the character and play */
     start(game_) {
       g = game_; play = g.play;
@@ -280,6 +378,11 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
       weapon.start(play); enemies.start(play.grid); drones.start(play.grid); endYaw = play.yaw; endPitch = play.pitch;
       vfx.setGround(play.grid);
       checkpoint('start', true);
+      if (Q.has('start')) begin();   // the tests: straight in (main.js starts the overlay)
+      else {
+        if (!Q.get('time') && run.hour !== hour()) setHour(run.hour);
+        game.pause(true); title.show(g);
+      }
     },
   };
 }
@@ -287,6 +390,7 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
 /** the overlay's objective line, from the flags and the inventory */
 export function objective(gm) {
   const o = T.obj;
+  if (gm.flags.holdout) return [gm.flags.wave ? `${o.holdout[0]} · ${T.waveN(gm.flags.wave)}` : o.holdout[0], o.holdout[1]];
   if (gm.flags.done) return o.done;
   if (gm.flags.uplink) return o.hold;
   if (gm.flags.cp_roof) return o.console;

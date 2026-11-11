@@ -2,7 +2,7 @@
 // the street, take the relay pass from the noodle bar, cross the plaza, climb to the relay's roof, start the uplink
 // and hold it. Seven modules on one site plan (plan.js, modules/, NOTES.md); the game is in game/.
 //
-// URL: ?quality=low|medium|high   ?start=1 (skip the start screen)   ?assist=1 (an easy mode: an eighth of the damage, health comes back in full, the reserve never runs dry)
+// URL: ?quality=low|medium|high   ?start=1 (skip the title)   ?mode=mission|holdout   ?difficulty=standard|hard|brutal   ?assist=1 (an easy mode: an eighth of the damage, health comes back in full, the reserve never runs dry)
 //      ?world=1 (no game: walk / fly the district; &mode=walk|fly|orbit, &view=<viewpoint name>)
 //      ?lang=en|zh (default: the browser's)  ?fov=50..90  ?sens=N   ?w=&h=  ?spp=N  ?grain=0  ?hud=0
 //      every rendering feature has a switch, for A/B stills and timing (default: what the quality level turns on):
