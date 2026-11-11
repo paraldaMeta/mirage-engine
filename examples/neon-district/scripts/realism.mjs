@@ -34,11 +34,13 @@ robots.push({ name: 'robot-lineup', ids: ROBOTS.map((r) => r[1]), place: ROBOTS.
 const SHOTS = { robots, cars: [], civ: [], compare: [] };
 // ---- the cars (plan.cars: [x, z, rotY]); `car(i, eye-offset in the car's frame, look offset)` resolves in the page
 const CARS = [[-21.5, 7.3, 0.03], [2.5, 4.7, 3.12], [22, 7.25, -0.04]];
-const carShot = (i, name, e, l) => { const [x, z, r] = CARS[i], c = Math.cos(r), s = Math.sin(r), w = ([a, y, b]) => [x + a * c + b * s, y, z - a * s + b * c]; return { name: `car${i}-${name}`, eye: w(e), look: w(l) }; };
+// (the road is on each car's -z side: the cameras stand there, clear of the pavement's clutter)
+const carShot = (i, name, e, l) => { const [x, z, r] = CARS[i], c = Math.cos(r), s = Math.sin(r), w = ([a, y, b]) => [x + a * c - b * s, y, z - a * s - b * c]; return { name: `car${i}-${name}`, eye: w(e), look: w(l) }; };
 for (const i of [0, 1, 2]) {
   SHOTS.cars.push(carShot(i, 'front34', [3.6, 1.35, 2.6], [0, 0.7, 0]), carShot(i, 'rear34', [-3.6, 1.35, 2.4], [0, 0.7, 0]), carShot(i, 'side', [0, 1.0, 4.4], [0, 0.75, 0]),
     carShot(i, 'top', [0.2, 4.6, 0.6], [0, 0.6, 0]), carShot(i, 'wheel-f', [1.45, 0.45, 1.75], [1.45, 0.38, 0.9]), carShot(i, 'wheel-r', [-1.45, 0.45, 1.75], [-1.45, 0.38, 0.9]),
-    carShot(i, 'nose', [4.4, 0.9, 0], [0, 0.7, 0]), carShot(i, 'tail', [-4.4, 0.95, 0], [0, 0.8, 0]), carShot(i, 'beads', [0.4, 1.5, 0.75], [0.2, 1.05, 0.55]));
+    carShot(i, 'nose', [4.4, 0.9, 0], [0, 0.7, 0]), carShot(i, 'tail', [-4.4, 0.95, 0], [0, 0.8, 0]), carShot(i, 'beads', [0.4, 1.5, 0.75], [0.2, 1.05, 0.55]),
+    carShot(i, 'canopy-side', [-0.3, 1.05, 2.3], [-0.3, 0.85, 0]), carShot(i, 'canopy-top', [-0.25, 2.9, 0.15], [-0.3, 0.8, 0]), carShot(i, 'canopy-34', [0.9, 1.6, 1.8], [-0.3, 0.85, 0]));
 }
 // ---- the civilians: where they stand (the machines' own `where`)
 // unit: a machines unit id (machineUnits); a: the camera's angle from the unit's front; d, h: distance and height
