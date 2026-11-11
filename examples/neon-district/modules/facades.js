@@ -7,7 +7,7 @@
 // above head height or is paper on a wall).
 // Offers `signs` (the roof billboards) and `ledWalls` (two advertising walls high on the towers).
 import * as THREE from 'three';
-import { materials } from './materials.js';
+import { materials, surfaceLib } from './materials.js';
 import { openFaces, faceYaw, onFace, artTexture, decor } from './lib.js';
 import { signRects, inFrontOfSign, detail } from './kit.js';
 
@@ -131,10 +131,11 @@ export default {
     const unit = new THREE.BoxGeometry(1, 1, 1), group = new THREE.Group(); group.name = 'facade-kit';
     mute = false;
     // balcony life: laundry (one colour per instance), dishes, potted plants and the grow light over them
-    const clothM = mat.std({ roughness: 0.85, side: THREE.DoubleSide }), clothC = [[0.55, 0.52, 0.46], [0.18, 0.28, 0.45], [0.55, 0.14, 0.14], [0.75, 0.7, 0.6], [0.15, 0.36, 0.3], [0.62, 0.5, 0.12]];
+    const clothM = surfaceLib(ctx).surf(surfaceLib(ctx).SURFACES.fabric({ variant: 'cotton', color: [0.6, 0.6, 0.6] }), { size: 'small', params: { side: THREE.DoubleSide } }),   // cotton (the library's), tinted per instance
+       clothC = [[0.55, 0.52, 0.46], [0.18, 0.28, 0.45], [0.55, 0.14, 0.14], [0.75, 0.7, 0.6], [0.15, 0.36, 0.3], [0.62, 0.5, 0.12]];
     if (life.cloth.length) {
       const cm = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1, 1, 2).translate(0, -0.5, 0), clothM, life.cloth.length);
-      life.cloth.forEach(([p, yw, sc, c], i) => { cm.setMatrixAt(i, geom.compose(p, [0.05, yw, 0], sc)); cm.setColorAt(i, new THREE.Color().setRGB(...clothC[c])); });
+      life.cloth.forEach(([p, yw, sc, c], i) => { cm.setMatrixAt(i, geom.compose(p, [0.05, yw, 0], sc)); cm.setColorAt(i, new THREE.Color().setRGB(...clothC[c].map((v) => v / 0.6))); });
       cm.castShadow = false; cm.name = 'balcony-laundry'; group.add(cm);
     }
     if (life.dish.length) {

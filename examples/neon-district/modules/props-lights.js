@@ -79,7 +79,7 @@ export function streetLamp(P, bt, geom, [x, y, z], H, dir, reach = 1.45) {
   for (let i = 0; i < 7; i++) put(bt, new THREE.BoxGeometry(0.22, 0.04, 0.008), mats.metal, hm([0, 0.065, -0.3 + i * 0.09]), [0.12, 0.12, 0.13]);   // fins
   put(bt, new THREE.BoxGeometry(0.4, 0.008, 0.06), mats.metal, hm([0, -0.035, 0.42], [0.3, 0, 0]), [0.06, 0.06, 0.06]);                              // the visor lip
   put(bt, new THREE.BoxGeometry(0.2, 0.012, 0.6), mats.paint, hm([0, -0.043, 0]), [0.02, 0.02, 0.02]);                                              // the lens bezel
-  put(bt, new THREE.PlaneGeometry(0.16, 0.54).rotateX(Math.PI / 2), mats.glow, hm([0, -0.05, 0]), [7, 5.6, 4.0], R.lens);                          // the lens
+  put(bt, new THREE.PlaneGeometry(0.16, 0.54).rotateX(Math.PI / 2), mats.glow, hm([0, -0.05, 0]), [7, 6.3, 5.7], R.lens);                          // the lens
 }
 
 /** a caged bulkhead light on a wall, at matrix m (facing +z): an oval base, a glass dome, three cage bars */

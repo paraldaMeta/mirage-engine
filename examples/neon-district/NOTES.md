@@ -715,6 +715,82 @@ shader (no balconies or greebles up there); the searchlights light nothing; the 
 Each module owns one section below; only its owner writes there. Build order: ground, blocks, facades,
 megastructure, street, clutter, bar, relay, plaza, adverts, aerial, arcology, streetlife, grime, signs.
 
+## Surfaces (the engine's library)
+
+The art direction is a real-looking city with cyberpunk content, so what things are made of comes from
+`@miragekit/core`'s surface library (`docs/surfaces.md`), not from hand-written hooks. `modules/materials.js`:
+
+- `surfaceLib(ctx)` (one per world, `ctx.shared.surf`): `createSurfaces(world, { mode: 'auto' })` (baked where that is
+  cheaper, per pixel for the cheap kinds: stainless, tile, rubber, car paint, metal) and `surf(spec, options, { post,
+  decl })`, which is `lib.material` plus a bake size by role and quality (`big` / `mid` / `small`), the district's own
+  marks over a surface (`post` edits `msAlb` / `msR` / `msM`: the kerb's painted zones, the hazard stripes on
+  `M.yellow`) and the wet layer (`wet`, as before: ruts and gutters as `wear`, puddles, ripples). `painted(rgb)` is
+  painted steel in any colour from one grey set (the shutters, the shop frames, the stall); `shade(kind, rgb)` the same
+  for plastic, satin coat, cardboard and sawn wood (one light set per make, the part's colour a tint).
+- `M.*` keep their names. Ground: asphalt worn (the road paint is `ndLines`, a mask over the library's
+  thermoplastic paint), paving slabs, polished paving (plaza), precast kerbs. Walls: cast concrete with weathering
+  decals (`decals`: rain rills under a ledge at 3.2 m, damp at the foot with a salt line, stains, cracks, soot); indoors
+  `concreteDry` (cracks and stains only: the relay's stairwell and room). Corrugated painted sheet (box profile, rust
+  leaks under each fixing row). The "black metals" (`darkMetal`, `blackMetal`, `rack`: albedo 0.01-0.03 at
+  metalness 0.8-0.9, black mirrors) are black powder coat now: a dielectric with a satin sheen and steel at worn
+  edges, so a bracket shows its form under any lamp. `grate` cast iron, `steel` brushed stainless with its grain up
+  the part (`mapping: 'grain'`), glass with Fresnel (`glassDirty` for shop windows and the bar's panes), car paint,
+  tile, render, planks, varnished wood, aluminium tread (relay floor), neon tubes (`SURFACES.neon`: a trace by day).
+- `props-kit.js`: `paint` and `metal` stood in for fifteen surfaces. Now `paint` is a satin coat, `metal` is bare
+  steel whose F0 is the vertex colour, and a part coloured darker than ~0.15 turns into black powder coat in the
+  shader (no dark metal); `plastic` (bins), `wood` (crates, bench slats), `cardboard`, `concrete` (jersey barriers),
+  `ceramic` (bowls) for the parts that are those. Every in-between metalness (paint 0.2-0.75, glass 0.1-0.3, products
+  0.5, facades 0.3-0.5) is 0 or 1.
+- Left as they were: the facades' window grid (layout; panels and glass now dielectric), screens and sign faces
+  (content), `neonSoft` (sign boxes), the interiors, posters and markings, holograms and other additive effects. The
+  cars, the robots, the drones and the view models are another pass's (their materials keep reading `M.*` / `P.mats`).
+
+Texture units. A lit material has 16 and the lighting of `high` takes 13 (lamp atlas, env, sun shadow, lamp tables,
+probes, GI, bounce, screen, mirror): a baked surface needs three of the rest (its two maps and the runtime noise), its
+decals a fourth, an atlas-mapped prop a fourth. So the third reflection probe (the steel truck's) is off by default
+(`?truckprobe=1`): every probe is one unit in every lit material.
+
+Memory (the baked sets, `shared.surf.lib.stats()`, 31 sets, ~80 ms of bakes at load): high 59 MB (1024 px for the
+asphalt and the street walls, 512 for floors and sheet, 256 for props), medium 28 MB (512 / 256 / 256), low 8.6 MB
+(256 / 128 / 128). The decal atlas's 2 MB is in each.
+
+## Light by the hour
+
+Main.js keeps the whole model in one place: `weatherAt(h)` (the Sun's elevation in degrees -> rain, wetness, cloud,
+haze, the sky's fill), the grade's four looks, `TIMES`. The time slider calls `setHour`; an `onUpdate` eases the
+weather toward the hour's every frame (wetness in 0.05 steps: each step recaptures the image-based light; the haze
+numbers are scaled after the world writes them). `?rain=` / `?wet=` pin those two.
+
+| h (deg) | -12 night | -4 | 2 dusk | 8 | 16 |
+|---|---|---|---|---|---|
+| rain (x tier) | 1 | 0.6 | 0 | 0 | 0 |
+| wetness | 0.9 | 0.8 | 0.55 | 0.22 | 0.12 |
+| cloud cover | 0.85 | 0.75 | 0.45 | 0.3 | 0.25 |
+| ground haze / air / glow | 1 / 1 / 1 | 1 / 1 / 0.9 | 0.75 / 0.8 / 0.55 | 0.4 / 0.5 / 0.3 | 0.3 / 0.4 / 0.22 |
+| sky fill (x env) | 1.8 | 2 | 4 | 12 | 12 |
+
+- **Night** (23:10, rain): the key light is white: street lamps 5000 K LED (`0xffe4ce`, 18, 16 m), shop lights 3000-6000 K,
+  sodium and tungsten windows and stalls; a saturated lamp (a sign, a screen) is an accent: `lib.lamp` keeps 55 % of its
+  power and 65 % of its reach outdoors (the lamp count is unchanged). With the accents reaching less, a view cell
+  holds fewer lamps: the pool keeps 20 per cell on low and 26 on medium (32 on high), with no visible change in the
+  standard views (same mean luminance to 0.001). The shadows keep their form from the sky glow of
+  a lit city under low cloud (the image-based light x1.8) and a small warm-grey lift in the grade. Grade: -0.65 EV,
+  saturation 0.88, AgX share 0.55 (highlights roll off to white), gentle curve; bloom 0.11 with a 0.32 radius; the
+  volumetric cones take 35 % of their lamp's colour (lit rain, not coloured smoke).
+- **Dusk** (17:04, h 1.5): the rain has just stopped: wet streets drying in patches (the puddle films shrink with the
+  wetness), the cloud breaking, signs and windows coming on. Grade +0.15 EV, warm highlights over cool shade.
+- **Day** (16:15, h 10.6, bearing 247: the Sun low in the west-south-west), dry: the street is in the south blocks'
+  shade with the light raking the north facades above it, the towers at the ends and the roofs; the shade is lit by
+  the open sky (the capture is taken between dark walls in the street, so the sky's fill is x12) and by the warm
+  bounce off the sunlit walls (`lighting.bounce`). Haze is distance only (x0.3, glow x0.22, and the haze is no
+  brighter than the sky: the old x1.3 was the white veil). Grade +0.7 EV (golden), warm highlights, cool shade, a firm
+  curve, saturation 1.04. Sign tubes go to a trace, screens stay on.
+
+Measured (1280 x 720, high, linear luminance of the frame, the HUD hidden): mean 0.06-0.15 by night, 0.06-0.15 at dusk,
+0.08-0.25 by day; no clipped white anywhere (under 0.3 % of pixels above 0.95). Pixels under 2 % luminance by night:
+14-29 % in the street views (wet black asphalt, unlit windows and the vignette), 4-8 % in close views of walls, shutters
+and the stairwell.
+
 ## ground
 
 The carriageway and the alley (asphalt, y = 0), both pavements and the plaza (`plan.levels.kerb` = 0.14 m),
@@ -801,7 +877,9 @@ lamps), a canopy and two red lanterns outside. The room is the world's GI box an
 0.28 m, 2.5 m wide, a half landing at 3 m, a spine wall between the flights, a 1.1 m guard at the top landing) and
 the roof at 6 m (parapet 1.1 m; plant from `plan.roofUnits`, a mast with a proxy, two dishes, the uplink console).
 The stairwell's door to the room and its door to the roof are one above the other (`relay.stair.door`).
-Ambient volumes: the room and the stairwell, factor 0.22.
+Ambient volumes: the room and the stairwell, factor 0.22. The stairwell is cast concrete throughout (the landings
+were brushed steel, which streaked); caged bulkheads (4000 K) light the foot, each flight and each landing, and the
+top landing's guard is hazard-striped painted steel.
 
 | key | pos is | extra | count |
 |---|---|---|---|

@@ -4,7 +4,7 @@
 // a hydrant. Small soft things are decor (walked through); anything a person would walk round is solid.
 // Offers `signs` (the cart, the underpass) and `steam` (the cart's pot).
 import * as THREE from 'three';
-import { materials } from './materials.js';
+import { materials, surfaceLib } from './materials.js';
 import { lamp, decor } from './lib.js';
 import { propKit } from './props-kit.js';
 import { paperLantern, signalHead } from './props-lights.js';
@@ -13,12 +13,16 @@ import { bin, bag as sack, cardboard, newsBox } from './props-street.js';
 export default {
   name: 'clutter',
   build(ctx) {
-    const { geom, root, plan, mat, R } = ctx, M = materials(ctx), K = plan.levels.kerb, S = plan.street.rect;
+    const { geom, root, plan, R } = ctx, M = materials(ctx), K = plan.levels.kerb, S = plan.street.rect;
     const b = new geom.MeshBatch(), fx = new geom.MeshBatch(), P = propKit(ctx), pb = new geom.MeshBatch();   // pb: close-up props, decor
-    const std = (r, g, bl, o = {}) => mat.std({ color: new THREE.Color(r, g, bl), roughness: 0.7, ...o });
-    const card = std(0.34, 0.25, 0.15, { roughness: 0.9 }), cone = std(0.75, 0.2, 0.03), pallet = std(0.25, 0.18, 0.1, { roughness: 0.85 });
-    const cloth = [std(0.5, 0.48, 0.42), std(0.2, 0.3, 0.45), std(0.5, 0.15, 0.15), std(0.75, 0.7, 0.6), std(0.15, 0.35, 0.3)];
-    for (const c of cloth) c.side = THREE.DoubleSide;
+    // what the clutter is made of (the library's surfaces): board, a moulded cone, sawn pallet wood, cotton sheets (one
+    // bake, tinted per colour)
+    const { surf, shade, SURFACES } = surfaceLib(ctx), tintOf = (c, k) => ({ color: new THREE.Color(c[0] / k, c[1] / k, c[2] / k) });
+    const card = shade('board', [0.34, 0.25, 0.15]);
+    const cone = shade('plastic', [0.75, 0.2, 0.03]);
+    const pallet = shade('sawn', [0.25, 0.18, 0.1], { mapping: 'grain', grain: [1, 0, 0] });
+    const cloth = [[0.5, 0.48, 0.42], [0.2, 0.3, 0.45], [0.5, 0.15, 0.15], [0.75, 0.7, 0.6], [0.15, 0.35, 0.3]]
+      .map((c) => surf(SURFACES.fabric({ variant: 'cotton', color: [0.6, 0.6, 0.6] }), { size: 'small', params: { ...tintOf(c, 0.6), side: THREE.DoubleSide } }));
     const proxy = (size, pos, rot = 0) => { const m = new THREE.Mesh(new THREE.BoxGeometry(...size)); m.position.set(...pos); m.rotation.y = rot; ctx.collider(m); };
 
     // ---- heaps against the walls: bags, boxes, a pallet. [x, z, ground y, how many]

@@ -25,7 +25,7 @@ export default {
       const y = K, H = 5.4;
       streetLamp(P, pb, geom, [x, y, z], H - 0.1, [0, side], 1.45);
       proxy([0.3, H, 0.3], [x, y + H / 2, z]); proxy([0.36, 0.5, 0.36], [x, y + 0.25, z]);   // the old post and base
-      lamp(ctx, { pos: [x, y + H - 0.5, z + side * 1.45], color: 0xffc58a, intensity: 16, range: 15, shadow: true, vol: true });
+      lamp(ctx, { pos: [x, y + H - 0.5, z + side * 1.45], color: 0xffe4ce, intensity: 18, range: 16, shadow: true, vol: true });
     }
 
     // ---- cover: jersey barriers on the road, planters on the plaza

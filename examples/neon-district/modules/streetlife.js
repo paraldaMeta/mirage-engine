@@ -9,9 +9,9 @@
 // through, out of the walk grid); the container and the vending machines are solid.
 // Offers `steam` (the stall's pot).
 import * as THREE from 'three';
-import { materials } from './materials.js';
+import { materials, surfaceLib } from './materials.js';
 import { lamp, decor, signTexture } from './lib.js';
-import { detail, thin, corrugated, worn, textAtlas, atlasQuad } from './kit.js';
+import { detail, thin, corrugated, textAtlas, atlasQuad } from './kit.js';
 import { buildMachines } from './machines.js';
 import { propKit } from './props-kit.js';
 import { paperLantern } from './props-lights.js';
@@ -30,8 +30,8 @@ export default {
     if (S) {
       const [sx, sz] = S.at, len = 6.0, wid = 2.44, hh = 2.6, rot = S.rotY ?? 0, cm = geom.compose([sx, K, sz], [0, rot, 0]), at = (p, r = [0, 0, 0]) => cm.clone().multiply(geom.compose(p, r));
       // local frame: +x the open long side (towards the plaza), z along its length
-      const paint = mat.std({ roughness: 0.55, metalness: 0.5, side: THREE.DoubleSide }, worn('vec3(0.36, 0.08, 0.05)', { rows: 0.62, chip: 0.65, rust: 0.85 }));
-      const blue = mat.std({ roughness: 0.55, metalness: 0.5, side: THREE.DoubleSide }, worn('vec3(0.06, 0.16, 0.28)', { rows: 0.62, chip: 0.55, rust: 0.7 }));
+      const { painted } = surfaceLib(ctx), paint = painted([0.36, 0.08, 0.05], { side: THREE.DoubleSide });   // painted steel (the library's), chipped and rusted
+      const blue = painted([0.06, 0.16, 0.28], { side: THREE.DoubleSide });
       const ribsV = corrugated(len, hh - 0.2, { pitch: 0.28, depth: 0.04, ribs: 'v' }), ribsE = corrugated(wid - 0.2, hh - 0.2, { pitch: 0.28, depth: 0.035, ribs: 'v' });
       b.add(ribsV, paint, at([-wid / 2 + 0.04, 0.1, 0], [0, Math.PI / 2, 0]));            // the back wall
       for (const s of [-1, 1]) b.add(ribsE, paint, at([0, 0.1, s * (len / 2 - 0.04)], [0, s > 0 ? 0 : Math.PI, 0]));   // the ends

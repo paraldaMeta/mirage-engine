@@ -4,9 +4,10 @@
 // barricades, yellow-and-black wayfinding painted on walls and floor, district numbers stencilled large, manhole
 // covers with a cast pattern. Bags, paint and cables are decor; the barricades and crates are solid.
 import * as THREE from 'three';
-import { materials } from './materials.js';
+import { WET } from '@miragekit/core';
+import { materials, surfaceLib } from './materials.js';
 import { decor } from './lib.js';
-import { detail, thin, worn, textAtlas, atlasQuad } from './kit.js';
+import { detail, thin, textAtlas, atlasQuad } from './kit.js';
 import { propKit } from './props-kit.js';
 import { beacon } from './props-lights.js';
 import { junctionBox, bag as sack, crate } from './props-street.js';
@@ -31,7 +32,8 @@ export default {
       }
     }
     // ---- a duct along the alley's west wall on brackets, pipes that end in elbows and drip
-    const duct = mat.std({ roughness: 0.4, metalness: 0.8 }, worn('vec3(0.42, 0.43, 0.44)', { rows: 1.2, chip: 0.25, rust: 0.5 }));
+    const { surf, SURFACES } = surfaceLib(ctx);
+    const duct = surf(SURFACES.galvanised({ variant: 'weathered' }), { mapping: 'grain', grain: [0, 0, 1], size: 'small' });   // galvanised duct, white rust
     if (G.duct) {
       const { x, side, z: [z0, z1], y } = G.duct;
       for (let z = z0; z < z1 - 0.1; z += 2.4) { fx.add(new geom.RoundedBoxGeometry(0.5, 0.42, Math.min(2.38, z1 - z), 2, 0.04), duct, geom.compose([x + side * 0.3, y, z + Math.min(2.38, z1 - z) / 2])); fx.box(M.blackMetal, [0.56, 0.06, 0.06], [x + side * 0.3, y + 0.24, z]); fx.box(M.blackMetal, [0.06, 0.5, 0.06], [x + side * 0.56, y, z]); }
@@ -67,9 +69,10 @@ export default {
 
     // ---- puddles on the asphalt: a glassy film, shaped by noise (cut out, not blended: the planar mirror sees it)
     const puddle = mat.std({ color: new THREE.Color(0.006, 0.007, 0.009), roughness: 0.03, metalness: 0.0, polygonOffset: true, polygonOffsetFactor: -3 }, {
-      vertexDecl: 'varying vec2 ndUv;', vertexWorld: 'ndUv = uv;', fragmentDecl: 'varying vec2 ndUv;',
+      // (it dries with the hour's wetness: shrinks from its rim from 0.8 down and is gone under 0.35)
+      uniforms: { ndWet: WET.uWet }, vertexDecl: 'varying vec2 ndUv;', vertexWorld: 'ndUv = uv;', fragmentDecl: 'varying vec2 ndUv; uniform float ndWet;',
       albedo: `{ vec2 q = ndUv - 0.5; float r = length(q * vec2(1.0, 1.0)) + 0.18 * mgFbm2(mgWorldPos.xz * 1.3, 3) + 0.05 * mgFbm2(mgWorldPos.xz * 6.0, 2);
-        if (r > 0.42) discard; }`,
+        if (r > 0.42 * smoothstep(0.35, 0.8, ndWet)) discard; }`,
       roughness: 'roughnessFactor = 0.02;',
     });
     // (low has no mirror and no SSR: no puddle films there)
@@ -104,10 +107,9 @@ export default {
     g.save(); g.beginPath(); g.arc(128, 128, 96, 0, 7); g.clip(); g.lineWidth = 5; for (let i = -12; i <= 12; i++) { g.beginPath(); g.moveTo(128 + i * 16 - 200, 0); g.lineTo(128 + i * 16 + 200, 256); g.stroke(); g.beginPath(); g.moveTo(128 + i * 16 + 200, 0); g.lineTo(128 + i * 16 - 200, 256); g.stroke(); } g.restore();
     g.fillStyle = '#444'; g.fillRect(58, 104, 140, 48); g.fillStyle = '#bbb'; g.font = '900 34px "PingFang TC", "Noto Sans TC", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('下水 07', 128, 129);
     const mtex = new THREE.CanvasTexture(mc); mtex.anisotropy = 8;
-    const manhole = mat.std({ map: mtex, roughness: 0.45, metalness: 0.9, color: new THREE.Color(0.12, 0.12, 0.13) }, {
-      normal: 'normal = mgBump(normal, texture2D(map, vMapUv).r, 0.03);',
-      roughness: 'roughnessFactor = mix(0.6, 0.25, texture2D(map, vMapUv).r);',
-    });
+    // cast iron (the library's): the raised pattern worn to bare iron by tyres and feet, the recesses rust and grime
+    const manhole = surf(SURFACES.castIron({ variant: 'plain', rust: 0.6 }), { mapping: 'ground', size: 'small', params: { map: mtex, color: new THREE.Color(1.6, 1.6, 1.6) } },
+      { post: '{ float hi = smoothstep(0.45, 0.65, texture2D(map, vMapUv).r); msM *= hi; msR = mix(0.85, msR, hi); }' });
     for (const [x, z] of G.manholes || []) fx.cylinder(manhole, 0.43, 0.43, 0.025, [x, 0.014, z], [0, Q.range(0, 6), 0], 28);
 
     root.add(b.finish({ name: 'grime', castShadow: false }), decor(fx.finish({ name: 'grime-decor', castShadow: false })), decor(pb.finish({ name: 'grime-props', castShadow: false })));

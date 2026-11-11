@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { materials } from './materials.js';
 import { lamp, slab, decor } from './lib.js';
 import { propKit } from './props-kit.js';
-import { beacon, tubeFixture, floodlight } from './props-lights.js';
+import { beacon, tubeFixture, floodlight, bulkhead } from './props-lights.js';
 import { crate } from './props-street.js';
 import { detail } from './kit.js';
 
@@ -32,28 +32,28 @@ export default {
     slab(b, M.plastic, [x0 + T, z0 + T, part, z1 - T], H - 0.1, H);                       // ceiling panels
     slab(b, M.roofing, [x0, z0, part, z1], H, RF);                                        // the roof slab (plant floor inside it)
     // the stairwell's box: walls up to TOP, a lid, and the partition toward the room with a door at each level
-    slab(b, M.concrete, [part, z0, x1, t0], 0, TOP);
-    slab(b, M.concrete, [s1, t0, x1, t1], 0, TOP);
-    slab(b, M.concrete, [part, t1, x1, z1], H, TOP);
+    slab(b, M.concreteDry, [part, z0, x1, t0], 0, TOP);
+    slab(b, M.concreteDry, [s1, t0, x1, t1], 0, TOP);
+    slab(b, M.concreteDry, [part, t1, x1, z1], H, TOP);
     slab(b, M.roofing, [part, z0, x1, z1], TOP, TOP + 0.3);
     const dz0 = S.door.z - S.door.width / 2, dz1 = S.door.z + S.door.width / 2;
-    slab(b, M.concrete, [part, t0, s0, dz0], 0, TOP);
-    slab(b, M.concrete, [part, dz1, s0, t1], 0, TOP);
-    slab(b, M.concrete, [part, dz0, s0, dz1], F + S.door.height, RF);                     // between the two doors: the roof door's sill
-    slab(b, M.concrete, [part, dz0, s0, dz1], RF + S.door.height, TOP);
+    slab(b, M.concreteDry, [part, t0, s0, dz0], 0, TOP);
+    slab(b, M.concreteDry, [part, dz1, s0, t1], 0, TOP);
+    slab(b, M.concreteDry, [part, dz0, s0, dz1], F + S.door.height, RF);                     // between the two doors: the roof door's sill
+    slab(b, M.concreteDry, [part, dz0, s0, dz1], RF + S.door.height, TOP);
     slab(b, M.relayFloor, [part, dz0, s0, dz1], -0.2, F);
     slab(b, M.relayFloor, [s0, t0, s1, t1], -0.2, F);
 
     // ---- the stairs: flight A climbs north along the west side to a landing at half height, flight B back south
     const mid = RF / 2, xa = [s0, s0 + S.width], xb = [s1 - S.width, s1], landN = S.foot - (S.risers - 1) * S.tread;
     for (let i = 0; i < S.risers - 1; i++) {
-      slab(b, M.concrete, [xa[0], S.foot - (i + 1) * S.tread, xa[1], S.foot - i * S.tread], 0, (i + 1) * S.rise);
-      slab(b, M.concrete, [xb[0], landN + i * S.tread, xb[1], landN + (i + 1) * S.tread], 0, mid + (i + 1) * S.rise);
+      slab(b, M.concreteDry, [xa[0], S.foot - (i + 1) * S.tread, xa[1], S.foot - i * S.tread], 0, (i + 1) * S.rise);
+      slab(b, M.concreteDry, [xb[0], landN + i * S.tread, xb[1], landN + (i + 1) * S.tread], 0, mid + (i + 1) * S.rise);
     }
-    slab(b, M.steel, [s0, t0, s1, landN], 0, mid);                                        // the half landing
-    slab(b, M.steel, [s0, S.foot, s1, t1], RF - 0.2, RF);                                 // the top landing, over the way in
-    slab(b, M.concrete, [xa[1], landN, xb[0], S.foot], 0, TOP);                           // the spine wall between the flights
-    slab(b, M.steel, [xa[0], S.foot - 0.2, xa[1], S.foot], RF, RF + 1.1);                 // a guard at the top landing's open edge
+    slab(b, M.concreteDry, [s0, t0, s1, landN], 0, mid);                                  // the half landing (cast concrete, as the flights)
+    slab(b, M.concreteDry, [s0, S.foot, s1, t1], RF - 0.2, RF);                           // the top landing, over the way in
+    slab(b, M.concreteDry, [xa[1], landN, xb[0], S.foot], 0, TOP);                           // the spine wall between the flights
+    slab(b, M.yellow, [xa[0], S.foot - 0.2, xa[1], S.foot], RF, RF + 1.1);                // a guard at the top landing's open edge: hazard-striped painted steel
     // hand rails (decor) on the outer walls
     for (const [xr, zA, zB, yA, yB] of [[s0 + 0.06, S.foot, landN, 0.95, mid + 0.95], [s1 - 0.06, landN, S.foot, mid + 0.95, RF + 0.95]]) {
       fx.add(geom.taperedTube([[xr, yA, zA], [xr, yB, zB]], [0.025, 0.025], { radial: 6 }), M.steel);
@@ -110,6 +110,13 @@ export default {
     tubeFixture(PK, pb, geom, at([s0 + 1.25, RF - 0.25, t1 - 0.5]), 0.7, M.NEON.white, 5);
     lamp(ctx, { indoor: true, pos: [s0 + 1.25, 3.0, t1 - 0.8], color: 0xcfe6ff, intensity: 11, range: 9 });
     fx.box(M.neon.cyan, [0.03, 0.04, t1 - S.foot - 0.3], [s1 - 0.02, F + 1.0, (t1 + S.foot) / 2]);
+    // caged bulkheads on the walls, one per landing and one over each flight (4000 K): no step of the stairwell is in
+    // the dark, the landings stay brighter than the flights
+    for (const [x, y, z, ry, k] of [[s1 - 0.02, F + 2.25, (t1 + S.foot) / 2 - 0.35, -Math.PI / 2, 4], [s0 + 0.02, mid / 2 + 1.9, (S.foot + landN) / 2, Math.PI / 2, 3],
+      [s0 + 0.02, mid + 1.95, (t0 + landN) / 2, Math.PI / 2, 4], [s1 - 0.02, mid + mid / 2 + 1.9, (S.foot + landN) / 2, -Math.PI / 2, 3], [s1 - 0.02, RF + 2.0, (t1 + S.foot) / 2 - 0.35, -Math.PI / 2, 4]]) {
+      bulkhead(PK, pb, geom, at([x, y, z], [0, ry, 0]), [1, 0.92, 0.8], 3);
+      lamp(ctx, { indoor: true, pos: [x + Math.sin(ry) * 0.35, y - 0.1, z], color: 0xfff0dc, intensity: k, range: 6.5 });
+    }
     lamp(ctx, { indoor: true, pos: [s1 - 0.6, F + 1.2, (t1 + S.foot) / 2], color: 0x30d8ff, intensity: 4, range: 6 });
 
     // ---- the roof: plant, pipes, a mast, dishes, the uplink console

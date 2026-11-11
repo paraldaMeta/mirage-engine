@@ -1,10 +1,11 @@
-// The district's materials, made once per world (ctx.shared.mats). Everything is procedural: no texture files.
-// Ground and walls opt into @miragekit/core's wet layer (withWet), so the rain level set in main.js soaks them and
+// The district's materials, made once per world (ctx.shared.mats). Everything is procedural: no texture files. What
+// a thing is made of comes from the engine's surface library (docs/surfaces.md: asphalt, paving, concrete, painted
+// and powder-coated steel, stainless, glass, plastics, wood...; baked where that is cheaper); what stays here is the
+// district's layout (road paint, ruts, kerb zones, the facades' window grid, screens). Ground and walls opt into @miragekit/core's wet layer (withWet), so the rain level set in main.js soaks them and
 // pools puddles that the screen-space reflections then mirror. Lit windows, screens and holograms are emissive
 // hooks scaled by the world's lamp gain (uLampGain), so they read the same at any exposure.
 import * as THREE from 'three';
-import { PROC, withWet } from '@miragekit/core';
-import { WORN_DECL } from './kit.js';
+import { withWet, SURFACES, SURFACE_KINDS, createSurfaces } from '@miragekit/core';
 
 // ---- facades: one window grid per style, lit rooms by a hash of the bay and the floor
 const FACADE_DECL = /* glsl */ `
@@ -79,84 +80,6 @@ const facade = (style) => {
   };
 };
 
-// ---- the ground
-const ASPHALT = {
-  fragmentDecl: 'float ndH; float ndPaint;',
-  albedo: /* glsl */ `{
-    vec2 p = mgWorldPos.xz;
-    float coarse = mgFbm2(p * 0.35, 4), grit = mgValue2(p * 38.0), patchy = smoothstep(0.1, 0.5, mgFbm2(p * 0.11 + 9.0, 3));
-    ndH = 0.55 * coarse + 0.25 * grit + 0.2 * mgValue2(p * 7.0);
-    vec3 c = mix(vec3(0.05, 0.051, 0.055), vec3(0.085, 0.082, 0.08), patchy) * (0.75 + 0.5 * grit);
-    // cracks: thin dark lines where two noise cells meet
-    vec2 ce = mgCell2(p * 0.55);
-    c *= 1.0 - 0.45 * (1.0 - smoothstep(0.0, 0.035, ce.y - ce.x));
-    // road paint on the street's carriageway: a dashed centre line and two edge lines, worn
-    float inRoad = step(3.6, p.y) * step(p.y, 8.4) * step(abs(p.x), 34.0);
-    float wear = smoothstep(0.25, 0.7, mgFbm2(p * 1.7, 3) * 0.5 + 0.5);
-    float aa = fwidth(p.y) * 1.5;
-    float centre = (1.0 - smoothstep(0.06, 0.06 + aa, abs(p.y - 6.0))) * step(fract(p.x / 4.0), 0.5);
-    float edges = 1.0 - smoothstep(0.05, 0.05 + aa, min(abs(p.y - 3.9), abs(p.y - 8.1)));
-    float zebra = step(abs(p.x - 18.0), 2.2) * step(fract(p.y / 0.9), 0.52) * step(4.1, p.y) * step(p.y, 7.9);
-    float stop = step(abs(abs(p.x - 18.0) - 3.4), 0.15) * step(3.9, p.y) * step(p.y, 8.1);
-    ndPaint = inRoad * max(max(centre * (1.0 - step(abs(p.x - 18.0), 3.6)), edges), max(zebra, stop)) * wear;
-    c = mix(c, vec3(0.5, 0.48, 0.4), ndPaint * 0.85);
-    diffuseColor.rgb *= c; }`,
-  roughness: 'roughnessFactor = 0.86 - 0.12 * ndPaint;',
-  normal: 'normal = mgBump(normal, ndH, 0.006);',
-};
-const slabs = (size, base, joint) => ({
-  fragmentDecl: 'float ndH; float ndJ;',
-  albedo: /* glsl */ `{
-    vec2 p = mgWorldPos.xz, g = p / ${size.toFixed(2)}, id = floor(g), f = abs(fract(g) - 0.5) * 2.0;
-    float w = max(fwidth(g.x), fwidth(g.y)) * 2.0 + 0.02;
-    ndJ = smoothstep(1.0 - ${joint.toFixed(3)} - w, 1.0 - ${joint.toFixed(3)} * 0.3, max(f.x, f.y));        // 1 in the joint
-    float tone = mgHash(id), speck = mgValue2(p * 26.0), stain = mgFbm2(p * 0.4 + 3.0, 4);
-    ndH = (1.0 - ndJ) * (0.7 + 0.1 * tone) + 0.2 * speck * (1.0 - ndJ);
-    vec3 c = ${base} * (0.82 + 0.3 * tone) * (0.8 + 0.3 * speck) * (0.8 + 0.35 * stain);
-    c *= 1.0 - 0.55 * ndJ;
-    diffuseColor.rgb *= c; }`,
-  roughness: 'roughnessFactor = mix(roughnessFactor, 0.95, ndJ);',
-  normal: 'normal = mgBump(normal, ndH, 0.012);',
-});
-
-// ---- walls at eye level: board-marked concrete with tie holes, and ribbed metal sheet
-const CONCRETE = {
-  fragmentDecl: 'float ndH;',
-  albedo: /* glsl */ `{
-    vec3 p = mgWorldPos, n = normalize(mgWorldNormal);
-    vec2 uv = abs(n.y) > 0.5 ? p.xz : (abs(n.x) > 0.5 ? vec2(p.z, p.y) : vec2(p.x, p.y));
-    vec2 g = uv / vec2(2.4, 1.2), f = abs(fract(g) - 0.5) * 2.0;
-    float seam = smoothstep(0.965, 0.995, max(f.x, f.y));
-    vec2 q = fract(uv / vec2(1.2, 0.6)) - 0.5;
-    float hole = 1.0 - smoothstep(0.02, 0.035, length(q * vec2(1.2, 0.6)));
-    float big = mgFbm3(p * 0.6, 4), fine = mgValue3(p * 22.0);
-    ndH = 0.5 * big + 0.2 * fine - 0.6 * seam - 0.8 * hole;
-    vec3 c = vec3(0.3, 0.3, 0.31) * (0.72 + 0.45 * big) * (0.9 + 0.2 * fine);
-    vec2 hc = floor(uv / vec2(1.2, 0.6));
-    float bleed = step(0.6, mgHash(hc + 31.0)) * (1.0 - smoothstep(0.006, 0.02, abs(q.x * 1.2) - 0.012 * fine)) * step(q.y * 0.6, 0.0) * (1.0 - smoothstep(0.0, 0.08 + 0.22 * mgHash(hc + 5.0), -q.y * 0.6));
-    c = mix(c, vec3(0.2, 0.08, 0.03), 0.7 * bleed * (1.0 - abs(n.y)));
-    c *= 1.0 - 0.4 * seam - 0.6 * hole;
-    c *= 1.0 - 0.32 * smoothstep(0.15, 0.85, mgFbm3(p * vec3(2.6, 0.13, 2.6) + 4.0, 3)) * (1.0 - abs(n.y));   // run-off
-    c *= mix(0.62, 1.0, smoothstep(0.0, 1.0, p.y + 0.3 * big));                                                // a damp foot
-    diffuseColor.rgb *= c; }`,
-  normal: 'normal = mgBump(normal, ndH, 0.01);',
-};
-const RIBBED = (base) => ({
-  fragmentDecl: 'float ndH;' + WORN_DECL,
-  albedo: /* glsl */ `{
-    vec3 p = mgWorldPos, n = normalize(mgWorldNormal);
-    float u = abs(n.x) > 0.5 ? p.z : p.x;
-    float rib = abs(fract(u / 0.22) - 0.5) * 2.0;
-    ndH = smoothstep(0.25, 0.75, rib) * (1.0 - abs(n.y));
-    float dirt = mgFbm3(p * vec3(1.3, 0.3, 1.3), 4);
-    vec3 c = ${base} * (0.7 + 0.45 * dirt) * (0.85 + 0.15 * ndH);
-    c = mix(c, vec3(0.16, 0.07, 0.035), 0.55 * smoothstep(0.25, 0.7, mgFbm3(p * vec3(3.0, 0.5, 3.0) + 11.0, 4)) * smoothstep(1.8, 0.0, p.y));
-    c = ndWorn(c, p, n, 0.9, 0.35, 0.55);
-    diffuseColor.rgb *= c; }`,
-  roughness: 'roughnessFactor = mix(roughnessFactor, 0.9, ndRust);',
-  normal: 'normal = mgBump(normal, ndH + 0.4 * ndWornH, 0.012);',
-});
-
 // ---- screens: scrolling glyph rows, driven by the scene clock
 const SCREEN = (tint) => ({
   fragmentDecl: 'vec3 ndE;',
@@ -176,79 +99,139 @@ const SCREEN = (tint) => ({
   emissive: 'totalEmissiveRadiance += ndE * (1.3 * max(uLampGain, 0.1));   // a screen is on by day too',
 });
 
+// ---- the district's layout in the ground: road paint and where the water gathers (the surfaces themselves come
+// from the engine's library, docs/surfaces.md)
+const LINES_DECL = /* glsl */ `
+float ndLines(vec2 p){
+  float inRoad = step(3.6, p.y) * step(p.y, 8.4) * step(abs(p.x), 34.0);
+  float aa = fwidth(p.y) * 1.5;
+  float centre = (1.0 - smoothstep(0.06, 0.06 + aa, abs(p.y - 6.0))) * step(fract(p.x / 4.0), 0.5);
+  float edges = 1.0 - smoothstep(0.05, 0.05 + aa, min(abs(p.y - 3.9), abs(p.y - 8.1)));
+  float zebra = step(abs(p.x - 18.0), 2.2) * step(fract(p.y / 0.9), 0.52) * step(4.1, p.y) * step(p.y, 7.9);
+  float stop = step(abs(abs(p.x - 18.0) - 3.4), 0.15) * step(3.9, p.y) * step(p.y, 8.1);
+  return inRoad * max(max(centre * (1.0 - step(abs(p.x - 18.0), 3.6)), edges), max(zebra, stop));
+}`;
+// water gathers in the two wheel ruts along the street and in the gutters by the kerbs
+const RUTS = 'max(smoothstep(0.5, 0.0, abs(abs(mgWorldPos.z - 6.0) - 1.3)), 0.8 * smoothstep(0.55, 0.0, min(abs(mgWorldPos.z - 2.5), abs(mgWorldPos.z - 9.5))))';
+// the kerb's painted zones (yellow and black at the crossing, the bus stop, the hydrant), worn
+const KERB_PAINT = /* glsl */ `{ vec3 p = msPW;
+  float zone = min(step(abs(p.x - 18.0), 4.4) + step(abs(p.x + 22.0), 2.4) + step(abs(p.x - 7.0), 1.6), 1.0);
+  float seg = step(0.5, fract((p.x + p.z) / 0.9)), wr = smoothstep(0.25, 0.6, mgFbm3(p * 2.3, 3) * 0.5 + 0.5), k = zone * wr;
+  msAlb = mix(msAlb, mix(vec3(0.55, 0.4, 0.02), vec3(0.03), seg), k); msR = mix(msR, 0.62, k); }`;
+// hazard stripes over yellow paint (the edge wear's bare steel stays bare)
+const HAZARD = /* glsl */ `{ vec3 p = msPW, n = msNWorld; float u = abs(n.y) > 0.5 ? p.x + p.z : (abs(n.x) > 0.5 ? p.z : p.x);
+  float s = step(0.5, fract((u + p.y) / 0.32)) * (1.0 - msM); msAlb = mix(msAlb, vec3(0.03) * (0.9 + 0.2 * msH), s); }`;
+
+/** The district's surface library (one per world, ctx.shared.surf): createSurfaces in 'auto' mode with a bake size
+ *  per quality (ctx.shared.tier) and per role, so the baked sets stay inside the memory budget (NOTES.md "Surfaces").
+ *  surf(spec, options, { post, decl }) -> a material: options as lib.material's plus `size` ('big' | 'mid' | 'small' |
+ *  px); `post` edits msAlb / msR / msM before they apply (layout marks over the surface: kerb paint, hazard
+ *  stripes), `decl` adds GLSL the options reference (the road paint mask). */
+export function surfaceLib(ctx) {
+  if (ctx.shared.surf) return ctx.shared.surf;
+  const world = ctx.world || ctx, tier = ctx.shared.tier || 'high';
+  const lib = createSurfaces(world, { mode: 'auto' });
+  // big: the ground and the walls you walk along; mid: large props and interiors; small: things a metre across
+  // (measured, NOTES.md "Surfaces": high 1024 / 512 / 256 px, medium 512 / 256 / 256, low 256 / 128 / 128; the baked sets
+  // then come to about 59, 28 and 9 MB, the decal atlas's 2 MB included)
+  const SIZE = { high: { big: 1024, mid: 512, small: 256 }, medium: { big: 512, mid: 256, small: 256 }, low: { big: 256, mid: 128, small: 128 } }[tier] || { big: 512, mid: 256, small: 256 };
+  const STEP = { wood: 'wood', bamboo: 'wood' };
+  const surf = (spec, o = {}, x = {}) => {
+    const { wet, params, size = 'mid', ...ho } = o;
+    let h = lib.hooks(spec, { ...ho, size: SIZE[size] || size });
+    if (x.decl) h = { ...h, fragmentDecl: h.fragmentDecl + x.decl };
+    if (x.post) h = { ...h, albedo: h.albedo.replace('diffuseColor.rgb *= msAlb;', x.post + '\n  diffuseColor.rgb *= msAlb;') };
+    if (wet) h = withWet(h, { porosity: spec.porosity, height: 'msH', heightMid: 0.5, heightScale: Math.max(spec.depth, 0.004), ground: ho.ground ?? 0, ...(wet === true ? {} : wet) });
+    const base = { roughness: 1, metalness: 1, ...spec.material, ...(params || {}) };
+    const m = spec.physical ? ctx.mat.phys(base, h) : ctx.mat.std(base, h);
+    m.name = `surface-${spec.kind}-${spec.variant}`;
+    // footsteps (@miragekit/game reads userData.surface): metal rattles like gravel
+    m.userData.surface = STEP[spec.kind] || (/metal|coating|composite/.test(SURFACE_KINDS[spec.kind].family) ? 'gravel' : 'stone');
+    m.userData.surfaceKind = { kind: spec.kind, variant: spec.variant };
+    return m;
+  };
+  // painted steel in any colour from one bake per variant: a mid-grey set tinted by the material's colour (the rust and
+  // the primer take the tint too, which is why the tints are muted colours)
+  const painted = (color, { variant = 'sheet', side, size = 'mid', ...o } = {}) => surf(
+    SURFACES.paintedMetal({ variant, color: [0.4, 0.4, 0.4], chips: 0.3, rust: 0.22, streaks: 0.35 }),
+    { size, ...o, params: { color: new THREE.Color().setRGB(color[0] / 0.4, color[1] / 0.4, color[2] / 0.4), ...(side ? { side } : {}) } });
+  // light-coloured sets shared by every part of that make, the part's colour a tint (one bake each): 'plastic',
+  // 'coat' (satin powder coat), 'board' (cardboard), 'sawn' (sawn wood). shade(kind, rgb, options)
+  const LIGHT = {
+    plastic: [SURFACES.plastic({ variant: 'textured', color: [0.8, 0.8, 0.8] }), 0.8],
+    coat: [SURFACES.powderCoat({ variant: 'cerakote', color: [0.82, 0.82, 0.82], roughness: 0.5 }), 0.82],
+    board: [SURFACES.paper({ variant: 'cardboard', color: [0.85, 0.85, 0.85] }), 0.85],
+    sawn: [SURFACES.wood({ variant: 'sawn', color: [0.8, 0.8, 0.8] }), 0.8],
+  };
+  const shade = (kind, rgb, { params, ...o } = {}) => {
+    const [spec, k] = LIGHT[kind];
+    return surf(spec, { size: 'small', ...o, params: { ...(rgb ? { color: new THREE.Color().setRGB(rgb[0] / k, rgb[1] / k, rgb[2] / k) } : {}), ...(params || {}) } });
+  };
+  return (ctx.shared.surf = { lib, surf, painted, shade, LIGHT, SURFACES, SIZE, tier });
+}
+
 export function materials(ctx) {
   if (ctx.shared.mats) return ctx.shared.mats;
   const { mat } = ctx;
-  const wet = (hooks, o) => withWet(hooks, o);
+  const { surf, lib, shade } = surfaceLib(ctx);
   const rgb = (r, g, b) => new THREE.Color().setRGB(r, g, b);
-  // neon tubes and sign faces: display-referred colours x a gain (the bloom spreads them)
-  const neon = (c, k = 9) => mat.glow(c, k);
+  // neon tubes: the library's tube (a glass tube round a saturated gas column; a trace of it by day); large sign
+  // faces stay display-referred colours x a gain (the bloom spreads them)
+  const glow = (c, k = 9) => mat.glow(c, k);
   const NEON = {
     pink: [1.0, 0.16, 0.5], cyan: [0.1, 0.85, 1.0], amber: [1.0, 0.55, 0.12], violet: [0.55, 0.25, 1.0], green: [0.2, 1.0, 0.55],
     red: [1.0, 0.12, 0.1], white: [0.95, 0.95, 1.0], warm: [1.0, 0.72, 0.42],
   };
+  // the dark structural metal: black powder coat (a dielectric with a satin sheen, steel at worn edges), not a black
+  // mirror; blackMetal is the same set a shade darker (a tint: no second bake)
+  const POWDER = SURFACES.powderCoat({ variant: 'powder', color: [0.045, 0.047, 0.052] });
+  const SHEET = (color) => SURFACES.corrugated({ variant: 'painted', color, pitch: 0.22, profile: 'box', rust: 0.35, chips: 0.3 });
+  const CONCRETE = SURFACES.concrete({ variant: 'cast', panel: [2.4, 1.2], tieSpacing: 0.6, age: 0.6 });
+  const SHEET_DECALS = { rills: { top: 2.6, length: 1.1, density: 0.5 }, leaks: { spacing: 1.52 } };
   const M = {
     NEON,
-    asphalt: mat.std({ roughness: 0.86 }, wet(ASPHALT, { porosity: 0.35, puddles: 1.5, height: 'ndH', heightMid: 0.5, heightScale: 0.02, ripples: 1.3, specAA: 2.5,
-      // water gathers in the two wheel ruts along the street and in the gutters by the kerbs
-      wear: 'max(smoothstep(0.5, 0.0, abs(abs(mgWorldPos.z - 6.0) - 1.3)), 0.8 * smoothstep(0.55, 0.0, min(abs(mgWorldPos.z - 2.5), abs(mgWorldPos.z - 9.5))))' })),
-    pavement: mat.std({ roughness: 0.82 }, wet(slabs(1.2, 'vec3(0.27, 0.27, 0.275)', 0.035), { porosity: 0.5, puddles: 0.9, height: 'ndH', heightMid: 0.6, heightScale: 0.014, specAA: 2.5 })),
-    plaza: mat.std({ roughness: 0.42 }, wet(slabs(0.9, 'vec3(0.12, 0.125, 0.14)', 0.02), { porosity: 0.2, puddles: 1.1, height: 'ndH', heightMid: 0.65, heightScale: 0.012, ripples: 1.3, specAA: 2.5 })),
-    kerb: mat.std({ roughness: 0.8 }, wet({ ...CONCRETE, albedo: CONCRETE.albedo.replace('diffuseColor.rgb *= c; }', `
-      float zone = step(abs(p.x - 18.0), 4.4) + step(abs(p.x + 22.0), 2.4) + step(abs(p.x - 7.0), 1.6);
-      float seg = step(0.5, fract((p.x + p.z) / 0.9)), wear = smoothstep(0.25, 0.6, mgFbm3(p * 2.3, 3) * 0.5 + 0.5);
-      c = mix(c, mix(vec3(0.55, 0.4, 0.02), vec3(0.025), seg) * (0.75 + 0.3 * big), min(zone, 1.0) * wear);
-      diffuseColor.rgb *= c; }`) }, { porosity: 0.6, puddles: 0 })),
-    concrete: mat.std({ roughness: 0.88 }, wet(CONCRETE, { porosity: 0.8, puddles: 0, band: 0.5 })),
-    concreteDry: mat.std({ roughness: 0.9 }, CONCRETE),                                              // indoors
-    sheet: mat.std({ roughness: 0.5, metalness: 0.75 }, wet(RIBBED('vec3(0.32, 0.34, 0.38)'), { porosity: 0.1, puddles: 0 })),
-    sheetRed: mat.std({ roughness: 0.55, metalness: 0.6 }, wet(RIBBED('vec3(0.42, 0.1, 0.08)'), { porosity: 0.1, puddles: 0 })),
-    facade: { concrete: mat.std({ roughness: 0.9 }, facade('concrete')), panel: mat.std({ roughness: 0.55, metalness: 0.5 }, facade('panel')), glass: mat.std({ roughness: 0.4, metalness: 0.3 }, facade('glass')) },
-    roofing: mat.std({ roughness: 0.92 }, wet({ fragmentDecl: 'float ndH;', albedo: 'ndH = mgFbm2(mgWorldPos.xz * 1.4, 4); diffuseColor.rgb *= vec3(0.08, 0.082, 0.09) * (0.7 + 0.6 * ndH);', normal: 'normal = mgBump(normal, ndH, 0.006);' }, { porosity: 0.3, puddles: 1.6, height: 'ndH', heightMid: 0.5 })),
-    steel: mat.std({ metalness: 1, roughness: 0.34 }, PROC.brushed('vec3(0.34, 0.36, 0.4)', { axis: 'y', wear: 1.4 })),
-    darkMetal: mat.std({ color: rgb(0.035, 0.038, 0.045), metalness: 0.9, roughness: 0.42 }),
-    blackMetal: mat.std({ color: rgb(0.012, 0.013, 0.016), metalness: 0.8, roughness: 0.5 }),
-    grate: mat.std({ color: rgb(0.02, 0.022, 0.026), metalness: 1, roughness: 0.35 }),
-    yellow: mat.std({ roughness: 0.6, metalness: 0.2 }, {
-      fragmentDecl: WORN_DECL,
-      albedo: `{ vec3 p = mgWorldPos, n = normalize(mgWorldNormal); float u = abs(n.y) > 0.5 ? p.x + p.z : (abs(n.x) > 0.5 ? p.z : p.x);
-        float s = step(0.5, fract((u + p.y) / 0.32));
-        diffuseColor.rgb *= ndWorn(mix(vec3(0.6, 0.42, 0.02), vec3(0.02), s), p, n, 0.5, 0.5, 0.4); }`,
-      roughness: 'roughnessFactor = mix(roughnessFactor, 0.9, ndRust);',
-      normal: 'normal = mgBump(normal, ndWornH, 0.004);',
-    }),
-    rubber: mat.std({ color: rgb(0.012, 0.012, 0.013), roughness: 0.8 }),
-    plastic: mat.std({ color: rgb(0.05, 0.055, 0.07), roughness: 0.45 }),
-    crate: mat.std({ color: rgb(0.09, 0.11, 0.1), roughness: 0.6, metalness: 0.5 }),
-    // glass you cannot walk through: the pane is not in the walk grid (transparent), a proxy box is
-    glass: mat.std({ color: rgb(0.5, 0.65, 0.7), roughness: 0.04, metalness: 0, transparent: true, opacity: 0.16, depthWrite: false }),
+    asphalt: surf(SURFACES.asphalt({ variant: 'worn', cracks: 0.5, oil: 0.25 }),
+      { mapping: 'ground', size: 'big', paint: 'ndLines(msPW.xz)', paintColor: [0.5, 0.48, 0.4], paintWear: 0.55, wet: { puddles: 1.5, ripples: 1.3, specAA: 2.5, wear: RUTS } }, { decl: LINES_DECL }),
+    pavement: surf(SURFACES.paving({ variant: 'slabs', cell: [0.6, 0.6], color: [0.27, 0.27, 0.275] }), { mapping: 'ground', wet: { puddles: 0.9, specAA: 2.5 } }),
+    plaza: surf(SURFACES.paving({ variant: 'polished', color: [0.12, 0.125, 0.14], cell: [0.9, 0.9] }), { mapping: 'ground', wet: { puddles: 1.1, ripples: 1.3, specAA: 2.5 } }),
+    kerb: surf(SURFACES.concrete({ variant: 'precast', panel: [0.9, 0.3], color: [0.36, 0.355, 0.34], age: 0.5 }), { mapping: 'wall', size: 'small', wet: { puddles: 0 } }, { post: KERB_PAINT }),
+    concrete: surf(CONCRETE, { mapping: 'wall', size: 'big', wet: { puddles: 0, band: 0.5 }, decals: { damp: 0.55, rills: { top: 3.2, length: 1.4, density: 0.55 }, stains: 0.35, cracks: 0.25, soot: 0.15 } }),
+    concreteDry: surf(CONCRETE, { mapping: 'wall', size: 'big', decals: { cracks: 0.2, stains: 0.2 } }),                                    // indoors
+    sheet: surf(SHEET([0.32, 0.34, 0.38]), { mapping: 'wall', grain: 'y', wet: { puddles: 0 }, decals: SHEET_DECALS }),
+    sheetRed: surf(SHEET([0.42, 0.1, 0.08]), { mapping: 'wall', grain: 'y', wet: { puddles: 0 }, decals: SHEET_DECALS }),
+    facade: { concrete: mat.std({ roughness: 0.9, metalness: 0 }, facade('concrete')), panel: mat.std({ roughness: 0.55, metalness: 0 }, facade('panel')), glass: mat.std({ roughness: 0.4, metalness: 0 }, facade('glass')) },
+    roofing: surf(SURFACES.roofing({ variant: 'felt' }), { mapping: 'ground', wet: { puddles: 1.6 } }),
+    // brushed stainless, its grain up the part (posts, hoods, rails)
+    steel: surf(SURFACES.stainless({ variant: 'brushed' }), { mapping: 'grain', grain: [0, 1, 0] }),
+    darkMetal: surf(POWDER, { size: 'small' }),
+    blackMetal: surf(POWDER, { size: 'small', params: { color: rgb(0.7, 0.7, 0.7) } }),
+    grate: surf(SURFACES.castIron({ variant: 'grate' }), { mapping: 'ground', size: 'small' }),
+    yellow: surf(SURFACES.paintedMetal({ variant: 'sheet', color: [0.6, 0.42, 0.02], chips: 0.5, rust: 0.45 }), { size: 'small' }, { post: HAZARD }),
+    rubber: surf(SURFACES.rubber({ variant: 'moulded' })),
+    plastic: shade('plastic', [0.05, 0.055, 0.07]),
+    crate: shade('coat', [0.09, 0.11, 0.1]),
+    // glass you cannot walk through: the pane is not in the walk grid (transparent), a proxy box is. Fresnel: the
+    // street mirrored at grazing angles, the room behind straight on; shop windows are dirtier
+    glass: lib.material(SURFACES.glass({ variant: 'clear', dirt: 0.12 })),
+    glassDirty: lib.material(SURFACES.glass({ variant: 'dirty', dirt: 0.35 })),
     car: Object.fromEntries(Object.entries({ teal: [0.0, 0.14, 0.15], amber: [0.4, 0.14, 0.01], white: [0.42, 0.44, 0.46] }).map(([k, c]) =>
-      [k, mat.phys({ color: rgb(...c), roughness: 0.32, metalness: 0.7, clearcoat: 1, clearcoatRoughness: 0.08 })])),
+      [k, surf(SURFACES.carPaint({ variant: 'metallic', color: c }), { space: 'object' })])),
     // interiors
-    tile: mat.std({ roughness: 0.22 }, {
-      fragmentDecl: 'float ndH;',
-      albedo: `{ vec2 g = mgWorldPos.xz / 0.45, id = floor(g), f = abs(fract(g) - 0.5) * 2.0; float j = smoothstep(0.93, 0.98, max(f.x, f.y));
-        ndH = 1.0 - j; float chk = mod(id.x + id.y, 2.0);
-        diffuseColor.rgb *= mix(vec3(0.5, 0.46, 0.4), vec3(0.06, 0.05, 0.05), chk) * (0.85 + 0.2 * mgHash(id)) * (1.0 - 0.6 * j); }`,
-      roughness: 'roughnessFactor = mix(0.2, 0.8, 1.0 - ndH);',
-      normal: 'normal = mgBump(normal, ndH, 0.004);',
-    }),
-    plaster: mat.std({ roughness: 0.9 }, PROC.plaster('vec3(0.42, 0.3, 0.22)', { wear: 1.2, foot: 0.3 })),
-    wood: mat.std({ roughness: 0.5 }, PROC.wood('vec3(0.2, 0.1, 0.05)', 'x')),
-    lacquer: mat.std({ color: rgb(0.32, 0.02, 0.02), roughness: 0.18 }),
-    paper: mat.std({ color: rgb(0.9, 0.55, 0.3), roughness: 0.9, emissive: rgb(1, 0.5, 0.2), emissiveIntensity: 0 }),
-    relayFloor: mat.std({ roughness: 0.3, metalness: 0.4 }, slabs(0.6, 'vec3(0.1, 0.11, 0.13)', 0.03)),
-    rack: mat.std({ color: rgb(0.02, 0.022, 0.028), metalness: 0.85, roughness: 0.38 }),
-    screenCyan: mat.std({ roughness: 0.12 }, SCREEN('vec3(0.15, 0.9, 1.0)')),
-    screenAmber: mat.std({ roughness: 0.12 }, SCREEN('vec3(1.0, 0.55, 0.12)')),
-    screenPink: mat.std({ roughness: 0.12 }, SCREEN('vec3(1.0, 0.2, 0.55)')),
-    paperGlow: neon([1.0, 0.62, 0.3], 0.9),
-    neon: Object.fromEntries(Object.entries(NEON).map(([k, c]) => [k, neon(c)])),
-    neonSoft: Object.fromEntries(Object.entries(NEON).map(([k, c]) => [k, neon(c, 1.5)])),   // large faces: a sign box, a light panel
+    tile: surf(SURFACES.tile({ variant: 'floor', cell: [0.45, 0.45], color: [0.5, 0.46, 0.4], alt: 1, altColor: [0.06, 0.05, 0.05], roughness: 0.25 }), { mapping: 'ground' }),
+    plaster: surf(SURFACES.render({ variant: 'smooth', color: [0.42, 0.3, 0.22], cracks: 0.3 }), { mapping: 'wall', size: 'small', decals: { damp: 0.35, stains: 0.3 } }),
+    wood: surf(SURFACES.wood({ variant: 'planks', color: [0.2, 0.1, 0.05] }), { mapping: 'grain', grain: [1, 0, 0], size: 'small' }),
+    lacquer: surf(SURFACES.wood({ variant: 'varnished', color: [0.32, 0.02, 0.02], roughness: 0.18 }), { mapping: 'grain', grain: [1, 0, 0], size: 'small' }),
+    paper: shade('board', [0.8, 0.5, 0.28], { params: { emissive: rgb(1, 0.5, 0.2), emissiveIntensity: 0 } }),
+    relayFloor: surf(SURFACES.aluminium({ variant: 'tread', color: [0.62, 0.63, 0.64] }), { mapping: 'ground' }),
+    rack: surf(POWDER, { size: 'small', params: { color: rgb(0.68, 0.68, 0.7) } }),
+    screenCyan: mat.std({ roughness: 0.12, metalness: 0 }, SCREEN('vec3(0.15, 0.9, 1.0)')),
+    screenAmber: mat.std({ roughness: 0.12, metalness: 0 }, SCREEN('vec3(1.0, 0.55, 0.12)')),
+    screenPink: mat.std({ roughness: 0.12, metalness: 0 }, SCREEN('vec3(1.0, 0.2, 0.55)')),
+    paperGlow: glow([1.0, 0.62, 0.3], 0.9),
+    // (low: the plain glow, a few ALU fewer per pixel where the tubes fill the view)
+    neon: Object.fromEntries(Object.entries(NEON).map(([k, c]) => [k, ctx.shared.tier === 'low' ? glow(c) : lib.material(SURFACES.neon({ color: c, intensity: 9 }))])),
+    neonSoft: Object.fromEntries(Object.entries(NEON).map(([k, c]) => [k, glow(c, 1.5)])),   // large faces: a sign box, a light panel
   };
-  // footsteps (the game layer reads userData.surface from the material)
-  for (const k of ['wood']) M[k].userData.surface = 'wood';
-  for (const k of ['steel', 'grate', 'sheet', 'relayFloor']) M[k].userData.surface = 'gravel';   // the nearest built-in: a rattle on metal
   return (ctx.shared.mats = M);
 }
 

@@ -30,7 +30,7 @@ export default {
       ...B.windows.map((w) => ({ x: w.x - cx, width: w.width, height: 2.5, sill: 0.9, arch: 'flat' }))];
     b.add(geom.wall({ length: x1 - x0, height: H + 0.3, thickness: T, openings }), M.concrete, geom.compose([cx, 0, z1 - T / 2]));
     for (const w of B.windows) {
-      const pane = new THREE.Mesh(new THREE.BoxGeometry(w.width, 1.6, 0.03), M.glass);
+      const pane = new THREE.Mesh(new THREE.BoxGeometry(w.width, 1.6, 0.03), M.glassDirty);
       pane.position.set(w.x, 1.7, z1 - T / 2); pane.name = 'bar-window'; root.add(pane);
       const p = new THREE.Mesh(new THREE.BoxGeometry(w.width, 1.6, 0.2)); p.position.copy(pane.position); ctx.collider(p);   // glass you cannot walk or shoot through
       b.box(M.blackMetal, [w.width + 0.1, 0.07, T + 0.1], [w.x, 0.9, z1 - T / 2]);
