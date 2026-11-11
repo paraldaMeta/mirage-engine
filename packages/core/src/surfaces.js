@@ -653,10 +653,11 @@ void msTap(vec2 uv, vec2 gx, vec2 gy, out vec4 c, out vec4 n){
   if (!baked) body += '  msS.a *= msS.ao;\n';   // the bake folds the cavity into the albedo
   else body += `  if (msMi.x > 0.0) {
     vec2 mq = msNQ(msPW) / msMi.x * 0.125;
-    vec4 md = textureGrad(msNoiseT, mq, dFdx(mq), dFdy(mq)) - 0.5;
+    vec2 mq2 = mat2(0.8, 0.6, -0.6, 0.8) * mq * 2.37 + 0.31;
+    vec4 md = (textureGrad(msNoiseT, mq, dFdx(mq), dFdy(mq)) + textureGrad(msNoiseT, mq2, dFdx(mq2), dFdy(mq2))) * 0.5 - 0.5;
     float mk = clamp(msT / msBakeN / max(msFP, 1e-6) - 1.0, 0.0, 1.0);
     float g = (md.r * 0.7 + md.g * 0.3) * mk;
-    msS.a *= 1.0 + msMi.y * g * 2.0; msS.r = clamp(msS.r + msMi.w * g * 2.0, 0.02, 1.0); msMicroH = msMi.z * g;
+    msS.a *= 1.0 + msMi.y * g * 2.5; msS.r = clamp(msS.r + msMi.w * g * 2.0, 0.02, 1.0); msMicroH = msMi.z * g * 0.4;
   }\n`;
   if (o.paint) body += `  msRoadPaint(msS, msPW.xz, ${o.paint});\n`;
   if (o.decals) body += '  msDecals(msS, msPW, msNWorld);\n';
