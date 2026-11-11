@@ -178,4 +178,37 @@ function run(seed) {
   const first = e.play('one'), second = e.play('one');
   ok(!first.playing && second.playing && e.voices.filter((v) => v.name === 'one').length === 1, 'instances 1: the second play replaces the first');
 }
+// ---- createAudio's add(): a sound of your own, made at unlock when added before the first gesture ----------------
+{
+  const had = globalThis.AudioContext, contexts = [];
+  globalThis.AudioContext = function FakeAudioContext() {
+    const c = fakeContext();
+    c.addEventListener = () => {}; c.close = async () => { c.state = 'closed'; };
+    const source = c.createBufferSource;
+    c.createBufferSource = () => { const s = source(); s.addEventListener = () => {}; s.removeEventListener = () => {}; s.start = () => {}; return s; };
+    contexts.push(c); return c;
+  };
+  try {
+    const { createAudio } = await import('./src/audio.js');
+    const audio = createAudio(), made = [];
+    const shot = (ctx) => { made.push(ctx); return [ctx.createBuffer(1, 480, 48000), ctx.createBuffer(1, 960, 48000)]; };
+    ok(audio.add('shot', shot) === audio && made.length === 0, 'add() before unlock keeps the factory for later');
+    ok(audio.play('shot') === null && audio.stats.skipped === 1, 'a locked mixer still plays nothing');
+    const hum = audio.loop('hum');
+    audio.add('hum', (ctx) => ctx.createBuffer(1, 4800, 48000));
+    audio.unlock();
+    const ctx = contexts[0];
+    ok(made.length === 1 && made[0] === ctx && audio.buffers.shot.length === 2, 'unlock() calls the factory once, with the context');
+    const s = audio.play('shot');
+    ok(s && audio.buffers.shot.includes(s.buffer) && audio.stats.played.shot === 1, 'play() finds the added sound and picks one of its variants');
+    ok(hum.src && hum.src.buffer === audio.buffers.hum && hum.src.buffer.length === 4800, 'a loop queued before unlock starts with the added buffer');
+    const late = ctx.createBuffer(1, 240, 48000);
+    audio.add('click', late);
+    ok(audio.buffers.click === late && audio.play('click').buffer === late, 'add() after unlock: a buffer is there at once');
+    audio.add('pad', (c) => c.createBuffer(1, 10, 48000));
+    ok(audio.buffers.pad.length === 10, 'add() under a built-in name replaces it');
+    await audio.dispose();
+    ok(audio.add('shot', shot) === audio && audio.buffers === null, 'add() on a disposed mixer does nothing');
+  } finally { globalThis.AudioContext = had; }
+}
 console.log('audio: all checks passed');

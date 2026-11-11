@@ -7,8 +7,9 @@ export type Sound = LoopSound | `step_${Surface}` | 'pickup' | 'done' | 'locked'
 export type SingleBufferSound = Exclude<Sound, `step_${Surface}`>;
 export const SURFACES: Surface[];
 export interface AudioOptions { at?: XYZ; bus?: AudioBus; gain?: number; rate?: number; ref?: number }
+export type AudioSoundSource = AudioBuffer | AudioBuffer[] | ((context: AudioContext) => AudioBuffer | AudioBuffer[]);
 export interface AudioLoop {
-  name: SingleBufferSound; src: AudioBufferSourceNode | null;
+  name: SingleBufferSound | (string & {}); src: AudioBufferSourceNode | null;
   /** Called automatically on unlock for queued loops; requires an unlocked context when called manually. */
   start(): void;
 }
@@ -21,10 +22,17 @@ export interface AudioMixer {
   stats: { played: Record<string, number>; skipped: number; state: 'locked' | AudioContextState; genMs: number };
   /** Invoke from a user gesture; may leave ctx null when Web Audio is unavailable. */
   unlock(): void;
+  /**
+   * A sound of your own under `name` (replaces a built-in of that name): a buffer, a list of variants (play picks
+   * one), or a factory called with the context. Before unlock() the factory waits and runs at unlock; play and loop
+   * then find the sound. Returns the mixer.
+   */
+  add(name: string, sound: AudioSoundSource): AudioMixer;
   suspend(on: boolean): void; volume(bus: AudioBus, value: number): void;
   play(name: string, options?: AudioOptions): AudioBufferSourceNode | null;
   footstep(surface: string, run?: boolean): void;
-  loop(name: SingleBufferSound, options?: Omit<AudioOptions, 'rate'>): AudioLoop;
+  /** A built-in loop sound or one given to add() (footsteps are not loops). */
+  loop<N extends string>(name: N extends `step_${Surface}` ? never : N, options?: Omit<AudioOptions, 'rate'>): AudioLoop;
   listen(camera: { matrixWorld: THREE.Matrix4 }): void;
 }
 export function createAudio(options?: { volumes?: Partial<Record<AudioBus, number>> }): AudioMixer;

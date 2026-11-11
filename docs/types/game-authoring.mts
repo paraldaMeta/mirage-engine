@@ -75,6 +75,9 @@ audio.ctx.close();
 audio.volume('voice', 1);
 // @ts-expect-error footsteps are arrays of variants and cannot be passed as a single loop buffer
 audio.loop('step_stone');
+audio.add('shot', (ctx) => [ctx.createBuffer(1, 480, ctx.sampleRate)]).add('hum', new AudioBuffer({ length: 480, sampleRate: 48000 })).loop('hum').src?.stop();
+// @ts-expect-error a sound is a buffer, a list of them or a factory of the context
+audio.add('shot', 'shot.wav');
 
 const R = await loadRapier(); R.version();
 const physics = await createPhysics(world.scene); physics.addStatic();
@@ -88,12 +91,13 @@ character.onStride = (surface, run) => audio.footstep(surface, run);
 character.update(1 / 60, { x: 1 }).place([0, 0, 0], { exact: true });
 character.controller.computedGrounded(); character.collider.handle.toFixed();
 physics.ray([0, 1, 0], [0, -1, 0], 5, character.collider)?.object?.removeFromParent();
+const hitNormal: [number, number, number] | undefined = physics.ray([0, 1, 0], [0, -1, 0])?.normal; hitNormal?.[1].toFixed();
 // @ts-expect-error a ray can miss
 physics.ray([0, 1, 0], [0, -1, 0]).distance;
 const simulation = createSimulation(physics, character, game);
 simulation.advance(1 / 144, { x: 1, jumpPressed: true }); simulation.advance(1 / 60, null); simulation.reset();
 const play = createPlay(world, { plan, walker: character, simulation }); play.walker.collider.handle.toFixed(); play.stop();
-const session = await startGame(world, { built, ui: false, appearance: { palette: { scarf: '#d98645' } },
+const session = await startGame(world, { built, ui: false, animate: true, fov: 75, maxFps: 120, appearance: { palette: { scarf: '#d98645' } },
   async setup(ctx) { const goal: number = ctx.plan.quest.goal; ctx.game.set('goal', goal); ctx.root.name = 'entities'; ctx.onDispose(() => ctx.root.clear()); },
   objective: g => ['Collect keys', String(g.inventory.items.length)], summary: g => String(g.time) });
 const playerSave: PlayerSnapshot = session.save(1); const exported: string = session.save('export');
@@ -106,6 +110,7 @@ await startGame(world, { built: noSpawn });
 const ui = createUI({ game, input, audio, onSave: session.save, onLoad: session.load });
 ui.begin(); ui.objective('Keys', 'Find three'); ui.prompt(key); ui.openMenu('save'); ui.openInventory(); ui.update(); ui.setTouch(true);
 ui.open?.close();
+await ui.message('A note', 'Pinned to the door.', 'Close'); const messageClosed: Promise<void> = session.game.ui.message('Done', 'All lit'); void messageClosed;
 // @ts-expect-error no dialog is open initially
 ui.open.close();
 const closed: Promise<void> = session.dispose(); await closed;

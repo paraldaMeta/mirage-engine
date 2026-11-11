@@ -102,7 +102,7 @@ async function mountGame(world, opts, life, dispose, ownAudio) {
   };
   const ui = opts.ui === false ? null : (typeof opts.ui === 'function' ? opts.ui : createUI)({ game, input, audio, canvas, title: opts.title || plan.name, subtitle: opts.subtitle, onSave: save, onLoad: load, onRestart: opts.onRestart || (() => location.reload()) });
   if (ui) life.defer(() => ui.dispose());
-  game.ui = ui || { toast() {}, message() {}, prompt() {}, objective() {} };   // entities talk to the overlay through the game
+  game.ui = ui || { toast() {}, message: () => Promise.resolve(), prompt() {}, objective() {} };   // entities talk to the overlay through the game
   const refresh = () => { if (ui && objective) ui.objective(...objective(game)); };
   for (const ev of ['flag', 'inventory', 'load']) life.defer(game.on(ev, refresh));
   refresh();
@@ -112,6 +112,7 @@ async function mountGame(world, opts, life, dispose, ownAudio) {
   play = createPlay(world, {
     plan, canvas, mode: 'walk', walker: character, devKeys: false, spp: opts.spp || 6, ui: false, shadowRadius: opts.shadowRadius, grid: opts.grid, fit: opts.fit,
     quality: opts.quality, hud: opts.hud, idle: opts.idle, appearance: opts.appearance, onQuality: opts.onQuality, simulation,
+    animate: opts.animate, fov: opts.fov, maxFps: opts.maxFps,   // a scene clock on real time, the lens, the frame cap
     onVisibility(shown) { simulation.reset(); input.clear(); audio.suspend(!shown); },
     // play.place() / viewpoint(): no tick left over from before the jump, and systems restart their scene clocks
     onPlace() { simulation.reset(); game.emit('place'); },

@@ -43,7 +43,7 @@
 // ---------------------------------------------------------------------------
 import * as THREE from 'three';
 import { CLUSTER, clusterSlice, sphereSpan } from './lights.js';
-import { createInjector } from './inject.js';
+import { createInjector, isLit } from './inject.js';
 import { addLampSource } from './light2.js';
 
 export const LAMPPOOL_DEFAULTS = {
@@ -194,7 +194,7 @@ export function createLampPool(w, cfg) {
 
   const lamps = [];          // poolLamp records
   let weight = new Float32Array(cfg.max).fill(1), scratch = new Float32Array(cfg.max);   // the pool's share of each lamp (1 - its real light's)
-  const info = { lamps: 0, active: 0, real: 0, indices: 0, clipped: 0, binMs: 0, mode: 0, rows: TH, renders: 0 };
+  const info = { lamps: 0, active: 0, real: 0, indices: 0, clipped: 0, binMs: 0, mode: 0, rows: TH, renders: 0, bins: 0, skipped: 0 };
   let dirtyRec = true, binKey = '', activeKey = '', renders = 0;
   const _v = new THREE.Vector3(), _vp = new THREE.Vector4();
 
@@ -253,6 +253,15 @@ export function createLampPool(w, cfg) {
     renders++;
     if (own && renders % 30 === 1) inj.adopt(scene);
     const gain = cfg.lampGain ? G.uLampGain.value : 1;
+    // a render that shades nothing: an unlit override material (lights.js's shadow tiles and gi.js's distance cubes,
+    // six faces each, used to re-bin every lamp per face). The pool's state stays the last shading render's; only the
+    // PointLight rescan keeps its cadence, so the renders that do shade see what they saw before
+    const om = scene.overrideMaterial;
+    if (om && !isLit(om)) {
+      if (cfg.real && lamps.length && gain > 1e-6) realLights();
+      info.skipped++;
+      return;
+    }
     U.mgPC.value.x = gain;
     if (!lamps.length || !(gain > 1e-6) || (!cfg.captures && isCapture(rt))) { U.mgPA.value.y = 0; info.mode = 0; return; }
     if (shares(gain)) dirtyRec = true;
@@ -287,7 +296,7 @@ export function createLampPool(w, cfg) {
         for (let j = 0; j < b.index.length; j++) data[ib + j] = act[b.index[j]];
         U.mgPB.value.z = near; U.mgPB.value.w = CLUSTER.z / Math.log(far / near);
         info.indices = b.index.length; info.clipped = b.clipped; info.binMs = +(performance.now() - t0).toFixed(3);
-        binKey = k; activeKey = ak; dirty = true;
+        binKey = k; activeKey = ak; dirty = true; info.bins++;
       }
       r.getCurrentViewport(_vp); U.mgPB.value.x = 1 / _vp.z; U.mgPB.value.y = 1 / _vp.w; U.mgPC.value.z = _vp.x; U.mgPC.value.w = _vp.y;
     } else if (ak !== activeKey || binKey !== 'list') {

@@ -5,7 +5,8 @@ export interface GameMessages {
   prompt(entity: InteractableEntity | null): void;
   objective(heading: string, text: string): void;
   toast(text: string, milliseconds?: number): void;
-  message(heading: string, text: string, button?: string): void;
+  /** Shows a dialog that pauses the game; the promise resolves when it closes (also when replaced or disposed). */
+  message(heading: string, text: string, button?: string): Promise<void>;
 }
 export interface GameUI extends GameMessages {
   dispose(): void;

@@ -29,6 +29,9 @@ const g = await startGame(world, {
 `startGame` does, in order: Rapier colliders from the modules' geometry, a `game` group for entities
 (`collide = false`: the baked walk grid leaves moving things out), your `setup`, `world.prepare()`, the character,
 the overlay, then `createPlay` with the character and action map.
+`animate`, `fov` and `maxFps` go to `createPlay` as they are: `animate: true` keeps the scene clock (wind, water,
+`ctx.onUpdate`, particles) on real time while the player stands still, `fov` sets the walk view's field of view
+(default 62), `maxFps` caps the frame rate (default 60).
 
 The game advances the character, Rapier and trigger zones together at 60 Hz. The camera interpolates between the
 previous and current feet positions. `character.pos`, `play.state().pos` in walk mode and saved coordinates
@@ -40,12 +43,12 @@ Hosts using `createPhysics` directly can still drive `character.update(dt, input
 
 | file | | |
 |---|---|---|
-| `physics.js` | `createPhysics(scene)` | `addStatic(root)` one trimesh per solid mesh (the walk grid's rule: visible layer-0 meshes that write depth, minus `collide = false`, plus collider proxies); `body(obj, { shape, mass })`; `hinge(obj, { half, offset, swing, speed })` with `open / close / toggle / set(open)`; `character({ pos })`; `step(dt)` → moved?; `ray(from, dir, max)` → `{ point, distance, surface, object }` |
+| `physics.js` | `createPhysics(scene)` | `addStatic(root)` one trimesh per solid mesh (the walk grid's rule: visible layer-0 meshes that write depth, minus `collide = false`, plus collider proxies); `body(obj, { shape, mass })`; `hinge(obj, { half, offset, swing, speed })` with `open / close / toggle / set(open)`; `character({ pos })`; `step(dt)` → moved?; `ray(from, dir, max, exclude)` → `{ point, distance, surface, object, normal }` (`normal`: the surface's unit normal at the hit, `[x, y, z]`) |
 | | character | a flat-bottomed cylinder (r 0.28, 1.8 m) on Rapier's kinematic character controller: autostep 0.4 m, snap to ground 0.3 m, climbs ≤ 46°, slides ≥ 40°, pushes dynamic bodies (70 kg), jump 4.2 m/s; same interface as the walk-grid walker; `onStride(surface, run)` every 0.75 m (1 m running) |
 | `game.js` | `createGame({ id, version, migrate })` | `add / remove / spawn(anchors, make) / system(fn) / tick(dt)`, `on / emit`, `set(flag)`, `inventory.add / has / remove`, `nearest(eye, dir)`, `interact(e)`, `zone({ id, box \| sphere, enter, exit, once })` (fires as `game.player`, the character's feet, crosses it; emits `'zone'`; saves keep who is inside, so loading does not fire again), `pause()`, `save(slot) / load(slot) / slots() / exportJSON() / importJSON()`, settings. No three.js, no DOM (tested in node) |
 | `input.js` | `createInput()` | actions `forward back left right run jump interact inventory menu`; `poll()`, `down(a)`, `pressed(a)`, `move()`, `look(dt)`, `source`, `glyph(a)`, `rebind(a, code)`, `capture()`; gamepad = standard mapping; touch via `stick / hold / tap / addLook` |
-| `audio.js` | `createAudio()` | buses `master → music, sfx, ambience`; `unlock()` (a user gesture), `play(name, { at })`, `loop(name, { at })`, `footstep(surface)`, `listen(camera)`, `volume(bus, v)` |
-| `ui.js` | `createUI(...)` | HUD, prompt, toasts, start screen, pause menu (save slots, load, export / import, controls with rebinding, volumes, restart), inventory panel, message dialog, touch controls |
+| `audio.js` | `createAudio()` | buses `master → music, sfx, ambience`; `unlock()` (a user gesture), `play(name, { at })`, `loop(name, { at })`, `add(name, sound)` (an `AudioBuffer`, a list of variants, or a factory `(ctx) => buffer or list`: your own sounds; a factory added before the first gesture runs at `unlock()`), `footstep(surface)`, `listen(camera)`, `volume(bus, v)` |
+| `ui.js` | `createUI(...)` | HUD, prompt, toasts, start screen, pause menu (save slots, load, export / import, controls with rebinding, volumes, restart), inventory panel, message dialog (`await ui.message(title, body, button)`: the promise resolves when it closes), touch controls |
 
 Surfaces for footsteps: `userData.surface` on a mesh or its material (`stone`, `gravel`, `grass`, `wood`).
 Sounds (all generated in code at `unlock`, ~0.3 s): `step_stone|gravel|grass|wood` (4 variants each), `pickup`,
