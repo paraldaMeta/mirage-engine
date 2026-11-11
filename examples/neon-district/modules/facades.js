@@ -83,7 +83,7 @@ export default {
       }
       // ---- the ground storey: bills, tags and stencils on the wall between the shop fronts
       const palette = ['#ff2a80', '#19d8ff', '#ffb347', '#8f5cff', '#3dff9a', '#ff3b30', '#f2f2f2'];
-      const words = ['通緝', '出租', '夜市', 'VOTE', '拆', '禁止', 'NO SIGNAL', '現金', '修理', 'LOST', '徵人', '99'];
+      const words = ['通緝', '出租', '夜市', 'VOTE', '拆', '禁止', 'NO SIGNAL', '現金', '修理', 'LOST', '徵人', '99', '灰叔'];
       for (let u = Q.range(0.8, 2.2); u < f.len - 1 && !k.y; u += Q.range(1.6, 4.2)) {
         const kind = Q.pick(['poster', 'poster', 'tag', 'tag', 'stencil']), s = kind === 'poster' ? Q.range(0.55, 0.85) : kind === 'tag' ? Q.range(1.1, 2.0) : Q.range(0.4, 0.7);
         const tex = artTexture(kind, Q.fork('art' + Math.round(u * 10)), { text: Q.pick(words), color: Q.pick(palette) });

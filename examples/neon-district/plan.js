@@ -40,9 +40,11 @@ export default {
     { name: 'sw', rect: [-34, 10, -24, 34], h: 22, style: 'concrete', signs: [
       { face: 'n', at: -29, y: 6.4, w: 1.1, h: 3.4, text: '旅館', color: 'pink', kind: 'blade' },
       { face: 'e', at: 13.5, y: 3.3, w: 1.7, h: 0.8, text: '24H', color: 'amber' },
+      { face: 'e', at: 28.5, y: 4.6, w: 5.6, h: 1.5, text: ['他抄由他抄，清风拂山冈；', '他横任他横，明月照大江。'], color: 'pink', second: '#ffb347' },
       { face: 'e', at: 21, y: 4.4, w: 0.8, h: 2.6, text: '按摩', color: 'violet', kind: 'blade' } ] },
     { name: 's1', rect: [-20, 10, -4, 34], h: 17, style: 'panel', signs: [
       { face: 'n', at: -12, y: 5.1, w: 5.4, h: 1.25, text: 'KESTREL ARCADE', color: 'cyan' },
+      { face: 'n', at: -13, y: 7.5, w: 7.6, h: 1.2, text: '视频号：AI乐子人灰叔', color: 'amber' },
       { face: 'n', at: -5.4, y: 7.2, w: 1.1, h: 3.2, text: '電玩', color: 'green', kind: 'blade' },
       { face: 'w', at: 27, y: 3.2, w: 1.5, h: 0.6, text: 'EXIT', color: 'green' } ] },
     { name: 's2', rect: [-4, 10, 14, 34], h: 36, style: 'glass', signs: [
@@ -51,6 +53,7 @@ export default {
       { face: 'n', at: 12.6, y: 7.6, w: 1.1, h: 3.2, text: '藥局', color: 'green', kind: 'blade' } ] },
     { name: 's3', rect: [14, 10, 34, 34], h: 21, style: 'concrete', signs: [
       { face: 'n', at: 24.5, y: 5.4, w: 6, h: 1.4, text: 'HOTEL NOVA', color: 'amber' },
+      { face: 'n', at: 26, y: 8.2, w: 7.6, h: 1.2, text: '视频号：AI乐子人灰叔', color: 'cyan' },
       { face: 'n', at: 16.2, y: 8, w: 1.1, h: 3.2, text: '酒吧', color: 'pink', kind: 'blade' } ] },
     { name: 'westcap', rect: [-42, -2, -34, 14], h: 30, style: 'glass', signs: [
       { face: 'e', at: 6, y: 13, w: 3.2, h: 10, text: '新城', color: 'pink', vertical: true } ] },
@@ -63,6 +66,8 @@ export default {
       { face: 's', at: -16, y: 23, w: 8, h: 5, text: '夢', color: 'violet' } ] },
     { name: 'c', rect: [-10, -30, 6, 2], h: 20, style: 'concrete', signs: [
       { face: 's', at: -2.4, y: 5.2, w: 5.2, h: 1.3, text: 'MIRAGE', color: 'cyan' },
+      { face: 's', at: -2.4, y: 8, w: 8.4, h: 2.2, text: ['他抄由他抄，清风拂山冈；', '他横任他横，明月照大江。'], color: 'amber', second: '#19d8ff' },
+      { face: 'e', at: -7.5, y: 9.4, w: 7.2, h: 1.15, text: '视频号：AI乐子人灰叔', color: 'green' },
       { face: 'e', at: -7.5, y: 7.2, w: 7.5, h: 1.9, text: '夜市 NIGHT MARKET', color: 'pink' },
       { face: 'e', at: -16.2, y: 4.6, w: 3.2, h: 0.95, text: 'TATTOO', color: 'violet' } ] },
     { name: 'e', rect: [30, -30, 34, 2], h: 19, style: 'panel', signs: [
