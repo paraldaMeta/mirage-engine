@@ -6,8 +6,12 @@
 //   keys   C crouches, X leans, O opens the options panel (and a setting applies)
 //   pad    a standard-mapping gamepad (an injected Gamepad API shim): the d-pad works the title, A deploys, the stick walks, the right trigger fires, the
 //          left trigger aims, the right bumper reloads, Start opens the menu and B closes it
-//   touch  an emulated phone held sideways (844 x 390, touch): the title fits, a tap on DEPLOY starts, the overlay's stick, the example's
-//          FIRE (held), AIM (toggle) and RLD buttons
+//   touch  an emulated phone held sideways (844 x 390, touch events with several fingers at once): the title fits, a
+//          tap on DEPLOY starts; at 844 x 390, 667 x 375 and 932 x 430 no control overlaps another or leaves the
+//          screen; a drag on the right turns; the floating stick walks; the sprint lock holds and ends; a finger on
+//          FIRE fires and turns; AIM tap toggles and hold aims; the stick and FIRE together; the left FIRE; RELOAD,
+//          CROUCH, LEAN (hold and toggle), MELEE, JUMP; USE appears at the relay door with its label and opens it;
+//          the options' touch settings are kept and applied. Then the same HUD in Chinese. Screenshots: out/touch-*.png
 // usage: node scripts/controls-check.mjs [dist]      (build first: npm run build -w neon-district)
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -18,6 +22,8 @@ const dist = path.resolve(process.argv[2] || path.join(here, '../dist'));
 const srv = await serve(dist), sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const rows = [];
 let failed = 0;
+// ONLY=title,touch runs those parts alone
+const want = (part) => !process.env.ONLY || process.env.ONLY.split(',').includes(part);
 const check = (part, name, ok, info = '') => { rows.push(`${ok ? 'pass' : 'FAIL'}  ${part}/${name}  ${info}`); if (!ok) failed++; };
 const state = (page) => page.evaluate(() => { const m = window.__mirage, S = m.game.weapon.S; return { mag: S.mag, ads: +S.ads.toFixed(2), reloading: S.reloading > 0, reloads: m.g.game.flags.reloads || 0, pos: m.play.state().pos, paused: m.g.game.paused, source: m.g.input.source, touch: m.g.ui.touch, started: m.g.ui.started }; });
 async function open(browser, query, { mobile = false, pad = false } = {}) {
@@ -39,7 +45,7 @@ const padSet = (page, o) => page.evaluate((o) => { for (const [k, v] of Object.e
 const padTap = async (page, i) => { await padSet(page, { buttons: { [i]: 1 } }); await sleep(200); await padSet(page, { buttons: { [i]: 0 } }); await sleep(200); };
 const front = (page) => page.evaluate(() => { const m = window.__mirage, t = document.querySelector('.nt'), r = t?.getBoundingClientRect(); return { title: !!t && !t.hidden && !t.classList.contains('out') && r.width > 0, sel: m.game.title.selected, run: { ...m.game.run }, kept: JSON.parse(localStorage.getItem('mirage:neon-district:settings') || '{}').ndRun || null, started: m.g.ui.started, paused: m.g.game.paused, hp: m.game.player.hp, eye: m.world.camera.position.toArray(), gun: m.game.weapon.holder.visible, card: getComputedStyle(document.querySelector('.mg-start')).display, mode: m.play.mode, flags: { ...m.g.game.flags }, feet: m.game.player.feet.slice(), tally: document.querySelector('.nd-tally')?.textContent || '', wave: m.game.holdout.wave, state: m.game.holdout.state }; });
 
-{ // ---- the title: up, paused and harmless; the keys choose; Enter deploys
+if (want('title')) { // ---- the title: up, paused and harmless; the keys choose; Enter deploys
   const b = await launch({ w: 1280, h: 720, args: ['--autoplay-policy=no-user-gesture-required'] });
   const { page, errors } = await open(b, 'w=1280&h=720&lang=en');
   let s = await front(page);
@@ -66,7 +72,7 @@ const front = (page) => page.evaluate(() => { const m = window.__mirage, t = doc
   await page.screenshot({ path: path.join(here, '../out/title-deployed.png') }).catch(() => {});
   await b.close();
 }
-{ // ---- the holdout, 40 s, a scripted gunner: it turns to the nearest sentinel or kite on the roof and holds F
+if (want('holdout')) { // ---- the holdout, 40 s, a scripted gunner: it turns to the nearest sentinel or kite on the roof and holds F
   const b = await launch({ w: 1280, h: 720, args: ['--autoplay-policy=no-user-gesture-required'] });
   const { page, errors } = await open(b, 'w=1280&h=720&start=1&mode=holdout&lang=en');
   const t0 = Date.now();
@@ -99,7 +105,7 @@ const front = (page) => page.evaluate(() => { const m = window.__mirage, t = doc
   await b.close();
 }
 
-{ // ---- keyboard extras: crouch, lean, the options panel
+if (want('keys')) { // ---- keyboard extras: crouch, lean, the options panel
   const b = await launch({ w: 1280, h: 720, args: ['--autoplay-policy=no-user-gesture-required'] });
   const { page, errors } = await open(b, 'w=1280&h=720&start=1&lang=en');
   const more = () => page.evaluate(() => { const m = window.__mirage; return { height: +m.game.player.height.toFixed(2), lean: +m.game.weapon.S.lean.toFixed(2), paused: m.g.game.paused, panel: !!document.querySelector('.nd-opt'), fov: m.game.weapon.S.fov, eyeY: +m.world.camera.position.y.toFixed(2) }; });
@@ -120,7 +126,7 @@ const front = (page) => page.evaluate(() => { const m = window.__mirage, t = doc
   check('keys', 'no console errors', errors.length === 0, errors[0] || '');
   await b.close();
 }
-{ // ---- gamepad
+if (want('pad')) { // ---- gamepad
   const b = await launch({ w: 1280, h: 720, args: ['--autoplay-policy=no-user-gesture-required'] });
   const { page, errors } = await open(b, 'w=1280&h=720', { pad: true });
   await padTap(page, 13); await padTap(page, 13); await padTap(page, 15);
@@ -153,37 +159,191 @@ const front = (page) => page.evaluate(() => { const m = window.__mirage, t = doc
   check('pad', 'no console errors', errors.length === 0, errors[0] || '');
   await b.close();
 }
-{ // ---- touch
+// ---- touch: real multi-finger touch events (CDP Input.dispatchTouchEvent; each finger its own id)
+const phone = (page, width, height) => page.setViewport({ width, height, deviceScaleFactor: 1, isMobile: true, hasTouch: true, isLandscape: true });
+async function fingersOf(page) {
+  const cdp = await page.createCDPSession(), on = new Map();
+  // a touchStart / touchMove carries every finger still down; one left out of the list is lifted
+  const send = (type) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [...on].map(([id, [x, y]]) => ({ id, x, y, radiusX: 4, radiusY: 4, force: 1 })) });
+  const f = {
+    down: (id, x, y) => { on.set(id, [x, y]); return send('touchStart'); },
+    move: (id, x, y) => { on.set(id, [x, y]); return send('touchMove'); },
+    up: (id) => { on.delete(id); return send(on.size ? 'touchMove' : 'touchEnd'); },
+    async drag(id, x, y, dx, dy, ms, steps = 12) { for (let i = 1; i <= steps; i++) { await f.move(id, x + dx * i / steps, y + dy * i / steps); await sleep(ms / steps); } },
+    async tap(id, at, hold = 60) { await f.down(id, at[0], at[1]); await sleep(hold); await f.up(id); },
+  };
+  return f;
+}
+const tstate = (page) => page.evaluate(() => {
+  const m = window.__mirage, t = m.game.touch, S = m.game.weapon.S, u = document.querySelector('.ndt-use');
+  return { yaw: m.play.yaw, pitch: m.play.pitch, mag: S.mag, ads: +S.ads.toFixed(2), reloads: m.g.game.flags.reloads || 0, pos: m.play.state().pos, height: +m.game.player.height.toFixed(2),
+    lean: +S.lean.toFixed(2), jab: +S.jab.toFixed(2), speed: +m.game.player.speed.toFixed(2), run: m.g.input.down('run'), locked: !!t?.sprintLocked, aimOn: !!t?.aim, eyeY: m.world.camera.position.y,
+    use: u && !u.hidden ? u.textContent.trim() : null, door: !!m.g.game.flags.doorOpen, paused: m.g.game.paused, panel: !!document.querySelector('.nd-opt'), lockClass: document.querySelector('.ndt-lock')?.className || '' };
+});
+const centre = (page, id) => page.evaluate((id) => { const r = document.querySelector(`.ndt [data-b="${id}"]`)?.getBoundingClientRect(); return r && r.width ? [r.left + r.width / 2, r.top + r.height / 2, r.width] : null; }, id);
+// every control's rectangle on screen: none outside the viewport, no two overlapping (the HUD's health and gun too)
+const layoutOf = (page) => page.evaluate(() => {
+  const rs = window.__mirage.game.touch.rects(), W = innerWidth, H = innerHeight;
+  for (const s of ['.nd-vit', '.nd-ammo']) { const r = document.querySelector(s).getBoundingClientRect(); rs.push([s, r.left, r.top, r.right, r.bottom]); }
+  const out = rs.filter(([, l, t, r, b]) => l < 0 || t < 0 || r > W || b > H).map((r) => r[0]), over = [];
+  for (let i = 0; i < rs.length; i++) for (let j = i + 1; j < rs.length; j++) {
+    const a = rs[i], b = rs[j];
+    if (a[1] < b[3] && b[1] < a[3] && a[2] < b[4] && b[2] < a[4]) over.push(`${a[0]}x${b[0]}`);
+  }
+  return { n: rs.length, out, over, W, H };
+});
+const toSpawn = async (page) => { await page.evaluate(() => { const m = window.__mirage, s = m.built.plan.spawn; m.play.place(s.eye, s.look, 'walk'); }); await sleep(300); };
+const doorFront = (page) => page.evaluate(() => {
+  const m = window.__mirage, d = m.g.game.entities.get('door').pos, feet = d[1] - 1.3;
+  m.play.place([d[0], feet + 1.62, d[2] + 1.7], [d[0], feet + 1.5, d[2] - 1], 'walk');
+});
+if (want('touch')) {
   const b = await launch({ w: 844, h: 390, args: ['--autoplay-policy=no-user-gesture-required'] });
-  const { page, errors } = await open(b, '', { mobile: true });
+  const { page, errors } = await open(b, 'lang=en', { mobile: true });
   const fits = await page.evaluate(() => { const r = (s) => document.querySelector(s).getBoundingClientRect(), m = r('.nt-main'), l = r('.nt-legend'), rows = [...document.querySelectorAll('.nt-row')].map((e) => e.getBoundingClientRect());
     return { inside: [m, l].every((b) => b.left >= 0 && b.top >= 0 && b.right <= innerWidth && b.bottom <= innerHeight), apart: l.left >= m.right || l.top >= m.bottom, rows: Math.min(...rows.map((b) => b.height)) }; });
   check('touch', 'the title fits a phone held sideways', fits.inside && fits.apart && fits.rows >= 34, JSON.stringify(fits));
-  const go = await page.evaluate(() => { const r = document.querySelector('.nt-row.go').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
-  await page.touchscreen.tap(go[0], go[1]); await sleep(500);
+  await phone(page, 667, 375); await sleep(300);
+  const small = await page.evaluate(() => { const l = document.querySelector('.nt-legend'), r = l.getBoundingClientRect(), m = document.querySelector('.nt-main').getBoundingClientRect(), go = document.querySelector('.nt-row.go').getBoundingClientRect();
+    return { inside: r.right <= innerWidth && m.bottom <= innerHeight, whole: l.scrollWidth <= l.clientWidth + 1, apart: r.left >= m.right || r.top >= m.bottom, deploy: go.height >= 34 }; });
+  check('touch', 'the title fits 667 x 375 too, its legend whole', small.inside && small.whole && small.apart && small.deploy, JSON.stringify(small));
+  await phone(page, 844, 390); await sleep(300);
+  const go =await page.evaluate(() => { const r = document.querySelector('.nt-row.go').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
+  await page.touchscreen.tap(go[0], go[1]); await sleep(700);
   let s = await state(page);
-  check('touch', 'a tap on DEPLOY starts the game', s.started && s.touch, `touch overlay ${s.touch}`);
-  const box = async (sel) => page.evaluate((sel) => { const r = document.querySelector(sel)?.getBoundingClientRect(); return r ? [r.left + r.width / 2, r.top + r.height / 2, r.width] : null; }, sel);
-  const fire = await box('.nd-fire'), aim = await box('.nd-aim'), rel = await box('.nd-rel'), stick = await box('.mg-stick');
-  check('touch', 'FIRE, AIM and RLD are on screen', !!(fire && aim && rel) && fire[0] < 844 && fire[1] < 390 && fire[2] >= 60, JSON.stringify({ fire, aim, rel }));
-  if (fire && stick) {
-    const p0 = s.pos;
-    await page.touchscreen.touchStart(stick[0], stick[1]); await page.touchscreen.touchMove(stick[0], stick[1] - stick[2] * 0.45); await sleep(900); await page.touchscreen.touchEnd(); await sleep(200);
-    s = await state(page);
-    check('touch', 'the stick walks', Math.hypot(s.pos[0] - p0[0], s.pos[2] - p0[2]) > 0.8, `moved ${Math.hypot(s.pos[0] - p0[0], s.pos[2] - p0[2]).toFixed(2)} m`);
-    await page.touchscreen.touchStart(fire[0], fire[1]); await sleep(600); await page.touchscreen.touchEnd(); await sleep(150);
-    s = await state(page);
-    check('touch', 'FIRE held fires', s.mag < 24 && s.mag > 10, `magazine ${s.mag}`);
-    await page.touchscreen.tap(aim[0], aim[1]); await sleep(500);
-    s = await state(page);
-    check('touch', 'AIM toggles the sight', s.ads > 0.8, `aim ${s.ads}`);
-    await page.touchscreen.tap(aim[0], aim[1]); await sleep(100);
-    await page.touchscreen.tap(rel[0], rel[1]); await sleep(2100);
-    s = await state(page);
-    check('touch', 'RLD reloads', s.mag === 24 && s.reloads === 1, `magazine ${s.mag}, reloads ${s.reloads}`);
+  check('touch', 'a tap on DEPLOY starts the game, the touch controls appear', s.started && s.touch && await page.evaluate(() => !!window.__mirage.game.touch), `touch overlay ${s.touch}`);
+  const f = await fingersOf(page);
+  // the layout at three phone sizes
+  for (const [w, h] of [[844, 390], [667, 375], [932, 430]]) {
+    await phone(page, w, h); await sleep(400);
+    const L = await layoutOf(page);
+    check('touch', `${w} x ${h}: ${L.n} controls inside the screen, none overlapping`, L.W === w && !L.out.length && !L.over.length, JSON.stringify({ out: L.out, over: L.over }));
+    if (w === 667) await page.screenshot({ path: path.join(here, '../out/touch-667.png') }).catch(() => {});
   }
+  await phone(page, 844, 390); await sleep(400);
+  await page.screenshot({ path: path.join(here, '../out/touch-en.png') }).catch(() => {});
+  const C = {};
+  for (const id of ['fire', 'fireL', 'aim', 'reload', 'crouch', 'jump', 'melee', 'leanL', 'leanR', 'opt']) C[id] = await centre(page, id);
+  // drag on open ground on the right: the view turns
+  s = await tstate(page);
+  await f.down(1, 520, 140); await f.drag(1, 520, 140, 90, 0, 300); await f.up(1); await sleep(150);
+  let s2 = await tstate(page);
+  check('touch', 'a drag on the right half turns the view', Math.abs(s2.yaw - s.yaw) > 0.2, `yaw ${(s2.yaw - s.yaw).toFixed(2)} rad`);
+  // the floating stick: wherever the thumb lands in the lower left
+  s = s2;
+  await f.down(1, 150, 300); await f.drag(1, 150, 300, 0, -45, 120, 4); await sleep(900); await f.up(1); await sleep(200);
+  s2 = await tstate(page);
+  const moved = (a, b) => Math.hypot(b.pos[0] - a.pos[0], b.pos[2] - a.pos[2]);
+  check('touch', 'the floating stick walks (from where the thumb lands)', moved(s, s2) > 0.8, `moved ${moved(s, s2).toFixed(2)} m`);
+  // sprint lock: pushed far up, let go: the run holds; a touch on the stick ends it
+  await toSpawn(page); s = await tstate(page);
+  await f.down(1, 140, 310); await f.drag(1, 140, 310, 0, -130, 200, 8); await sleep(150);
+  const armed = (await tstate(page)).lockClass.includes('armed');
+  await f.up(1); await sleep(800);
+  s2 = await tstate(page);
+  check('touch', 'sprint lock: far up arms the padlock, let go and the run holds', armed && s2.locked && s2.run && s2.speed > 4.4 && moved(s, s2) > 2, `armed ${armed}, locked ${s2.locked}, speed ${s2.speed} m/s, moved ${moved(s, s2).toFixed(1)} m`);
+  await f.tap(1, [140, 310]); await sleep(500);
+  let s3 = await tstate(page); await sleep(300); const s4 = await tstate(page);
+  check('touch', 'sprint lock: a touch on the stick ends it', !s3.locked && !s4.run && moved(s3, s4) < 0.3, `locked ${s3.locked}, moved ${moved(s3, s4).toFixed(2)} m in 0.3 s`);
+  // FIRE: a finger on it fires and, dragged, turns the view
+  s = await tstate(page);
+  await f.down(2, C.fire[0], C.fire[1]); await sleep(100); await f.drag(2, C.fire[0], C.fire[1], -70, -20, 500); await f.up(2); await sleep(150);
+  s2 = await tstate(page);
+  check('touch', 'a finger on FIRE fires and turns the view as it drags', s2.mag < s.mag - 3 && Math.abs(s2.yaw - s.yaw) > 0.15, `magazine ${s.mag} -> ${s2.mag}, yaw ${(s2.yaw - s.yaw).toFixed(2)} rad`);
+  // AIM: a quick tap toggles; held, it aims while held and turns the view
+  await f.tap(2, C.aim, 60); await sleep(500);
+  s = await tstate(page);
+  await f.tap(2, C.aim, 60); await sleep(500);
+  s2 = await tstate(page);
+  check('touch', 'AIM: a quick tap toggles the sight on, another off', s.ads > 0.8 && s.aimOn && s2.ads < 0.2 && !s2.aimOn, `aim ${s.ads} -> ${s2.ads}`);
+  const y0 = s2.yaw;
+  await f.down(2, C.aim[0], C.aim[1]); await sleep(450);
+  s = await tstate(page);
+  await f.drag(2, C.aim[0], C.aim[1], -60, 0, 300); s2 = await tstate(page); await f.up(2); await sleep(500);
+  s3 = await tstate(page);
+  check('touch', 'AIM held: aims while held (and turns, slower), lets go on release', s.ads > 0.8 && Math.abs(s2.yaw - y0) > 0.08 && s3.ads < 0.2, `aim ${s.ads} held, ${s3.ads} after; yaw ${(s2.yaw - y0).toFixed(2)} rad`);
+  // two fingers at once: the stick and FIRE
+  await toSpawn(page); s = await tstate(page);
+  await f.down(1, 150, 300); await f.move(1, 150, 260); await f.down(2, C.fire[0], C.fire[1]); await sleep(800);
+  const both = await page.evaluate(() => ({ fire: window.__mirage.game.weapon.S.fire, busy: window.__mirage.game.touch.busy }));
+  await f.up(2); await f.up(1); await sleep(200);
+  s2 = await tstate(page);
+  check('touch', 'two fingers at once: the stick walks while FIRE fires', both.fire && both.busy === 2 && moved(s, s2) > 0.6 && s2.mag < s.mag, `fingers ${both.busy}, moved ${moved(s, s2).toFixed(2)} m, magazine ${s.mag} -> ${s2.mag}`);
+  // the left FIRE
+  s = await tstate(page);
+  await f.down(3, C.fireL[0], C.fireL[1]); await sleep(500); await f.up(3); await sleep(150);
+  s2 = await tstate(page);
+  check('touch', 'the left FIRE fires', s2.mag < s.mag || (s.mag === 0 && s2.reloads > s.reloads), `magazine ${s.mag} -> ${s2.mag}`);
+  // reload, crouch, lean, strike, jump
+  s = await tstate(page);
+  await f.tap(2, C.reload); await sleep(2200);
+  s2 = await tstate(page);
+  check('touch', 'RELOAD reloads', s2.mag === 24 && s2.reloads === s.reloads + 1, `magazine ${s2.mag}, reloads ${s.reloads} -> ${s2.reloads}`);
+  await f.tap(2, C.crouch); await sleep(500);
+  s = await tstate(page);
+  await f.tap(2, C.crouch); await sleep(500);
+  s2 = await tstate(page);
+  check('touch', 'CROUCH toggles a crouch', s.height < 1.1 && s2.height > 1.5, `height ${s.height} -> ${s2.height}`);
+  await f.down(4, C.leanR[0], C.leanR[1]); await sleep(500);
+  s = await tstate(page);
+  await f.up(4); await sleep(500);
+  s2 = await tstate(page);
+  await f.tap(4, C.leanL); await sleep(500);
+  s3 = await tstate(page);
+  await f.tap(4, C.leanL); await sleep(500);
+  const s5 = await tstate(page);
+  check('touch', 'LEAN: held right leans right, a tap on left toggles a left lean', s.lean > 0.8 && Math.abs(s2.lean) < 0.2 && s3.lean < -0.8 && Math.abs(s5.lean) < 0.2, `held ${s.lean}, let go ${s2.lean}, toggled ${s3.lean}, off ${s5.lean}`);
+  await f.tap(2, C.melee, 40); await sleep(60);
+  s = await tstate(page);
+  check('touch', 'MELEE strikes', s.jab > 0.2, `jab ${s.jab}`);
+  const yJ = (await tstate(page)).eyeY;
+  await f.down(2, C.jump[0], C.jump[1]); let top = yJ;
+  for (let i = 0; i < 8; i++) { await sleep(60); top = Math.max(top, (await tstate(page)).eyeY); }
+  await f.up(2); await sleep(600);
+  check('touch', 'JUMP jumps', top > yJ + 0.25, `eye rose ${(top - yJ).toFixed(2)} m`);
+  // USE: nothing at hand, no button; at the relay door it appears with its label and works
+  s = await tstate(page);
+  const away = s.use;
+  await doorFront(page); await sleep(700);
+  s = await tstate(page);
+  await page.evaluate(() => window.__mirage.g.game.inventory.add({ id: 'pass', name: 'Relay pass' })); await sleep(400);
+  s2 = await tstate(page);
+  await page.screenshot({ path: path.join(here, '../out/touch-en-use.png') }).catch(() => {});
+  const use = await centre(page, 'use');
+  if (use) await f.tap(2, use); await sleep(500);
+  s3 = await tstate(page);
+  check('touch', 'USE: hidden with nothing at hand, at the door with its label, a tap opens it', away === null && /Locked/.test(s.use || '') && /Open the relay/.test(s2.use || '') && s3.door && s3.use === null, `away ${away}, locked "${s.use}", with the pass "${s2.use}", open ${s3.door}`);
+  // the options: the touch settings, kept with the others
+  await f.tap(2, C.opt); await sleep(300);
+  s = await tstate(page);
+  const rows = await page.evaluate(() => [...document.querySelectorAll('.nd-opt [data-k], .nd-opt [data-b]')].map((e) => e.dataset.k || e.dataset.b));
+  const fit = await page.evaluate(() => { const r = document.querySelector('.nd-opt').getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth; });
+  await page.evaluate(() => { const r = document.querySelector('.nd-opt input[data-k=tScale]'); r.value = 1.2; r.dispatchEvent(new Event('input')); });
+  const close = await page.evaluate(() => { const r = document.querySelector('.nd-opt [data-b=close]').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
+  await page.touchscreen.tap(close[0], close[1]); await sleep(300);
+  s2 = await tstate(page);
+  const kept = await page.evaluate(() => JSON.parse(localStorage.getItem('mirage:neon-district:settings') || '{}').nd || {});
+  const big = await centre(page, 'fire');
+  check('touch', 'options: touch sensitivity, opacity, size, left fire, sprint lock; fit the screen; kept; applied', s.panel && s.paused && fit && ['tSens', 'tOpacity', 'tScale', 'leftFire', 'sprintLock'].every((k) => rows.includes(k)) && !s2.panel && !s2.paused && kept.tScale === 1.2 && big[2] > C.fire[2] * 1.15,
+    `rows ${rows.join(',')}, fits ${fit}, kept ${JSON.stringify(kept)}, FIRE ${C.fire[2].toFixed(0)} -> ${big[2].toFixed(0)} px`);
+  const L = await layoutOf(page);
+  check('touch', 'at the largest button size still nothing overlaps at 844 x 390', !L.out.length && !L.over.length, JSON.stringify({ out: L.out, over: L.over }));
   check('touch', 'no console errors', errors.length === 0, errors[0] || '');
-  await page.screenshot({ path: path.join(here, '../out/touch.png') }).catch(() => {});
+  await b.close();
+}
+if (want('touch')) { // ---- the same HUD in Traditional Chinese: the screenshots, the USE label
+  const b = await launch({ w: 844, h: 390, args: ['--autoplay-policy=no-user-gesture-required'] });
+  const { page, errors } = await open(b, 'start=1&lang=zh', { mobile: true });
+  const f = await fingersOf(page);
+  await f.tap(1, [520, 140]); await sleep(600);
+  const L = await layoutOf(page);
+  await page.screenshot({ path: path.join(here, '../out/touch-zh.png') }).catch(() => {});
+  await doorFront(page); await sleep(700);
+  const s = await tstate(page);
+  const fit = await page.evaluate(() => { const u = document.querySelector('.ndt-use'), r = u.getBoundingClientRect(), t = u.querySelector('span'); return r.left >= 0 && r.right <= innerWidth && t.scrollHeight <= t.clientHeight + 1; });
+  await page.screenshot({ path: path.join(here, '../out/touch-zh-use.png') }).catch(() => {});
+  check('touch-zh', 'the touch HUD in Chinese: nothing overlaps, USE shows its label whole', !L.out.length && !L.over.length && /上鎖/.test(s.use || '') && fit, `use "${s.use}", ${JSON.stringify({ out: L.out, over: L.over })}`);
+  check('touch-zh', 'no console errors', errors.length === 0, errors[0] || '');
   await b.close();
 }
 srv.close?.();
