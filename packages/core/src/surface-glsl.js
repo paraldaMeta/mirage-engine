@@ -130,26 +130,39 @@ export const KIND_GLSL = {
   concrete: /* glsl */ `
 MsS ms_concrete(vec2 u){
   float V = msX.z; vec3 base = msA.rgb;
-  float m1 = msFbm(u, 0.8, 3), m2 = msFbm(u + 3.7, 6.0, 3), sand = msFbm(u + 1.3, 120.0, 2);
-  // air voids (bug holes): sparse pits 2..8 mm with a lighter rim, their sizes by the cell's hash
-  vec4 pc = msCell(u + 0.006 * vec2(msFbm(u, 70.0, 2), msFbm(u + 2.0, 70.0, 2)), 26.0, 1.0);
-  float pr = 0.035 + 0.15 * pc.w * pc.w * pc.w;
-  float pore = (1.0 - smoothstep(pr * 0.7, pr, pc.x)) * step(1.0 - 0.32 * msD.y, pc.z) * msLod(0.012);
-  float prim = (1.0 - smoothstep(pr, pr * 1.6, pc.x)) * step(1.0 - 0.32 * msD.y, pc.z) * msLod(0.02) - pore;
+  float m1 = msFbm(msWarp(u, 1.5, 0.08), 0.8, 4), m2 = msFbm(u + 3.7, 6.0, 3), sand = msFbm(u + 1.3, 120.0, 2);
+  // air voids (bug holes): clustered (a slow density field: they gather in bands and patches where the vibration was
+  // poor), their sizes spread (most 1..3 mm, a few 5..15 mm), their outlines irregular (a warped distance), a lighter
+  // rim of laitance; pin pores below a millimetre everywhere
+  float dens = smoothstep(0.25, 0.75, msFbm2(u + 4.4, vec2(1.2, 3.0), 3) * 0.5 + 0.5) * msD.y;
+  vec4 pc = msCell(u + 0.008 * vec2(msFbm(u, 60.0, 2), msFbm(u + 2.0, 60.0, 2)), 26.0, 1.0);
+  float big = step(0.96, pc.w);
+  float pr = mix(0.06 + 0.12 * pc.w * pc.w, 0.22 + 0.2 * fract(pc.w * 17.0), big);
+  float on = step(1.0 - (0.05 + 0.6 * dens) * (big > 0.5 ? 1.6 : 1.0), pc.z);
+  float pore = (1.0 - smoothstep(pr * 0.65, pr, pc.x)) * on * msLod(0.01);
+  float prim = (1.0 - smoothstep(pr, pr * 1.6, pc.x)) * on * msLod(0.02) - pore;
+  vec2 pin = msSpeck(u + 8.0, 300.0, 0.08 + 0.2 * dens, 0.4, 1.0);
+  pore = max(pore, pin.x * 0.6);
   // fine aggregate showing in the laitance: grains 1.5..5 mm of their own tone
   vec4 ag = msCell(u + 5.1, 160.0, 1.0);
   float agg = msD.x * (1.0 - smoothstep(0.18, 0.34, ag.x)) * step(0.45, ag.z) * msLod(0.005);
   // cloudy laitance: soft darker and paler clouds 10..60 cm, a faint warm / cool drift between them
   float cl = msFbm(u + 6.1, 2.6, 4);
-  vec3 col = base * (0.88 + 0.16 * m1 + 0.12 * cl + 0.08 * m2 + 0.07 * sand) * mix(vec3(1.0), vec3(1.03, 1.0, 0.95), 0.5 + 0.5 * m1);
+  // water marks: darker tide-edged blotches (the form's release agent and the cure), a few paler bleached ones
+  float wm = msFbm(msWarp(u + 2.0, 3.0, 0.05), 1.8, 4);
+  float blot = smoothstep(0.15, 0.4, wm) * (0.6 + 0.4 * smoothstep(0.38, 0.42, wm));
+  vec3 col = base * (0.86 + 0.32 * m1 + 0.18 * cl + 0.09 * m2 + 0.07 * sand) * mix(vec3(1.0), vec3(1.03, 1.0, 0.95), 0.5 + 0.5 * m1) * (1.0 - 0.2 * blot);
   col = mix(col, base * (0.62 + 0.75 * ag.w) * vec3(1.05, 1.0, 0.93), agg * 0.75);
-  col *= 1.0 + 0.1 * prim;
-  float h = 0.6 + 0.07 * m2 + 0.05 * sand + 0.04 * agg - 0.5 * pore;
-  float r = msA.a + 0.04 * m1 + 0.04 * sand + 0.06 * pore;
-  float ao = 1.0 - 0.7 * pore;
+  col *= (1.0 + 0.1 * prim) * (1.0 - 0.5 * pore);
+  // relief: the pour's slow waves (the form bowed under the pressure), the sand skin, the voids cut into it
+  float bow = msFbm(u + 5.5, 2.0, 3);
+  float h = 0.6 + 0.16 * bow + 0.1 * m2 + 0.035 * sand + 0.04 * agg - 0.45 * pore + 0.03 * prim;
+  float r = msA.a + 0.04 * m1 + 0.04 * sand + 0.06 * pore - 0.05 * blot;
+  float ao = 1.0 - 0.6 * pore;
   if (V < 0.5 || V > 2.5) {
     vec4 g = msGrid(u, msB.xy, 0.0); float de = msEdgeD(g); vec3 ph = msCH(g.zw, 4.0);
     col *= 0.93 + 0.12 * ph.x;                                    // each panel of the pour a shade apart
+    h += 0.1 * (ph.y - 0.5) + dot(g.xy / msCellSize - 0.5, ph.zx - 0.5) * 0.08;   // and a little out of plane
     if (V < 0.5) {
       // formwork joint: a thin fin of grout that leaked between the panels, a dark line beside it
       float seam = msLine(de, 0.001), fin = (1.0 - smoothstep(0.0015, 0.008, de)) * (0.6 + 0.4 * msFbm(u * 3.0, 9.0, 2));
@@ -199,6 +212,13 @@ MsS ms_concrete(vec2 u){
     h = mix(0.6 + 0.04 * m2 + 0.02 * sand - 0.25 * pore, h - 0.08, bare) + 0.05 * rim;
     ao = mix(1.0 - 0.35 * pore, ao, bare) * (1.0 - 0.2 * smoothstep(th, th + 0.03, pn) * (1.0 - smoothstep(th + 0.03, th + 0.08, pn)));
   }
+  // hairline cracks (shrinkage, a few long ones), more with age; dark threads with depth
+  {
+    vec4 ck = msCell(msWarp(u, 4.0, 0.03) + 1.9, 1.6, 1.0);
+    float open_ = smoothstep(0.75 - 0.35 * msW.x, 0.9 - 0.35 * msW.x, msFbm(u + 6.6, 1.0, 3) * 0.5 + 0.5);
+    float crack = msLine((ck.y - ck.x) * msT / msP(1.6) * 0.5, 0.0003 + 0.0006 * (msFbm(u, 6.0, 2) * 0.5 + 0.5)) * open_ * msLod(0.002);
+    col *= 1.0 - 0.55 * crack; h -= 0.3 * crack; ao *= 1.0 - 0.4 * crack;
+  }
   // a cold joint between two pours (a wavy horizontal line) and efflorescence below it
   if (msD.z > 0.0) {
     float cj = u.y - msT * 0.62 - 0.03 * msFbm(vec2(u.x, 0.0), 2.0, 3);
@@ -215,27 +235,40 @@ MsS ms_concrete(vec2 u){
 MsS ms_asphalt(vec2 u){
   float V = msX.z;
   float lodS = msLod(msB.a);
-  // packed aggregate: two sieve sizes of stones, each its own albedo (greys, a few brown or white)
-  vec4 st = msCell(u, 1.0 / msB.a, 0.95), s2 = msCell(u + 0.37, 2.3 / msB.a, 0.95);
-  float dome = 1.0 - smoothstep(0.0, 0.62, st.x), dome2 = 1.0 - smoothstep(0.0, 0.6, s2.x);
-  float level = V < 0.5 ? 0.66 : 0.3;                       // the binder's level: fresh covers most of each stone
-  float stone = smoothstep(level, level + 0.05, dome) * lodS;
-  float stone2 = smoothstep(level + 0.1, level + 0.15, dome2) * msLod(msB.a / 2.3) * (1.0 - stone);
-  float fines = msFbm(u + 2.0, 160.0, 2), m1 = msFbm(u, 0.9, 3);
-  vec3 tone = mix(vec3(1.0), mix(vec3(1.18, 1.02, 0.86), vec3(1.25, 1.24, 1.22), step(0.85, st.w)), step(0.62, st.w));
-  vec3 sc = msB.rgb * (0.5 + 0.95 * st.z) * tone, sc2 = msB.rgb * (0.55 + 0.8 * s2.z);
-  vec3 binder = msA.rgb * (0.88 + 0.14 * fines + 0.08 * m1);
-  float cov = V < 0.5 ? 0.06 : 0.36;                       // far: the share of stone the eye averages
+  // packed crushed aggregate: angular stones (Voronoi cells of a warped plane: flat faces, sharp corners) of three
+  // sieve sizes, each its own grey (a few pale quartz, a few brown, a few near black), set in the binder; the binder's
+  // level decides how much of each stone shows (fresh: tips only; worn: whole faces, voids between)
+  vec2 uw = msWarp(u, 1.0 / (msB.a * 1.4), msB.a * 0.15);
+  vec4 st = msCell(uw, 1.0 / msB.a, 1.0), s2 = msCell(uw + 0.37, 1.9 / msB.a, 1.0), s3 = msCell(u + 0.71, 3.6 / msB.a, 1.0);
+  float e1 = st.y - st.x, e2 = s2.y - s2.x, e3 = s3.y - s3.x;          // distance to the stone's edge (cells)
+  float present = step(0.3, st.z);                                    // not every cell holds a coarse stone
+  float top1 = clamp(min(e1 * 2.6, (0.52 - st.x) * 3.2), 0.0, 1.0) * present, top2 = clamp(min(e2 * 2.6, (0.5 - s2.x) * 3.2), 0.0, 1.0), top3 = clamp(min(e3 * 3.0, (0.5 - s3.x) * 3.4), 0.0, 1.0);
+  float level = V < 0.5 ? 0.62 : 0.24;
+  float stone = smoothstep(level, level + 0.06, top1) * lodS;
+  float stone2 = smoothstep(level + 0.12, level + 0.18, top2) * msLod(msB.a / 1.9) * (1.0 - stone);
+  float stone3 = smoothstep(level + 0.22, level + 0.3, top3) * msLod(msB.a / 3.6) * (1.0 - stone) * (1.0 - stone2) * step(0.45, s3.z);
+  float fines = msFbm(u + 2.0, 160.0, 2), m1 = msFbm(msWarp(u, 1.2, 0.1), 0.9, 4);
+  vec2 sand = msSpeck(u + 1.3, 1.2 / msB.a * 4.0, 0.35, 0.4, 2.0);
+  // stone tones: a grey ramp by the cell's hash, a few pale, brown or dark ones; faces a little apart (lit unevenly)
+  float k1 = st.w, k2 = s2.w;
+  vec3 tint1 = k1 > 0.9 ? vec3(1.6, 1.58, 1.52) : k1 > 0.8 ? vec3(1.15, 0.98, 0.82) : k1 < 0.1 ? vec3(0.5) : vec3(1.0);
+  vec3 sc = msB.rgb * (0.55 + 0.8 * st.z) * tint1 * (0.92 + 0.12 * fines);
+  vec3 sc2 = msB.rgb * (0.5 + 0.8 * s2.z) * (k2 > 0.88 ? vec3(1.4) : vec3(1.0)), sc3 = msB.rgb * (0.6 + 0.6 * s3.w);
+  vec3 binder = msA.rgb * (0.85 + 0.14 * fines + 0.12 * m1) * mix(1.0, 1.6 + sand.y, sand.x * 0.6);
+  float cov = V < 0.5 ? 0.08 : 0.42;                                  // far: the share of stone the eye averages
   vec3 col = mix(binder, sc, stone);
-  col = mix(col, sc2, stone2 * 0.9);
-  col = mix(mix(binder, msB.rgb * 0.95, cov), col, lodS);
-  float pol = msC.w;                                       // tyres polish the stone tops
-  float r = mix(msA.a + 0.04 * fines, 0.7 - 0.25 * pol + 0.12 * st.z, stone);
-  r = mix(r, 0.75 - 0.2 * pol, stone2);
+  col = mix(col, sc2, stone2 * 0.92); col = mix(col, sc3, stone3 * 0.85);
+  col = mix(mix(binder, msB.rgb * 0.9, cov), col, lodS);
+  col *= 0.88 + 0.22 * (m1 * 0.5 + 0.5);
+  float pol = msC.w;                                                  // tyres polish the stone tops
+  float r = mix(msA.a + 0.04 * fines, 0.68 - 0.25 * pol * top1 + 0.1 * st.z, stone);
+  r = mix(r, 0.74 - 0.2 * pol, stone2); r = mix(r, 0.8, stone3);
   // between exposed stones: voids (worn): darker, deeper
-  float voids = V < 0.5 ? 0.0 : (1.0 - smoothstep(level - 0.32, level - 0.05, dome)) * (1.0 - stone2) * lodS;
-  float h = 0.42 + 0.4 * max(dome - level, 0.0) / (1.0 - level) * lodS + 0.25 * stone2 * (dome2 - level - 0.1) + 0.04 * fines - 0.18 * voids;
-  float ao = 1.0 - 0.45 * voids;
+  float voids = V < 0.5 ? 0.0 : (1.0 - smoothstep(0.02, 0.12, max(max(top1, top2), top3 * step(0.45, s3.z)))) * lodS;
+  float h = 0.4 + 0.45 * max(top1 - level, 0.0) / (1.0 - level) * stone + 0.3 * max(top2 - level - 0.12, 0.0) * stone2 + 0.15 * stone3
+          + 0.04 * fines + 0.03 * sand.x - 0.25 * voids;
+  col *= 1.0 - 0.45 * voids;
+  float ao = 1.0 - 0.5 * voids;
   // cracks: a network (edges of big cells), opened only where a slow field allows, varying in width
   float cs = msT / msP(0.9);
   vec4 ck = msCell(u + 7.0 + 0.04 * vec2(msFbm(u, 6.0, 2), msFbm(u + 3.0, 6.0, 2)), 0.9, 1.0);
@@ -250,10 +283,10 @@ MsS ms_asphalt(vec2 u){
     vec2 pc = abs(u - msT * vec2(0.52, 0.47)) - msT * vec2(0.27, 0.19) * (0.6 + 0.4 * msC.x);
     float inside = 1.0 - smoothstep(-msFP, msFP, max(pc.x, pc.y));
     float pedge = msLine(max(pc.x, pc.y), 0.004);
-    float fstone = smoothstep(0.66, 0.71, dome) * lodS;
+    float fstone = smoothstep(0.62, 0.68, top1) * lodS;
     vec3 fresh = mix(msA.rgb * 0.75 * (0.9 + 0.14 * fines), sc, fstone);
     col = mix(col, fresh, inside); r = mix(r, mix(0.62, 0.7, fstone), inside);
-    h = mix(h, 0.45 + 0.3 * max(dome - 0.66, 0.0) / 0.34 * lodS, inside);
+    h = mix(h, 0.45 + 0.3 * max(top1 - 0.62, 0.0) / 0.38 * lodS, inside);
     col = mix(col, vec3(0.02), pedge * 0.9); r = mix(r, 0.35, pedge);
   }
   // oil drips: dark, glossier stains where vehicles stand
