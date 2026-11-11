@@ -15,6 +15,7 @@ listed is internal and cannot be imported from an installed package. `npm test` 
 that is not listed (`scripts/check-imports.mjs`, over source, examples and docs) and on a `.d.ts` that declares
 other value names than its module exports (`scripts/check-types.mjs`). The subpaths a world normally needs:
 
+- the sound library `@miragekit/game/sounds` ([sounds.md](sounds.md));
 - the world kits `@miragekit/world/kits/vegetation`, `/kits/terrain`, `/kits/water`, `/kits/rain`, `/kits/splat`,
   `/kits/fur` and `/kits/cyber` (experimental), documented in the world README;
 - `@miragekit/core/rng`, `@miragekit/core/geom`, `@miragekit/world/plan`;
@@ -337,6 +338,17 @@ Gaussian splats, `@miragekit/world/kits/splat` (opt-in subpath, world README "Ga
 | `createWorldUI({ kit, camera })` | experimental | labels, markers and health bars anchored to 3D points, with occlusion and distance fade |
 | `createCanvasUI({ description })` | experimental | a widget panel drawn into a texture, for screens in the world and XR |
 | `createKitUI(opts)` | experimental | `createUI`'s overlay rebuilt on the toolkit: pass as `startGame`'s `ui` |
+
+The sound library, `@miragekit/game/sounds` (opt-in subpath, [sounds.md](sounds.md)): 125 sounds made in code. Every
+export is experimental.
+
+| export | stability | what it is |
+|---|---|---|
+| `SOUNDS`, `SOUND_CATEGORIES`, `SOUND_SPACES`, `GUNS` | experimental | the sounds by name (`{ cat, n, loop, desc, render(sampleRate, v) }`), the seven categories, the three spaces a gun is heard in, the guns |
+| `soundNames(cat)`, `renderSound(name, sampleRate, variant)` | experimental | the names of a category (or all); one variant as a Float32Array |
+| `soundBuffers(ctx, name)`, `addSounds(audio, names, { prefix })` | experimental | every variant as AudioBuffers; give sounds to `createAudio` (made at unlock) |
+| `makeRng`, `hash`, `biquad`, `chain`, `env`, `noiseLayer`, `thumpLayer`, `modesLayer`, `toneLayer`, `ROOMS`, `room`, `master`, `one`, `fold`, `click`, `scrape` | experimental | the synthesis kit, for sounds of your own |
+| `renderShot`, `renderGatlingLoop`, `renderGatlingTail`, `renderRocketLaunch`, `renderExplosion` | experimental | the weapons' renderers with their arguments (gun, space, variant) |
 
 ## @miragekit/net
 

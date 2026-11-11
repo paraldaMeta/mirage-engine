@@ -5,6 +5,16 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
 ## Unreleased
 
 **New**
+- @miragekit/game: a sound library, `@miragekit/game/sounds` (experimental, opt-in subpath, docs/sounds.md): 125
+  sounds made in code, no audio files (243 variants, 22 loops) in seven categories: weapons (grown out of
+  examples/neon-district's gun sounds), interface, footsteps on ten more surfaces, ambience loops (rain, a city,
+  wind, a crowd, the sea, crickets, fire...), machines and science fiction, vehicles with the Doppler shift, nature.
+  `addSounds(audio, names)` gives them to `createAudio` (made at unlock at the device's rate), `renderSound(name,
+  rate, v)` returns the samples; the synthesis kit (layers, rooms, limiter, `one` / `fold`) is exported for sounds
+  of your own. Deterministic per name and variant. Rendering all of them takes about 4 s on one core; 36 KB
+  minified. examples/neon-district now plays its guns from it (same names; 24 of its 46 sounds byte-identical, the
+  other 22 differ only in their noise seed, which was the minified function's name; its Chrome measurements all
+  pass). Listen: `examples/demos/sounds`. Checked by `packages/game/sounds.check.mjs` (in `npm test`).
 - @miragekit/world: the cyber kit, `@miragekit/world/kits/cyber` (experimental, opt-in subpath, world README "The
   cyber kit"): the street props of examples/neon-district as a library anyone can import. 61 exports,
   all made in code (geometry, and one canvas atlas for every printed label; no model or image files): products and
