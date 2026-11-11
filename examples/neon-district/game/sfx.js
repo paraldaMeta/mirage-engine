@@ -48,6 +48,7 @@ export function createSfx(audio) {
     B.nd_alarm = buf(1.6, (d) => { for (let i = 0; i < d.length; i++) { const t = i / SR, u = t % 0.8; d[i] = sat(Math.sin(TAU * (520 + 260 * (u < 0.4 ? u / 0.4 : 0)) * t) * 2) * 0.22 * (u < 0.6 ? 1 : 0) * Math.min(1, (1.6 - t) * 8); } });
     B.nd_tick = buf(0.14, (d) => { for (let i = 0; i < d.length; i++) { const t = i / SR; d[i] = Math.sin(TAU * 1480 * t) * Math.exp(-t / 0.03) * 0.25; } });
     B.nd_death = buf(0.9, (d) => { let ph = 0; const l = lp(0.1); for (let i = 0; i < d.length; i++) { const t = i / SR; ph += TAU * (300 * Math.exp(-t / 0.25) + 40) / SR; d[i] = sat(Math.sin(ph) * 2 + l(noise()) * 1.5) * Math.exp(-t / 0.3) * 0.4 * (0.6 + 0.4 * Math.sign(Math.sin(t * 90))); } });
+    B.nd_thunder = buf(3.6, (d, c) => { const l = lp(0.012), l2 = lp(0.05); for (let i = 0; i < d.length; i++) { const t = i / SR, x = noise(); d[i] = sat((l(x) * 9 + l2(x) * 1.5 * Math.exp(-t / 0.25)) * (Math.exp(-t / 1.1) + 0.35 * Math.exp(-Math.abs(t - 1.2 - c * 0.15) / 0.3))) * 0.8; } }, 2);
     // loops
     B.nd_rain = loop(7, (d, c) => {
       const a = lp(0.5), b2 = lp(0.07), drops = Array.from({ length: 260 }, () => [rnd() * 7.6, 2000 + rnd() * 5000, 0.2 + rnd() * 0.8 * (c ? rnd() : 1)]);

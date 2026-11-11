@@ -135,6 +135,11 @@ export default {
     { id: 'w1', at: [20, FLOOR, -26], face: 0, zone: 'wave' },
     { id: 'w2', at: [16, FLOOR, -22], face: 0, zone: 'wave', kind: 'heavy' },
   ],
+  // kites: flying drones, where each hovers until it is woken ([x, y, z] in the air)
+  drones: [
+    { id: 'd0', at: [-4, 5.2, 6], zone: 'street' }, { id: 'd1', at: [19, 6.4, -3], zone: 'plaza' }, { id: 'd2', at: [25, 6, -15], zone: 'plaza' },
+    { id: 'd3', at: [13, 10.5, -17], zone: 'wave' }, { id: 'd4', at: [19, 11, -16], zone: 'wave' },
+  ],
   pickups: [
     { id: 'ammo0', kind: 'ammo', at: [-23.3, 0, 19.5] }, { id: 'med0', kind: 'med', at: [-27, KERB, 9.2] },
     { id: 'ammo1', kind: 'ammo', at: [-20.5, FLOOR, -8.2] }, { id: 'med1', kind: 'med', at: [-11, FLOOR, 0.8] },

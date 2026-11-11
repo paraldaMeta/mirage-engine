@@ -9,7 +9,7 @@ import { FX } from './fx.js';
 
 export const GUN = { mag: 24, reserve: 96, max: 168, rate: 0.095, damage: 22, reload: 1.7, fov: 62, adsFov: 44 };
 
-export function createWeapon({ world, root, vfx, sfx, physics, M, player, enemies, hud, stats, onReload }) {
+export function createWeapon({ world, root, vfx, sfx, physics, M, player, targets, hud, stats, onReload }) {
   const { mat, camera } = world;
   const holder = new THREE.Group(); holder.name = 'viewmodel'; root.add(holder);
   const gun = new THREE.Group(); holder.add(gun);
@@ -58,10 +58,11 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, enemie
 
   const S = {
     mag: GUN.mag, reserve: GUN.reserve, cool: 0, heat: 0, reloading: 0, ads: 0, kick: 0, kickRot: 0, debt: 0, flashT: 0, bob: 0, swayX: 0, swayY: 0, tuck: 0, sprint: 0, draw: 1,
-    fire: false, aim: false, wantReload: false, lastYaw: 0, lastPitch: 0, walked: 0,
+    fire: false, aim: false, wantReload: false, lastYaw: 0, lastPitch: 0, walked: 0, fov: GUN.fov, lean: 0, wantLean: 0, jab: 0,
   };
   let play = null, rnd = 0x1234567;
   const R = () => ((rnd = (Math.imul(rnd ^ (rnd >>> 15), 0x2c1b3c6d) ^ (rnd << 7)) >>> 0) / 4294967296);
+  const applied = new THREE.Vector3(1e9, 0, 0);
   const fwd = new THREE.Vector3(), from = new THREE.Vector3(), mz = new THREE.Vector3(), right = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
 
   function reload() {
@@ -72,7 +73,7 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, enemie
   function shoot() {
     S.mag--; S.cool = GUN.rate; stats.shots++;
     // where the round goes: the view direction, opened by the spread (tighter when aiming, wider when hot or moving)
-    const spread = (0.008 - 0.0055 * S.ads) + S.heat * 0.012 * (1 - 0.55 * S.ads) + Math.min(player.speed, 5) * 0.002;
+    const spread = ((0.008 - 0.0055 * S.ads) + S.heat * 0.012 * (1 - 0.55 * S.ads) + Math.min(player.speed, 5) * 0.002) * (1 - 0.3 * player.crouch);
     const a = R() * Math.PI * 2, r = Math.sqrt(R()) * spread;
     fwd.set(Math.cos(play.pitch) * Math.cos(play.yaw), Math.sin(play.pitch), Math.cos(play.pitch) * Math.sin(play.yaw));
     right.crossVectors(fwd, up).normalize(); const upv = new THREE.Vector3().crossVectors(right, fwd);
@@ -82,13 +83,14 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, enemie
     // the world (Rapier, with the normal for the sparks), then whoever stands in front of it
     const hit = physics.world.castRayAndGetNormal(new physics.R.Ray({ x: o[0], y: o[1], z: o[2] }, { x: d[0], y: d[1], z: d[2] }), 120, true, physics.R.QueryFilterFlags.EXCLUDE_SENSORS, undefined, player.collider());
     const wt = hit ? hit.timeOfImpact ?? hit.toi : 120;
-    const eh = enemies.rayHit(o, d, wt);
+    const eh = targets.rayHit(o, d, wt);
     const t = eh ? eh.t : wt, end = [o[0] + d[0] * t, o[1] + d[1] * t, o[2] + d[2] * t];
     muzzle.getWorldPosition(mz);
     vfx.beam({ from: mz.toArray(), to: end, width: 0.022, color: '#ffd9a0', intensity: 4, life: 0.055 });
     vfx.burst(FX.muzzle, mz, { direction: d, scale: 1 - 0.65 * S.ads });   // smaller down the sight: it sits in the middle of the view
     if (eh) {
-      const killed = enemies.damage(eh.e, GUN.damage, eh.head, eh.point, d);
+      stats.lastHead = !!eh.head;
+      const killed = eh.owner.damage(eh.e, GUN.damage, eh.head, eh.point, d);
       stats.hits++; if (eh.head) stats.heads++;
       hud.hit(killed ? 'kill' : eh.head ? 'head' : 'hit');
       sfx.play(killed ? 'nd_kill' : 'nd_hit', { gain: killed ? 0.8 : 0.55 });
@@ -99,7 +101,7 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, enemie
       if (R() < 0.6) sfx.play('nd_impact', { at: end, gain: 0.5, ref: 3 });
     }
     sfx.play('nd_shot', { gain: 0.6, rate: 0.96 + R() * 0.08 });
-    enemies.noise(player.feet, 26);
+    targets.noise(player.feet, 26);
     // recoil: the view climbs and wanders; most of the climb comes back (S.debt)
     const k = 1 - 0.4 * S.ads, climb = (0.0085 + 0.004 * Math.min(S.heat, 1)) * k, drift = (R() - 0.5) * 0.007 * k;
     play.pitch = Math.min(1.45, play.pitch + climb); play.yaw += drift; S.debt += climb * 0.85;
@@ -107,6 +109,16 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, enemie
     player.shake(0.25);
   }
 
+  /** a strike with the stock: whoever is within arm's reach in front, hard; 0.6 s before the next */
+  function melee() {
+    if (S.jab > 0 || S.reloading > 0 || !play) return false;
+    S.jab = 0.6; S.cool = Math.max(S.cool, 0.45);
+    fwd.set(Math.cos(play.pitch) * Math.cos(play.yaw), Math.sin(play.pitch), Math.cos(play.pitch) * Math.sin(play.yaw));
+    const o = camera.position.toArray(), d = fwd.toArray(), eh = targets.rayHit(o, d, 2.3);
+    sfx.play('nd_impact', { gain: eh ? 0.9 : 0.35, rate: 0.5 });
+    if (eh) { stats.lastHead = false; const killed = eh.owner.damage(eh.e, 85, false, eh.point, d); hud.hit(killed ? 'kill' : 'hit'); player.shake(0.5); stats.melee = (stats.melee || 0) + 1; }
+    return true;
+  }
   /** one fixed step of the game */
   function update(dt, alive) {
     S.cool -= dt; S.heat = Math.max(0, S.heat - dt * 1.3);
@@ -124,20 +136,32 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, enemie
     }
     const wantAds = alive && S.aim && S.reloading <= 0 ? 1 : 0;
     S.ads += (wantAds - S.ads) * Math.min(1, dt * 12);
-    S.kick = Math.max(0, S.kick - dt * 9); S.flashT -= dt;
+    S.kick = Math.max(0, S.kick - dt * 9); S.flashT -= dt; S.jab = Math.max(0, S.jab - dt);
     S.draw = Math.max(0, S.draw - dt * 1.6);
     const sprinting = player.speed > 4.4 && !S.fire && !S.aim && S.reloading <= 0 ? 1 : 0;
     S.sprint += (sprinting - S.sprint) * Math.min(1, dt * 8);
     S.walked += player.speed * dt;
-    return S.kick > 0.001 || S.flashT > 0 || S.reloading > 0 || Math.abs(wantAds - S.ads) > 0.001;
+    return S.jab > 0 || S.kick > 0.001 || S.flashT > 0 || S.reloading > 0 || Math.abs(wantAds - S.ads) > 0.001;
   }
 
   /** before every sub-frame: put the view model on the camera and set the lens */
   function pose(dt) {
     if (!play) return;
     // the lens: aiming narrows it (after play wrote its own field of view for the frame)
-    const fov = GUN.fov + (GUN.adsFov - GUN.fov) * S.ads;
+    const fov = S.fov + (S.fov * (GUN.adsFov / GUN.fov) - S.fov) * S.ads;
     if (Math.abs(camera.fov - fov) > 1e-3) { camera.fov = fov; camera.updateProjectionMatrix(); }
+    // crouching and leaning move the eye: play writes the camera every frame, so the offset goes on once per frame
+    // (a frame's later sub-frames find the camera where this left it)
+    S.lean += (S.wantLean - S.lean) * Math.min(1, dt * 9);
+    if (!camera.position.equals(applied) && (player.crouch > 0.001 || Math.abs(S.lean) > 0.001)) {
+      right.set(1, 0, 0).applyQuaternion(camera.quaternion); right.y = 0; right.normalize();
+      // a lean stops short of a wall
+      const side = physics.ray(camera.position.toArray(), right.clone().multiplyScalar(Math.sign(S.lean) || 1).toArray(), 0.7, player.collider());
+      const reach = Math.min(0.42, side ? Math.max(0, side.distance - 0.22) : 0.42);
+      camera.position.addScaledVector(right, S.lean * reach); camera.position.y -= player.crouch * 0.6;
+      camera.rotateZ(-S.lean * 0.13); camera.updateMatrixWorld();
+      applied.copy(camera.position);
+    }
     holder.position.copy(camera.position); holder.quaternion.copy(camera.quaternion);
     // sway: the gun lags behind the view's turn, bobs with the walk
     const dy = play.yaw - S.lastYaw, dp = play.pitch - S.lastPitch; S.lastYaw = play.yaw; S.lastPitch = play.pitch;
@@ -152,10 +176,10 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, enemie
     // the reload: tilt, magazine out and back, level again
     let tilt = 0, magOut = 0;
     if (S.reloading > 0) { const u = 1 - S.reloading / GUN.reload; tilt = THREE.MathUtils.smoothstep(u, 0, 0.14) * (1 - THREE.MathUtils.smoothstep(u, 0.82, 1)); magOut = THREE.MathUtils.smoothstep(u, 0.1, 0.3) * (1 - THREE.MathUtils.smoothstep(u, 0.5, 0.68)); }
-    const a = S.ads, low = Math.max(S.sprint, S.draw);
+    const a = S.ads, low = Math.max(S.sprint, S.draw), jab = S.jab > 0 ? Math.sin(Math.PI * Math.min(1, (0.6 - S.jab) / 0.32)) * (S.jab > 0.28 ? 1 : 0) : 0;
     gun.position.set(THREE.MathUtils.lerp(0.17, 0, a) + bx + S.swayX * 0.6 + tilt * 0.03, THREE.MathUtils.lerp(-0.17, -0.0704, a) + by + S.swayY * 0.4 - tilt * 0.05 - low * 0.11 - S.tuck * 0.03,
-      THREE.MathUtils.lerp(-0.28, -0.12, a) + S.kick * 0.022 * (1 - 0.5 * a) + S.tuck * 0.2);
-    gun.rotation.set(S.kick * 0.03 * (1 - 0.6 * a) + S.swayY + tilt * 0.35 - low * 0.5 + S.tuck * 0.5, S.swayX + tilt * 0.3 + low * 0.45 + (1 - a) * 0.03, -tilt * 0.6 + S.swayX * 1.5 + low * 0.2);
+      THREE.MathUtils.lerp(-0.28, -0.12, a) + S.kick * 0.022 * (1 - 0.5 * a) + S.tuck * 0.2 - jab * 0.22);
+    gun.rotation.set(S.kick * 0.03 * (1 - 0.6 * a) + S.swayY + tilt * 0.35 - low * 0.5 + S.tuck * 0.5 + jab * 0.25, S.swayX + tilt * 0.3 + low * 0.45 + (1 - a) * 0.03 + jab * 0.9, -tilt * 0.6 + S.swayX * 1.5 + low * 0.2);
     magazine.position.copy(magHome); magazine.position.y -= magOut * 0.22; magazine.visible = magOut < 0.98;
     left.position.set(0, -magOut * 0.2, magOut * 0.2);
     dot.visible = a > 0.5;
@@ -168,7 +192,7 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, enemie
   const off = world.ctx.onUpdate((t) => { const dt = last < 0 ? 0 : Math.min(0.05, Math.max(0, t - last)); last = t; pose(dt); });
 
   return {
-    S, holder, reload, update,
+    S, holder, reload, update, melee,
     start(p) { play = p; S.lastYaw = p.yaw; S.lastPitch = p.pitch; },
     give(n) { const b = S.reserve; S.reserve = Math.min(GUN.max, S.reserve + n); return S.reserve - b; },
     save: () => ({ mag: S.mag, reserve: S.reserve }),

@@ -40,27 +40,49 @@ const CSS = `
 .nd.touch .nd-ammo{right:auto;left:50%;bottom:auto;top:max(10px,env(safe-area-inset-top));transform:translateX(-50%);text-align:center}
 .nd.touch .nd-ammo b{font-size:26px}.nd.touch .nd-ammo em,.nd.touch .nd-tally{display:none}
 .nd.touch .nd-up{top:max(50px,calc(env(safe-area-inset-top) + 50px))}
+.nd-comp{position:absolute;left:50%;top:max(12px,env(safe-area-inset-top));width:300px;height:26px;margin-left:-150px;overflow:hidden;font-size:11px;letter-spacing:.12em;text-shadow:0 1px 3px #000;-webkit-mask-image:linear-gradient(90deg,transparent,#000 22%,#000 78%,transparent);mask-image:linear-gradient(90deg,transparent,#000 22%,#000 78%,transparent)}
+.nd-comp div{position:absolute;top:0;left:150px;height:100%;white-space:nowrap}
+.nd-comp span{position:absolute;top:2px;width:60px;margin-left:-30px;text-align:center}.nd-comp span.t{top:17px;width:1px;height:6px;margin-left:0;background:#d8f6ff99}
+.nd-comp:after{content:"";position:absolute;left:50%;top:0;width:1px;height:6px;background:#ffd34a}
+.nd.touch .nd-comp{display:none}
+.nd-radio{position:absolute;left:50%;bottom:max(96px,calc(env(safe-area-inset-bottom) + 96px));transform:translateX(-50%);max-width:min(640px,calc(100vw - 40px));padding:8px 14px;background:#04141cd9;border-left:2px solid #ffd34a;font:500 14px/1.45 system-ui,"PingFang TC","Noto Sans TC",sans-serif;letter-spacing:.01em;opacity:0;transition:opacity .35s}
+.nd-radio.on{opacity:1}.nd-radio b{display:block;font:600 10px ui-monospace,monospace;letter-spacing:.16em;color:#ffd34a;margin-bottom:2px}
+.nd-feed{position:absolute;right:max(18px,env(safe-area-inset-right));top:38%;text-align:right;font-size:11px;letter-spacing:.1em;text-shadow:0 1px 3px #000}
+.nd-feed div{margin:3px 0;transition:opacity .6s}.nd-feed div.head{color:#ffd34a}
+.nd-opt{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(380px,calc(100vw - 32px));padding:18px 20px;background:#06161ef2;border:1px solid #6fe8ff66;pointer-events:auto;font:500 13px/1.4 system-ui,"PingFang TC","Noto Sans TC",sans-serif}
+.nd-opt h2{margin:0 0 12px;font:600 13px ui-monospace,monospace;letter-spacing:.16em;color:#7af0ff}
+.nd-opt label{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:10px 0}
+.nd-opt input[type=range]{width:150px;accent-color:#19d8ff}.nd-opt output{width:38px;text-align:right;font:600 12px ui-monospace,monospace}
+.nd-opt button{min-height:32px;padding:0 12px;background:#04141c;color:#d8f6ff;border:1px solid #6fe8ff88;font:inherit;cursor:pointer}
+.nd-opt button:focus-visible,.nd-opt input:focus-visible{outline:2px solid #ffd34a;outline-offset:2px}
+.nd-opt p{margin:12px 0 0;font-size:11px;opacity:.7}
+.mg-touch .nd-optbtn{right:max(16px,env(safe-area-inset-right));top:max(190px,calc(env(safe-area-inset-top) + 190px));width:52px;height:52px;font-size:10px}
 .mg-ui .mg-cross{display:none}
 .mg-ui{--mg-accent:#19d8ff}
 `;
 
-export function createHud({ camera, onDispose }) {
+export function createHud({ camera, onDispose, T }) {
   const root = document.createElement('div');
   root.className = 'nd';
   root.innerHTML = `<style>${CSS}</style>
     <div class="nd-hurt"></div><div class="nd-dir"></div>
     <div class="nd-x"><i class="h"></i><i class="h"></i><i class="v"></i><i class="v"></i><u></u></div><div class="nd-hit"></div>
-    <div class="nd-vit" role="status" aria-label="Health"><span>VITALS <b class="hp">100</b></span><i><b style="width:100%"></b></i></div>
-    <div class="nd-ammo" role="status" aria-label="Ammunition"><em>K-7 CARBINE</em><b>24</b><span>96</span></div>
-    <div class="nd-up" hidden><span>UPLINK</span><i><b style="width:0"></b></i></div>
-    <div class="nd-mark" hidden></div><div class="nd-tally"></div>`;
+    <div class="nd-vit" role="status" aria-label="Health"><span>${T.vitals} <b class="hp">100</b></span><i><b style="width:100%"></b></i></div>
+    <div class="nd-ammo" role="status" aria-label="Ammunition"><em>${T.gun}</em><b>24</b><span>96</span></div>
+    <div class="nd-up" hidden><span>${T.uplink}</span><i><b style="width:0"></b></i></div>
+    <div class="nd-mark" hidden></div><div class="nd-tally"></div>
+    <div class="nd-comp" aria-hidden="true"><div></div></div><div class="nd-feed" aria-live="polite"></div>
+    <div class="nd-radio" role="status" aria-live="polite"><b></b><span></span></div>`;
   document.body.appendChild(root);
   const $ = (s) => root.querySelector(s);
   const x = [...root.querySelectorAll('.nd-x i')], hitEl = $('.nd-hit'), hurtEl = $('.nd-hurt'), dirEl = $('.nd-dir'), vit = $('.nd-vit'), ammo = $('.nd-ammo'), up = $('.nd-up'), mark = $('.nd-mark');
-  let hitT = 0, hurtT = 0, dirT = 0, dirFrom = null, touch = null;
+  let hitT = 0, hurtT = 0, dirT = 0, dirFrom = null, touch = null, radioT = 0, opt = null;
+  // the compass: a strip of eight headings, three turns long, slid under a fixed window (3 px a degree)
+  const strip = $('.nd-comp div'), PX = 3, radioQ = [], feed = $('.nd-feed'), radioEl = $('.nd-radio');
+  for (let k = -8; k < 16; k++) { const s = document.createElement('span'); s.textContent = T.compass[((k % 8) + 8) % 8]; s.style.left = `${k * 45 * PX}px`; strip.appendChild(s); const t = document.createElement('span'); t.className = 't'; t.style.left = `${(k * 45 + 22.5) * PX}px`; strip.appendChild(t); }
   const shown = new WeakMap();
   const set = (el, k, v) => { let c = shown.get(el); if (!c) shown.set(el, (c = {})); if (c[k] !== v) { c[k] = v; if (k === 'text') el.textContent = v; else el.style[k] = v; } };
-  onDispose(() => { root.remove(); touch?.remove(); });
+  onDispose(() => { root.remove(); touch?.remove(); opt?.remove(); });
   const v3 = { x: 0, y: 0, z: 0 };
   return {
     root,
@@ -68,16 +90,46 @@ export function createHud({ camera, onDispose }) {
     touch(on, handlers) {
       if (!on || touch) return;
       touch = document.createElement('div'); root.classList.add('touch');
-      touch.innerHTML = '<button class="nd-btn nd-fire">FIRE</button><button class="nd-btn nd-aim">AIM</button><button class="nd-btn nd-rel">RLD</button>';
+      touch.innerHTML = `<button class="nd-btn nd-fire">${T.fire}</button><button class="nd-btn nd-aim">${T.aim}</button><button class="nd-btn nd-rel">${T.reloadBtn}</button><button class="nd-btn nd-optbtn">${T.optBtn}</button>`;
       // inside the overlay's own touch layer, over its look area (which would otherwise take the finger first)
       (document.querySelector('.mg-touch') || root).appendChild(touch);
-      const [fire, aim, rel] = touch.children;
+      const [fire, aim, rel, ob] = touch.children;
+      ob.addEventListener('pointerdown', (e) => { e.preventDefault(); handlers.options(); });
       const hold = (el, fn) => { el.addEventListener('pointerdown', (e) => { e.preventDefault(); el.setPointerCapture(e.pointerId); el.classList.add('on'); fn(true); }); for (const ev of ['pointerup', 'pointercancel']) el.addEventListener(ev, () => { el.classList.remove('on'); fn(false); }); };
       hold(fire, handlers.fire);
       aim.addEventListener('pointerdown', (e) => { e.preventDefault(); aim.classList.toggle('on', handlers.aim()); });
       rel.addEventListener('pointerdown', (e) => { e.preventDefault(); handlers.reload(); });
     },
     hit(kind) { hitEl.className = 'nd-hit ' + kind; hitT = kind === 'kill' ? 0.4 : 0.2; },
+    /** a line from control, shown under the crosshair for a few seconds; lines queue */
+    radio(text) { radioQ.push(text); },
+    /** a line in the kill feed (head: a head shot) */
+    feed(text, head) { const d = document.createElement('div'); d.textContent = text; if (head) d.className = 'head'; feed.prepend(d); while (feed.children.length > 4) feed.lastChild.remove(); setTimeout(() => { d.style.opacity = '0'; setTimeout(() => d.remove(), 700); }, 3500); },
+    get optionsOpen() { return !!opt; },
+    /** the options panel: values { sens, fov, invert }, onChange(key, value), onClose(), onLang(), onFull() */
+    options(o) {
+      if (opt) { opt.remove(); opt = null; o?.onClose?.(); return false; }
+      if (!o) return false;
+      opt = document.createElement('div'); opt.className = 'nd-opt'; opt.setAttribute('role', 'dialog'); opt.setAttribute('aria-label', T.opt.title);
+      opt.innerHTML = `<h2>${T.opt.title}</h2>
+        <label>${T.opt.sens}<span><input type="range" data-k="sens" min="0.3" max="2.5" step="0.05" value="${o.values.sens}"><output>${(+o.values.sens).toFixed(2)}</output></span></label>
+        <label>${T.opt.fov}<span><input type="range" data-k="fov" min="50" max="90" step="1" value="${o.values.fov}"><output>${o.values.fov}</output></span></label>
+        <label>${T.opt.invert}<button data-b="invert">${o.values.invert ? T.opt.on : T.opt.off}</button></label>
+        <label>${T.opt.full}<button data-b="full">${document.fullscreenElement ? T.opt.on : T.opt.off}</button></label>
+        <label>${T.opt.lang}<button data-b="lang">${o.values.lang === 'zh' ? '繁體中文' : 'English'}</button></label>
+        <label><span></span><button data-b="close">${T.opt.close}</button></label><p>${T.opt.hint}</p>`;
+      root.appendChild(opt);
+      for (const r of opt.querySelectorAll('input')) r.addEventListener('input', () => { r.nextElementSibling.textContent = r.dataset.k === 'sens' ? (+r.value).toFixed(2) : r.value; o.onChange(r.dataset.k, +r.value); });
+      for (const b of opt.querySelectorAll('button')) { b.addEventListener('keydown', (e) => e.stopPropagation()); b.addEventListener('click', () => {
+        const k = b.dataset.b;
+        if (k === 'close') { opt.remove(); opt = null; o.onClose(); }
+        else if (k === 'invert') { o.values.invert = !o.values.invert; b.textContent = o.values.invert ? T.opt.on : T.opt.off; o.onChange('invert', o.values.invert); }
+        else if (k === 'full') { const p = document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.(); Promise.resolve(p).catch(() => {}).then(() => { b.textContent = document.fullscreenElement ? T.opt.on : T.opt.off; }); }
+        else if (k === 'lang') o.onLang();
+      }); }
+      opt.querySelector('input').focus();
+      return true;
+    },
     hurt(from) { hurtT = 0.6; dirT = 1.2; dirFrom = from ? from.slice() : null; },
     /** once a display frame */
     update(dt, s) {
@@ -97,6 +149,13 @@ export function createHud({ camera, onDispose }) {
       set($('.nd-ammo b'), 'text', s.reloading ? '--' : String(s.mag)); set($('.nd-ammo span'), 'text', String(s.reserve));
       ammo.classList.toggle('empty', s.mag === 0 && !s.reloading);
       set($('.nd-tally'), 'text', s.tally);
+      // compass: bearing 0 = north (-Z), clockwise
+      const brg = Math.atan2(Math.cos(s.yaw), -Math.sin(s.yaw)) * 180 / Math.PI;
+      strip.style.transform = `translateX(${(-(((brg % 360) + 360) % 360) * PX).toFixed(1)}px)`;
+      // the radio: one line at a time, six seconds or so each
+      radioT -= dt;
+      if (radioT <= 0 && radioEl.classList.contains('on')) radioEl.classList.remove('on');
+      if (radioT <= -0.4 && radioQ.length) { const line = radioQ.shift(); radioEl.querySelector('b').textContent = T.control; radioEl.querySelector('span').textContent = line; radioEl.classList.add('on'); radioT = Math.min(8, 2.5 + line.length * (/[\u4e00-\u9fff]/.test(line) ? 0.14 : 0.055)); }
       up.hidden = s.uplink == null;
       if (s.uplink != null) { set($('.nd-up span'), 'text', s.uplinkText); set($('.nd-up i b'), 'width', `${(s.uplink * 100).toFixed(1)}%`); }
       // the objective's marker: its point projected to the screen, pinned to the edge when it is behind or outside
@@ -109,7 +168,7 @@ export function createHud({ camera, onDispose }) {
         if (vz > 0) { nx = -nx * 100; ny = -1; }
         const m = Math.max(Math.abs(nx) / 0.9, Math.abs(ny) / 0.8, 1); nx /= m; ny /= m;
         mark.style.left = `${((nx * 0.5 + 0.5) * 100).toFixed(2)}%`; mark.style.top = `${((0.5 - ny * 0.5) * 100).toFixed(2)}%`;
-        set(mark, 'text', `${Math.round(Math.hypot(vx, vy, vz))} M`);
+        set(mark, 'text', `${Math.round(Math.hypot(vx, vy, vz))} ${T.metres}`);
       }
     },
   };

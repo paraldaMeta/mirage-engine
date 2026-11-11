@@ -13,7 +13,7 @@ node examples/neon-district/scripts/controls-check.mjs                 # gamepad
 node examples/neon-district/scripts/gameshots.mjs                      # frames of the running game, a contact sheet
 ```
 
-The playtest takes about eight minutes: it plays the route (91 steps: every wall, door and stair on it, eleven
+The playtest takes about nine minutes: it plays the route (140 steps: every wall, door and stair on it, the
 fights, the pass, the relay door, the uplink and its wave) and a view with rain never comes to rest, which the tool
 waits for before each of its 13 screenshots.
 
@@ -52,9 +52,12 @@ the first click. Nothing was taken from another project.
 | hit-scan | Rapier ray with the surface normal (`physics.world.castRayAndGetNormal`) | `game/weapon.js` |
 | sentinels: walking | `createNavGrid` on the player's walk grid, `createNavAgent`, `createNavCrowd` | `game/enemies.js` |
 | sentinels: seeing | `createSenses` (sight cones the walk grid occludes) | `game/enemies.js` |
+| kites (flying drones) | the walk grid as a volume: `airAt` to stay out of solids, `gridRay` for a line of fire | `game/drones.js` |
 | sentinels: bodies | `createRigModel` + `createAnimator`: a speed blend, a masked aim layer, an additive flinch, a fall | `game/enemies.js` |
 | HUD and menus | `@miragekit/game`'s overlay (objective, prompts, toasts, pause menu, save slots, rebinding, touch stick) plus the example's own HUD | `game/hud.js` |
-| sound | the mixer's buses and 3D placement, the engine's own pickup / door / chime, the example's synthesised set | `game/sfx.js` |
+| sound | the mixer's buses and 3D placement, the engine's own pickup / door / chime, the example's synthesised set; the audio engine's reverb zones from `plan.audio.zones` (the bar, the relay, the open street) | `game/sfx.js`, `game/index.js` |
+| lightning | `vfx.beam` with `jitter` and `branches`, one clustered lamp 110 m up for the flash | `game/index.js` |
+| two languages | English and Traditional Chinese for everything the game itself shows (`?lang=`) | `game/text.js` |
 | the test | a `mirage-playtest` scenario that plays the route | `scenarios/playtest.json` |
 
 ## Controls
@@ -63,6 +66,8 @@ the first click. Nothing was taken from another project.
 |---|---|---|---|
 | move, look | WASD, mouse (click captures the pointer) | left stick, right stick | stick bottom-left, drag elsewhere |
 | fire, aim, reload | left button (or F), right button (or Q), R | right trigger, left trigger, right bumper | FIRE (hold), AIM (toggle), RLD |
+| strike, lean, crouch | V, Z / X (hold), C | right stick click, none, none | none |
+| options (sensitivity, field of view, inverted look, full screen, language) | O | none | the options button |
 | run, jump, use, menu | Shift, Space, E, Esc | LB, A, X, Start | push the stick past its rim, Jump, Use, ☰ |
 
 `?assist=1` is an easy mode (an eighth of the damage, health comes back in full, the reserve never runs dry); the playtest uses it, because its
@@ -79,14 +84,14 @@ table further down from a run that other jobs disturbed (its high ends are those
 
 | variant | alley | street west | bar inside | plaza | roof vista | calls, triangles (street) |
 |---|---|---|---|---|---|---|
-| game, low | 6.4 [6.2-6.7] | 6.9 [6.3-7.2] | 6.3 [5.7-6.6] | 6.3 [6.0-6.6] | 6.8 [6.5-7.0] | 397, 158 k |
-| game, medium | 8.7 [8.6-9.0] | 9.8 [8.9-10.3] | 8.4 [7.8-8.9] | 9.2 [8.8-9.4] | 9.8 [9.7-10.4] | 986, 543 k |
-| game, high | 9.8 [9.7-10.3] | 10.8 [9.9-11.4] | 9.6 [8.8-9.9] | 10.0 [9.6-10.2] | 10.5 [10.4-11.0] | 1103, 593 k |
-| world, low | 4.8 [4.6-4.8] | 5.3 [5.2-5.6] | 4.7 [4.4-4.9] | 4.7 [4.4-4.9] | 5.0 [4.9-5.1] | 204, 123 k |
-| world, medium | 6.4 [6.0-6.6] | 7.5 [6.9-7.9] | 6.5 [6.1-6.9] | 6.8 [6.3-7.0] | 6.9 [6.6-7.3] | 277, 190 k |
-| world, high | 8.1 [7.6-8.2] | 8.8 [8.3-9.0] | 7.7 [7.5-8.1] | 8.1 [7.5-8.3] | 8.2 [7.9-8.7] | 322, 225 k |
+| game, low | 6.5 [6.4-6.7] | 7.0 [6.5-7.1] | 6.2 [5.7-6.6] | 6.3 [6.1-6.5] | 6.8 [6.6-7.0] | 487, 169 k |
+| game, medium | 8.8 [8.6-9.0] | 10.0 [9.2-10.2] | 8.5 [7.9-8.7] | 9.2 [8.8-9.4] | 9.9 [9.8-10.2] | 1160, 564 k |
+| game, high | 10.2 [10.0-10.4] | 11.1 [10.3-11.3] | 9.8 [8.9-10.0] | 10.2 [9.6-10.3] | 10.8 [10.5-11.0] | 1322, 618 k |
+| world, low | 4.6 [4.5-4.7] | 5.1 [4.8-5.2] | 4.3 [4.2-4.5] | 4.3 [4.3-4.8] | 4.6 [4.6-4.9] | 204, 123 k |
+| world, medium | 6.1 [5.7-6.7] | 6.9 [6.8-7.6] | 6.1 [6.0-7.0] | 6.2 [6.0-6.8] | 6.5 [6.4-7.1] | 277, 190 k |
+| world, high | 7.5 [7.1-8.0] | 8.3 [8.1-8.9] | 7.4 [7.3-7.6] | 7.5 [7.4-8.1] | 8.0 [7.8-8.2] | 322, 225 k |
 
-`game` is the whole thing (nine sentinels awake, their animation and navigation, the view model, effects, the HUD);
+`game` is the whole thing (nine sentinels and three kites awake, their animation and navigation, the view model, effects, the HUD);
 `world` is the district alone. The difference is mostly the lamp shadow tiles: a sentinel that moves near a
 shadowed lamp makes its cached tile draw again (one tile, six faces, a frame).
 
@@ -117,7 +122,7 @@ occlusion culling and automatic LOD (`big=`) make no measurable difference: the 
 are a few boxes each and most of it is on screen or behind one wall, so they stay behind the flag.
 Not measured: any other GPU, a phone, pixel ratio 2.
 
-The single file (`npm run package -w neon-district`): **3.40 MB (3,565,629 bytes)**, against the site's 5 MB budget. All of it is
+The single file (`npm run package -w neon-district`): **3.45 MB (3,619,163 bytes)**, against the site's 5 MB budget. All of it is
 code (Rapier's WASM is 2.2 MB of it); there are no assets.
 
 ## Below a commercial shooter, and why
@@ -136,7 +141,9 @@ code (Rapier's WASM is 2.2 MB of it); there are no assets.
   tilt; the view model is in the world's depth range and pulls back from walls instead of having its own.
 - **Sound.** Everything is synthesised from noise and sines in a few lines each. No reverb zones or occlusion
   (the engine's audio engine has both; not wired here), no recorded material.
-- **Scope.** One gun, two enemy kinds, five minutes.
+- **Movement.** Crouching lowers the eye and slows the walk but the body's collider keeps its height; there is no
+  slide, no mantle, no sprint stamina. Leaning and crouching are keyboard only.
+- **Scope.** One gun, three enemy kinds, five minutes.
 
 ## What the example works around (engine gaps)
 
@@ -152,13 +159,16 @@ code (Rapier's WASM is 2.2 MB of it); there are no assets.
 5. **The mixer cannot be given a sound.** The game's sounds are written into `audio.buffers` after the first gesture.
 6. **`physics.ray` has no normal.** The weapon calls Rapier's `castRayAndGetNormal` through `physics.world`.
 7. **Particles take no local lamps** (documented in `docs/vfx.md`): steam is unlit and tinted by hand.
-8. **`ui.message` has no callback.** The death screen listens for the dialog's `close`.
+8. **`startGame`'s character has no crouch, lean or look sensitivity.** The game lowers and shifts the camera itself
+   (`world.ctx.onUpdate`) and rescales what the mouse turned since the last tick. `createMover` has a real crouch,
+   but `startGame` drives the Rapier character.
+12. **`ui.message` has no callback.** The death screen listens for the dialog's `close`.
 9. **A jump of the view rewinds the particles for good.** `play.place` (tools, viewpoints) sets the scene clock to
    0; the pools reset, and a looping emitter spawned at a later step waits for that step again. The reset pass
    also draws into the state textures it still has bound (Chrome: "Feedback loop formed between Framebuffer and
    active Texture", a warning, 7 per jump). The game spawns its loops again three ticks after a `place`.
 10. **`mirage-playtest` waits 20 s for a still view before each screenshot.** A world with rain never rests, so the
-    scenario takes screenshots on 13 of its 91 steps only.
+    scenario takes screenshots on 13 of its 140 steps only.
 11. **Moving casters must be top-level scene objects** (`userData.mgDynamic`) for the lamp shadow tiles to follow
     them, so the sentinels are added to `world.scene`, not to the game's group.
 

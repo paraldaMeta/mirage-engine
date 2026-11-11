@@ -37,8 +37,8 @@ function extraClips() {
 }
 
 const KIND = {
-  grunt: { hp: 60, speed: 3.0, damage: 5, burst: 3, visor: [0.1, 0.9, 1.0], colors: { skin: 0x2a2f38, shirt: 0x566274, trousers: 0x2b313b, boots: 0x101216, hair: 0x1a1d22 }, scale: 1 },
-  heavy: { hp: 135, speed: 2.3, damage: 8, burst: 5, visor: [1.0, 0.16, 0.1], colors: { skin: 0x2b2624, shirt: 0x7a4a3a, trousers: 0x33261f, boots: 0x101216, hair: 0x1f1714 }, scale: 1.1 },
+  grunt: { name: 'grunt', hp: 60, speed: 3.0, damage: 5, burst: 3, visor: [0.1, 0.9, 1.0], colors: { skin: 0x2a2f38, shirt: 0x566274, trousers: 0x2b313b, boots: 0x101216, hair: 0x1a1d22 }, scale: 1 },
+  heavy: { name: 'heavy', hp: 135, speed: 2.3, damage: 8, burst: 5, visor: [1.0, 0.16, 0.1], colors: { skin: 0x2b2624, shirt: 0x7a4a3a, trousers: 0x33261f, boots: 0x101216, hair: 0x1f1714 }, scale: 1.1 },
 };
 const RANGE = 24, FOV = 130, FIRE_RANGE = 19;
 
@@ -119,7 +119,7 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
   }
 
   const eyeOf = (e, out) => out.set(e.pos[0], e.pos[1] + 1.5 * e.K.scale, e.pos[2]);
-  const seesPlayer = (e) => senses.sees({ pos: e.pos, heading: e.heading }, { pos: player.feet }, { range: RANGE, fov: e.state === 'fight' ? 300 : FOV, near: 2.5, eye: 1.55, height: 1.5 });
+  const seesPlayer = (e) => senses.sees({ pos: e.pos, heading: e.heading }, { pos: player.feet }, { range: RANGE, fov: e.state === 'fight' ? 300 : FOV, near: 2.5, eye: 1.55, height: player.height * 0.93 });
   function alert(e, where, delay = 0) {
     if (e.dead || !e.active || e.state === 'fight' || e.state === 'alert') return;
     e.state = 'alert'; e.t = 0; e.wait = 0.35 + delay + R() * 0.3; e.lastSeen = where ? where.slice() : null;
@@ -160,7 +160,7 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
         const tc = _c.dot(_d); if (tc < 0 || tc - r > max) continue;
         const d2 = _c.lengthSq() - tc * tc; if (d2 > r * r) continue;
         const t = tc - Math.sqrt(r * r - d2);
-        if (t > 0 && t < max && (!best || t < best.t)) best = { e, t, head };
+        if (t > 0 && t < max && (!best || t < best.t)) best = { e, t, head, owner: api };
       }
     }
     if (best) best.point = [origin[0] + dir[0] * best.t, origin[1] + dir[1] * best.t, origin[2] + dir[2] * best.t];
@@ -168,10 +168,10 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
   }
 
   function fire(e) {
-    const from = e.tip.getWorldPosition(new THREE.Vector3()), aimAt = new THREE.Vector3(player.feet[0], player.feet[1] + 1.25, player.feet[2]);
+    const from = e.tip.getWorldPosition(new THREE.Vector3()), aimAt = new THREE.Vector3(player.feet[0], player.feet[1] + player.height * 0.77, player.feet[2]);
     const dist = from.distanceTo(aimAt), moving = player.speed > 2.5 ? 0.7 : 1;
     // the longer the player stands in their sight the surer the shot: leaning out of cover for a moment is cheap
-    const chance = Math.min(0.7, (0.5 - dist * 0.011) * moving * (e.K === KIND.heavy ? 0.85 : 1) * (0.3 + 0.7 * Math.min(1, player.exposed / 2.5)));
+    const chance = Math.min(0.7, (0.5 - dist * 0.011) * moving * (e.K === KIND.heavy ? 0.85 : 1) * (0.3 + 0.7 * Math.min(1, player.exposed / 2.5)) * (player.crouch > 0.5 ? 0.7 : 1));
     const hit = R() < chance && seesPlayer(e);
     if (!hit) aimAt.add(tmp.set(R() - 0.5, R() - 0.3, R() - 0.5).multiplyScalar(1.6 + dist * 0.06));
     const dir = aimAt.clone().sub(from).normalize();
@@ -287,5 +287,6 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
     }
     return moved;
   }
-  return { list, byZone, start, update, damage, rayHit, noise, wake, alert, eyeOf, get alive() { return list.filter((e) => !e.dead && e.active).length; }, get nav() { return nav; } };
+  const api = { list, byZone, start, update, damage, rayHit, noise, wake, alert, eyeOf, get alive() { return list.filter((e) => !e.dead && e.active).length; }, get nav() { return nav; } };
+  return api;
 }

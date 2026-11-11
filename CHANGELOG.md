@@ -8,8 +8,9 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
 - `examples/neon-district`: a small first-person shooter in a rain-wet city block at night, the engine's showcase.
   Seven modules on one plan, no asset files. Clustered lamps with shadow tiles, screen-space reflections on wet
   streets, a probe volume and reflection probes indoors, volumetric lamps, the post chain, GPU particles, beams and
-  decals; a carbine with recoil, reload and aiming, navgrid sentinels with an animation controller and a state
-  machine, checkpoints, keyboard / gamepad / touch. A 91-step playtest plays it from the alley to the roof. Which
+  decals, lightning; a carbine with recoil, reload, aiming and a strike, leaning and crouching, navgrid sentinels with
+  an animation controller and a state machine, flying kites, a radio, a compass, an options panel, checkpoints,
+  English and Traditional Chinese, keyboard / gamepad / touch. A 140-step playtest plays it from the alley to the roof. Which
   feature each part shows, the frame times and what it works around: `examples/neon-district/NOTES.md`. No engine
   code changed.
 

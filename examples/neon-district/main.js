@@ -4,7 +4,7 @@
 //
 // URL: ?quality=low|medium|high   ?start=1 (skip the start screen)   ?assist=1 (an easy mode: an eighth of the damage, health comes back in full, the reserve never runs dry)
 //      ?world=1 (no game: walk / fly the district; &mode=walk|fly|orbit, &view=<viewpoint name>)
-//      ?w=&h=  ?spp=N  ?grain=0  ?hud=0
+//      ?lang=en|zh (default: the browser's)  ?fov=50..90  ?sens=N   ?w=&h=  ?spp=N  ?grain=0  ?hud=0
 //      every rendering feature has a switch, for A/B stills and timing (default: what the quality level turns on):
 //      ?ssr=0|1 ?ssgi=0|1 ?contact=0|1 (screen-space passes)  ?gi=0|1 ?probes=0|1 ?csm=0|1 ?shadows=0|1 (lamp tiles)
 //      ?vol=0|1 (volumetric lamps, light2)  ?taa2=0|1 ?mb=0..1 ?bloom2=0|1 ?lut=0|1 ?chroma=N ?upscale=0.5..1
@@ -18,7 +18,7 @@ import { createPlay } from '@miragekit/play';
 import { startGame } from '@miragekit/game';
 import plan from './plan.js';
 import modules from './modules/index.js';
-import { setupGame, objective, summary, VERSION } from './game/index.js';
+import { setupGame, objective, summary, VERSION, T } from './game/index.js';
 
 const Q = new URLSearchParams(location.search);
 const W = +Q.get('w') || innerWidth, H = +Q.get('h') || innerHeight;
@@ -96,7 +96,7 @@ if (Q.has('world')) {   // the district alone: walk, fly, orbit (stills, the wor
   play = createPlay(world, { plan: built.plan, canvas, mode: Q.get('mode') || 'walk', spp, ui: Q.get('ui') !== '0', shadowRadius: 34, fit: !Q.get('w'), quality, hud });
 } else {
   g = await startGame(world, {
-    built, canvas, id: plan.name, version: VERSION, title: 'NEON DISTRICT', subtitle: 'Take the relay pass · reach the roof · hold the uplink',
+    built, canvas, id: plan.name, version: VERSION, title: T.title, subtitle: T.subtitle,
     spp, shadowRadius: 34, fit: !Q.get('w'), quality, hud, idle: 0,
     setup: (ctx) => { game = setupGame(ctx, { built, shared, vfx, Q, quality }); },
     objective, summary,

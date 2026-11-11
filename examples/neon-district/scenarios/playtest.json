@@ -1,6 +1,6 @@
 {
  "title": "neon-district: the alley to the roof",
- "query": "start=1&grain=0&assist=1&quality=medium",
+ "query": "start=1&grain=0&assist=1&quality=medium&lang=en",
  "w": 1280,
  "h": 720,
  "steps": [
@@ -745,7 +745,7 @@
    "shot": false
   },
   {
-   "name": "fire-at-w0-1",
+   "name": "fire-at-w0-a1",
    "lookAt": "w0",
    "keys": [
     "KeyF"
@@ -754,7 +754,7 @@
    "shot": false
   },
   {
-   "name": "fire-at-w0-2",
+   "name": "fire-at-w0-a2",
    "lookAt": "w0",
    "keys": [
     "KeyF"
@@ -763,7 +763,160 @@
    "shot": false
   },
   {
-   "name": "fire-at-w0-3",
+   "name": "fire-at-w1-a1",
+   "lookAt": "w1",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-w1-a2",
+   "lookAt": "w1",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-w2-a1",
+   "lookAt": "w2",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-w2-a2",
+   "lookAt": "w2",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-w2-a3",
+   "lookAt": "w2",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d3-a1",
+   "lookAt": "d3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d3-a2",
+   "lookAt": "d3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d3-a3",
+   "lookAt": "d3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d3-a4",
+   "lookAt": "d3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d3-a5",
+   "lookAt": "d3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d3-a6",
+   "lookAt": "d3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d4-a1",
+   "lookAt": "d4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d4-a2",
+   "lookAt": "d4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d4-a3",
+   "lookAt": "d4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d4-a4",
+   "lookAt": "d4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d4-a5",
+   "lookAt": "d4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d4-a6",
+   "lookAt": "d4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-w0-b1",
    "lookAt": "w0",
    "keys": [
     "KeyF"
@@ -772,7 +925,7 @@
    "shot": false
   },
   {
-   "name": "fire-at-w0-4",
+   "name": "fire-at-w0-b2",
    "lookAt": "w0",
    "keys": [
     "KeyF"
@@ -781,7 +934,7 @@
    "shot": false
   },
   {
-   "name": "fire-at-w1-1",
+   "name": "fire-at-w1-b1",
    "lookAt": "w1",
    "keys": [
     "KeyF"
@@ -790,7 +943,7 @@
    "shot": false
   },
   {
-   "name": "fire-at-w1-2",
+   "name": "fire-at-w1-b2",
    "lookAt": "w1",
    "keys": [
     "KeyF"
@@ -799,25 +952,7 @@
    "shot": false
   },
   {
-   "name": "fire-at-w1-3",
-   "lookAt": "w1",
-   "keys": [
-    "KeyF"
-   ],
-   "ms": 900,
-   "shot": false
-  },
-  {
-   "name": "fire-at-w1-4",
-   "lookAt": "w1",
-   "keys": [
-    "KeyF"
-   ],
-   "ms": 900,
-   "shot": false
-  },
-  {
-   "name": "fire-at-w2-1",
+   "name": "fire-at-w2-b1",
    "lookAt": "w2",
    "keys": [
     "KeyF"
@@ -826,7 +961,7 @@
    "shot": false
   },
   {
-   "name": "fire-at-w2-2",
+   "name": "fire-at-w2-b2",
    "lookAt": "w2",
    "keys": [
     "KeyF"
@@ -835,7 +970,7 @@
    "shot": false
   },
   {
-   "name": "fire-at-w2-3",
+   "name": "fire-at-w2-b3",
    "lookAt": "w2",
    "keys": [
     "KeyF"
@@ -844,93 +979,120 @@
    "shot": false
   },
   {
-   "name": "fire-at-w2-4",
-   "lookAt": "w2",
+   "name": "fire-at-d3-b1",
+   "lookAt": "d3",
    "keys": [
     "KeyF"
    ],
-   "ms": 900,
+   "ms": 350,
    "shot": false
   },
   {
-   "name": "fire-at-w2-5",
-   "lookAt": "w2",
+   "name": "fire-at-d3-b2",
+   "lookAt": "d3",
    "keys": [
     "KeyF"
    ],
-   "ms": 900,
+   "ms": 350,
    "shot": false
   },
   {
-   "name": "fire-at-w0-1",
-   "lookAt": "w0",
+   "name": "fire-at-d3-b3",
+   "lookAt": "d3",
    "keys": [
     "KeyF"
    ],
-   "ms": 900,
+   "ms": 350,
    "shot": false
   },
   {
-   "name": "fire-at-w0-2",
-   "lookAt": "w0",
+   "name": "fire-at-d3-b4",
+   "lookAt": "d3",
    "keys": [
     "KeyF"
    ],
-   "ms": 900,
+   "ms": 350,
    "shot": false
   },
   {
-   "name": "fire-at-w1-1",
-   "lookAt": "w1",
+   "name": "fire-at-d3-b5",
+   "lookAt": "d3",
    "keys": [
     "KeyF"
    ],
-   "ms": 900,
+   "ms": 350,
    "shot": false
   },
   {
-   "name": "fire-at-w1-2",
-   "lookAt": "w1",
+   "name": "fire-at-d3-b6",
+   "lookAt": "d3",
    "keys": [
     "KeyF"
    ],
-   "ms": 900,
+   "ms": 350,
    "shot": false
   },
   {
-   "name": "fire-at-w2-1",
-   "lookAt": "w2",
+   "name": "fire-at-d4-b1",
+   "lookAt": "d4",
    "keys": [
     "KeyF"
    ],
-   "ms": 900,
+   "ms": 350,
    "shot": false
   },
   {
-   "name": "fire-at-w2-2",
-   "lookAt": "w2",
+   "name": "fire-at-d4-b2",
+   "lookAt": "d4",
    "keys": [
     "KeyF"
    ],
-   "ms": 900,
+   "ms": 350,
    "shot": false
   },
   {
-   "name": "fire-at-w2-3",
-   "lookAt": "w2",
+   "name": "fire-at-d4-b3",
+   "lookAt": "d4",
    "keys": [
     "KeyF"
    ],
-   "ms": 900,
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d4-b4",
+   "lookAt": "d4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d4-b5",
+   "lookAt": "d4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d4-b6",
+   "lookAt": "d4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
    "shot": false
   },
   {
    "name": "hold-2",
-   "ms": 20000,
+   "ms": 12000,
    "shot": false
   },
   {
-   "name": "fire-at-w0-1",
+   "name": "fire-at-w0-c1",
    "lookAt": "w0",
    "keys": [
     "KeyF"
@@ -939,7 +1101,7 @@
    "shot": false
   },
   {
-   "name": "fire-at-w0-2",
+   "name": "fire-at-w0-c2",
    "lookAt": "w0",
    "keys": [
     "KeyF"
@@ -948,7 +1110,7 @@
    "shot": false
   },
   {
-   "name": "fire-at-w1-1",
+   "name": "fire-at-w1-c1",
    "lookAt": "w1",
    "keys": [
     "KeyF"
@@ -957,7 +1119,7 @@
    "shot": false
   },
   {
-   "name": "fire-at-w1-2",
+   "name": "fire-at-w1-c2",
    "lookAt": "w1",
    "keys": [
     "KeyF"
@@ -966,7 +1128,7 @@
    "shot": false
   },
   {
-   "name": "fire-at-w2-1",
+   "name": "fire-at-w2-c1",
    "lookAt": "w2",
    "keys": [
     "KeyF"
@@ -975,7 +1137,7 @@
    "shot": false
   },
   {
-   "name": "fire-at-w2-2",
+   "name": "fire-at-w2-c2",
    "lookAt": "w2",
    "keys": [
     "KeyF"
@@ -984,12 +1146,291 @@
    "shot": false
   },
   {
-   "name": "fire-at-w2-3",
+   "name": "fire-at-w2-c3",
    "lookAt": "w2",
    "keys": [
     "KeyF"
    ],
    "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d3-c1",
+   "lookAt": "d3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d3-c2",
+   "lookAt": "d3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d3-c3",
+   "lookAt": "d3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d3-c4",
+   "lookAt": "d3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d3-c5",
+   "lookAt": "d3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d3-c6",
+   "lookAt": "d3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d4-c1",
+   "lookAt": "d4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d4-c2",
+   "lookAt": "d4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d4-c3",
+   "lookAt": "d4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d4-c4",
+   "lookAt": "d4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d4-c5",
+   "lookAt": "d4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d4-c6",
+   "lookAt": "d4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-w0-d1",
+   "lookAt": "w0",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-w0-d2",
+   "lookAt": "w0",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-w1-d1",
+   "lookAt": "w1",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-w1-d2",
+   "lookAt": "w1",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-w2-d1",
+   "lookAt": "w2",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-w2-d2",
+   "lookAt": "w2",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-w2-d3",
+   "lookAt": "w2",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d3-d1",
+   "lookAt": "d3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d3-d2",
+   "lookAt": "d3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d3-d3",
+   "lookAt": "d3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d3-d4",
+   "lookAt": "d3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d3-d5",
+   "lookAt": "d3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d3-d6",
+   "lookAt": "d3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d4-d1",
+   "lookAt": "d4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d4-d2",
+   "lookAt": "d4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d4-d3",
+   "lookAt": "d4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d4-d4",
+   "lookAt": "d4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d4-d5",
+   "lookAt": "d4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d4-d6",
+   "lookAt": "d4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
    "shot": false
   },
   {
@@ -998,7 +1439,7 @@
    "tap": "Enter",
    "expect": {
     "flags.done": "== true",
-    "flags.kills": ">= 8",
+    "flags.kills": ">= 9",
     "errors": "== 0"
    }
   },

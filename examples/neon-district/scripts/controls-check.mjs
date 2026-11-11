@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 // Check: the shooter's controls beyond the keyboard, in the real Chrome with real events.
+//   keys   C crouches, X leans, O opens the options panel (and a setting applies)
 //   pad    a standard-mapping gamepad (an injected Gamepad API shim): the stick walks, the right trigger fires, the
 //          left trigger aims, the right bumper reloads, Start opens the menu and B closes it
 //   touch  an emulated phone held sideways (844 x 390, touch): the start tap, the overlay's stick, the example's
@@ -33,6 +34,27 @@ async function open(browser, query, { mobile = false, pad = false } = {}) {
 }
 const padSet = (page, o) => page.evaluate((o) => { for (const [k, v] of Object.entries(o.buttons || {})) window.__pad.buttons[k] = v; if (o.axes) window.__pad.axes = o.axes; }, o);
 
+{ // ---- keyboard extras: crouch, lean, the options panel
+  const b = await launch({ w: 1280, h: 720, args: ['--autoplay-policy=no-user-gesture-required'] });
+  const { page, errors } = await open(b, 'w=1280&h=720&start=1&lang=en');
+  const more = () => page.evaluate(() => { const m = window.__mirage; return { height: +m.game.player.height.toFixed(2), lean: +m.game.weapon.S.lean.toFixed(2), paused: m.g.game.paused, panel: !!document.querySelector('.nd-opt'), fov: m.game.weapon.S.fov, eyeY: +m.world.camera.position.y.toFixed(2) }; });
+  const y0 = (await more()).eyeY;
+  await page.keyboard.press('KeyC'); await sleep(500);
+  let s = await more();
+  check('keys', 'C crouches', s.height < 1.1 && s.eyeY < y0 - 0.5, `eye ${y0} -> ${s.eyeY}`);
+  await page.keyboard.press('KeyC'); await page.keyboard.down('KeyX'); await sleep(500);
+  s = await more();
+  check('keys', 'X leans', s.lean > 0.8, `lean ${s.lean}`);
+  await page.keyboard.up('KeyX'); await page.keyboard.press('KeyO'); await sleep(300);
+  s = await more();
+  check('keys', 'O opens the options and pauses', s.panel && s.paused);
+  await page.evaluate(() => { const r = document.querySelector('.nd-opt input[data-k=fov]'); r.value = 80; r.dispatchEvent(new Event('input')); });
+  await page.keyboard.press('KeyO'); await sleep(300);
+  s = await more();
+  check('keys', 'the field of view setting applies, O closes', !s.panel && !s.paused && s.fov === 80, `fov ${s.fov}`);
+  check('keys', 'no console errors', errors.length === 0, errors[0] || '');
+  await b.close();
+}
 { // ---- gamepad
   const b = await launch({ w: 1280, h: 720, args: ['--autoplay-policy=no-user-gesture-required'] });
   const { page, errors } = await open(b, 'w=1280&h=720', { pad: true });
