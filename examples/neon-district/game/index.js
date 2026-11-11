@@ -520,7 +520,9 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
     optionsOpen: () => hud.optionsOpen, onOptions: toggleOptions,
     onChange: (k, v) => { if (k === 'lang') { switchLang(v); return; } if (k === 'difficulty') Object.assign(tune, TUNE[v]); if (k === 'hour') setHour(v); saveRun(); },
     onFrame: () => { play.turn(0, 0, 0); relight(); weapon.holder.visible = false; },
-    onDeploy: (ev) => { enterFull(); begin(); g.ui.begin(ev); } });
+    // the pointer lock is asked for before the full screen: the full screen takes the click's user activation, and a
+    // lock asked for after it in the same click was refused (the mouse did not look until a second click)
+    onDeploy: (ev) => { begin(); g.ui.begin(ev); enterFull(); } });
   onDispose(onLang((l) => { run.lang = l; }));
   /** the run as chosen: the difficulty's health on everyone, the holdout's roof or the mission's spawn */
   function begin() {
@@ -585,7 +587,12 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
       if (menu) menuWatch.observe(menu, { childList: true, subtree: true, attributes: true, attributeFilter: ['open'] });
       if (Q.has('start')) {   // the tests: straight in (main.js starts the overlay); full screen on the first click or tap
         begin();
-        const first = () => { removeEventListener('pointerdown', first, true); enterFull(); };
+        // (the pointer lock first, in the same click: the full screen takes the click's activation, see onDeploy)
+        const first = (e) => {
+          removeEventListener('pointerdown', first, true);
+          if (e.pointerType === 'mouse' && e.target === canvas && !touch && document.pointerLockElement !== canvas) { try { Promise.resolve(canvas.requestPointerLock?.()).catch(() => {}); } catch { /* the next click locks */ } }
+          enterFull();
+        };
         addEventListener('pointerdown', first, true); onDispose(() => removeEventListener('pointerdown', first, true));
       }
       // a tool's still (mirage-snap, the determinism check: ?ui=0): the game waits paused and no title flies the camera
