@@ -165,12 +165,12 @@ basin@12:00, pergola@21:00, gate@17:22: 0 px against the commit before it).
 - **Live.** `world.grade` (the settings; `strength` 0..1 mixes every term from neutral) is read every frame;
   `gradeAt(light, state, settings)` is the pure function behind it (`post.grade` carries the look to the pipeline, so
   a host driving `Pipeline` itself can pass one).
-- **Cost** (Nizwa probe, 1440 x 900, Apple M4 Pro, GPU shared): the grade pass +0.1 ms (0.2 -> 0.3 ms); `clarity`
-  reads the bloom's blur for free, and draws a 1/16-size pass of its own (~0.3 ms) only when the bloom is off. Walking
-  frames, 8 spots x 2 runs interleaved: 10.33 -> 10.43 ms mean, inside the noise.
+- **Cost** (Nizwa probe, 1440 x 900, Apple M4 Pro, GPU shared with other work, so ranges): the grade pass +0.04-0.1 ms
+  (0.14-0.2 ms plain); `clarity` reads the bloom's blur for free, and draws a 1/16-size pass of its own (+0.07-0.3 ms)
+  only when the bloom is off. Walking frames, 8 spots x 2 runs interleaved: 10.33 -> 10.43 ms mean, inside the noise.
 - **Limits.** One set of looks for every view (no per-shot grade). The grade cannot make bounce light or a sky: on the
-  Nizwa probe the golden hour's sunlit plaster now matches Nizwa within a few levels, the shade stays greyer (no bounce)
-  and the dusk sky stays Mirage's.
+  Nizwa probe at 17:00 the sunlit plaster comes within about 0-20 levels of Nizwa's per channel (it was 32-40 levels
+  short in red before), the shade stays greyer (no bounce) and the dusk sky stays Mirage's.
 
 ## Soft sun shadows (opt-in): `softShadows`
 
