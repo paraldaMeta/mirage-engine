@@ -1,0 +1,25 @@
+{
+  "name": "nizwa-probe",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Feasibility probe: Nizwa Fort (from the Nizwa Golden Hour project, read in place) on the Mirage engine. See REPORT.md.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 5291 --strictPort",
+    "build:probe": "vite build",
+    "snap": "node tools/snap.mjs",
+    "bench": "node tools/bench.mjs"
+  },
+  "dependencies": {
+    "@mirage/core": "1.0.0",
+    "@mirage/play": "1.0.0",
+    "@mirage/world": "1.0.0",
+    "three": "0.186.1"
+  },
+  "devDependencies": {
+    "puppeteer-core": "25.13.0",
+    "vite": "8.3.4"
+  },
+  "author": "灰叔 Racso"
+}

@@ -1,0 +1,231 @@
+{
+ "w": 1440,
+ "h": 900,
+ "frames": 240,
+ "rows": [
+  {
+   "engine": "nizwa",
+   "time": "17:00",
+   "spot": "forecourt",
+   "ms": 8.76,
+   "med": 0.4,
+   "p90": 52,
+   "fps": 114,
+   "calls": 93,
+   "mtris": 2.05,
+   "loadS": 11.8
+  },
+  {
+   "engine": "nizwa",
+   "time": "17:00",
+   "spot": "wall",
+   "ms": 6.17,
+   "med": 0.3,
+   "p90": 1.5,
+   "fps": 162,
+   "calls": 91,
+   "mtris": 1.43,
+   "loadS": 11.8
+  },
+  {
+   "engine": "nizwa",
+   "time": "17:00",
+   "spot": "tower foot",
+   "ms": 10.73,
+   "med": 0.5,
+   "p90": 60.8,
+   "fps": 93,
+   "calls": 100,
+   "mtris": 2.18,
+   "loadS": 11.8
+  },
+  {
+   "engine": "nizwa",
+   "time": "17:00",
+   "spot": "far",
+   "ms": 7.41,
+   "med": 0.4,
+   "p90": 9.5,
+   "fps": 135,
+   "calls": 101,
+   "mtris": 1.11,
+   "loadS": 11.8
+  },
+  {
+   "engine": "mirage",
+   "time": "17:00",
+   "spot": "forecourt",
+   "ms": 7.42,
+   "med": 7.5,
+   "p90": 8.6,
+   "fps": 135,
+   "walker": [
+    36,
+    0,
+    40
+   ],
+   "onGround": true,
+   "loadS": 6.8
+  },
+  {
+   "engine": "mirage",
+   "time": "17:00",
+   "spot": "wall",
+   "ms": 5.94,
+   "med": 6.1,
+   "p90": 6.6,
+   "fps": 168,
+   "walker": [
+    20.5,
+    0,
+    21.5
+   ],
+   "onGround": true,
+   "loadS": 6.8
+  },
+  {
+   "engine": "mirage",
+   "time": "17:00",
+   "spot": "tower foot",
+   "ms": 9.28,
+   "med": 9.5,
+   "p90": 9.9,
+   "fps": 108,
+   "walker": [
+    -6,
+    0,
+    30
+   ],
+   "onGround": true,
+   "loadS": 6.8
+  },
+  {
+   "engine": "mirage",
+   "time": "17:00",
+   "spot": "far",
+   "ms": 5.34,
+   "med": 5.2,
+   "p90": 6.2,
+   "fps": 187,
+   "walker": [
+    -18,
+    0,
+    58
+   ],
+   "onGround": true,
+   "loadS": 6.8
+  },
+  {
+   "engine": "nizwa",
+   "time": "21:00",
+   "spot": "forecourt",
+   "ms": 8.28,
+   "med": 0.4,
+   "p90": 10.3,
+   "fps": 121,
+   "calls": 93,
+   "mtris": 1.96,
+   "loadS": 2.2
+  },
+  {
+   "engine": "nizwa",
+   "time": "21:00",
+   "spot": "wall",
+   "ms": 5.64,
+   "med": 0.3,
+   "p90": 1.2,
+   "fps": 177,
+   "calls": 91,
+   "mtris": 1.82,
+   "loadS": 2.2
+  },
+  {
+   "engine": "nizwa",
+   "time": "21:00",
+   "spot": "tower foot",
+   "ms": 10.24,
+   "med": 0.5,
+   "p90": 58.3,
+   "fps": 98,
+   "calls": 100,
+   "mtris": 2.38,
+   "loadS": 2.2
+  },
+  {
+   "engine": "nizwa",
+   "time": "21:00",
+   "spot": "far",
+   "ms": 6.96,
+   "med": 0.4,
+   "p90": 8.9,
+   "fps": 144,
+   "calls": 101,
+   "mtris": 1.11,
+   "loadS": 2.2
+  },
+  {
+   "engine": "mirage",
+   "time": "21:00",
+   "spot": "forecourt",
+   "ms": 7.17,
+   "med": 7.3,
+   "p90": 8.5,
+   "fps": 139,
+   "walker": [
+    36,
+    0,
+    40
+   ],
+   "onGround": true,
+   "loadS": 3.5
+  },
+  {
+   "engine": "mirage",
+   "time": "21:00",
+   "spot": "wall",
+   "ms": 5.6,
+   "med": 5.4,
+   "p90": 6.4,
+   "fps": 179,
+   "walker": [
+    20.5,
+    0,
+    21.5
+   ],
+   "onGround": true,
+   "loadS": 3.5
+  },
+  {
+   "engine": "mirage",
+   "time": "21:00",
+   "spot": "tower foot",
+   "ms": 8.84,
+   "med": 8.7,
+   "p90": 9.8,
+   "fps": 113,
+   "walker": [
+    -6,
+    0,
+    30
+   ],
+   "onGround": true,
+   "loadS": 3.5
+  },
+  {
+   "engine": "mirage",
+   "time": "21:00",
+   "spot": "far",
+   "ms": 5.28,
+   "med": 5.3,
+   "p90": 5.8,
+   "fps": 189,
+   "walker": [
+    -18,
+    0,
+    58
+   ],
+   "onGround": true,
+   "loadS": 3.5
+  }
+ ]
+}
