@@ -162,6 +162,8 @@ world.lampPool.set(lanterns.map((a) => ({ pos: a.flame, range: 6, power: 1.2, no
   wall or a floor between lamp and surface (a room across a lane narrower than `range`, the floor above), round
   corners and piers; a lamp without `normal` leaks every way. Short ranges keep it local.
 - **Captures.** Pool lamps light the environment and probe captures like PointLights do (`captures: false` to skip).
+  A render that shades nothing (an unlit `scene.overrideMaterial`: a clustered light's shadow tile, gi.js's distance
+  cubes) is left alone: the pool bins no lamp for it (`info.skipped` counts them, `info.bins` the binnings).
 - **Real lights found.** The scene's PointLights are looked for again every 30 renders and before every still frame
   (never by the clock); one counts only while it is visible and still in the scene. light2's slot for a pool lamp is
   keyed by its place (or its `id`), so removing another lamp moves no shadow. An XR (array) camera takes the list

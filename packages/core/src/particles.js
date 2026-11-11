@@ -307,11 +307,21 @@ export class ParticlePool {
     this.reset();
   }
   get state() { return this.a; }
-  /** clear every slot and rewind to step 0 (live instances stay and emit again from their start step) */
+  /** clear every slot and rewind to step 0 (live instances stay and emit again from their start step; a live
+   *  looping instance that had started after `step` starts again at `step`, so a rewound clock does not leave it
+   *  silent until the clock reaches its old start) */
   reset(step = 0) {
-    this.U.uReset.value = 1; gpuPass(this.renderer, this.material, this.a); gpuPass(this.renderer, this.material, this.b); this.U.uReset.value = 0;
+    const U = this.U;
+    // the state textures of the last step are still bound as inputs: unbind them, or the clearing passes draw into
+    // textures the program samples (a feedback loop: GL_INVALID_OPERATION in Chrome, the draw is dropped)
+    U.tP.value = U.tV.value = U.tX.value = null;
+    if (this.parent) U.tPP.value = U.tPV.value = U.tPX.value = null;
+    U.uReset.value = 1; gpuPass(this.renderer, this.material, this.a); gpuPass(this.renderer, this.material, this.b); U.uReset.value = 0;
+    for (const s of this.sources) {
+      s.acc = 0;
+      if (this.e.loop && s.emitting && s.stopAt < 0 && s.start > step && s.start <= this.step) s.start = step;
+    }
     this.step = step; this.cursor = 0; this.ring.fill(0);
-    for (const s of this.sources) s.acc = 0;
     for (const c of this.children) c.reset(step);
   }
   /** a live instance of the effect. opts: matrix (Matrix4) or position / quaternion / scale, velocity (Vector3,

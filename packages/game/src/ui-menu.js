@@ -226,9 +226,9 @@ function mountKitUI({ game, input, audio, title = 'Mirage', subtitle = '', slots
       h('ul', { class: 'mk-items' }, each(items, (it, i) => it.id ?? i, (it) => h('li', null, h('b', null, () => it.value.name), h('span', { class: 'mk-muted' }, () => it.value.text || '')))),
       h(Button, { label: kit.tx('ui.close'), glyph: 'cancel', onPress: () => close(), 'data-autofocus': true })], { label: kit.tx('ui.inventory') });
   }
-  function message(head, text, button) {
-    if (life.disposed) return;
-    openModal('msg', (close) => [h('h2', null, head), h('p', null, text), h(Button, { label: button || kit.tx('ui.next'), variant: 'primary', onPress: () => close(), 'data-autofocus': true })], { label: head });
+  function message(head, text, button) {   // resolves when the dialog closes
+    if (life.disposed) return Promise.resolve();
+    return openModal('msg', (close) => [h('h2', null, head), h('p', null, text), h(Button, { label: button || kit.tx('ui.next'), variant: 'primary', onPress: () => close(), 'data-autofocus': true })], { label: head }).closed.then(() => {});
   }
   const toast = (s, ms = 2200) => { toasts(kit).push({ text: s, duration: ms / 1000 }); };
   const objective = (head, text) => { obj.value = { head, text }; };

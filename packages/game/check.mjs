@@ -113,6 +113,14 @@ run(w, 0.5, {});
 w.place([0, 0, -4]); run(w, 3, { z: -1 });
 ok(cb.pos[2] < -6.3, `pushes a crate (z ${cb.pos[2].toFixed(2)})`);
 ok(phys.ray([0, 5, 10], [0, -1, 0], 10)?.distance > 4.9, 'ray down hits the floor');
+{
+  // the hit's surface normal: the floor's top faces up, the wall along z = 3 (0.4 m thick) faces the ray from either side
+  const near = (n, e) => n && n.length === 3 && n.every((v, k) => Math.abs(v - e[k]) < 1e-4);
+  const down = phys.ray([0, 5, 10], [0, -1, 0], 10), front = phys.ray([-5, 1, 0], [0, 0, 1], 10), back = phys.ray([-5, 1, 6], [0, 0, -1], 10);
+  const slant = phys.ray([-5, 1, 0], [0.6, 0, 0.8], 10);
+  ok(near(down?.normal, [0, 1, 0]) && near(front?.normal, [0, 0, -1]) && near(back?.normal, [0, 0, 1]) && near(slant?.normal, [0, 0, -1]),
+    `ray returns the surface normal (${[down, front, back, slant].map((h) => JSON.stringify(h?.normal?.map((v) => +v.toFixed(3)))).join(' ')})`);
+}
 
 // ---- small risers (B16): 5-13 cm, alone or behind a 17 cm step, square / bevelled / one merged mesh, straight
 // and at 22 degrees, at 60 / 20 / 10 fps and on fast displays (120 / 144 / 240 fps: a step of a few millimetres
@@ -255,6 +263,23 @@ ok(input.pressed('jump') && !input.down('jump'), 'short keyboard tap survives un
   } catch (error) { failure = error; }
   ok(failure === reason && order.join() === '2,1', 'startup error preserved and setup cleanup ran once in reverse');
   ok(!ctx.root.parent && ctx.audio.ctx === null && !ctx.input.enabled && await capture === null, 'failed startup detached root, audio and input');
+}
+// startGame hands animate, fov and maxFps to createPlay (a game kept its scene clock still and its lens at 62°)
+{
+  const { registerHooks } = await import('node:module');
+  const stop = new Error('stub play'), stub = 'data:text/javascript,export const createPlay = (w, o) => globalThis.__stubPlay(w, o);';
+  let seen = null;
+  globalThis.__stubPlay = (w, o) => { seen = o; throw stop; };
+  const hooks = registerHooks({ resolve: (spec, context, next) => spec === '@miragekit/play' && context.parentURL?.endsWith('?stub-play') ? { url: stub, shortCircuit: true } : next(spec, context) });
+  try {
+    const { startGame: start } = await import('./src/start.js?stub-play');
+    const host = { scene: new THREE.Scene(), camera: new THREE.PerspectiveCamera(), prepare: async () => {} };
+    const plan = { name: 'lens', spawn: { eye: [0, 1.7, 0], look: [0, 1.7, -1] } };
+    let failure = null;
+    try { await start(host, { canvas: {}, ui: false, built: { plan, anchors: {} }, animate: true, fov: 75, maxFps: 120 }); } catch (e) { failure = e; }
+    ok(failure === stop && seen?.animate === true && seen.fov === 75 && seen.maxFps === 120,
+      `startGame forwards animate, fov and maxFps to createPlay (${seen ? JSON.stringify({ animate: seen.animate, fov: seen.fov, maxFps: seen.maxFps }) : failure?.message})`);
+  } finally { hooks.deregister(); delete globalThis.__stubPlay; }
 }
 const capture = input.capture();
 input.dispose(); input.dispose();

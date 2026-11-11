@@ -13,7 +13,7 @@ export interface GameSetup<P extends PlanInput = PlanInput> {
   game: Game; physics: Physics; audio: AudioMixer; input: Input; root: THREE.Group;
   plan: DefinedPlan<P> & { spawn: Viewpoint }; anchors: AnchorTable; world: WorldRenderer;
 }
-export type StartGameOptions<P extends PlanInput> = Pick<PlayOptions<PhysicsCharacter>, 'canvas' | 'spp' | 'shadowRadius' | 'grid' | 'fit' | 'quality' | 'hud' | 'idle' | 'appearance' | 'onQuality'> & {
+export type StartGameOptions<P extends PlanInput> = Pick<PlayOptions<PhysicsCharacter>, 'canvas' | 'spp' | 'shadowRadius' | 'grid' | 'fit' | 'quality' | 'hud' | 'idle' | 'appearance' | 'onQuality' | 'animate' | 'fov' | 'maxFps'> & {
   /** Unlike createPlay, startGame requires an explicit spawn. */
   built: BuildResult<P> & { plan: { spawn: Viewpoint } };
   id?: string; version?: number; migrate?: Migrations;

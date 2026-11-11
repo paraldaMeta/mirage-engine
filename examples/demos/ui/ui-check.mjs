@@ -10,7 +10,8 @@
 //   perf      layouts and style recalculations per frame with the HUD idle and moving (Chrome's own counters), and
 //             the frame's cost with the HUD on, hidden and absent (?hud=0), interleaved
 //   menu      (only when named: --only menu; needs examples/snow-hut/dist) createKitUI as startGame's overlay on
-//             snow-hut ?ui=kit: start screen, HUD, pause menu and its tabs, a message, with the keyboard
+//             snow-hut ?ui=kit: start screen, HUD, pause menu and its tabs, a message, with the keyboard; then
+//             createUI's message() on snow-hut ?start=1 (both resolve message()'s promise when the dialog closes)
 // Exit 1 if a step fails or a page logs an error.
 /* global __ui, __mirage, __pad */   // page globals, used inside page.evaluate()
 import { build } from 'vite';
@@ -353,13 +354,31 @@ if (ONLY.includes('menu')) {
     ok(tabs.map((x) => x[0]).join() === 'Controls,Audio,Display' && tabs.every((x) => x[1] > 20), `E walks the tabs (${tabs.map((x) => x[0]).join(', ')})`);
     await page.keyboard.press('Escape');
     ok(await until(() => !__mirage.g.ui.open && !__mirage.g.game.paused && __mirage.g.input.enabled), 'Escape resumes; the keys are the game\'s again');
-    await ev(() => __mirage.g.ui.message('A note', 'Pinned to the door.', 'Close'));
+    await ev(() => { const p = __mirage.g.ui.message('A note', 'Pinned to the door.', 'Close'); window.__msg = p instanceof Promise ? 'open' : 'no promise'; p?.then?.(() => { window.__msg = 'closed'; }); });
     ok(await until(() => __mirage.g.ui.open && /Pinned to the door/.test(document.querySelector('[role=dialog]').textContent)), 'message() opens a dialog');
+    await sleep(200);
+    ok(await ev(() => window.__msg) === 'open', 'message() returns a promise, pending while the dialog is open');
     await page.keyboard.press('Enter');
     ok(await until(() => !__mirage.g.ui.open && !__mirage.g.game.paused), 'Enter closes it');
+    ok(await until(() => window.__msg === 'closed'), "and message()'s promise resolves");
     await page.screenshot({ path: path.join(here, 'out/menu-end.png') });
     ok(errors.length === 0, `menu: no page errors${errors.length ? ' (' + errors.slice(0, 3).join(' | ') + ')' : ''}`);
-    await page.close(); hs.close();
+    await page.close();
+    // createUI (the default overlay): the same promise, resolved by the dialog's button
+    const plain = await browser.newPage(), errs = [];
+    plain.on('console', (m) => { if (m.type() === 'error') errs.push(m.text()); });
+    plain.on('pageerror', (e) => errs.push('pageerror: ' + e.message));
+    await plain.goto(hs.url + '?start=1&spp=2', { waitUntil: 'load' });
+    await plain.waitForFunction('window.__READY === true', { timeout: 120000 });
+    const pev = (f, ...a) => plain.evaluate(f, ...a), puntil = (f, ms = 4000) => plain.waitForFunction(f, { timeout: ms, polling: 50 }).then(() => true, () => false);
+    await pev(() => { const p = __mirage.g.ui.message('A note', 'Pinned to the door.', 'Close'); window.__msg = p instanceof Promise ? 'open' : 'no promise'; p?.then?.(() => { window.__msg = 'closed'; }); });
+    ok(await puntil(() => document.querySelector('.mg-msg').open && __mirage.g.game.paused), 'createUI: message() opens its dialog and pauses');
+    await sleep(200);
+    ok(await pev(() => window.__msg) === 'open', 'createUI: message() returns a promise, pending while the dialog is open');
+    await pev(() => document.querySelector('.mg-msg button').click());
+    ok(await puntil(() => window.__msg === 'closed' && !document.querySelector('.mg-msg').open && !__mirage.g.game.paused), "createUI: the button closes it and message()'s promise resolves");
+    ok(errs.length === 0, `menu (createUI): no page errors${errs.length ? ' (' + errs.slice(0, 3).join(' | ') + ')' : ''}`);
+    await plain.close(); hs.close();
   }
 }
 

@@ -25,7 +25,11 @@ export interface Hinge<O extends THREE.Object3D = THREE.Object3D> {
   base: THREE.Quaternion; offset: THREE.Vector3; readonly isOpen: boolean;
   open(): void; close(): void; toggle(): void; set(open: boolean): void;
 }
-export interface RayHit { point: [number, number, number]; distance: number; surface: string; object: THREE.Object3D | undefined }
+export interface RayHit {
+  point: [number, number, number]; distance: number; surface: string; object: THREE.Object3D | undefined;
+  /** The surface normal at the hit point, unit length (zero when the ray starts inside a solid shape). */
+  normal: [number, number, number];
+}
 export interface Physics {
   dispose(): void;
   R: RapierAPI; world: World; stats: { colliders: number; triangles: number; buildMs: number };

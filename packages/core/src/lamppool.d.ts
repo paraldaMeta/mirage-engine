@@ -59,6 +59,10 @@ export interface LampPoolInfo {
   /** 0 off (day, no lamp), 1 one list (orthographic camera), 2 clustered. */
   mode: number;
   rows: number; renders: number;
+  /** Binnings so far (a perspective camera's cells re-listed: it moved, or the active lamps changed). */
+  bins: number;
+  /** Renders the pool left alone because they shade nothing: an unlit `scene.overrideMaterial` (shadow tiles, distance cubes). */
+  skipped: number;
 }
 export interface LampPool {
   cfg: LampPoolSettings;

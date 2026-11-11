@@ -274,7 +274,7 @@ Gaussian splats, `@miragekit/world/kits/splat` (opt-in subpath, world README "Ga
 | `createInput({ target, bindings, deadzone })` | stable | the action map over keyboard, mouse, gamepad and touch |
 | `DEFAULT_BINDINGS` | stable | default keys per action |
 | `ACTIONS` | stable | the action names |
-| `createAudio({ volumes })` | stable | Web Audio buses and the procedural sounds |
+| `createAudio({ volumes })` | stable | Web Audio buses and the procedural sounds; `add(name, sound)` for your own (a buffer, variants, or a factory of the context), before or after `unlock()` |
 | `SURFACES` | stable | footstep surfaces: `stone`, `gravel`, `grass`, `wood` |
 | `createUI(opts)` | experimental | the HTML overlay (HUD, menus, touch controls) |
 | `PAD` | experimental | default gamepad buttons per action |

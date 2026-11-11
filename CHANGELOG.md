@@ -48,8 +48,29 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
   to the base, with and without 3 boxes, with and without light2). light2's volumetric dust reads the grid too.
   @miragekit/world validates `tint`. The Nizwa probe's bridge passes every box with its tint and maps Nizwa's
   two-sided ramp onto Mirage's (box shrunk by soft, ramp doubled).
+- @miragekit/game: `startGame` passes `animate`, `fov` and `maxFps` on to `createPlay` (a game could not keep the
+  scene clock running while the player stands still, nor set its field of view).
+- @miragekit/game: `physics.ray(from, dir, max, exclude)` also returns `normal: [x, y, z]`, the surface's unit normal
+  at the hit (Rapier's `castRayAndGetNormal`).
+- @miragekit/game: `ui.message(title, body, button)` returns a promise that resolves when the dialog closes (also
+  when another dialog or message replaces it, or the overlay is disposed), in `createUI` and `createKitUI`; calls
+  that ignore it work as before.
+- @miragekit/game: `audio.add(name, sound)`: a sound of your own for `play` / `loop` (an `AudioBuffer`, a list of
+  variants, or a factory `(ctx) => buffer | buffers`). Added before the first user gesture, the factory runs at
+  `unlock()`; afterwards at once. Returns the mixer.
 
 **Fixes**
+- @miragekit/core vfx: when the scene clock goes back (`play.place()` sets it to 0), a particle pool's reset no longer
+  draws into the state textures its pass still has bound (Chrome: "Feedback loop formed between Framebuffer and
+  active Texture", 122 warnings in the new `vfx-check.mjs` case), a pool made after the clock had run no longer
+  lags behind the rewound clock (it reset every frame and stayed empty), and a live looping instance that started
+  after the rewound step emits again from that step instead of staying silent until the clock reaches its old start.
+  Runs without a rewind are bit-identical (vfx-check's state hash unchanged).
+- @miragekit/core lamp pool: renders that shade nothing (an unlit `scene.overrideMaterial`: a clustered light's
+  shadow tile, six cube faces; gi.js's distance cubes) no longer bin every pool lamp again per face. Environment and
+  probe captures are shaded as before. `lampPool.info` gains `bins` and `skipped`. Node, 163 lamps, the pool's CPU
+  work over one tile redraw and the view: 0.79 ms -> 0.008 ms (median of 9 interleaved rounds; ranges
+  0.77-1.45 / 0.005-0.13 ms), plus the index texture's upload for each face it used to re-bin.
 - `mirage-package` (single-file builds) no longer inlines three's default Draco and Basis decoder files (~2.5 MB),
   which three's DRACOLoader and KTX2Loader name at module top level; Mirage's `createAssets` always sets its own
   decoder paths. hello-courtyard 5.32 -> 2.79 MB, walled-garden -> 2.83 MB (the site's 5 MB budget had stopped the
