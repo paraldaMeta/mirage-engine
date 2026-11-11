@@ -6,6 +6,10 @@
 import * as THREE from 'three';
 import { materials } from './materials.js';
 import { lamp, slab, decor } from './lib.js';
+import { propKit } from './props-kit.js';
+import { beacon, tubeFixture, floodlight } from './props-lights.js';
+import { crate } from './props-street.js';
+import { detail } from './kit.js';
 
 export default {
   name: 'relay',
@@ -13,7 +17,9 @@ export default {
     const { geom, root, plan } = ctx, M = materials(ctx), P = plan.relay, F = plan.levels.floor;
     const [x0, z0, x1, z1] = P.rect, T = P.wall, H = P.height, RF = P.roof, PT = RF + P.parapet;
     const S = P.stair, [s0, t0, s1, t1] = S.rect, TOP = S.top, part = P.room[2];          // part: the partition's west face
-    const b = new geom.MeshBatch(), fx = new geom.MeshBatch();
+    const b = new geom.MeshBatch(), fx = new geom.MeshBatch(), PK = propKit(ctx), pb = new geom.MeshBatch(), D = detail(ctx);
+    const at = (p, r = [0, 0, 0], s = 1) => geom.compose(p, r, s), leds = [];
+    const box = (size, pos) => { const c = new THREE.Mesh(new THREE.BoxGeometry(...size)); c.position.set(...pos); ctx.collider(c); };
 
     // ---- the shell
     slab(b, M.concrete, [x0, z0, part, z0 + T], 0, PT);                                   // north wall (room part)
@@ -58,27 +64,50 @@ export default {
     for (const z of [-27.6, -24.6]) for (let x = x0 + T + 1.6; x < part - 4.2; x += 0.95) {
       if (z > -26 && Math.abs(x - P.door.x) < 1.6) continue;
       slab(b, M.rack, [x - 0.42, z - 0.5, x + 0.42, z + 0.5], F, F + 2.3, 0.02);
-      b.box(z < -26 ? M.screenCyan : (Math.round(x * 3) % 4 === 0 ? M.screenAmber : M.screenCyan), [0.7, 1.9, 0.03], [x, F + 1.2, z + 0.515]);
+      // the front: a door frame with rack rails, drive sleds (printed), two handles, a status screen, LEDs (instanced, blinking)
+      box([0.7, 1.9, 0.03], [x, F + 1.2, z + 0.515]);   // the old face's volume
+      PK.put(pb, new THREE.PlaneGeometry(0.66, 1.5), PK.mats.paint, at([x, F + 1.05, z + 0.505]), [1.1, 1.1, 1.15], PK.R.drives);
+      PK.put(pb, new THREE.PlaneGeometry(0.26, 0.12), Math.round(x * 3) % 4 === 0 ? M.screenAmber : M.screenCyan, at([x - 0.15, F + 1.98, z + 0.506]));
+      for (const sx of [-1, 1]) {
+        PK.put(pb, new THREE.BoxGeometry(0.05, 2.2, 0.03), PK.mats.metal, at([x + sx * 0.37, F + 1.15, z + 0.51]), [0.12, 0.12, 0.13]);
+        PK.put(pb, new THREE.BoxGeometry(0.02, 0.22, 0.03), PK.mats.metal, at([x + sx * 0.3, F + 1.15, z + 0.53]), [0.5, 0.5, 0.52]);
+      }
+      PK.put(pb, new THREE.PlaneGeometry(0.62, 0.1), PK.mats.paint, at([x, F + 0.2, z + 0.505]), [1, 1, 1], PK.R.vent);
+      for (let r = 0; r < 8; r++) for (let c = 0; c < 4; c++) if ((r * 4 + c + Math.round(x * 7)) % 3 !== 0) leds.push(at([x - 0.33 + 0.165 * (c + 0.5) + 0.05, F + 1.05 - 0.75 + 1.5 * (r + 0.5) / 8 + 0.04, z + 0.507]));
+      // a loom of cables from its top up into the tray
+      for (let k = 0; k < (D > 0.6 ? 3 : 1); k++) { const ox = -0.2 + k * 0.2; PK.put(pb, geom.taperedTube([[x + ox, F + 2.3, z - 0.2], [x + ox, F + 2.6, z - 0.15 + k * 0.05], [x + ox * 0.5, H - 0.42, z + 0.05 * k]], [0.018, 0.02, 0.02], { radial: 4, segments: 6 }), PK.mats.paint, null, [[0.02, 0.02, 0.02], [0.02, 0.06, 0.15], [0.12, 0.08, 0.01]][k]); }
       racks.push([x, z]);
     }
     for (const z of [-27.6, -24.6]) fx.box(M.darkMetal, [part - x0 - 4, 0.08, 0.5], [(x0 + part) / 2 - 0.6, H - 0.4, z]);         // trays
     for (const z of [-26.1, -22.9]) fx.box(M.neon.cyan, [part - x0 - 3, 0.012, 0.05], [(x0 + part) / 2 - 0.4, F + 0.008, z]);     // floor strips
     slab(b, M.rack, [part - 3.4, -29.2, part - 0.5, -28.4], F, F + 0.95, 0.03);                                                   // the desk
     b.add(new THREE.BoxGeometry(2.4, 0.9, 0.04).rotateX(-0.25), M.screenPink, geom.compose([part - 1.95, F + 1.5, -29.15]));
-    for (const [x, z, s] of [[x0 + 1.2, -21.4, 0.8], [x0 + 1.25, -22.3, 0.6], [part - 0.9, -24.2, 0.8]]) b.box(M.crate, [s, s, s], [x, F + s / 2, z], [0, 0.2, 0], 0.03);
+    // the desk's top: two keyboards with keys, a trackball, a mug, a stack of papers; a chair
+    for (const dx of [-0.75, 0.55]) { PK.put(pb, new geom.RoundedBoxGeometry(0.5, 0.025, 0.18, 1, 0.008), PK.mats.paint, at([part - 1.95 + dx, F + 0.965, -28.65], [0.06, 0, 0]), [0.03, 0.032, 0.036]); PK.put(pb, new THREE.PlaneGeometry(0.46, 0.15).rotateX(-Math.PI / 2 + 0.06), PK.mats.glow, at([part - 1.95 + dx, F + 0.979, -28.65]), [0.5, 0.65, 0.8], PK.R.keys); }
+    PK.put(pb, new THREE.SphereGeometry(0.03, 10, 8), PK.mats.metal, at([part - 1.0, F + 0.97, -28.65]), [0.1, 0.4, 0.6]);
+    PK.put(pb, new THREE.CylinderGeometry(0.04, 0.036, 0.1, 12), PK.mats.paint, at([part - 3.0, F + 1.0, -28.7]), [0.8, 0.78, 0.7]);
+    for (let i = 0; i < 6; i++) PK.put(pb, new THREE.BoxGeometry(0.21, 0.004, 0.3), PK.mats.paint, at([part - 2.6, F + 0.955 + i * 0.005, -28.75], [0, i * 0.08, 0]), [0.85, 0.85, 0.8]);
+    PK.put(pb, new geom.RoundedBoxGeometry(0.5, 0.08, 0.5, 2, 0.03), PK.mats.paint, at([part - 1.9, F + 0.5, -27.9]), [0.05, 0.05, 0.06]);
+    PK.put(pb, new geom.RoundedBoxGeometry(0.48, 0.55, 0.07, 2, 0.03), PK.mats.paint, at([part - 1.9, F + 0.85, -27.62], [-0.15, 0, 0]), [0.05, 0.05, 0.06]);
+    PK.put(pb, new THREE.CylinderGeometry(0.03, 0.03, 0.42, 8), PK.mats.metal, at([part - 1.9, F + 0.25, -27.9]), [0.3, 0.3, 0.32]);
+    for (let i = 0; i < 5; i++) { const a = i * 1.2566; PK.put(pb, new THREE.BoxGeometry(0.3, 0.03, 0.04), PK.mats.metal, at([part - 1.9 + Math.cos(a) * 0.15, F + 0.05, -27.9 + Math.sin(a) * 0.15], [0, -a, 0]), [0.2, 0.2, 0.22]); }
+    // perforated tiles in the aisles (the raised floor's cold air)
+    for (let x = x0 + T + 2.0; x < part - 4.5; x += 2.4) PK.put(pb, new THREE.PlaneGeometry(0.58, 0.58).rotateX(-Math.PI / 2), PK.mats.paint, at([x, F + 0.003, -26.1]), [0.6, 0.62, 0.66], PK.R.vent);
+    for (const [x, z, s] of [[x0 + 1.2, -21.4, 0.8], [x0 + 1.25, -22.3, 0.6], [part - 0.9, -24.2, 0.8]]) { crate(PK, pb, geom, at([x, F, z], [0, 0.2, 0], [1 / 1.2, 1, 1]), s, [0.1, 0.13, 0.11], 0); const c = new THREE.Mesh(new THREE.BoxGeometry(s, s, s)); c.applyMatrix4(at([x, F + s / 2, z], [0, 0.2, 0])); ctx.collider(c); }
     const strobe = lamp(ctx, { indoor: true, live: true, pos: [P.door.x, H - 0.45, z1 - T - 0.5], color: 0xff1808, intensity: 3, range: 7 });
-    fx.cylinder(M.neon.red, 0.09, 0.09, 0.12, [P.door.x, H - 0.3, z1 - T - 0.2], [0, 0, 0], 12);
+    beacon(PK, pb, geom, [P.door.x, H - 0.4, z1 - T - 0.2], [1, 0.08, 0.04], 4, 0.07);
+    PK.put(pb, new THREE.BoxGeometry(0.04, 0.3, 0.04), PK.mats.metal, at([P.door.x, H - 0.25, z1 - T - 0.2]), [0.1, 0.1, 0.11]);
     for (const [x, z, sh] of [[x0 + 4, -23.6, true], [x0 + 10, -26.2, false], [part - 3, -23.4, false]]) {
-      fx.box(M.neon.cyan, [1.6, 0.03, 0.12], [x, H - 0.12, z]);
+      tubeFixture(PK, pb, geom, at([x, H - 0.3, z]), 1.6, M.NEON.cyan, 4, 0.18);
       lamp(ctx, { indoor: true, pos: [x, H - 0.5, z], color: 0x8fdcff, intensity: 3.2, range: 8, shadow: sh });
     }
 
     // ---- stairwell lights: one over each landing
-    fx.box(M.neon.white, [0.9, 0.03, 0.1], [(s0 + s1) / 2, mid + 2.6, t0 + 0.3]);
+    tubeFixture(PK, pb, geom, at([(s0 + s1) / 2, mid + 2.58, t0 + 0.3]), 0.9, M.NEON.white, 5);
     const lampA = lamp(ctx, { indoor: true, live: true, pos: [(s0 + s1) / 2, mid + 2.3, t0 + 0.7], color: 0xcfe6ff, intensity: 5, range: 8, shadow: true });
-    fx.box(M.neon.amber, [0.9, 0.03, 0.1], [(s0 + s1) / 2, TOP - 0.05, t1 - 0.4]);
+    tubeFixture(PK, pb, geom, at([(s0 + s1) / 2, TOP - 0.06, t1 - 0.4]), 0.9, M.NEON.amber, 5);
     lamp(ctx, { indoor: true, pos: [(s0 + s1) / 2, TOP - 0.5, t1 - 0.8], color: 0xffa040, intensity: 4.5, range: 8 });
-    fx.box(M.neon.white, [0.7, 0.03, 0.1], [s0 + 1.25, RF - 0.23, t1 - 0.5]);
+    tubeFixture(PK, pb, geom, at([s0 + 1.25, RF - 0.25, t1 - 0.5]), 0.7, M.NEON.white, 5);
     lamp(ctx, { indoor: true, pos: [s0 + 1.25, 3.0, t1 - 0.8], color: 0xcfe6ff, intensity: 11, range: 9 });
     fx.box(M.neon.cyan, [0.03, 0.04, t1 - S.foot - 0.3], [s1 - 0.02, F + 1.0, (t1 + S.foot) / 2]);
     lamp(ctx, { indoor: true, pos: [s1 - 0.6, F + 1.2, (t1 + S.foot) / 2], color: 0x30d8ff, intensity: 4, range: 6 });
@@ -110,11 +139,24 @@ export default {
     lamp(ctx, { pos: [ux, uy + 1.5, uz + 0.9], color: 0x40d8ff, intensity: 4, range: 7 });
     for (const [x, z] of [[x0 + 6, z1 - 1.6], [part - 2.4, z0 + 2.6]]) {   // two work lights on short posts
       b.cylinder(M.darkMetal, 0.04, 0.05, 2.2, [x, RF + 1.1, z], [0, 0, 0], 8);
-      fx.box(M.neon.amber, [0.3, 0.12, 0.12], [x, RF + 2.25, z]);
+      floodlight(PK, pb, geom, at([x, RF + 2.3, z], [0, Math.atan2(18 - x, -24 - z), 0]), [1.0, 0.62, 0.25], 6, 0.5);
       lamp(ctx, { pos: [x, RF + 2.1, z], color: 0xffa040, intensity: 6, range: 12, shadow: x < 15, vol: true });
     }
     root.add(b.finish({ name: 'relay' }));
-    root.add(decor(fx.finish({ name: 'relay-decor', castShadow: false })));
+    if (leds.length) {   // rack LEDs: one instanced mesh, each blinking on its own rhythm (the scene clock)
+      const ledMat = ctx.mat.patch(new THREE.MeshBasicMaterial({ color: 0xffffff }), {
+        vertexDecl: 'varying float ndBlink; varying vec3 ndLedC;',
+        vertexWorld: `#ifdef USE_INSTANCING
+          vec3 ip = vec3(instanceMatrix[3]); float h = fract(sin(dot(ip, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+          ndBlink = step(0.35, fract(uTime * (0.4 + 3.0 * h) + h * 7.0)); ndLedC = h < 0.7 ? vec3(0.2, 1.0, 0.4) : h < 0.9 ? vec3(0.2, 0.7, 1.0) : vec3(1.0, 0.6, 0.1);
+        #endif`,
+        fragmentDecl: 'varying float ndBlink; varying vec3 ndLedC;',
+        output: 'outgoingLight = ndLedC * (0.4 + 5.0 * ndBlink) * max(uLampGain, 0.5);',
+      });
+      const lm = geom.instances(new THREE.BoxGeometry(0.008, 0.008, 0.004), ledMat, leds, { castShadow: false, receiveShadow: false });
+      lm.name = 'rack-leds'; root.add(decor(lm));
+    }
+    root.add(decor(fx.finish({ name: 'relay-decor', castShadow: false })), decor(pb.finish({ name: 'relay-props', castShadow: false })));
     return { strobe, lampA, mast: [mast[0], RF + mh + 0.12, mast[1]], racks };
   },
   anchors: (ctx, built) => {

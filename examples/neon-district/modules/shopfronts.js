@@ -10,6 +10,8 @@ import * as THREE from 'three';
 import { lamp } from './lib.js';
 import { materials } from './materials.js';
 import { corrugated, canopy, worn, interiorMaterial, textAtlas, atlasQuad, signRects, inFrontOfSign } from './kit.js';
+import { propKit } from './props-kit.js';
+import { acUnit } from './props-street.js';
 
 const NAMES = [
   ['珍寶電器', 'DENKI'], ['金魚茶室'], ['喫茶 夜', 'KISSA'], ['24H 便利', 'コンビニ'], ['鍵匠 LOCKS'], ['眼鏡 OPTIC'], ['涼茶舖'],
@@ -22,6 +24,7 @@ export function shopFronts(ctx, fx, shops) {
   const { geom, root, plan, mat, R } = ctx, M = materials(ctx), K = plan.levels.kerb, Q = R.fork('shopfronts');
   const signsOnWalls = signRects(plan), clinicAt = plan.shopfronts?.clinic;
   const W = 2.92, H = 2.45;
+  const P = propKit(ctx), pb = new geom.MeshBatch();   // close-up props (props-*.js): AC units, the doors' wired glass
   // ---- materials (shared by every bay)
   const shutterMats = ['vec3(0.36, 0.37, 0.39)', 'vec3(0.42, 0.1, 0.07)', 'vec3(0.08, 0.3, 0.3)', 'vec3(0.5, 0.36, 0.08)', 'vec3(0.24, 0.27, 0.33)']
     .map((c, i) => mat.std({ roughness: 0.5, metalness: 0.55, side: THREE.DoubleSide }, worn(c, { rows: 0.38, chip: [0.45, 0.7, 0.55, 0.6, 0.4][i], rust: [0.5, 0.8, 0.6, 0.7, 0.45][i] })));
@@ -74,7 +77,10 @@ export function shopFronts(ctx, fx, shops) {
     } else {
       fx.add(new THREE.BoxGeometry(W, 2.75, 0.04), frameMat, at([0, 1.4, 0.01]));
       b.add(new geom.RoundedBoxGeometry(1.1, 2.3, 0.08, 2, 0.02), darkGlass, at([0.5, 1.15, 0.04]));
-      fx.add(new THREE.BoxGeometry(0.5, 0.35, 0.02), M.neonSoft.warm, at([0.5, 1.75, 0.09]));
+      P.put(pb, new THREE.PlaneGeometry(0.46, 0.31), P.mats.glow, at([0.5, 1.75, 0.085]), [1.0, 0.72, 0.42]);   // the door's wired glass, lit from inside
+      P.put(pb, new geom.RoundedBoxGeometry(0.52, 0.37, 0.02, 1, 0.006), P.mats.metal, at([0.5, 1.75, 0.075]), [0.08, 0.08, 0.085]);
+      for (let k = 1; k < 5; k++) P.put(pb, new THREE.BoxGeometry(0.004, 0.31, 0.004), P.mats.metal, at([0.5 - 0.23 + k * 0.092, 1.75, 0.088]), [0.3, 0.3, 0.3]);
+      for (let k = 1; k < 4; k++) P.put(pb, new THREE.BoxGeometry(0.46, 0.004, 0.004), P.mats.metal, at([0.5, 1.75 - 0.155 + k * 0.0775, 0.088]), [0.3, 0.3, 0.3]);
       fx.add(new THREE.BoxGeometry(1.2, 0.04, 0.05), M.neon[Q.pick(['cyan', 'amber', 'pink', 'white'])], at([0.5, 2.38, 0.1]));
       fx.add(new geom.RoundedBoxGeometry(0.16, 0.24, 0.05, 2, 0.015), M.steel, at([-0.3, 1.35, 0.04]));   // an intercom
     }
@@ -91,12 +97,13 @@ export function shopFronts(ctx, fx, shops) {
       for (const s of [-1, 1]) fx.add(new THREE.CylinderGeometry(0.012, 0.012, Math.hypot(d, 0.6), 5), M.darkMetal, at([s * 1.55, 2.86 + 0.08, 0.27 + d / 2], [Math.atan2(d, 0.6), 0, 0]));
     }
     // wall plant above: an AC unit, a conduit (not in front of a sign)
-    if (Q.chance(0.6)) { const ax = cx + Q.range(-1.4, 1.4), ay = K + Q.range(3.6, 4.0); fx.add(new geom.RoundedBoxGeometry(0.9, 0.6, 0.42, 2, 0.03), M.sheet, geom.compose([ax, ay, z + out * 0.21])); fx.cylinder(M.blackMetal, 0.2, 0.2, 0.03, [ax, ay, z + out * 0.43], [Math.PI / 2, 0, 0], 16); }
+    if (Q.chance(0.6)) { const ax = cx + Q.range(-1.4, 1.4), ay = K + Q.range(3.6, 4.0); acUnit(P, pb, geom, geom.compose([ax, ay, z - out * 0.04], [0, yaw, 0]), [0.55, 0.56, 0.54]); }
     const px = x + Q.range(0.1, 0.5);
     if (!inFrontOfSign(signsOnWalls, { plane: z, nx: 0, nz: out, along: px, y0: K, y1: K + 9 })) fx.cylinder(M.darkMetal, 0.045, 0.045, 9, [px, K + 4.5, z + out * 0.07], [0, 0, 0], 8);
   }
   const s = signs.finish({ name: 'shop-names', castShadow: false }), gl = glass.finish({ name: 'shop-glass', castShadow: false }), ins = insides.finish({ name: 'shop-interiors', castShadow: false });
   for (const o of [s, gl, ins]) o.traverse((c) => { c.userData.collide = false; c.receiveShadow = false; });
   root.add(s, gl, ins, b.finish({ name: 'shopfronts', castShadow: false }));
+  const pr = pb.finish({ name: 'shop-props', castShadow: false }); pr.traverse((c) => { c.userData.collide = false; }); root.add(pr);
   return { open };
 }

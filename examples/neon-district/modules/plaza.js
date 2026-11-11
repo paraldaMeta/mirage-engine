@@ -4,13 +4,14 @@
 import * as THREE from 'three';
 import { materials, holoMaterial } from './materials.js';
 import { lamp, decor } from './lib.js';
+import { propKit } from './props-kit.js';
 
 export default {
   name: 'plaza',
   build(ctx) {
     const { geom, root, plan } = ctx, M = materials(ctx), K = plan.levels.kerb;
     const [mx, mz] = plan.plaza.monument, R0 = plan.plaza.plinth;
-    const b = new geom.MeshBatch(), fx = new geom.MeshBatch();
+    const b = new geom.MeshBatch(), fx = new geom.MeshBatch(), P = propKit(ctx), pb = new geom.MeshBatch();
     // the plinth: two steps and a dark drum with a projector ring
     b.cylinder(M.concrete, R0 + 0.7, R0 + 0.7, 0.22, [mx, K + 0.11, mz], [0, 0, 0], 48);
     b.cylinder(M.blackMetal, R0, R0 + 0.1, 0.5, [mx, K + 0.47, mz], [0, 0, 0], 48);
@@ -35,6 +36,7 @@ export default {
     for (const [x, z, rot] of [[14.2, -3.2, 0], [21.8, -3.2, 0], [13.5, -17.6, 0], [22.6, -17.8, 0]]) {
       b.box(M.concrete, [2.2, 0.42, 0.6], [x, K + 0.21, z], [0, rot, 0], 0.04);
       fx.box(M.neon.violet, [2.0, 0.02, 0.02], [x, K + 0.06, z + 0.31], [0, rot, 0]);
+      for (let i = 0; i < 4; i++) P.put(pb, new geom.RoundedBoxGeometry(2.1, 0.035, 0.12, 1, 0.012), P.mats.paint, geom.compose([x, K + 0.44, z - 0.2 + i * 0.135], [0, rot, 0]), [0.3, 0.17, 0.08]);   // the seat's slats
     }
     // advertising pylons: four live faces each
     for (const [x, z, mat, col] of [[8.2, -18.2, M.screenPink, 0xff3090], [27.8, -1.4, M.screenCyan, 0x30d0ff]]) {
@@ -43,7 +45,7 @@ export default {
       lamp(ctx, { pos: [x + (x < 18 ? 1 : -1), K + 3, z + (z < -9 ? 1 : -1)], color: col, intensity: 4.5, range: 10, vol: true });
     }
     root.add(b.finish({ name: 'plaza' }));
-    root.add(decor(fx.finish({ name: 'plaza-decor', castShadow: false })));
+    root.add(decor(fx.finish({ name: 'plaza-decor', castShadow: false })), decor(pb.finish({ name: 'plaza-props', castShadow: false })));
 
     // ---- the hologram: a knot inside two tilted rings and a cone of light from the projector, turning on the scene clock
     const holo = new THREE.Group(); holo.name = 'hologram'; holo.position.set(mx, K + 3.6, mz); decor(holo);

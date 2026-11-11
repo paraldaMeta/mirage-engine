@@ -11,6 +11,9 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { materials } from './materials.js';
 import { lamp, decor, signTexture } from './lib.js';
 import { detail, thin, corrugated, worn, textAtlas, atlasQuad } from './kit.js';
+import { propKit } from './props-kit.js';
+import { paperLantern } from './props-lights.js';
+import { spiritBottle, jar, pot, skewers, bowls, chopsticks, riceCooker } from './props-goods.js';
 
 const strip = (g) => { g.deleteAttribute('uv'); return g.index ? g.toNonIndexed() : g; };
 // a person, feet at the origin, facing +z: a coat that flares, shoulders, arms, a head; legs apart (for the walkers)
@@ -103,16 +106,22 @@ export default {
       const menu = textAtlas([{ text: ['焼鳥 YAKITORI', 'つくね ¥180 · 皮 ¥150', '啤酒 BEER ¥400'], style: 'box', bg: '#f2e6c8', w: 1024, h: 384 }]);
       fx.add(atlasQuad(2.4, 0.9, menu.rect(0)), mat.patch(new THREE.MeshBasicMaterial({ map: menu.texture }), { output: 'outgoingLight *= 1.4 * max(uLampGain, 0.35);' }), at([-wid / 2 + 0.12, 1.85, -1.2], [0, Math.PI / 2, 0]));
       for (const y of [1.3, 1.62]) fx.add(new THREE.BoxGeometry(0.3, 0.03, 2.2), M.wood, at([-wid / 2 + 0.25, y, 1.4]));
-      for (let i = 0; i < 9; i++) fx.add(new THREE.CylinderGeometry(0.05, 0.05, 0.18, 6), M.neonSoft[['amber', 'red', 'green', 'white'][i % 4]], at([-wid / 2 + 0.25, 1.42 + (i % 2) * 0.32, 0.5 + (i >> 1) * 0.45]));
-      b.add(new THREE.BoxGeometry(0.6, 0.85, 1.6), M.steel, at([0.2, 0.5, 0.8]));
-      fx.add(new THREE.BoxGeometry(0.5, 0.02, 1.4), M.neon.amber, at([0.2, 0.94, 0.8]));                     // the coals
-      b.add(new THREE.CylinderGeometry(0.22, 0.2, 0.3, 14), M.steel, at([0.2, 1.08, -1.0]));
+      const PK = propKit(ctx), pb = new geom.MeshBatch();   // the stall's goods (props-goods.js)
+      for (let i = 0; i < 12; i++) { const m0 = at([-wid / 2 + 0.25, 1.315 + (i % 2) * 0.32, 0.45 + (i >> 1) * 0.36], [0, i, 0]); if (i % 3 === 2) jar(PK, pb, geom, m0, i); else spiritBottle(PK, pb, geom, m0, { r: 0.032, h: 0.24, label: i, liquid: [[0.45, 0.18, 0.03], [0.9, 0.9, 0.85], [0.6, 0.08, 0.1]][i % 3], glass: [0.45, 0.55, 0.4], fill: 0.4 + 0.1 * (i % 5) }); }
+      skewers(PK, pb, geom, at([0.2, 0.96, 0.8], [0, Math.PI / 2, 0]), 10, 1.3);
+      pot(PK, pb, geom, at([0.2, 0.93, -1.0]), 0.2, 0.26, false);
+      riceCooker(PK, pb, geom, at([-0.5, 0.13, -2.2], [0, 1.2, 0]));
+      bowls(PK, pb, geom, at([wid / 2 + 0.05, 1.15, -1.9]), 5, [0.88, 0.85, 0.78], 0.075);
+      for (const z of [-0.6, 0.9, 2.1]) chopsticks(PK, pb, geom, at([wid / 2 + 0.12, 1.15, z]));
+      b.add(new geom.RoundedBoxGeometry(0.6, 0.85, 1.6, 2, 0.03), M.steel, at([0.2, 0.5, 0.8]));
+      fx.add(new THREE.BoxGeometry(0.5, 0.02, 1.4), mat.glow([1.0, 0.32, 0.06], 2.2), at([0.2, 0.92, 0.8]));   // the coals, under a grate
+      for (let k = 0; k < 15; k++) fx.add(new THREE.BoxGeometry(0.54, 0.008, 0.008), M.steel, at([0.2, 0.945, 0.1 + k * 0.1]));
       fx.add(new THREE.BoxGeometry(wid - 0.4, 0.03, 0.25), M.neonSoft.warm, at([0, hh - 0.12, 0]));            // the strip light inside
       steam = new THREE.Vector3(0.2, 1.3, -1.0).applyMatrix4(cm).toArray();
       // lanterns along the flap's edge, the name on the roof
       const edge = (z) => new THREE.Vector3(wid / 2 + 1.25, hh + 0.3, z).applyMatrix4(cm);
-      const lantern = [mat.glow([1.0, 0.45, 0.2], 1.1), mat.glow([1.0, 0.12, 0.08], 1.1)];
-      for (let z = -2.4; z <= 2.41; z += 0.8) { const p = edge(z); fx.add(new THREE.SphereGeometry(0.14, 10, 8).scale(1, 1.3, 1), lantern[Math.abs(Math.round(z / 0.8)) % 2], geom.compose([p.x, p.y - 0.55, p.z])); fx.add(new THREE.CylinderGeometry(0.006, 0.006, 0.4, 3), M.blackMetal, geom.compose([p.x, p.y - 0.25, p.z])); }
+      for (let z = -2.4, i = 0; z <= 2.41; z += 0.8, i++) { const p = edge(z); paperLantern(PK, pb, geom, [p.x, p.y - 0.05, p.z], { r: 0.15, h: 0.36, print: i % 4, color: i % 2 ? [1.0, 0.16, 0.08] : [1.0, 0.5, 0.22], k: 1.7, cord: 0.27, tilt: ((i * 5) % 3 - 1) * 0.05, yaw: i }); }
+      root.add(decor(pb.finish({ name: 'stall-goods', castShadow: false })));
       const tex = signTexture(['屋台 · やきとり', 'YATAI 07'], { color: '#ffb347', second: '#ffffff', w: 1024, h: 256 });
       const nm = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 0.9), mat.glow([1, 1, 1], 2.4, { map: tex }));
       nm.applyMatrix4(at([wid / 2 - 0.3, hh + 0.55, 0], [0, Math.PI / 2, 0])); group.add(nm);
@@ -125,32 +134,7 @@ export default {
       lamp(ctx, { pos: new THREE.Vector3(wid / 2 + 1.2, 2.0, 0).applyMatrix4(cm).toArray(), color: 0xffa050, intensity: 6, range: 6.5 });
     }
 
-    // ---- vending machines in rows: a rounded body, a lit face of goods, a slot; one lamp a row
-    const faces = textAtlas(['UMIKURA', 'KAPPA KOLA', 'NEUROFIZZ', '熱咖啡 HOT', 'お茶 TEA'].map((t, i) => ({ text: [t], style: 'neon', color: ['#5ff7ff', '#ff4060', '#b6ff3a', '#ffb347', '#7dff9a'][i], w: 256, h: 96 })));
-    const vfMat = mat.patch(new THREE.MeshBasicMaterial({ color: 0xffffff }), {
-      vertexDecl: 'varying vec2 ndUv;', vertexWorld: 'ndUv = uv;', fragmentDecl: 'varying vec2 ndUv;',
-      output: `{ vec2 g = ndUv * vec2(8.0, 7.0), id = floor(g), f = fract(g);
-        float can = step(0.2, f.x) * step(f.x, 0.8) * step(0.12, f.y) * step(f.y, 0.88) * step(0.2, ndUv.y);
-        vec3 h = mgHash3(vec3(id.x, id.y, floor(mgWorldPos.x + mgWorldPos.z)));
-        vec3 c = h.x < 0.25 ? vec3(1.0, 0.15, 0.2) : h.x < 0.5 ? vec3(0.1, 0.8, 1.0) : h.x < 0.7 ? vec3(1.0, 0.75, 0.1) : h.x < 0.85 ? vec3(0.3, 1.0, 0.4) : vec3(0.95);
-        c *= 0.55 + 0.45 * smoothstep(0.2, 0.5, f.x) * (1.0 - smoothstep(0.55, 0.8, f.x));          // a highlight down each can
-        vec3 bg = vec3(0.06, 0.08, 0.1) + vec3(0.5, 0.6, 0.7) * smoothstep(0.86, 0.95, f.y);          // the shelf lights
-        outgoingLight = mix(bg, c * 0.7, can) * (0.9 * max(uLampGain, 0.3)); }`,
-    });
-    const nameMat = mat.patch(new THREE.MeshBasicMaterial({ map: faces.texture }), { output: 'outgoingLight *= 2.0 * max(uLampGain, 0.25);' });
-    const bodyMats = [M.car.white, mat.std({ color: new THREE.Color(0.35, 0.02, 0.03), roughness: 0.35, metalness: 0.4 }), mat.std({ color: new THREE.Color(0.02, 0.12, 0.2), roughness: 0.35, metalness: 0.4 })];
-    (L.vending || []).forEach(([x0, z0, dx, dz, nV, rotY, tint], r) => {
-      for (let i = 0; i < nV; i++) {
-        const m = geom.compose([x0 + dx * i, K * (z0 < 10 ? 1 : 0), z0 + dz * i], [0, rotY, 0]), at = (p) => m.clone().multiply(geom.compose(p));
-        b.add(new geom.RoundedBoxGeometry(1.0, 1.95, 0.75, 3, 0.06), bodyMats[(i + r) % 3], at([0, 0.975, 0]));
-        fx.add(new THREE.PlaneGeometry(0.82, 1.05), vfMat, at([0, 1.2, 0.381]));
-        fx.add(atlasQuad(0.82, 0.3, faces.rect((i + r * 2) % 5)), nameMat, at([0, 1.84, 0.381]));
-        fx.add(new geom.RoundedBoxGeometry(0.6, 0.2, 0.06, 2, 0.02), M.blackMetal, at([0, 0.3, 0.38]));
-        fx.add(new THREE.BoxGeometry(0.12, 0.25, 0.03), M.neon.green, at([0.3, 0.72, 0.385]));
-      }
-      const mid = [x0 + dx * (nV - 1) / 2, 0, z0 + dz * (nV - 1) / 2], n2 = [Math.sin(rotY), 0, Math.cos(rotY)];
-      lamp(ctx, { pos: [mid[0] + n2[0] * 1.1, 1.3, mid[2] + n2[2] * 1.1], color: tint, intensity: 3.2, range: 5, normal: n2, back: 1.1 });
-    });
+    // (the vending machines are vending.js's)
     root.add(group, b.finish({ name: 'street-life-solid', castShadow: false }), decor(fx.finish({ name: 'street-life-decor', castShadow: false })));
     return { steam, n, D };
   },
