@@ -10,6 +10,12 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
   `@mirage-engine` are taken on npm). Imports change from `@mirage/...` to `@miragekit/...`; nothing else does.
 - `.github/workflows/release.yml` publishes them to npm with provenance after the owner approves (docs/releasing.md).
 
+**New**
+- @miragekit/core: a time-of-day grade (`createWorldRenderer({ grade: true })`; experimental, opt-in, off renders
+  bit-identical): split toning, black point, S-curve, ACES / AgX-punchy blend, clarity, highlight warmth and a darker night, keyed by the sun's
+  elevation and the lamp level (`GRADE_PRESETS`, `gradeConfig`, `gradeAt`). hello-courtyard and the Nizwa probe:
+  `?grade=1`. Closes gap 1 of `probes/nizwa-probe/REPORT.md`.
+
 **Fixes**
 - `mirage-package` (single-file builds) no longer inlines three's default Draco and Basis decoder files (~2.5 MB),
   which three's DRACOLoader and KTX2Loader name at module top level; Mirage's `createAssets` always sets its own

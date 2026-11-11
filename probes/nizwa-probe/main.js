@@ -7,6 +7,7 @@
 //      ?w=&h=  ?spp=N  ?quality=low|medium|high  ?nodetail (Nizwa's relief switch)
 //      look pack, all on by default; switch parts off with ?off=light2,soft,aolit,ae  (&l2=nols,nossr,novol,nobloom)
 //      look tuning: ?env= (image-based light, 1) ?exp= (0.6) ?sat= ?con= ?temp= ?clouds=   ?maxfps=N (walk: no 60 fps cap)
+//      ?grade=1 [&gradek=0..1 &nightadapt=0..1]  Mirage's time-of-day grade (gap 1), off by default
 //      ?gi=1 [&gispacing=4]  Mirage's probe GI (bounce light), for the comparison with Nizwa's irradiance volume
 //      ?wet=0..1 &rain=0..1 are accepted but only Mirage-made materials get wet (REPORT.md)
 import * as THREE from 'three';
@@ -27,11 +28,18 @@ const quality = Q.get('quality') || 'high';
 const light2 = !off.has('light2') && Object.fromEntries((Q.get('l2') || '').split(',').filter(Boolean).map((k) => [k.replace(/^no/, ''), false]));
 const T0 = performance.now();
 
+// ---- gap 1 (REPORT.md): Mirage's time-of-day grade, opt-in. ?grade=1 the presets; ?grade=0 or absent: off (the
+// probe's look as measured in the report). ?gradek=0..1 its strength, ?nightadapt=0..1 how much darker the night is.
+const gradeOpt = Q.get('grade') === '1' && {
+  ...(Q.has('gradek') ? { strength: +Q.get('gradek') } : {}), ...(Q.has('nightadapt') ? { nightAdapt: +Q.get('nightadapt') } : {}),
+};
+// ---- end of gap 1
+
 const canvas = document.querySelector('canvas');
 canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
 const world = createWorldRenderer({
   canvas, width: W, height: H, quality, place: plan.place, time, preserveDrawingBuffer: true,
-  light2, softShadows: !off.has('soft'), dynamicRes: Q.get('dynres') === '1',
+  light2, softShadows: !off.has('soft'), dynamicRes: Q.get('dynres') === '1', grade: gradeOpt,
   shadow: { center: [24, 6, 0], radius: 62 }, envProbe: [20, 9, 36], envIntensity: 1,   // Nizwa's ENV.envIntensity (Mirage's default is 0.5)
   shadowMapSize: +Q.get('smap') || 4096,
   // ?gi=1: Mirage's irradiance probe volume over the fort (docs/lighting.md); off by default (not part of the brief)

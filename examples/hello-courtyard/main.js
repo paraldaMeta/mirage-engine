@@ -9,6 +9,8 @@
 //      ?soft=1 contact-hardening soft sun shadows (@miragekit/core softshadow.js); &sunAngle=deg (0.53 = the real sun)
 //      ?wet=0..1 wet ground and masonry, puddles (@miragekit/core wet.js)  &rain=0..1 ripples on the puddles and falling
 //      streaks (@miragekit/world/kits/rain); without ?wet / ?rain nothing of either is built
+//      ?grade=1 the time-of-day grade (@miragekit/core daynight.js: split toning, black point, curve, ACES / AgX mix,
+//      punch, clarity, highlight warmth, a darker night); &gradek=0..1 its strength
 //      Enter VR / Enter AR appear in a WebXR browser: docs/xr.md
 import { createWorldRenderer, createTextures, placeDate, pickQuality, setRelief, setWetness, setRain, postFromQuery } from '@miragekit/core';
 import { buildWorld } from '@miragekit/world';
@@ -38,6 +40,8 @@ setRelief({ low: 0, medium: 0.7, high: 1 }[quality] ?? 1);   // the relief's rea
 const light2 = Q.get('light2') === '1' && Object.fromEntries((Q.get('l2') || '').split(',').filter(Boolean).map((k) => [k.replace(/^no/, ''), false]));
 // soft sun shadows (opt-in): ?soft=1 [&sunAngle=deg]
 const softShadows = Q.get('soft') === '1' && (Q.get('sunAngle') ? { sunAngle: +Q.get('sunAngle') } : true);
+// time-of-day grade (opt-in): ?grade=1 [&gradek=0..1]
+const grade = Q.get('grade') === '1' && (Q.has('gradek') ? { strength: +Q.get('gradek') } : true);
 // realtime lighting (opt-in, docs/lighting.md): ?csm=1 cascaded sun shadows, ?gi=1 irradiance probe volume,
 // ?probes=1 a box reflection probe,
 // ?lights=N clustered lamps (&cluster=0 plain loop, &lshadows=K shadowed, &stock=1 three's own lights instead)
@@ -52,7 +56,7 @@ const lighting = ['csm', 'gi', 'probes'].some(LF) || (NL && !stock) || SCR ? {
   lights: NL > 0 && !stock && { cluster: Q.get('cluster') !== '0', perCell: +Q.get('percell') || 0 },   // exact lists (&percell=64: the capped ones)
 } : undefined;
 const ed = editable(plan, edits);   // with an empty layer: the plan itself, and every ed. call below does nothing
-const world = createWorldRenderer({ quality, byteTargets: Q.get('bytetargets') === '1', xr: xrs.vr || xrs.ar, light2, softShadows, lighting: ed.lighting(lighting), dynamicRes: Q.get('dynres') ? (Q.get('dynres') === '1' || { target: +Q.get('dynres') }) : (caps?.settings.dynamicRes ?? false),
+const world = createWorldRenderer({ quality, byteTargets: Q.get('bytetargets') === '1', xr: xrs.vr || xrs.ar, light2, softShadows, grade, lighting: ed.lighting(lighting), dynamicRes: Q.get('dynres') ? (Q.get('dynres') === '1' || { target: +Q.get('dynres') }) : (caps?.settings.dynamicRes ?? false),
   canvas, width: W, height: H, place, time: date || 'golden', preserveDrawingBuffer: true,
   shadow: { center: [0, 2, 0], radius: 17 }, envProbe: [0, 2.2, 0],
   fog: { groundDensity: 0.0022, height: 30 },
