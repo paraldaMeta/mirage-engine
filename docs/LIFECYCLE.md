@@ -11,7 +11,7 @@
 
 创建后 `world.light` 和 `world.state` 为 null；`setTime()`、`prepare()` 或第一次 `renderFrame()` 才初始化它们。
 手工调用 `captureEnv()` 前先初始化光照。`setTime(time, { ease: true })` 需要后续 tick 才推进曝光与环境光过渡。
-`ctx.onUpdate(fn)` 在每个渲染子帧调用，参数为场景时间；不是物理时钟，返回数字计数而非取消函数。
+`ctx.onUpdate(fn)` 在每个渲染子帧调用，参数为场景时间；不是物理时钟，返回取消订阅函数（可重复调用，也可在回调内调用）；`world.dispose()` 会清空全部回调。
 碰撞、触发区和保存位置应继续使用游戏层的真实角色位置。
 
 `resize()` 更新渲染尺寸、主相机和后期目标，并清除时域历史。`renderFrame()` 支持透视或正交相机，

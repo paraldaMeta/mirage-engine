@@ -62,7 +62,7 @@ for (const file of docs) {
     const m = line.match(/\b(mirage-[a-z-]+|[a-z][\w-]*\.mjs)\b(.*)$/);
     if (!m || m[1] === 'check.mjs') continue;
     const src = toolSource(m[1]);
-    for (const [, flag] of m[2].matchAll(/(?:^|[\s\[`(])--([a-z][\w-]*)/g)) {
+    for (const [, flag] of m[2].matchAll(/(?:^|[\s[`(])--([a-z][\w-]*)/g)) {
       if (!src) continue;   // a tool outside packages/tools (an example's script): not checked here
       drift.flags++;
       if (!new RegExp(`['"\`]${flag}['"\`]|--${flag}\\b`).test(src)) bad.push(`${rel}: ${m[1]} --${flag}, which ${m[1]} does not read`);

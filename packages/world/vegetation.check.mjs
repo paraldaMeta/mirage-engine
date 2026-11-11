@@ -1,5 +1,5 @@
 // CPU-side layout and collision contract. The example's walk scenario checks the baked grid on the GPU.
-import assert from 'node:assert/strict';
+import assert from '../../scripts/soft-assert.mjs';
 import * as THREE from 'three';
 import { createEnv, createMaterials, geom, rng } from '@mirage/core';
 import { addGrass, addTreeCanopies } from '@mirage/world/kits/vegetation';

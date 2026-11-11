@@ -46,7 +46,7 @@ export function createPlay(world, opts = {}) {
 
 function mountPlay(world, opts, life) {
   const { plan, canvas = world.renderer.domElement, spp = 6, refine = [spp, 16], animate = false } = opts;
-  const { camera, scene, renderer } = world;
+  const { camera, scene } = world;
   const grid = opts.grid || bakeWalkGrid(world, { bounds: plan.bounds, ...plan.walk });
   const spawn = plan.spawn || plan.viewpoints[0] || { eye: [0, 1.7, 0], look: [0, 1.7, -1] };
   // opts.walker: anything with the walker's shape ({ pos, onGround, blocked, body, update(dt, input), place(p) }),
@@ -65,7 +65,7 @@ function mountPlay(world, opts, life) {
     camera.position.copy(hostCamera.position); camera.quaternion.copy(hostCamera.quaternion);
     camera.updateProjectionMatrix(); camera.updateMatrixWorld();
   });
-  const avatar = createCharacter(world, opts.appearance), figure = avatar.root;
+  const avatar = opts.character ? opts.character(world) : createCharacter(world, opts.appearance), figure = avatar.root;   // opt-in: any Character, e.g. createRigCharacter
   figure.visible = false;
   life.defer(() => avatar.dispose());
   scene.add(figure);
@@ -233,6 +233,7 @@ function mountPlay(world, opts, life) {
   // ---- shadows follow the view, the centre snapped to whole shadow texels (the map never swims)
   const shadowR = opts.shadowRadius || 22;
   const _r = new THREE.Vector3(), _u = new THREE.Vector3(), _c = new THREE.Vector3(), Y = new THREE.Vector3(0, 1, 0);
+  const _fwd = new THREE.Vector3(), _right = new THREE.Vector3(), _want = new THREE.Vector3(), _fly = new THREE.Vector3(), _vf = new THREE.Vector3(), _vc = new THREE.Vector3();   // per-frame scratch (no garbage per step)
   function shadowAround(p, R) {
     const d = world.keyDir;
     _r.crossVectors(Y, d); if (_r.lengthSq() < 1e-8) _r.set(1, 0, 0); _r.normalize();
@@ -266,9 +267,9 @@ function mountPlay(world, opts, life) {
     acting = !!(fx || fz || up || inp.jump);
     const game = mode === 'game';
     // game view: up on the screen is away from the camera
-    const fwd = game ? new THREE.Vector3(-GAME_DIR.x, 0, -GAME_DIR.z).normalize() : new THREE.Vector3(Math.cos(yaw), 0, Math.sin(yaw));
-    const right = new THREE.Vector3(-fwd.z, 0, fwd.x);
-    const want = new THREE.Vector3().addScaledVector(fwd, fz).addScaledVector(right, fx);
+    const fwd = game ? _fwd.set(-GAME_DIR.x, 0, -GAME_DIR.z).normalize() : _fwd.set(Math.cos(yaw), 0, Math.sin(yaw));
+    const right = _right.set(-fwd.z, 0, fwd.x);
+    const want = _want.set(0, 0, 0).addScaledVector(fwd, fz).addScaledVector(right, fx);
     if (want.lengthSq() > 1) want.normalize();
     const walking = mode === 'walk' || game;
     const motion = walking ? { x: want.x, z: want.z, run, jump: !!inp.jump, jumpPressed: !!inp.jumpPressed } : null;
@@ -299,7 +300,7 @@ function mountPlay(world, opts, life) {
         figure.position.set(p[0], p[1], p[2]); figure.rotation.y = heading;
       } else camera.position.set(p[0], eyeY, p[2]);
     } else if (mode === 'fly') {
-      const target = new THREE.Vector3().addScaledVector(fwd, fz).addScaledVector(right, fx).setY(up);
+      const target = _fly.set(0, 0, 0).addScaledVector(fwd, fz).addScaledVector(right, fx).setY(up);
       if (target.lengthSq() > 1) target.normalize();   // diagonals and stick + keys fly no faster than straight ahead
       target.multiplyScalar(run ? FLY_FAST : FLY);
       flyVel.lerp(target, Math.min(1, dt * 4));
@@ -317,8 +318,8 @@ function mountPlay(world, opts, life) {
   function view() {
     if (mode === 'game') return { cam: gameCam, shadow: shadowAround(gameTarget, Math.max(14, viewSize * 1.9)) };
     if (mode === 'orbit') return { cam: camera, shadow: null };
-    const f = new THREE.Vector3(Math.cos(yaw), 0, Math.sin(yaw));
-    const c = camera.position.clone().addScaledVector(f, shadowR * 0.45); c.y = walker.pos[1];
+    const f = _vf.set(Math.cos(yaw), 0, Math.sin(yaw));
+    const c = _vc.copy(camera.position).addScaledVector(f, shadowR * 0.45); c.y = walker.pos[1];
     return { cam: camera, shadow: shadowAround(c, shadowR) };
   }
   /** render the current view: moving -> temporal AA; still -> the still path (spp sub-frames); transparent: a still
@@ -485,6 +486,8 @@ function mountPlay(world, opts, life) {
     step,
     stop, dispose: life.dispose,
     start() { if (!life.disposed && !running) { running = true; last = performance.now(); schedule(); } },
+    /** false after stop() (context recovery and pause handling restart only what was running) */
+    get running() { return running; },
     /** the power saver (30 fps cap) and the frame-rate cap; wake(): count as input (restarts scene animation) */
     get powerSaver() { return power.saver; }, set powerSaver(v) { setSaver(v); },
     get maxFps() { return power.maxFps; }, wake, get idleFor() { return (performance.now() - lastInput) / 1000; },

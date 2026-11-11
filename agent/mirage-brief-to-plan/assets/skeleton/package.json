@@ -1,7 +1,7 @@
 {
   "name": "<name>",
   "private": true,
-  "version": "0.2.0",
+  "version": "1.0.0",
   "description": "A Mirage world: <one line>.",
   "license": "MIT",
   "type": "module",

@@ -6,6 +6,7 @@ import type { MaterialKit } from './materials.js';
 import type { Pipeline, PostSettings } from './post.js';
 import type { Light2Option, Light2Settings } from './light2.js';
 import type { SoftShadowOption, SoftShadowSettings } from './softshadow.js';
+import type { Lighting, LightingOption } from './lighting.js';
 import type { SkyTime, SkyState, LightState } from './daynight.js';
 import type { Place } from './sky-time.js';
 import type { Quality, DeviceProfile } from './device.js';
@@ -21,7 +22,7 @@ export interface WorldRendererOptions {
   place?: Partial<Place>; time?: SkyTime; shadow?: ShadowRegion; envProbe?: XYZ;
   envIntensity?: number; envFade?: number; wind?: NonNullable<Parameters<typeof createEnv>[0]>['wind'];
   clouds?: number; fog?: Partial<{ density: number; groundDensity: number; height: number; air: number; level: number; color: number; glow: number }>;
-  post?: Partial<PostSettings>; preserveDrawingBuffer?: boolean; mobile?: boolean; shadowMapSize?: number; spp?: number;
+  post?: Partial<PostSettings>; preserveDrawingBuffer?: boolean; mobile?: boolean; byteTargets?: boolean; shadowMapSize?: number; spp?: number;
   /** A multisampled, XR-compatible context, so a WebXR session (@mirage/play/xr) gets MSAA. Pass `(await xrSupport()).vr`. */
   xr?: boolean;
   /** Lamp shadows, screen-space reflections, volumetric light, mixed bloom (off by default). */
@@ -30,6 +31,8 @@ export interface WorldRendererOptions {
   dynamicRes?: boolean | Partial<DynamicResSettings>;
   /** Contact-hardening soft sun shadows, per pixel (off by default): still and walking frames alike. */
   softShadows?: SoftShadowOption;
+  /** Realtime lighting features (off by default, each one opt-in): cascaded sun shadows, probe GI, reflection probes, clustered local lights. */
+  lighting?: LightingOption;
   /** Reduced motion from the start (off by default; @mirage/play follows prefers-reduced-motion): see setReducedMotion. */
   reducedMotion?: boolean | Partial<ReducedMotionSettings>;
 }
@@ -40,7 +43,7 @@ export function reducedMotionConfig(option?: boolean | Partial<ReducedMotionSett
 /** renderTransparent's result: RGBA8, straight (not premultiplied) alpha, top row first. */
 export interface TransparentStill { width: number; height: number; data: Uint8Array }
 /** cap: the app's own frame cap (fps; @mirage/play sets it from maxFps / the power saver) — the budget is never tighter. */
-export interface DynamicResSettings { target: number; min: number; step: number; cap?: number }
+export interface DynamicResSettings { target: number; min: number; step: number; cap?: number; /** a ceiling on the scale (unset = 1): the quality governor of `@mirage/core/platform` lowers it */ max?: number }
 /** The full dynamic-resolution settings for `true` / a partial object; null when off. */
 export function dynamicResConfig(option?: boolean | Partial<DynamicResSettings> | null): DynamicResSettings | null;
 export interface RenderFrameOptions {
@@ -59,8 +62,8 @@ export interface WorldContext {
   quality: Quality; place: Place;
   /** Live reduced-motion scales for kits (1 when off); world.setReducedMotion writes it. */
   motion: { reduced: boolean; sway: number; rain: number };
-  /** Called for each render sub-frame, not the fixed physics tick. Returns the new callback count, not an unsubscribe handle. */
-  onUpdate(callback: (seconds: number) => void): number;
+  /** Called for each render sub-frame, not the fixed physics tick. Returns an unsubscribe function (safe to call twice, or from inside the callback); world.dispose() drops every callback. */
+  onUpdate(callback: (seconds: number) => void): () => void;
 }
 export interface WorldRenderer {
   renderer: THREE.WebGLRenderer; scene: THREE.Scene; camera: THREE.PerspectiveCamera; sun: THREE.DirectionalLight;
@@ -78,6 +81,8 @@ export interface WorldRenderer {
   resetExposure(): void;
   /** The soft-shadow settings in use (live: `on`, `sunAngle`, …), null when off. */
   softShadows: SoftShadowSettings | null;
+  /** The lighting features of the `lighting` option, null when off. */
+  lighting: Lighting | null;
   /** Null before setTime(), prepare() or the first renderFrame(). */
   readonly light: LightState | null; readonly state: SkyState | null; readonly exposure: number;
   setTime(time: SkyTime, options?: { ease?: boolean }): LightState;
@@ -96,10 +101,15 @@ export interface WorldRenderer {
   setReducedMotion(option?: boolean | Partial<ReducedMotionSettings> | null): ReducedMotionSettings | null;
   /** One plain draw of the scene into the current framebuffer (the XR path): no pipeline; the renderer's tone mapping grades. */
   renderDirect(seconds?: number, options?: { camera?: THREE.Camera; shadow?: ShadowRegion; fog?: number }): void;
+  /** XR post (@mirage/play xr-post): set the frame's state once (fog, time, updates, shadow fit), then call draw with the
+   *  frame's post settings; the caller draws each view through its own Pipeline. */
+  renderViews(seconds: number, options: { camera?: THREE.Camera; shadow?: ShadowRegion; fog?: number; dt?: number; draw(post: PostSettings): void }): void;
   resize(width: number, height: number): void;
   /** Call after setTime() or prepare(). */
   captureEnv(instant?: boolean): void;
   setAmbientVolumes(volumes?: readonly AmbientVolume[]): void;
+  /** call after `webglcontextrestored`: re-bakes the sky, the image-based light and probe lighting (see `@mirage/core/platform`) */
+  contextRestored(): void;
   /** Releases pipeline, environment light and scene geometries; an injected renderer stays owned by its host.
    * Does not stop external loops/listeners or generally release scene materials/textures. No reuse after disposal. */
   dispose(): void;

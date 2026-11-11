@@ -26,6 +26,8 @@ export function taperedTube(points: readonly Triple[], radii: readonly number[] 
   radial?: number; segments?: number | null; capEnd?: boolean;
 }): THREE.BufferGeometry;
 export function archPath<P extends THREE.Path>(path: P, x0: number, x1: number, y: number, kind?: ArchKind, rise?: number | null, steps?: number): P;
+/** Why an opening does not fit a wall of this height (its arch top reaches the wall top), or null. wall() warns with this text (MG206). */
+export function openingProblem(opening: Opening, wallHeight: number): string | null;
 export function wall(options: { length: number; height: number; thickness?: number; openings?: readonly Opening[]; curveSteps?: number; round?: number }): THREE.ExtrudeGeometry;
 export function softExtrude(shape: THREE.Shape | THREE.Shape[], depth: number, radius: number, curveSegments?: number, segments?: number): THREE.ExtrudeGeometry;
 export function softBox(width: number, height: number, depth: number, radius?: number): THREE.BoxGeometry;

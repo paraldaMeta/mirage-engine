@@ -2,7 +2,7 @@
 
 All notable changes. From 1.0.0 on, versions follow semver for the stable API in `docs/api.md`.
 
-## 1.0.0 — unreleased (not tagged, not published)
+## 1.0.0 — 2026-11-11 (tagged `v1.0.0`; not published to npm)
 
 The first version with an API promise: the names marked *stable* in `docs/api.md` change only in a major release.
 It is `main` since 0.2.0, plus Codex's development chain (`codex/mirage-gpu-ci`, built on a machine without a GPU
@@ -10,7 +10,290 @@ and first verified here), plus the 1.0 review (`docs/review-1.0.md`). Package na
 nothing is published. Evidence: `docs/STATUS-1.0.md`.
 
 **New**
+- @mirage/core: screen-space lighting in the lit materials (`lighting: { screen: true }` + `post.ssr2`, `post.ssgi`,
+  `post.contact`; experimental, opt-in, `docs/lighting.md`): reflections with roughness, short-range indirect light
+  with colour, contact shadows of the sun; temporal history and edge-aware blur on moving frames, a reference mode
+  for stills (flows into `--png16` / `--exr`). hello-courtyard `?wet=0.8&ssr=1&ssgi=1&contact=1`: 3.30 -> 4.40 ms at
+  1440 x 900, 11.9 -> 15.8 ms at 2880 x 1800; a moving frame is 36.9 dB from the 64-sample reference instead of 29.9.
+  `lights: { perCell: 0 }`: clustered lists without the per-cell cap (100 lamps bit-identical to the plain loop).
+  `csm: { stagger: true }`: far cascades redrawn less often on moving frames (2.13 of 4 per frame; walled-garden
+  3.60 -> 3.30 ms). `post.rcas`: contrast-adaptive sharpening after the upscaler (+0.1 ms at 1440 x 900). Not done:
+  time-sliced probe capture, single-tile spot shadows, wider velocity coverage, mip bias.
 
+- Platforms (experimental, opt-in; `docs/platforms.md`). `mirage-ship <example> --target web | pwa | single |
+  desktop-electron | desktop-tauri | ios | android` (@mirage/tools) writes a static folder with caching rules, a PWA
+  (manifest, icons from one PNG, an own service worker with a versioned precache, install and update hooks) or a
+  project scaffold for Electron, Tauri 2 or Capacitor 8 (CSP, high-performance GPU switch, fullscreen, window
+  state, orientation and safe area, saves mapped to the app's folder through one `window.mirageNative` bridge). It
+  installs, downloads and signs nothing, and none of the wrappers is a dependency of this repository. Run-time
+  layer in two subpaths: `@mirage/core/platform` (`probeDevice` with mobile GPU tiers, `createContextRecovery`,
+  `createQualityGovernor` on battery, CPU pressure and frame time) and `@mirage/game/platform` (`createPlatform`:
+  pause on hidden, audio unlock, wake lock, fullscreen, orientation, safe-area insets, input mode, storage
+  persistence; `createSaveStorage`; `registerServiceWorker`; `createInstallPrompt`). `world.contextRestored()`,
+  `play.running`, `startGame({ storage })` and `createWorldRenderer({ byteTargets })` are the engine-side hooks;
+  8-bit render targets switch on by themselves only on a context without float colour targets (black canvas
+  before, mean 96/255 after, 97 with floats). Measured in headless Chrome on one Mac: garden-quest PWA (33 files,
+  3.98 MB) reloads with the server down in 793 ms; a new version waits and applies on request with one reload;
+  after a lost WebGL context hello-courtyard and garden-quest are back in 307-317 ms (300 ms held lost) with at
+  most 1/255 difference, against every pixel different without the recovery; under phone emulation with a
+  reduced GL at `low`, 6x CPU throttle: hello-courtyard 2.2 ms (2.0-2.5), garden-quest 7.9 ms (7.9-8.8) per frame
+  (CPU side only; spread between runs about 2 ms). With the flags off, six stills on two examples are
+  bit-identical to the base. **Not done:** no real phone was used; no Electron, Tauri or Capacitor toolchain is on
+  this machine, so no wrapper was built or run (the Rust main has never been compiled) and the scaffolds are
+  checked for structure only; consoles are out of reach. Try: `?platform=1` on hello-courtyard and garden-quest,
+  `?bytetargets=1` on hello-courtyard; `npm run test:ship`, `test:context-loss`, `test:mobile`.
+- Desktop (Electron) built and run for real (macOS only; `docs/platforms.md` section 4). `mirage-desktop-check
+  <scaffold> [--exe <packaged binary>]` (@mirage/tools; `npm run test:desktop`, skipped when Electron is absent)
+  launches the app with a throwaway profile and checks 21 things over DevTools: start, GPU, no Node in the page,
+  the bridge, saves as files, refused fetch / pop-up / navigation / permissions, frame intervals, blur, crash
+  reload, single instance, quit, save and window place after a restart. garden-quest with Electron 45.3.0 on an
+  M4 Pro: 21 of 21 pass as `electron .` and as the packaged `.app`; ready in 1050-1153 ms warm (3765 / 4270 ms on
+  the first start), frame interval median 8.33 ms (p95 9.02) at 120 Hz, a crashed page ready again in 806-896 ms.
+  Sizes: `.app` 274 MB unpacked, mac zip 118.0 MB, Windows NSIS x64 122.8 MB (cross-built, not run on Windows).
+  Scaffold fixes the run found: `postinstall: install-electron` (Electron 45 no longer fetches its binary on
+  install), `author` / `--author`, the window keeps the game's name, Electron fuses (no run-as-node, NODE_OPTIONS
+  or --inspect; asar only, integrity checked) with an ad-hoc re-sign after the flip (without it the unsigned app
+  was killed at start on Apple Silicon), a crashed page reloads once and a second crash within a minute quits with
+  a message, `--query` for the start URL, `npm run dist:win`. `createPlatform({ pauseOnBlur })` (@mirage/game/platform,
+  default off): Alt+Tab pauses or opens the menu; on in the examples' `?platform=1` only inside a wrapper. Flags off:
+  four stills on hello-courtyard and garden-quest byte-identical. Not done: Windows / Linux runs, signing and
+  notarization, Steam beyond the checklist, the second-crash dialog, a real OS focus change.
+- @mirage/play: XR towards parity, all opt-in and **exercised only in an emulated session** (no headset; `docs/xr.md`).
+  `createXR(play, { post })` draws each eye through the engine's post chain (HDR + MSAA, AO, bloom, auto exposure,
+  tone map, grade, LUT; TAA, motion blur, depth of field, chromatic aberration, grain and the lens vignette stay
+  off) and copies both eyes with depth into the layer: 35.1 dB PSNR per eye against the desktop frame of the same
+  camera with the same passes (direct path 24.5 dB; 6 spp vs 1 spp noise floor 39.2 dB), 39 render passes and 105
+  draw calls per stereo frame against 1 and 78, 4.12 ms against 2.06 ms median (walled-garden, 1024 x 1024 per eye,
+  desktop GPU). `budget` adds a frame-time governor with dynamic resolution (resolution, AO, resolution, bloom,
+  then the direct path; back up after calm), `profile` a device table (Quest 2 / 3, Vision Pro, PC VR: untested on
+  hardware), `posture` height calibration, `bounds` the play-area fence. `createXRInteraction`: near and ray grab,
+  throw (Rapier, or ballistic: landing within 1 cm of the prediction), two-handed turn and scale, snap zones, poke
+  buttons, canvas UI panels by ray and fingertip, fist / pinch / point gestures, haptics. `arFeatures`: anchors,
+  plane detection, light estimation onto the sun and a light probe, DOM overlay, a shadows-only ground. New tool
+  `mirage-xr-stereo-check` with its own WebXR shim (41 checks); walled-garden flags `?xrpost`, `?xrbudget`,
+  `?xrprofile`, `?xrposture`, `?xrbounds`, `?xrsmooth`, `?xrdemo`, `?xrar`. Without the options the desktop stills
+  of hello-courtyard and walled-garden are byte-identical.
+- @mirage/game: a physics kit on the existing Rapier world (`createPhysicsKit`, `createJoints`, `createForces`,
+  `createVehicle`, `createRagdoll`, `createPhysicsDebug`, `PHYSICS_MATERIALS`, `RAGDOLL_HUMANOID`; experimental,
+  opt-in, `docs/physics.md`). `createPhysics` is unchanged for games that do not call it (stills of garden-quest and
+  snow-hut byte-identical before and after); it gained `phys.ext` hooks so `snapshot()` / `restore()` carry the
+  kit. Rigid bodies with box, ball, capsule, cylinder, cone, hull, triangle-mesh and compound colliders; materials
+  with combine rules (from 2 m rubber bounces to 1.33 m, stone to 0.24; at 6 m/s a box slides 11.0 m on ice, 2.6 on
+  wood); 16 named layers with a collision matrix and query filters; CCD (a 300 m/s ball passes a 4 cm wall without
+  it, stops with it); sensors with enter / exit; contact events with impulse (19.98 N s for 2 kg at 9.57 m/s); ray
+  and shape casts, overlaps, closest point; a fixed step with interpolation and a state hash (restore + the same
+  steps gives the same hash, Node and Chrome, one machine). Joints: fixed, ball, cone, hinge and slider with limits
+  and motors, spring, rope, six-axis, breakable by an estimated force (a chain reads 196.2 / 147.15 / 98.1 /
+  49.05 N). A ragdoll from a skinned rig (14 parts, 13 joints): animated to ragdoll and blended back, limp limbs,
+  active ragdoll. A ray-cast wheel vehicle (defaults: 15.7 m/s after 3 s, 28.7 top, stops in 2.07 s). Buoyancy
+  (a 600 kg/m3 cube floats at 1.921 of 1.9), explosions with occlusion, kinematic platforms that carry bodies and
+  the character. Debug draw and stats. Step time in Node (`node packages/game/physics-bench.mjs`, 3 rounds, ms per
+  1/60 s step while falling, median (low-high)): 500 boxes 0.75 (0.75-0.77), 2000 boxes 3.19 (3.18-3.28), 5000
+  boxes 6.79 (6.74-7.22) and 22.30 (22.17-22.53) as a settling heap, 20 ragdolls 0.93 (0.91-1.07). Checks: 80 in
+  `npm test` (`packages/game/physics.check.mjs`) and `node examples/demos/physics/physics-check.mjs`, 23 of 23 in
+  headless Chrome. Not there: cloth, soft bodies, fracture, fluids, GPU or multi-threaded physics, break torque,
+  cross-platform determinism.
+- Engineering: a job for hosted CI that draws frames. A `software-gl` job runs Chrome on SwiftShader (`MIRAGE_GL=software`) and
+  plays two examples, redraws two views of each bit-identically and compares five stills with committed baselines
+  by region SSIM (`npm run test:software-gl`, `docs/ci.md`; locally on macOS: four parts in about 230 s; not yet
+  run on a hosted runner). Timing is printed, not gated, under software GL. Every action in both workflows is
+  pinned to a commit SHA and a check fails on an unpinned one or a write scope.
+- Engineering: `npm test` also runs ESLint (flat config, correctness rules only, no formatting), an import check
+  against the export maps (299 files, 105 entries), a declaration check (95 modules, 602 runtime exports all
+  declared, `tsc` clean) and a docs check (every `docs/*.md` linked from `docs/README.md`, 251 relative links
+  resolve). Nothing is installed at test time. Check scripts report every failed assertion with a count
+  (`scripts/soft-assert.mjs`; 29 scripts moved, what they test unchanged).
+- Diagnostics: MG206 (a wall opening that reaches the wall top: `height` is where the arch springs and `arch`
+  defaults to `'round'`; `geom.openingProblem(opening, wallHeight)` returns the text, `geom.wall` warns once per
+  case) and MG442 (the eye is inside an `ambientVolumes` box and the picture's mean luma is under 40 of 255:
+  measured 25 to 33 in an unlit room with `factor: 0.35`, 55 to 76 with a lamp). MG102 for a list under
+  `plan.points` now says the two real ways out. `docs/diagnostics.md`.
+- Docs: `docs/making-a-world.md` (a first world by hand, built and playtested as written; pitfalls; escape hatches
+  to plain three.js), `docs/README.md` (the index), `docs/STABILITY.md` (37 of 286 exports are stable; the
+  promotion policy; the Node checks run 52.8 % of 32 347 source lines), `docs/ci.md`, `docs/releasing.md` (checklist, npm provenance:
+  documented, not run), `SECURITY.md`. `npm run coverage` and `npm run stability` produce the numbers.
+
+- @mirage/editor (new package, experimental, opt-in, `docs/editor.md`): a visual editor in the browser against a
+  live world. `npx mirage-editor <project dir> [--write]` serves the project's own page with the editor added:
+  fly/orbit viewport, click selection with an outline, move/rotate/scale gizmos (local/world, grid and surface
+  snap), multi-select, duplicate, copy/paste, undo/redo for every edit; hierarchy, an inspector typed from
+  `plan.schema.json`, asset browser, console with the `MG` diagnostics, play-in-editor, time/weather/post/light2
+  fields, wall/path/region drawing, a material value editor, a timeline on `createTimeline`, an animator viewer.
+  Twelve placed-object types (models, lights, probe and GI volumes, audio zones, VFX emitters, nav areas, triggers,
+  spawn points...) saved as data in `plan.edits.json`, which a project applies with `editable(plan, edits)`. The
+  server binds 127.0.0.1 only, checks Host and Origin, needs a per-run token for POSTs and writes one fixed file
+  inside the project, only with `--write`. Wired into `examples/hello-courtyard` and `examples/walled-garden`: with
+  the empty layer their `mirage-snap` stills are byte-identical to the base commit (6 and 9 views) and the first
+  load grows by 16.8 kB and 25.1 kB of JavaScript before compression. The browser check
+  (`node packages/editor/editor-check.mjs`: select, gizmo drag, undo, save, reload, compare) passes on both: 28 undo
+  steps, undo-all still SSIM 0.9961-0.9997 / 0.9998, saved layer 5,360 / 5,393 bytes, equal plan hash after reload, reload
+  still SSIM 0.9844 (a placed probe and GI volume only take effect on reload) / 0.9997, `?editor=0` page identical
+  to the editor's (0 differing pixels); editor open 726-1,698 ms / 953-1,004 ms. No prefabs, visual scripting,
+  material graph, profiler, build UI, collaboration, plugins or terrain drawing: the guide lists what is missing.
+- @mirage/play: character control and AI navigation (experimental, opt-in; `docs/character.md`,
+  `docs/navigation.md`; demo `examples/demos/charnav`). `createWalker`, `createPlay` and existing paths are
+  unchanged: stills of `hello-courtyard` and `walled-garden` (2 views each, 960 x 540, 8 spp, grain 0) are
+  bit-identical before and after. Character: `createSolids` (moving boxes, cylinders and spheres composed into the
+  walk grid at query time: lifts, turntables, doors, crates; ladder and water volumes), `createMover` (coyote time,
+  jump buffering, variable jump height, sprint, crouch with a ceiling check, slope slide, ladders, swimming,
+  mantling, carried by platforms, blocked by and pushing solids; `mode` for the animator through `driveAnimator`;
+  `save` / `restore`), `createFollowCamera` (spring arm 4.5 m in the open, 0.50 m with a wall behind; first person),
+  `linkSolids` (one rule for the grid and Rapier: kinematic solids are the game's and copied to Rapier before its
+  step, dynamic ones are Rapier's and copied back after it; grid and Rapier agree on 3999 of 4000 probes, pose gap
+  0). Step cost in Node, median of 5 (min-max): walker 1.04 us (1.02-1.07), mover 1.33 us (1.33-1.36), mover over 20
+  solids 3.08 us (3.05-3.10); 2000 inputs through `@mirage/net`'s `applyInput` give identical movers. Navigation:
+  areas with costs (`setArea`, `setAreaCost`, per-query `costs`), off-mesh links with `canEnter` / `traverse`
+  (`nav.link`), turned-box obstacles, `carveSolids` (a moved door leaf re-bakes in 0.077 ms (0.074-0.095), a crate in
+  0.174 ms (0.163-0.179)), `createPathQueue` (budgeted queries), `smoothPath`, `createCrowd` (ORCA avoidance,
+  different radii), `createBehaviorTree` with a blackboard, `createSenses` (sight cones the grid occludes, hearing),
+  `patrol` / `chase` / `flee` / `investigate` / `follow` / `guard`, `createNavDebug`. `findPath` mean over 300
+  pairs: 0.141 ms on 160 x 160 cells (p95 0.389), 0.740 ms on 512 x 512 (0.713-0.747; p95 1.678, worst 2.282).
+  `crowd.update` in Node: 200 agents 0.085 ms, 1000: 0.909 ms, 2000: 2.682 ms a step. The demo page in headless
+  Chrome at 1280 x 720 holds the display's 60 fps with 240, 500, 1000 and 2000 agents (capsules, not skinned
+  figures; `crowd.update` 0.28 to 4.8 ms a step); deepest overlap between agents 3 to 16 mm over 10 s with 240 (two runs). Still a
+  grid, not navmesh polygons; nothing streams; one thread.
+- @mirage/game: an audio engine on top of the mixer (`createAudioEngine`, `createMixer`, `createMusic`,
+  `createAudioDebug`, occluders and DSP helpers; experimental, opt-in, `docs/audio.md`). `createAudio` is unchanged
+  and, given to the engine, keeps playing through the new buses (`audio.play('pickup')` peak 0.284 alone, 0.284 again
+  after `engine.dispose()`). Sound files decoded into a reference-counted cache with preload groups, streams through
+  a media element, both working from the single-file build opened from file:// (533 KB with two WAV fixtures
+  inlined). A bus tree with effect chains (EQ, filters, compressor, limiter, delay, convolution reverb from
+  code-made impulse responses, drive, pan), sends, snapshots with timed and weighted transitions, and ducking that
+  runs in the audio graph (music 1.000 -> 0.250 under dialogue, half-way down in 50 ms, back in 325 ms). HRTF or
+  equal-power panning, inverse / linear / exponential / custom-curve distance, cones, Doppler (1111.1 / 909.1 Hz from
+  1000 Hz at 34.3 m/s), spread. Reverb zones (boxes / spheres, `plan.audio.zones`) blended by listener position;
+  occlusion by rays on the walk grid, Rapier or the scene with a ray budget (shut: x0.299 at 200 Hz, -41.1 dB at
+  4 kHz). A voice cap with priorities, stealing and virtual voices (12 loops, cap 4: output equal to the nearest
+  four alone to 1.2e-7; a voice silent for 1.28 s resumes 0.00 samples off). Cues (variants, ranges, sequences,
+  cooldowns; the same seed is sample-identical) and adaptive music (stems, cross-fades, bar / beat-quantised
+  transitions: first changed sample 1 after the boundary). Checked with OfflineAudioContext in headless Chrome:
+  `node examples/demos/audio/audio-check.mjs`, 26 of 26, plus Node checks in `npm test`. `update()` with 64 moving
+  loops (32 sounding) and 9 rays: 0.070 ms median (0.053-0.075). In garden-quest it is a separate chunk
+  (37.4 KB, 15.8 KB gzip) fetched only with the flag. Demo `examples/demos/audio`; garden-quest `?audio=engine` (pavilion reverb zone, an
+  occluded wind chime, the overlay).
+- Model import and an animation stack (experimental, opt-in; `docs/import.md`, `docs/animation.md`).
+  `@mirage/core/assets` (a subpath) loads glTF / GLB through a reference-counted cache (`load`, `instantiate`,
+  `instances`, `release`), starts the Draco, meshopt and KTX2 decoders only for files that name them, patches
+  imported materials into the world's fog, shadows and light, and puts static models into the walk grid and Rapier
+  by the engine's one rule (`collide: 'mesh' | 'box' | 'hull' | false`). `writeGLB` (core) writes skinned, animated
+  GLB with an own meshopt vertex encoder, so the checks need no downloaded files. `@mirage/play` gains
+  `createAnimator` (layered state machines, 1D / 2D blend spaces on one phase, masked and additive layers, root
+  motion that drives the walker through `rootMotionInput`, clip events, fixed stepping, snapshot / restore),
+  `solveTwoBone`, `solveLookAt`, `createFootIK` (feet on the walk grid's floors), `retargetClip` between humanoid
+  skeletons, `createTimeline` (camera, transform, animation, audio, event tracks; `seek` is exact) and
+  `createRigCharacter` behind the new `createPlay({ character })` option. Measured: the code-authored rig (20 bones,
+  880 vertices, 9 clips) is 164 596 B as GLB, 137 932 B with meshopt, and imports in 8-10 ms in Chrome; one animator
+  update in Node 1.5 µs (one clip), 2.3 µs (3-clip blend with root motion), 5.7 µs with foot IK and look-at; a
+  1.5 m/s walk clip moves a walker 6.00 m in 4 s; across a 0.15 m kerb both ankles are 7 mm from their floor (143 mm
+  with `?ik=0`); retarget to the built-in traveller: limb error 4.9e-4 rad (1.35 rad without rest matching). The
+  single-file build inlines the decoders (3.48 MB of the demo's 4.58 MB) and both start from it; no Draco or KTX2
+  file was decoded (three ships no encoder; nothing was downloaded). Without the option nothing changes: the three
+  example bundles compared (hello-courtyard, garden-quest, walled-garden) grew 27 bytes each, and six stills of hello-courtyard and garden-quest are byte-identical. Demo:
+  `examples/demos/anim` (`?player=procedural`, `?ik=0`, `?npc=0`, `?retarget=0`, `?timeline=1`); checks:
+  `packages/core/assets.check.mjs`, `packages/play/anim.check.mjs`, `packages/play/rig.check.mjs` (Node, in
+  `npm test`) and `node examples/demos/anim/anim-check.mjs` (Chrome, 17 checks).
+- @mirage/core: an opt-in post chain (`postfx.js`; `PostFX`, `FX_DEFAULTS`, `postFromQuery`, `parseCube`, `makeLut`,
+  `lutTexture`, `apertureRadius`, `halton`; experimental; guide: `docs/post.md`). `post.taa2`: a velocity buffer
+  (camera, moved and skinned meshes) and a TAA that reprojects with it, clips history in YCoCg by variance and
+  rejects disoccluded history; `post.upscale` 0.5..1: the same pass as a temporal upscaler; `post.motionBlur`,
+  `post.bokeh` (thin-lens circle of confusion, half-resolution gather), `post.bloomPyramid` (down / up-sample
+  pyramid), `post.lut` (3D LUT, `.cube` parser), `post.chroma`. The pipeline's targets are now allocated once:
+  a lower render scale draws into a corner through the viewport, so dynamic resolution no longer reallocates.
+  hello-courtyard and walled-garden read `?taa2=1&upscale=0.67&mb=0.5&bokeh=1&lens=0.03&focus=6&bloom2=1&lut=warm&chroma=0.6`.
+  With everything off the stills of both examples are byte-identical to before (6 of 6). hello-courtyard,
+  1280 x 720, PSNR to a 16-sample still under a pan: old TAA 37.7 dB, taa2 40.2, upscale 0.67 37.3, upscale 0.5
+  34.7. ms per frame off → on at 2560 x 1440 (median of 5 interleaved blocks, spread ±0.5): taa2 7.3 → 7.8,
+  upscale 0.67 7.5 → 5.4, upscale 0.5 7.4 → 4.2, motion blur 7.7 → 8.8, bokeh 7.8 → 10.1, bloom pyramid 7.9 → 7.9.
+  Not built: a roughness-aware SSR, the chain in XR (`docs/post.md` says what xr.js would need).
+- @mirage/tools: `mirage-snap --seq N [--fps --from --to --shutter --video [file] --encoder]`: a deterministic image
+  sequence whose frames integrate motion blur and depth of field by accumulation, encoded with a local ffmpeg
+  (H.264 .mp4) or, without one, Chrome's WebCodecs VP9 into .ivf; `--png16` and `--exr` (linear half float) for
+  stills and frames. 12 frames of 640 x 360 at 8 samples: frames byte-identical across two runs.
+- @mirage/net (new package, experimental, opt-in; nothing else imports it): multiplayer for walked worlds. An
+  authoritative room (`createRoom`) runs the play walker on a serialised walk grid in Node with no GPU, or in one
+  player's page (`hostRoom`, with migration when the host leaves); quantised delta snapshots against acknowledged
+  baselines, interest by distance, reliable events and RPCs over unreliable packets, clock sync; client prediction
+  and reconciliation (`createClient().walker` goes straight into `createPlay`); lag-compensated `hitscan`; a lobby
+  with room codes, reconnect and late join; transports: seeded in-memory loopback, WebSocket (own 100-line server,
+  no dependency), WebRTC data channels signalled through the lobby. Server-side validation of every message, input
+  rate and size limits. `mirage-net` dev server (127.0.0.1 only) with a network simulator and `bake` for the grid;
+  `createNetOverlay`; example `examples/net-courtyard` (names, shared lanterns, chat). Measured (bench, 3 runs):
+  941 B/s down and 1213 up per player at 20 Hz with 4 players, 2772 down at 60 Hz; tick 0.16 ms mean with 16
+  players, 1.7-1.8 ms with 64; p99 tick inside budget up to 128 players at 20 Hz and 64 at 60 Hz. Browser check, 3
+  Chrome clients at 150 ms + 5 % loss each way: 0 prediction corrections, positions converge to 1.66 mm. Guide,
+  limits and what a public server needs: `docs/multiplayer.md`.
+- @mirage/game: an in-game UI toolkit (`docs/ui.md`; experimental, opt-in; `createUI` is unchanged and the default).
+  `createUIKit` (`@mirage/game/ui-kit`): descriptions as plain data (`h`, `each`, `show`), signals bound one
+  attribute at a time (no diffing), `stack` / `row` / `grid` / `anchor` / `safeArea`, em sizes that follow the screen
+  and a text-scale setting, four token themes (dark, light, contrast, colour-blind-safe), reduced motion. Widgets
+  (`ui-widgets`): button, toggle, slider, select, tabs, text input, progress, health / stamina bar, tooltip,
+  virtualised list, drag-and-drop inventory grid, minimap frame, objective tracker, rebinding list, and modal stack,
+  dialogue (typewriter by grapheme, choices), toasts and radial menu services. `createFocusNav`: spatial focus for
+  keyboard and gamepad, focus trapped in modals, glyphs that follow the last device used and a rebind.
+  `createI18n` with English, Traditional Chinese and Arabic tables: plurals, ordinals, numbers and dates through
+  `Intl`, a runtime language switch, RTL, CJK line breaking. `createWorldUI`: labels, markers and health bars at 3D
+  points with distance fade and ray occlusion, `transform` and `opacity` writes only. `createCanvasUI`: a subset of
+  the widgets drawn into a texture for screens in the world and XR. `createKitUI` (`ui-menu`): the start screen and
+  pause menu on the toolkit, through `startGame`'s `ui: (o) => createKitUI(o)`; snow-hut `?ui=kit`. Demo:
+  `examples/demos/ui/`. Measured there in headless Chrome, 1280 x 720, median (min-max) of 5 interleaved rounds of
+  180 frames: with the HUD idle 0.000 layouts a frame; with the camera orbiting (labels, minimap, a distance
+  read-out) 0.111 layouts a frame (0.017 ms); UI work 0.139 (0.108-0.147) ms a frame, the frame callback 0.277
+  (0.229-0.323) ms against 0.133 (0.112-0.182) with the HUD hidden and 0.141 (0.122-0.179) without the toolkit.
+  Worst text contrast per theme 7.73 / 4.88 / 10.50 / 7.67; the colour-blind theme's good and bad colours stay
+  74.0 dE apart under simulated dichromacy (the default theme's 10.3). Sources 2 428 lines, about 64 KB gzip in all
+  as separate modules; a game that does not import them is unchanged: hello-courtyard, river-ford, walled-garden
+  and woodland-path build byte-identical, garden-quest +12 B gzip (one expression in `startGame`), and snow-hut and
+  garden-quest stills are pixel-identical with it off. `node packages/game/ui.check.mjs` (in `npm test`) and
+  `node examples/demos/ui/ui-check.mjs` (keyboard, touch, scripted gamepad, languages, layout counts, the menu).
+- @mirage/core: visual effects (`createVfx`, `VFX_LIBRARY`, `defineEffect`; experimental, opt-in, `docs/vfx.md`).
+  GPU particles for WebGL2 described as JSON: state in float textures advanced by one fragment pass per fixed
+  60 Hz step, instanced draw; shapes (point, sphere, box, cone, ring, edge, mesh surface), gravity, drag, wind,
+  curl-noise turbulence, attractors, vector fields, curves and gradients over life; soft, lit (sun, shadow, sky,
+  fog), stretched, mesh and flipbook particles, three blends, GPU distance sort; collision with the depth buffer,
+  planes and the walk grid (bounce, kill, stick); sub-emitters on birth, death, collision; trails, beams and
+  lightning, depth-projected decals; per-effect and global caps, distance LOD, culling, pooled one-shots. The
+  state hash is the same on two loads and at 30 updates a second. Measured (M4 Pro, 1280 x 720, a yard that
+  itself costs 1.9 ms): 1 000 000 unlit additive sprites cost 0.70 ms a step and 6.3 ms to draw, 9.7 ms a frame
+  in all; 60 fps holds to about 1.7 million and 120 fps to about 830 000 at pixel ratio 1, 440 000 at 60 fps at
+  pixel ratio 2; lit soft particles 690 000 / 350 000 at pixel ratio 1. Gallery: `examples/demos/vfx`. Two
+  examples build to byte-identical bundles with and without this change.
+- @mirage/core realtime lighting, four opt-in features under `createWorldRenderer({ lighting })` (`docs/lighting.md`,
+  experimental; without the option the stills of hello-courtyard and walled-garden are byte-identical). `csm`: 2-4
+  cascaded sun shadows in the sun's own map (bounding spheres of view slices, texel-snapped, blended, the
+  contact-hardening filter per cascade with `softShadows`). `gi`: an irradiance probe volume baked on the GPU at load
+  (irradiance + distance moments per probe, visibility-weighted against leaks), re-baked 2 probes a frame when the
+  time of day moves. `probes`: up to 4 box-parallax reflection probes filtered by PMREM. `lights`: clustered local
+  lights (16 x 9 x 24 cells, lights in a float texture, the count is data) with a cached octahedral shadow atlas;
+  `world.lighting.addLight(light, { shadow })`. Shader parts go into the world's own materials through an
+  instance-scoped injector, not into `THREE.ShaderChunk`. Measured on an Apple M4 Pro (shared GPU, A/B interleaved,
+  median [spread of 6 rounds], 1440 x 900): 100 lamps cost 3.6 ms [3.4-3.9] a frame clustered against 3.8 [3.4-4.0]
+  with no lamps, 6.1 [5.3-6.3] as a plain loop and 121.6 [112.2-122.1] as three's own PointLights (walled-garden);
+  in hello-courtyard's small court 6.2 / 3.4 / 7.0 / 183.4. Cascades, the probe volume and one reflection probe are
+  each inside the spread (not resolved). Probe volume bake 315-495 ms (196-400 probes); a reflection probe capture
+  is a 10-17 ms frame; a shadow tile redraw +0.1 to +1.6 ms, none while nothing moves. 2880 x 1800 and the limits
+  (one GI box, cascades all redrawn each frame, spots pay six faces, 4 probes) are in the guide. Flags on both
+  examples: `?csm=1`, `?gi=1`, `?probes=1`, `?lights=N` (`&lshadows=K`, `&cluster=0`, `&stock=1`).
+  `node packages/tools/src/lighting-check.mjs` checks it in Chrome.
+- Big worlds (`docs/big-worlds.md`; all opt-in and experimental; with none of it called, hello-courtyard and
+  walled-garden render as at the base commit: SSIM 1.000, worst cell 0 in 15 views). @mirage/core: `simplify.js`
+  (own quadric-error simplifier with attribute quadrics, locked borders, a time budget: a 12 096-triangle sphere to
+  1 208 in 66 ms in Node), `chunk.js` (`chunkGeometry`, `chunkObject`, `MeshBatch.finish({ chunk })`), `autolod.js`
+  (`createAutoLod`: chains built in workers or slices, screen-size selection with hysteresis and a dithered
+  cross-fade; `buildProxy` for HLOD), `instancing.js` (`createInstances`: per-cell then per-instance frustum culling,
+  per-instance LOD), `impostor.js` (hemi-octahedral impostors lit by the live sun), `hiz.js` (`createOcclusion`:
+  the depth pyramid of the frame before, asynchronous readback, CPU test), `frame.js` (`onView`), and
+  `applyBigWorld(world, root, 'chunk,lod,occ')` (`@mirage/core/bigworld`), which every example takes as
+  `?perf=chunk,lod,occ`. @mirage/world: `createPartition` (streaming cells, an HLOD proxy for each cell that is out)
+  and `createFloatingOrigin`. Measured on `examples/demos/bigworld` (4096 m, 256 cells, 5.8 M source triangles,
+  30 000 trees; 1280 x 720, 3 interleaved runs, proxies baked): town 47.48 M triangles and 28.8 ms a frame to
+  1.26 M and 9.2 ms (8.1-10.7); 2 km out 44.96 M and 26.7 ms to 0.34 M and 7.5 ms; CPU per frame 0.5-0.7 ms to
+  1.1-1.8 ms. At 4x CPU throttle: 29.5 ms to 11.5 ms (p95 14.6). Occlusion: 0 differing pixels against the same
+  frame without it over 803 comparisons at 6 to 60 m/s. The shipped examples are too small to gain: with the flag
+  they submit 10-50 % fewer triangles in about twice the draw calls, and frame time is the same or 3-4 ms worse.
+  Not built: a GPU-driven path (WebGL2 has no indirect draws), offline proxy baking, virtualised geometry.
+- @mirage/play: fewer allocations in the frame loop (`walkgrid.support(x, z, y, step, out)` fills the caller's
+  array; scratch vectors in `play.js` and `world.renderFrame`): 42 641 to 36 083 bytes a frame in hello-courtyard,
+  44 363 to 37 292 in walled-garden (Chrome's sampling heap profiler, 3 runs). What is left is mostly three's own.
 - @mirage/play: NPC navigation on the walk grid (`createNavGrid`, `createNavAgent`, `createNavCrowd`; experimental,
   opt-in). No navmesh: per-radius fit bits from the walker's own disc / step / head-room test (equal to the walker
   on every floor of the node checks' grids and on 20 000 of 20 000 random floors of walled-garden), coarse A* (4 x 4
@@ -253,6 +536,18 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
 
 **Changes in behaviour**
 
+- `ctx.onUpdate(fn)` / `world.onUpdate(fn)` return a function that unsubscribes (they returned the number of
+  subscribers). Calling it twice, or from inside the callback, is safe; `docs/LIFECYCLE.md`. Module callbacks of a
+  streamed or partitioned world are dropped with their module.
+- Export maps are explicit lists (core 42 subpaths, world 13, play 18, game 23, net 4): the `"./*": "./src/*.js"`
+  wildcard is gone, so a file under `src/` that no entry names (for example core's `particle-draw.js`) can no
+  longer be imported. Every subpath the examples, docs and packages use is listed; `node scripts/check-imports.mjs`
+  names an import that is not.
+- A playtest `perf` step times its frames in three consecutive parts and reports the median with the spread
+  (`frameMsRuns`, `frameMsSpread`; the same number of frames as before, so the walker ends where it did). MG501
+  no longer blames the triangle count for a slow frame unless the view is over `plan.budget`, and says so when the
+  runs disagree by more than 25 %.
+
 - Version 1.0.0 for every package and example. Peer ranges: `three >=0.186.1 <0.187.0`, `@mirage/*` `^1.0.0`
   (were exact versions). Each package ships its LICENSE and has repository, homepage and bugs fields. The `"./*"`
   subpath export stays until a whitelist is decided (`docs/api.md`).
@@ -287,6 +582,24 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
   cannot inline; `mirage-e2e` runs the `examples/` of the current folder or `--root`.
 
 **Fixes**
+- Screen-space lighting no longer darkens a room lit by the probe volume: its uniform started with contact shadows
+  on (a bare `Vector4` has w = 1), so the first probe and sky captures multiplied the sun by an atlas that did not
+  exist yet. walled-garden interior, mean luma: `?gi=1` 55.2; `?gi=1&ssgi=1` was 38.8, now 54.4. A still traces at
+  least 4 indirect rays a sub-frame.
+- `world.dispose()` of the last world on a page puts three's shader chunks back (fog, light2, soft shadows and the
+  XR grade rewrote them for good); a later world installs them again. `npm run test:dispose` checks it.
+- The `snow` preset is visible against a bright sky and snow ground (smaller hard-edged flakes, partly unlit). Touch
+  screens get glyph labels for `ui-nav` actions and the ui demo's buttons clear the touch controls. The anim demo's
+  timeline hides the other characters. The playtest paces its waits by frames on software GL (CI), and the net check
+  waits for the socket instead of a fixed time.
+
+- @mirage/core: `createLod().register()` threw a ReferenceError (`unit` was declared inside the traverse callback
+  and read after it; found by the linter, regression check in `scripts/checks/tooling.check.mjs`). `createVfx` on
+  a world left its per-frame callback subscribed after `dispose()`.
+- @mirage/tools, @mirage/net: the static servers followed a symlink inside the served folder to a file outside it;
+  they now compare the real path (27 assertions in `scripts/checks/serve.check.mjs`). `mirage-package` found worker
+  URLs with a regular expression, which a string or a comment could satisfy and a line break could defeat; it now
+  parses the bundle and refuses a worker path outside the build (44 assertions).
 
 - @mirage/game: text from saves and settings (inventory names, key bindings, slot summaries) is escaped in the
   overlay — an imported save file could run script in the page; `addStatic` skips meshes with nothing to collide

@@ -4,7 +4,7 @@ import { makeGrid, MAXL } from './src/walkgrid.js';
 import { createWalker, BODY } from './src/walker.js';
 import { createNavGrid, createNavAgent, createNavCrowd } from './src/navgrid.js';
 
-const ok = (c, m) => { if (!c) { console.error('FAIL', m); process.exit(1); } console.log('  ok', m); };
+import { ok } from '../../scripts/soft-assert.mjs';   // reports every failure with a count, not only the first
 const cell = 0.125;
 /** a grid of nx x nz cells from (x0, z0); layers(x, z) -> [[floor, ceil], ...] bottom to top at a cell centre */
 function gridOf(nx, nz, x0, z0, layers) {

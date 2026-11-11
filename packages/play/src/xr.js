@@ -34,7 +34,10 @@
 import * as THREE from 'three';
 import { MAXL } from './walkgrid.js';
 import { canvasTextWorks, createImage, clearImage, fillRoundRect, drawText, textWidth, glyphText } from './glyphs.js';
-import { HAND_JOINTS, createHandGesture, indexRay } from './xr-hands.js';
+import { HAND_JOINTS, createHandGesture, indexRay, palmFrame } from './xr-hands.js';
+import { createXRPost } from './xr-post.js';
+import { xrProfile, createXRGovernor, XR_LEVELS, XR_SCALE_LEVELS, heightOffset, boundsDistance } from './xr-quality.js';
+import { createXRAR, shadowGround } from './xr-ar.js';
 
 const TM = { agx: 'AgXToneMapping', aces: 'ACESFilmicToneMapping', neutral: 'NeutralToneMapping' };
 const SCALE = { high: 1, medium: 0.9, low: 0.75 };   // framebuffer scale by quality (1 = the headset's recommended size)
@@ -79,8 +82,9 @@ function grade(world, mean, out) {
 }
 
 let gradeInstalled = null;
+const XR_STUB = 'vec3 CustomToneMapping( vec3 color ) { return color; }';
 function installGrade(post) {
-  if (gradeInstalled) return gradeInstalled;
+  if (gradeInstalled && !THREE.ShaderChunk.tonemapping_pars_fragment.includes(XR_STUB)) return gradeInstalled;   // (the stub is back when the last world was disposed: core's fog.js restores three's chunks)
   const tm = TM[post.tonemap] || TM.agx;
   const fn = /* glsl */ `
 uniform vec4 mgXR[ 3 ];
@@ -94,7 +98,7 @@ vec3 CustomToneMapping( vec3 color ) {
 	color = clamp( ( color - 0.5 ) * mgXR[ 2 ].x + 0.5, 0.0, 1.0 );
 	return color + mgXR[ 2 ].y * ( 1.0 - color );
 }`;
-  const stub = 'vec3 CustomToneMapping( vec3 color ) { return color; }';
+  const stub = XR_STUB;
   const chunk = THREE.ShaderChunk.tonemapping_pars_fragment;
   if (chunk.includes(stub)) THREE.ShaderChunk.tonemapping_pars_fragment = chunk.replace(stub, '') + fn;
   for (const lib of Object.values(THREE.ShaderLib)) if (lib.uniforms && !lib.uniforms.mgXR) lib.uniforms.mgXR = { value: XR_GRADE };
@@ -224,6 +228,11 @@ function makeLabel({ width = 0.6, px = 1024, lines = 1, glyphs = false } = {}) {
  * turnSpeed = 2.5 (rad/s, smooth turning), teleportMaxUp = 1.2 (m), vignette = true, framebufferScale, foveation = 1, frameRate,
  * referenceSpace = 'local-floor', arSize = 0.9 (m across), shadowRadius = 22, onSelect(hand), prompt() -> string | null,
  * offer = true (navigator.xr.offerSession where it exists), autoEnter = false, hands = true, text = 'auto' }
+ * Opt-in (off by default; docs/xr.md): post: true | { msaa, ao, bloom, lut, depth, scale } (the per-eye post chain,
+ * xr-post.js; VR only), budget: true | { hz, high, low, ... } (the frame-time governor, xr-quality.js), profile:
+ * 'auto' | 'quest-2' | 'quest-3' | 'vision-pro' | 'pcvr' (device defaults for what is not set here), interact: a
+ * createXRInteraction() (xr-interact.js), posture: 'room' | 'standing' | 'seated' (+ eyeHeight), bounds: true |
+ * 'always' (+ boundsWarn = 0.5 m), arFeatures: true | { anchors, planes, light, shadowGround, domOverlay } (xr-ar.js).
  */
 export function createXR(play, opts = {}) {
   const { world } = play;
@@ -232,6 +241,13 @@ export function createXR(play, opts = {}) {
   const B = play.walker.body;
   const o = { ar: true, teleport: true, teleportMaxUp: 1.2, snapTurn: 30, turnSpeed: 2.5, vignette: true, foveation: 1, referenceSpace: 'local-floor', arSize: 0.9, button: true,
     offer: true, autoEnter: false, hands: true, text: 'auto', ...opts };
+  const prof = o.profile ? xrProfile(o.profile === 'auto' ? undefined : o.profile) : null;
+  if (prof) {   // the device's defaults; what the caller set stays
+    if (opts.framebufferScale === undefined) o.framebufferScale = prof.framebufferScale;
+    if (opts.foveation === undefined) o.foveation = prof.foveation;
+    if (opts.frameRate === undefined && prof.frameRate) o.frameRate = prof.frameRate;
+    if (opts.post === undefined) o.post = prof.post ? { msaa: prof.msaa, ao: prof.ao, bloom: prof.bloom } : false;
+  }
   const game = o.game || null;
   const useHands = o.hands !== false;
   const hasDoc = typeof document !== 'undefined' && !!document && typeof document.createElement === 'function';
@@ -361,12 +377,12 @@ export function createXR(play, opts = {}) {
   // ---- state
   let session = null, mode = null, align = true, armed = true, ending = null, saved = null;
   // the frame's numbers live on an object: a double in a closure variable is a new heap number at every write
-  const F = { last: 0, T: 0, rigYaw: 0, vigS: 0, blink: 0, uiNext: 0, dt: 0, time: 0 };   // dt, time: this frame's (s, ms)
+  const F = { vpScale: 1, last: 0, T: 0, rigYaw: 0, vigS: 0, blink: 0, uiNext: 0, dt: 0, time: 0 };   // dt, time: this frame's (s, ms)
   const head = new THREE.Vector3(), headQ = new THREE.Quaternion(), prevHead = new THREE.Vector3();
   let hasHead = false;
   // teleport: by the right stick ('stick') or a pointing hand ('hand'); target is `at` (or null)
   const tele = { aiming: false, valid: false, target: null, hand: null, by: null, at: [0, 0, 0] };
-  const ar = { culled: null, placed: false, scale: 1, yaw: 0, at: new THREE.Vector3(), hitSource: null, hit: null, hitV: new THREE.Vector3(), anchor: new THREE.Vector3(), extent: 1, since: 0 };
+  const ar = { worldAnchor: null, hitResult: null, anchorSeq: 0, culled: null, placed: false, scale: 1, yaw: 0, at: new THREE.Vector3(), hitSource: null, hit: null, hitV: new THREE.Vector3(), anchor: new THREE.Vector3(), extent: 1, since: 0 };
   const pads = { move: [0, 0], turn: [0, 0], run: false, jump: false, jumpPrev: false, jumpEdge: false };
   const stats = { frames: 0, ms: 0, sessions: 0 };
   let near = null, uiMsg = null, uiHead = '';
@@ -378,6 +394,83 @@ export function createXR(play, opts = {}) {
   const direct = { camera: cam, shadow: shadowOpt, fog: undefined };
   const panelGoal = new THREE.Vector3(), _want = new THREE.Vector3();
   let panelPlaced = false;
+
+  // ---- the opt-in parts (every one off by default): the per-eye post chain, the frame-time governor, hands-on
+  // interaction, AR features, posture, the play area's bounds
+  const ix = o.interact || null;
+  const arx = o.arFeatures ? createXRAR(world, o.arFeatures === true ? {} : o.arFeatures) : null;
+  let xp = null, xpBase = null, gov = null, postOn = false, lift = 0, liftSet = false, ground = null;
+  const Q = { level: 0, scale: 1, post: true };
+  // the controllers' bodies are lit by the scene's lights in the direct path; drawn on their own after the post
+  // chain they get this one (visible only during that draw: see xr-post.js)
+  const fill = o.post ? new THREE.HemisphereLight(0xfff4e0, 0x40382c, 2.2) : null;
+  if (fill) { fill.visible = false; root.add(fill); }
+  const view = { xr: xrm, rig, head: cam, overlay: root, light: fill, shadow: shadowOpt, fog: undefined, dt: 0 };
+  const bounds = { space: null, poly: null, line: null, dist: Infinity, m: new THREE.Matrix4() };
+  const ladder = () => (gov ? gov.levels : postOn ? XR_LEVELS : XR_SCALE_LEVELS);
+  function applyLevel(i) {
+    const L = ladder()[i];
+    Q.level = i; Q.scale = L.scale; Q.post = L.post !== false;
+    if (xp && xpBase) xp.setLevel({ scale: xpBase.scale * L.scale, ao: xpBase.ao && L.ao !== false, bloom: xpBase.bloom && L.bloom !== false });
+  }
+  function setBounds(sp) {
+    const g = sp.boundsGeometry;
+    if (!g || g.length < 3) return;
+    bounds.space = sp; bounds.poly = Array.from(g, (pt) => [pt.x, pt.z]);
+    const pts = [], H = [0.02, 1, 2], P = bounds.poly;
+    for (let i = 0; i < P.length; i++) {
+      const a = P[i], b = P[(i + 1) % P.length];
+      for (const y of H) pts.push(a[0], y, a[1], b[0], y, b[1]);
+      pts.push(a[0], H[0], a[1], a[0], H[2], a[1]);
+    }
+    bounds.line = new THREE.LineSegments(new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(pts, 3)),
+      new THREE.LineBasicMaterial({ color: 0xff5a3c, transparent: true, opacity: 0, depthTest: false, fog: false, toneMapped: false }));
+    bounds.line.material.userData.mirageXR = true;
+    bounds.line.matrixAutoUpdate = false; bounds.line.frustumCulled = false; bounds.line.renderOrder = 2004; bounds.line.visible = false;
+    rig.add(bounds.line);
+  }
+  // the fence shows as the head comes within boundsWarn of an edge (or always)
+  function stepBounds(xrFrame) {
+    const pose = xrFrame.getPose(bounds.space, xrm.getReferenceSpace());
+    if (!pose) { bounds.line.visible = false; return; }
+    bounds.line.matrix.fromArray(pose.transform.matrix);
+    _w.copy(head).applyMatrix4(bounds.m.copy(bounds.line.matrix).invert());
+    bounds.dist = boundsDistance(bounds.poly, _w.x, _w.z);
+    const a = o.bounds === 'always' ? 1 : Math.min(1, Math.max(0, 1 - bounds.dist / (o.boundsWarn ?? 0.5)));
+    bounds.line.visible = a > 0.01; bounds.line.material.opacity = a * 0.9;
+  }
+  // interaction: a pointer per controller (grip pose, its ray, squeeze = grab, trigger = select) or tracked hand
+  // (the palm, the index ray and tip, fist or pinch = grab, pinch = select)
+  const ptrs = [0, 1].map(() => ({ id: 0, grip: new THREE.Matrix4(), origin: new THREE.Vector3(), dir: new THREE.Vector3(), tip: new THREE.Vector3(), grab: false, select: false, pulse: null }));
+  const ptrList = [], palm = new Float32Array(9), _bx = new THREE.Vector3(), _by = new THREE.Vector3(), _bz = new THREE.Vector3();
+  function stepInteract(dt) {
+    rig.updateMatrixWorld(true);
+    ptrList.length = 0;
+    for (let i = 0; i < hands.length; i++) {
+      const h = hands[i], p = ptrs[i];
+      if (!h.source) continue;
+      p.id = h.i;
+      if (!p.pulse) p.pulse = (v, ms) => haptic(h, v, ms);
+      if (h.isHand) {
+        if (!h.tracked) continue;
+        const f = palmFrame(h.joints, palm), g = h.gesture, r = h.rayLocal, j = h.joints;
+        _bx.set(f[6], f[7], f[8]); _bz.set(f[3], f[4], f[5]); _by.crossVectors(_bz, _bx);
+        p.grip.makeBasis(_bx, _by, _bz).setPosition(f[0], f[1], f[2]).premultiply(rig.matrixWorld);
+        p.origin.set(r[0], r[1], r[2]).applyMatrix4(rig.matrixWorld); p.dir.set(r[3], r[4], r[5]).transformDirection(rig.matrixWorld);
+        p.tip.set(j[27], j[28], j[29]).applyMatrix4(rig.matrixWorld);   // the index fingertip
+        p.grab = g.grabbing || g.pinching; p.select = g.pinching;
+      } else {
+        if (!h.ray.visible) continue;
+        const gp = h.source.gamepad;
+        p.grip.copy(h.grip.visible ? h.grip.matrixWorld : h.ray.matrixWorld);
+        p.origin.setFromMatrixPosition(h.ray.matrixWorld); p.dir.set(0, 0, -1).transformDirection(h.ray.matrixWorld);
+        p.tip.copy(p.origin);
+        p.grab = !!gp && btn(gp, 1); p.select = !!gp && btn(gp, 0);
+      }
+      ptrList.push(p);
+    }
+    ix.update(dt, ptrList);
+  }
 
   // ---- buttons (none where the page has no document: a native host offers the session instead, below)
   let bar = null;
@@ -407,8 +500,9 @@ export function createXR(play, opts = {}) {
 
   // ---- session
   const MODES = ['immersive-vr', 'immersive-ar'];
-  const sessionInit = (m) => m === 'immersive-ar' ? { optionalFeatures: useHands ? ['local-floor', 'hit-test', 'hand-tracking'] : ['local-floor', 'hit-test'] }
+  const sessionInit0 = (m) => m === 'immersive-ar' ? { optionalFeatures: useHands ? ['local-floor', 'hit-test', 'hand-tracking'] : ['local-floor', 'hit-test'] }
     : { optionalFeatures: useHands ? ['local-floor', 'bounded-floor', 'layers', 'hand-tracking'] : ['local-floor', 'bounded-floor', 'layers'] };
+  const sessionInit = (m) => (arx && m === 'immersive-ar' ? arx.sessionInit(sessionInit0(m)) : sessionInit0(m));
   async function enter(m = 'immersive-vr') {
     if (session) return session;
     const x = xrNav();
@@ -470,6 +564,13 @@ export function createXR(play, opts = {}) {
     F.T = play.clock; F.last = 0; align = true; hasHead = false; armed = true; stats.sessions++; meter.mean = null; meter.next = 0;
     Object.assign(tele, { aiming: false, valid: false, target: null, hand: null, by: null });
     F.uiNext = 0; panelPlaced = false;
+    postOn = false; gov = null; lift = 0; liftSet = false; Q.level = 0; Q.scale = 1; Q.post = true; F.vpScale = 1;
+    if (o.post && mode === 'vr') {
+      if (!xp) { xp = createXRPost(world, o.post === true ? {} : o.post); xpBase = { ...xp.level }; }
+      xp.setLevel(xpBase); postOn = true;
+    }
+    if (o.budget) gov = createXRGovernor({ hz: o.frameRate || s.frameRate || 72, levels: postOn ? XR_LEVELS : XR_SCALE_LEVELS, ...(o.budget === true ? null : o.budget) });
+    if (o.bounds && mode === 'vr' && s.requestReferenceSpace) s.requestReferenceSpace('bounded-floor').then((sp) => { if (session === s) setBounds(sp); }, () => {});
     if (mode === 'vr') {
       if (play.mode !== 'walk') play.setMode('walk');
       play.xrInput = mergeInput;
@@ -486,6 +587,13 @@ export function createXR(play, opts = {}) {
     if (ar.hitSource) { try { ar.hitSource.cancel(); } catch { /* gone with the session */ } ar.hitSource = null; }
     if (ar.culled) { for (const x of ar.culled) x.frustumCulled = true; ar.culled = null; }
     rig.scale.setScalar(1);
+    if (ix) ix.reset();
+    if (arx) arx.end();
+    if (ground) ground.removeFromParent();
+    if (bounds.line) { rig.remove(bounds.line); bounds.line.geometry.dispose(); bounds.line.material.dispose(); }
+    bounds.line = bounds.space = bounds.poly = null; bounds.dist = Infinity;
+    ar.worldAnchor = null; ar.hitResult = null; ar.anchorSeq++;
+    gov = null; postOn = false;
     if (saved) {
       renderer.toneMapping = saved.toneMapping; renderer.toneMappingExposure = saved.exposure;
       renderer.setClearColor(saved.clear, saved.alpha);
@@ -518,7 +626,7 @@ export function createXR(play, opts = {}) {
       const a = gp.axes, four = a.length >= 4, sx = (four ? a[2] : a[0]) || 0, sy = (four ? a[3] : a[1]) || 0;
       // dead zone 0.15, then 0..1 over the rest of the throw
       const l = Math.hypot(sx, sy), k = l < 0.15 ? 0 : Math.min(1, (l - 0.15) / 0.85) / l;
-      if (h.handedness === 'left') { mx = k ? sx * k : 0; my = k ? sy * k : 0; run = run || btn(gp, 1) || btn(gp, 3); }
+      if (h.handedness === 'left') { mx = k ? sx * k : 0; my = k ? sy * k : 0; run = run || (!ix && btn(gp, 1)) || btn(gp, 3); }   // with interaction the grip grabs: the stick's click runs
       else { tx = k ? sx * k : 0; ty = k ? sy * k : 0; jump = jump || btn(gp, 4); }
     }
     pads.move[0] = mx; pads.move[1] = my; pads.turn[0] = tx; pads.turn[1] = ty; pads.run = run;
@@ -542,6 +650,7 @@ export function createXR(play, opts = {}) {
     if (!session) return;
     if (mode === 'ar') { if (ar.hit) placeAR(ar.hit); return; }
     if (tele.aiming) return;
+    if (ix && ix.busy(h.i)) return;   // the trigger pressed a panel, or the hand holds something
     act(h);
   }
   // the game's interact (or Continue on its message), then the page's onSelect
@@ -633,8 +742,9 @@ export function createXR(play, opts = {}) {
       h.pointer.position.set(r[0], r[1], r[2]);
       h.pointer.quaternion.setFromUnitVectors(_fw.set(0, 0, -1), _w.set(r[3], r[4], r[5]));
       h.pointer.visible = !g.aiming && !g.armed;
+      const busy = !!ix && ix.busy(h.i);   // over a panel, or holding: the pinch is not the game's, the finger not a teleport
       if (mode === 'vr' && o.teleport && (tele.by === null || tele.hand === h)) {
-        if (g.aiming) {   // aim along the finger, in the world
+        if (g.aiming && !busy) {   // aim along the finger, in the world
           rig.localToWorld(_p.set(r[0], r[1], r[2]));
           _d.set(r[3], r[4], r[5]).transformDirection(rig.matrixWorld);
           tele.aiming = true; tele.by = 'hand'; tele.hand = h; aim(_p, _d);
@@ -644,6 +754,7 @@ export function createXR(play, opts = {}) {
         if (tele.hand === h && tele.valid && tele.target) teleport(tele.target);
         if (tele.hand === h) stopAim();
       } else if (ev === 'act') {
+        if (busy) continue;
         if (mode === 'ar') { if (ar.hit) placeAR(ar.hit); } else if (!tele.aiming) act(h);
       }
     }
@@ -669,17 +780,32 @@ export function createXR(play, opts = {}) {
     if (s.requestHitTestSource) s.requestReferenceSpace('viewer')
       .then((space) => s.requestHitTestSource({ space }))
       .then((src) => { if (session === s) ar.hitSource = src; else src.cancel(); }, () => {});
+    if (arx) {
+      arx.start(s, rig);
+      if (arx.options.shadowGround) {   // under the model, past its edge: its shadow on the real floor
+        if (!ground) { ground = shadowGround({ size: 1 }); own.push(ground.geometry, ground.material); }
+        ground.scale.setScalar(ar.extent * 3); ground.position.copy(ar.anchor); ground.position.y -= 0.02;
+        root.add(ground);
+      }
+    }
   }
-  function placeAR(p) { ar.at.copy(p); ar.placed = true; }
+  function placeAR(p) {
+    ar.at.copy(p); ar.placed = true;
+    if (arx && arx.options.anchors && ar.hitResult) {   // an anchor keeps the model on its table when tracking shifts
+      const want = ++ar.anchorSeq;
+      arx.anchor(ar.hitResult).then((a) => { if (want !== ar.anchorSeq) { a.delete(); return; } if (ar.worldAnchor) ar.worldAnchor.delete(); ar.worldAnchor = a; }, () => {});
+    }
+  }
   function stepAR(xrFrame) {
     const dt = F.dt;
     ar.since += dt;
-    ar.hit = null;
+    ar.hit = null; ar.hitResult = null;
     if (ar.hitSource) {
       const r = xrFrame.getHitTestResults(ar.hitSource);
       const pose = r.length && r[0].getPose(xrm.getReferenceSpace());
-      if (pose) { const t = pose.transform.position; ar.hit = ar.hitV.set(t.x, t.y, t.z); }
+      if (pose) { const t = pose.transform.position; ar.hit = ar.hitV.set(t.x, t.y, t.z); ar.hitResult = r[0]; }
     }
+    if (ar.worldAnchor && ar.worldAnchor.tracked) ar.at.copy(ar.worldAnchor.object.position);
     if (!ar.placed && !ar.hit && ar.since > 1.5 && hasHead) {   // no hit test here: the floor in front of you
       const f = _v.set(0, 0, -1).applyQuaternion(headQ).setY(0);
       if (f.lengthSq() < 1e-6) f.set(0, 0, -1);
@@ -723,7 +849,7 @@ export function createXR(play, opts = {}) {
     // walking around the room: the head's move this frame, as stick units in play's frame (relative to play.yaw)
     roomMove[0] = 0; roomMove[1] = 0;
     const cy = Math.cos(F.rigYaw), sy = Math.sin(F.rigYaw);
-    if (hasHead && dt > 0) {
+    if (hasHead && dt > 0 && o.posture !== 'seated') {   // seated: the chair does not walk
       const dx = head.x - prevHead.x, dz = head.z - prevHead.z;
       if (Math.hypot(dx, dz) < 0.5) {   // larger: a reference-space reset, not a step
         const wx = dx * cy + dz * sy, wz = -dx * sy + dz * cy, sp = (pads.run ? B.run : B.walk) * dt;
@@ -736,7 +862,10 @@ export function createXR(play, opts = {}) {
     play.step(dt);
     // the rig: feet at the walker's eased view position, the head above them
     const c = world.camera.position, ox = head.x * cy + head.z * sy, oz = -head.x * sy + head.z * cy;
-    rig.position.set(c.x - ox, c.y - B.eye, c.z - oz);
+    // standing / seated: the eyes at the character's eye height whatever the player's own (calibrated on the first
+    // head pose and by calibrateHeight()); 'room' keeps the real height over the floor
+    if (!liftSet && hasHead && o.posture && o.posture !== 'room') { lift = heightOffset(o.posture, o.eyeHeight ?? B.eye, head.y); liftSet = true; }
+    rig.position.set(c.x - ox, c.y - B.eye + lift, c.z - oz);
     rig.rotation.set(0, F.rigYaw, 0);
     rig.scale.setScalar(1);
     // in-world prompt and messages for a game
@@ -791,7 +920,7 @@ export function createXR(play, opts = {}) {
   function frame(time, xrFrame) {
     if (!session || !xrFrame) return;
     const t0 = performance.now();
-    const dt = F.last ? Math.max(0, Math.min((time - F.last) / 1000, 0.1)) : 0;
+    const dt = F.last ? Math.max(0, Math.min((time - F.last) / 1000, 0.1)) : 0, interval = F.last ? time - F.last : 0;
     F.last = time; F.dt = dt; F.time = time;
     const pose = xrFrame.getViewerPose(xrm.getReferenceSpace());
     if (pose) {
@@ -803,10 +932,14 @@ export function createXR(play, opts = {}) {
         F.rigYaw = Math.atan2(f.z, f.x) - play.yaw; align = false;
       }
       hasHead = true;
+      // the governor's resolution in the direct path: WebXR's own dynamic viewport (no reallocation; next frame)
+      if (Q.scale < 1 || F.vpScale < 1) { F.vpScale = postOn && Q.post ? 1 : Q.scale; for (const v of pose.views) if (v.requestViewportScale) v.requestViewportScale(F.vpScale); }
     }
     readPads();
     if (mode === 'vr') stepVR(); else { if (useHands) stepHands(); stepAR(xrFrame); }
     F.T += dt;
+    if (ix) stepInteract(dt);
+    if (bounds.space) stepBounds(xrFrame);
     F.blink = Math.max(0, F.blink - dt * 5);
     vig.material.uniforms.uS.value = F.vigS; vig.material.uniforms.uBlack.value = Math.min(1, F.blink * 1.5);
     vig.visible = F.vigS > 0.01 || F.blink > 0;
@@ -824,7 +957,9 @@ export function createXR(play, opts = {}) {
     // light: eased exposure, environment fades (full-screen passes: XR off), then one stereo draw
     xrm.enabled = false;
     try { world.tick(dt); } finally { xrm.enabled = true; }
-    if (mode === 'vr' && o.meter !== false) meterFrame();
+    if (mode === 'ar' && arx) arx.frame(xrFrame, xrm.getReferenceSpace(), ar.yaw);   // after the tick: the room's light over the world's
+    const posted = postOn && Q.post && mode === 'vr';
+    if (mode === 'vr' && o.meter !== false && !posted) meterFrame();
     grade(world, mode === 'vr' ? meter.mean : ZERO3, XR_GRADE);
     if (mode === 'ar') { ar.anchor.toArray(shadowOpt.center); shadowOpt.radius = ar.extent * 0.75; direct.fog = 1 / ar.scale; }
     else {
@@ -833,8 +968,14 @@ export function createXR(play, opts = {}) {
       shadowAround(_v.set(_v.x + Math.cos(fy) * R * 0.45, play.walker.pos[1], _v.z + Math.sin(fy) * R * 0.45), R);
       direct.fog = undefined;
     }
-    world.renderDirect(F.T, direct);
+    let drew = false;
+    if (posted) {   // each eye through the post chain (xr-post.js); the head's pose for the shadow fit
+      cam.position.copy(head); cam.quaternion.copy(headQ); rig.updateMatrixWorld(true);
+      view.dt = dt; drew = xp.render(F.T, view);
+    }
+    if (!drew) world.renderDirect(F.T, direct);
     stats.frames++; stats.ms = performance.now() - t0;
+    if (gov) { const i = gov.update(stats.ms, interval); if (i !== Q.level) applyLevel(i); }
   }
 
   function dispose() {
@@ -846,6 +987,8 @@ export function createXR(play, opts = {}) {
     if (meter.rt) meter.rt.dispose();
     if (meter.buf) { const gl = renderer.getContext(); if (meter.sync) gl.deleteSync(meter.sync); gl.deleteBuffer(meter.buf); meter.buf = meter.sync = null; }
     prompt.dispose(); panel.dispose();
+    if (xp) xp.dispose();
+    if (arx) arx.dispose();
     return done;
   }
 
@@ -856,6 +999,16 @@ export function createXR(play, opts = {}) {
     enter, exit, dispose,
     get session() { return session; }, get presenting() { return !!session; }, get mode() { return mode; },
     get near() { return near; },
+    /** the opt-in parts: the per-eye post chain (null until a session with `post`), the interaction, the AR features */
+    get post() { return xp; }, interact: ix, ar: arx, profile: prof,
+    /** quality now: { level, scale, post (the chain is drawing), governor: { ema, late, steps, reason } | null } */
+    get quality() { return { level: Q.level, scale: Q.scale, post: postOn && Q.post, governor: gov ? { ema: gov.ema, late: gov.late, steps: gov.steps, reason: gov.reason } : null }; },
+    /** force a quality level (an index into the governor's ladder); with `budget` the governor moves on from there */
+    setLevel(i) { i = Math.min(ladder().length - 1, Math.max(0, i | 0)); if (gov) gov.index = i; applyLevel(i); return ladder()[i]; },
+    /** standing / seated: measure the head again and put the eyes at the character's eye height; returns the lift (m) */
+    calibrateHeight() { liftSet = false; if (hasHead && o.posture && o.posture !== 'room') { lift = heightOffset(o.posture, o.eyeHeight ?? B.eye, head.y); liftSet = true; } return lift; },
+    /** AR: an anchor at the current hit test (xr-ar.js anchor()); rejects without `arFeatures.anchors` or a hit */
+    anchor() { return arx && ar.hitResult ? arx.anchor(ar.hitResult) : Promise.reject(new Error('no hit test result to anchor')); },
     /** 'canvas' or 'glyphs': how the in-headset labels draw text */
     get text() { return prompt.mode; },
     /** a pending navigator.xr.offerSession (the platform may start the session), and how many were made */
@@ -873,8 +1026,11 @@ export function createXR(play, opts = {}) {
       onGround: play.walker.onGround, blocked: play.walker.blocked,
       teleport: { aiming: tele.aiming, valid: tele.valid, target: tele.target && tele.target.map((v) => +v.toFixed(3)), by: tele.by },
       prompt: prompt.text, panel: panel.text, text: prompt.mode,
-      hands: hands.map((h) => ({ handedness: h.handedness, hand: h.isHand, tracked: h.tracked, pinching: !!(h.gesture && h.gesture.pinching), pointing: !!(h.gesture && h.gesture.pointing), aiming: !!(h.gesture && h.gesture.aiming) })),
+      hands: hands.map((h) => ({ handedness: h.handedness, hand: h.isHand, tracked: h.tracked, pinching: !!(h.gesture && h.gesture.pinching), pointing: !!(h.gesture && h.gesture.pointing), aiming: !!(h.gesture && h.gesture.aiming), grabbing: !!(h.gesture && h.gesture.grabbing) })),
       near: near ? near.id : null, vignette: +F.vigS.toFixed(3), ar: { placed: ar.placed, scale: +ar.scale.toFixed(3), hit: !!ar.hit, hitTest: !!ar.hitSource },
+      post: xp && session ? { on: postOn && Q.post, ...xp.stats } : null, quality: { level: Q.level, scale: Q.scale }, lift: +lift.toFixed(3), posture: o.posture || 'room',
+      bounds: bounds.poly ? { points: bounds.poly.length, distance: +bounds.dist.toFixed(3), shown: !!(bounds.line && bounds.line.visible) } : null,
+      arx: arx ? arx.state() : null, interact: ix ? ix.state() : null, profile: prof ? prof.id : null,
       frames: stats.frames, size: renderer.getDrawingBufferSize(new THREE.Vector2()).toArray(), meter: meter.mean && meter.mean.map((v) => +v.toFixed(4)),
     }),
   };

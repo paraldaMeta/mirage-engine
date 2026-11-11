@@ -15,11 +15,30 @@
   "type": "module",
   "main": "./src/index.js",
   "exports": {
-    ".": {
-      "types": "./src/index.d.ts",
-      "default": "./src/index.js"
-    },
-    "./*": "./src/*.js",
+    ".": { "types": "./src/index.d.ts", "default": "./src/index.js" },
+    "./audio": { "types": "./src/audio.d.ts", "default": "./src/audio.js" },
+    "./audio-debug": { "types": "./src/audio-debug.d.ts", "default": "./src/audio-debug.js" },
+    "./audio-dsp": { "types": "./src/audio-dsp.d.ts", "default": "./src/audio-dsp.js" },
+    "./audio-engine": { "types": "./src/audio-engine.d.ts", "default": "./src/audio-engine.js" },
+    "./audio-mixer": { "types": "./src/audio-mixer.d.ts", "default": "./src/audio-mixer.js" },
+    "./audio-music": { "types": "./src/audio-music.d.ts", "default": "./src/audio-music.js" },
+    "./audio-occlusion": { "types": "./src/audio-occlusion.d.ts", "default": "./src/audio-occlusion.js" },
+    "./game": { "types": "./src/game.d.ts", "default": "./src/game.js" },
+    "./input": { "types": "./src/input.d.ts", "default": "./src/input.js" },
+    "./physics": { "types": "./src/physics.d.ts", "default": "./src/physics.js" },
+    "./platform": { "types": "./src/platform.d.ts", "default": "./src/platform.js" },
+    "./simulation": { "types": "./src/simulation.d.ts", "default": "./src/simulation.js" },
+    "./start": { "types": "./src/start.d.ts", "default": "./src/start.js" },
+    "./ui": { "types": "./src/ui.d.ts", "default": "./src/ui.js" },
+    "./ui-canvas": { "types": "./src/ui-canvas.d.ts", "default": "./src/ui-canvas.js" },
+    "./ui-i18n": { "types": "./src/ui-i18n.d.ts", "default": "./src/ui-i18n.js" },
+    "./ui-kit": { "types": "./src/ui-kit.d.ts", "default": "./src/ui-kit.js" },
+    "./ui-locales": { "types": "./src/ui-locales.d.ts", "default": "./src/ui-locales.js" },
+    "./ui-menu": { "types": "./src/ui-menu.d.ts", "default": "./src/ui-menu.js" },
+    "./ui-nav": { "types": "./src/ui-nav.d.ts", "default": "./src/ui-nav.js" },
+    "./ui-reactive": { "types": "./src/ui-reactive.d.ts", "default": "./src/ui-reactive.js" },
+    "./ui-widgets": { "types": "./src/ui-widgets.d.ts", "default": "./src/ui-widgets.js" },
+    "./ui-world": { "types": "./src/ui-world.d.ts", "default": "./src/ui-world.js" },
     "./package.json": "./package.json"
   },
   "imports": {
@@ -51,7 +70,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "node check.mjs"
+    "test": "node check.mjs && node audio-check.mjs && node ui.check.mjs && node platform.check.mjs && node physics.check.mjs"
   },
   "author": "灰叔 Racso",
   "types": "./src/index.d.ts"

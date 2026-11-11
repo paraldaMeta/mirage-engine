@@ -17,9 +17,11 @@ const W = +Q.get('w') || innerWidth, H = +Q.get('h') || innerHeight;
 const place = { lat: 37.18, lon: -3.59, height: 700, tzHours: 1 };   // a generic mid-latitude site, not a real garden
 const canvas = document.querySelector('canvas');
 canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
-const quality = Q.get('quality') || (await pickQuality()).quality, hud = Q.get('hud') !== '0';   // ?quality=low|medium|high
+const PF = Q.get('platform') === '1' ? await import('../hello-courtyard/platform.js') : null;   // ?platform=1: device probe, context-loss recovery, quality governor, page lifecycle, wrapper saves (docs/platforms.md)
+const caps = PF && await PF.probe(), storage = PF && await PF.saves();
+const quality = Q.get('quality') || (caps || await pickQuality()).quality, hud = Q.get('hud') !== '0';   // ?quality=low|medium|high
 const xrs = await xrSupport();   // a headset browser: an MSAA context for the headset, and the Enter VR / AR buttons
-const world = createWorldRenderer({ quality, xr: xrs.vr || xrs.ar,
+const world = createWorldRenderer({ quality, xr: xrs.vr || xrs.ar, ...(caps?.settings.dynamicRes ? { dynamicRes: caps.settings.dynamicRes } : {}),
   canvas, width: W, height: H, place, time: { elevation: 2.2, azimuth: 252 }, preserveDrawingBuffer: true,   // late, low sun: lamps begin to glow
   shadow: { center: [0, 2, 0], radius: 42 }, envProbe: [0, 4, 6],
   fog: { groundDensity: 0.0018, height: 40 },
@@ -34,12 +36,13 @@ const S = { lawn: 'grass', hedge: 'grass', gravel: 'gravel', land: 'gravel', pla
 for (const [k, m] of Object.entries(shared.mats)) m.userData.surface = S[k] || 'stone';
 const { camera } = world;
 camera.aspect = W / H; camera.fov = 55; camera.near = 0.1; camera.far = 3000; camera.updateProjectionMatrix();
+if (Q.get('perf')) window.__big = (await import('@mirage/core/bigworld')).applyBigWorld(world, world.scene, Q.get('perf'));   // ?perf=chunk,lod,occ (docs/big-worlds.md)
 await tex.ready();
 async function mountQuest() {
   let quest;
   const g = await startGame(world, {
     built, canvas, id: 'garden-quest', version: VERSION, title: 'Garden Quest', subtitle: 'Find the key · open the pavilion · light the lanterns',
-    spp: +Q.get('spp') || 6, shadowRadius: 26, fit: !Q.get('w'), quality, hud,
+    spp: +Q.get('spp') || 6, shadowRadius: 26, fit: !Q.get('w'), quality, hud, ...(storage ? { storage } : {}),
     setup: (ctx) => { quest = setupQuest(ctx, shared.mats); },
     objective: (game) => objective(game, quest.lamps.length), summary,
   });
@@ -48,7 +51,9 @@ async function mountQuest() {
 const mounted = await mountQuest();
 const { g } = mounted;
 mounted.xr = createXR(g.play, { game: g, support: xrs });   // in the headset the trigger is E, prompts float in the garden
+if (Q.get('audio') === 'engine') mounted.audioEngine = (await import('./audio-engine.js')).mountAudioEngine(g, world, plan);   // ?audio=engine: reverb zone, occlusion, voices, overlay (docs/audio.md)
 if (Q.get('load')) g.load(+Q.get('load'));
 if (Q.has('start')) g.ui.begin();
+if (PF) window.__platform = PF.mount({ world, play: g.play, canvas, game: g.game, audio: g.audio, storage, caps, ui: g.ui });
 window.__mirage = { world, built, ...mounted, mountQuest, tex, render: (o = {}) => world.renderFrame(o.T ?? 0, { spp: 6, frameIndex: 1, ...o }) };
 window.__READY = true;

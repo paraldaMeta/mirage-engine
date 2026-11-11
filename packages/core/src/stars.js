@@ -264,7 +264,7 @@ export function brightStars() {
 }
 
 // galactic north pole and centre (J2000, equatorial unit vectors)
-const NGP = [-0.8676661, -0.1980764, 0.4559838], GC = [-0.0548755, -0.8734371, -0.4838350];
+const NGP = [-0.8676661, -0.1980764, 0.4559838];
 
 // rough star colour from B-V (linear RGB, max 1)
 function bvColor(bv) {

@@ -1,0 +1,19 @@
+{
+  "//": "Checks the hand-written declarations (packages/*/src/**/*.d.ts) and the consumer fixtures in docs/types against each other: `npm run test:dts` (part of `npm test`, no network: typescript and @types/three are devDependencies). The engine's .js files are not type-checked (plain JavaScript with their declarations beside them); scripts/check-types.mjs compares each module's runtime exports with its .d.ts instead. docs/types/bundler-identity.ts is left to `npm run test:types`: this workspace holds two copies of Rapier (the root's and @mirage/game's), a packed consumer holds one.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": false,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "resolveJsonModule": true,
+    "allowJs": true,
+    "checkJs": true,
+    "types": [],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"]
+  },
+  "include": ["packages/*/src/**/*.d.ts", "docs/types/*.mts", "docs/types/*.js"]
+}

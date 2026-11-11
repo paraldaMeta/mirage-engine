@@ -21,7 +21,25 @@ export const FOG = {
   glow: new Float32Array([0, 0, 0]),
 };
 
+// three's shader chunks are one table for the whole page, and Mirage rewrites some of them (the fog here, light2.js,
+// softshadow.js, the XR grade in @mirage/play). They stay rewritten while a world is alive and go back to three's own
+// text when the last world on the page is disposed, so an app that closes its world gets the stock three back.
+let stock = null, live = 0;
+const resets = new Set();
+/** a world is born: remember three's own chunks before the first one patches them */
+export function retainChunks() { if (live++ === 0) stock = { ...THREE.ShaderChunk }; }
+/** a world is disposed: with the last one, every chunk changed since goes back and the installers may run again */
+export function releaseChunks() {
+  if (live === 0 || --live > 0) return;
+  for (const k in stock) if (THREE.ShaderChunk[k] !== stock[k]) THREE.ShaderChunk[k] = stock[k];
+  stock = null;
+  for (const fn of resets) fn();
+}
+/** installers register how to forget that they ran */
+export function onChunksRestored(fn) { resets.add(fn); }
+
 let installed = false;
+onChunksRestored(() => { installed = false; });
 export function installFog() {
   if (installed) return;
   installed = true;

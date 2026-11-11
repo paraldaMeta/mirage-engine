@@ -6,6 +6,11 @@
 //   nav.findPath([x, y, z], [x, y, z], { radius })  -> [[x, y, z], ...] waypoints (feet heights) | null
 //   nav.flowField(goal, { radius, maxCost })        -> one Dijkstra field per goal; field.direction(x, y, z)
 //   nav.block({ box: [x0, y0, z0, x1, y1, z1] } | { cylinder: [x, z, r, y0, y1] }) -> id;  nav.unblock(id)
+//   nav.block({ obb: [cx, cz, hx, hz, yaw, y0, y1] })          // a turned box (a door leaf, a crate): nav-carve.js feeds these
+//   nav.setArea(shape, id); nav.setAreaCost(id, 4)             // areas (mud, road, a guard's forbidden zone): the cost of a
+//   nav.findPath(a, b, { costs: { 2: Infinity } })             // metre there; per query too (Infinity: no way through)
+//   nav.link({ from, to, cost, bidirectional, type: 'jump' })  // off-mesh link: a jump, a ladder, a door; the waypoint that
+//   nav.unlink(id)                                             // lands on `to` carries .link (agents traverse it: docs/navigation.md)
 //   createNavAgent(nav, { radius, speed, pos }).setGoal(p | field); agent.update(dt)
 //   createNavCrowd(nav, { separation }).add(agent); crowd.update(dt)
 //
@@ -78,6 +83,27 @@ export function createNavGrid(grid, opts = {}) {
   const cellOf = new Int32Array(F), fy = new floors.constructor(F), cy = new floors.constructor(F);
   for (let k = 0; k < N; k++) for (let l = 0; l < count[k]; l++) { const v = base[k] + l; cellOf[v] = k; fy[v] = floors[(k * MAXL + l) * 2]; cy[v] = floors[(k * MAXL + l) * 2 + 1]; }
   const blk = new Uint8Array(F);   // how many dynamic obstacles fill this node's air
+  const area = new Uint8Array(F), areaCosts = new Float32Array(256).fill(1);   // area id per node, default cost per id
+  let areas = 0;                   // setArea calls so far: 0 keeps every search on the uncosted path
+  // off-mesh links as directed edges (a bidirectional link is two); hl: each edge's best cost to the goal of the
+  // running query over straight lines and other links, so the A* estimate stays a lower bound when a link is a shortcut
+  const E = [], linkFrom = new Map(), links = new Map(), via = new Int32Array(F);
+  let hl = new Float64Array(8), linkId = 0;
+  function prepLinks(ti, tj) {
+    const L = E.length;
+    if (hl.length < L) hl = new Float64Array(L * 2);
+    for (let e = 0; e < L; e++) hl[e] = E[e].cost / cell + octile(E[e].vi - ti, E[e].vj - tj);
+    for (let pass = 0, any = true; any && pass < L; pass++) {
+      any = false;
+      for (let e = 0; e < L; e++) for (let m = 0; m < L; m++) { const c = E[e].cost / cell + octile(E[e].vi - E[m].ui, E[e].vj - E[m].uj) + hl[m]; if (c < hl[e] - 1e-9) { hl[e] = c; any = true; } }
+    }
+  }
+  /** cells to the goal cell (ti, tj) from cell (i, j): straight, or through the links, whichever is less */
+  function hcells(i, j, ti, tj) {
+    let d = octile(i - ti, j - tj);
+    for (let e = 0; e < E.length; e++) { const c = octile(i - E[e].ui, j - E[e].uj) + hl[e]; if (c < d) d = c; }
+    return d;
+  }
 
   /** the highest floor of column k at most yTop (node id), or -1: the walker's support search */
   const layerAt = (k, yTop) => { for (let v = base[k + 1] - 1; v >= base[k]; v--) if (fy[v] <= yTop) return v; return -1; };
@@ -85,7 +111,7 @@ export function createNavGrid(grid, opts = {}) {
 
   // the walk grid with the dynamic obstacles in: a closed door is a solid to walkers made on nav.grid
   const view = Object.create(grid);
-  view.supportAt = (k, y, s) => { if (k < 0) return null; const v = layerAt(k, y + s); return v < 0 || blk[v] ? null : [fy[v], cy[v]]; };
+  view.supportAt = (k, y, s, out) => { if (k < 0) return null; const v = layerAt(k, y + s); if (v < 0 || blk[v]) return null; if (!out) return [fy[v], cy[v]]; out[0] = fy[v]; out[1] = cy[v]; return out; };
 
   // ---- profiles: fit bits and coarse pieces per agent radius ----
   const profiles = new Map();
@@ -231,8 +257,9 @@ export function createNavGrid(grid, opts = {}) {
   const repDist = (P, a, b) => octile(P.ri[a] - P.ri[b], P.rj[a] - P.rj[b]) * cell;
   /** A* over coarse nodes; marks the path and its neighbours as the corridor; false if unreachable */
   function coarseSearch(P, s, t, maxNodes) {
-    const q = ++cstamp;
-    heap.n = 0; cg[s] = 0; cseen[s] = q; cparent[s] = -1; heap.push(s, repDist(P, s, t));
+    const q = ++cstamp, L = E.length, ti = P.ri[t], tj = P.rj[t];
+    const hc = L ? (v) => hcells(P.ri[v], P.rj[v], ti, tj) * cell : (v) => repDist(P, v, t);
+    heap.n = 0; cg[s] = 0; cseen[s] = q; cparent[s] = -1; heap.push(s, hc(s));
     let n = 0, found = false;
     while (heap.n) {
       const u = heap.pop();
@@ -245,7 +272,13 @@ export function createNavGrid(grid, opts = {}) {
         const v = pool[e];
         if (cclosed[v] === q) continue;
         const ng = cg[u] + repDist(P, u, v);
-        if (cseen[v] !== q || ng < cg[v]) { cseen[v] = q; cg[v] = ng; cparent[v] = u; heap.push(v, ng + repDist(P, v, t) * 1.001); }
+        if (cseen[v] !== q || ng < cg[v]) { cseen[v] = q; cg[v] = ng; cparent[v] = u; heap.push(v, ng + hc(v) * 1.001); }
+      }
+      for (let e = 0; e < L; e++) {
+        const l = E[e];
+        if (!P.fit[l.u] || !P.fit[l.v] || coarseOf(P, l.u) !== u) continue;
+        const v = coarseOf(P, l.v), ng = cg[u] + l.cost;
+        if (cclosed[v] !== q && (cseen[v] !== q || ng < cg[v])) { cseen[v] = q; cg[v] = ng; cparent[v] = u; heap.push(v, ng + hc(v) * 1.001); }
       }
     }
     stats.coarseExpanded = n;
@@ -258,10 +291,10 @@ export function createNavGrid(grid, opts = {}) {
     return true;
   }
   /** A* over cell nodes, inside the corridor if `inCorridor`; false if unreachable */
-  function cellSearch(P, s, t, inCorridor, maxNodes) {
-    const q = ++stamp, fit = P.fit, kt = cellOf[t], ti = kt % nx, tj = (kt - ti) / nx;
-    const h = (k) => { const i = k % nx; return octile(i - ti, (k - i) / nx - tj) * cell * 1.001; };
-    heap.n = 0; g[s] = 0; seen[s] = q; parent[s] = -1; heap.push(s, h(cellOf[s]));
+  function cellSearch(P, s, t, inCorridor, maxNodes, ac, use) {
+    const q = ++stamp, fit = P.fit, kt = cellOf[t], ti = kt % nx, tj = (kt - ti) / nx, L = E.length;
+    const h = L ? (k) => { const i = k % nx; return hcells(i, (k - i) / nx, ti, tj) * cell * 1.001; } : (k) => { const i = k % nx; return octile(i - ti, (k - i) / nx - tj) * cell * 1.001; };
+    heap.n = 0; g[s] = 0; seen[s] = q; parent[s] = -1; via[s] = 0; heap.push(s, h(cellOf[s]));
     let n = 0;
     while (heap.n) {
       const u = heap.pop();
@@ -273,8 +306,17 @@ export function createNavGrid(grid, opts = {}) {
       for (let d = 0; d < 8; d++) {
         const v = move(fit, u, i, j, d);
         if (v < 0 || closed[v] === q || (inCorridor && corridor[coarseOf(P, v)] !== cstamp)) continue;
-        const ng = g[u] + (d < 4 ? cell : cell * SQ2);
-        if (seen[v] !== q || ng < g[v]) { seen[v] = q; g[v] = ng; parent[v] = u; heap.push(v, ng + h(cellOf[v])); }
+        let w = d < 4 ? cell : cell * SQ2;
+        if (ac) { const c = ac[area[v]]; if (!(c < Infinity)) continue; w *= c; }
+        const ng = g[u] + w;
+        if (seen[v] !== q || ng < g[v]) { seen[v] = q; g[v] = ng; parent[v] = u; via[v] = 0; heap.push(v, ng + h(cellOf[v])); }
+      }
+      const le = L ? linkFrom.get(u) : null;
+      if (le) for (const l of le) {
+        const v = l.v;
+        if (!fit[v] || closed[v] === q || (use && !use(l.link)) || (ac && !(ac[area[v]] < Infinity))) continue;
+        const ng = g[u] + l.cost;
+        if (seen[v] !== q || ng < g[v]) { seen[v] = q; g[v] = ng; parent[v] = u; via[v] = l.idx + 1; heap.push(v, ng + h(cellOf[v])); }
       }
     }
     stats.cellExpanded = n;
@@ -282,7 +324,8 @@ export function createNavGrid(grid, opts = {}) {
   }
 
   /** cell walk from (ax, az) on node ua to (bx, bz): every cell crossed fits, each move a valid step, ends on ub */
-  function los(fit, ax, az, ua, bX, bZ, ub) {
+  function los(fit, ax, az, ua, bX, bZ, ub, ac) {
+    const c0 = ac ? ac[area[ua]] : 0;   // with area costs a straight line may not leave the cost it starts in
     let i = Math.floor((ax - x0) / cell), j = Math.floor((az - z0) / cell);
     const ie = Math.floor((bX - x0) / cell), je = Math.floor((bZ - z0) / cell);
     const dx = bX - ax, dz = bZ - az, si = Math.sign(dx), sj = Math.sign(dz);
@@ -296,7 +339,7 @@ export function createNavGrid(grid, opts = {}) {
       else if (tx < tz) { d = si > 0 ? 0 : 1; tx += tdx; }
       else { d = sj > 0 ? 2 : 3; tz += tdz; }
       u = move(fit, u, i, j, d);
-      if (u < 0) return false;
+      if (u < 0 || (ac && ac[area[u]] !== c0)) return false;
       i += DI[d]; j += DJ[d];
     }
     return i === ie && j === je && u === ub;
@@ -344,19 +387,25 @@ export function createNavGrid(grid, opts = {}) {
       return ua >= 0 && ub >= 0 && P.fit[ua] === 1 && los(P.fit, a[0], a[2], ua, b[0], b[2], ub);
     },
     /** waypoints [[x, y, z], ...] (feet, floor heights) from `from` to `to`, or null; stats in nav.stats */
-    findPath(from, to, { radius, snap = 1, maxNodes = 1e7 } = {}) {
+    findPath(from, to, { radius, snap = 1, maxNodes = 1e7, costs, canUse } = {}) {
       const t1 = performance.now(), P = profile(radius), fit = P.fit;
+      // area costs: the defaults, or this query's on top ({ id: cost } or a Float32Array(256)); null while no area is set
+      let ac = null;
+      if (areas) { ac = areaCosts; if (costs) { ac = costs.length === 256 ? costs : areaCosts.slice(); if (ac !== costs) for (const id in costs) ac[id] = costs[id]; } }
       stats.coarseExpanded = 0; stats.cellExpanded = 0; stats.corridor = false;
       const s = nodeNear(P, from, snap), t = nodeNear(P, to, snap);
       const done = (r) => { stats.ms = +(performance.now() - t1).toFixed(3); stats.found = !!r; return r; };
       if (s < 0 || t < 0) return done(null);
       // coarse first; the cell search keeps to the corridor, and searches the whole grid only if that fails
       let ok = false;
-      if (C > 1) {
+      if (E.length) { const kt = cellOf[t]; prepLinks(kt % nx, (kt / nx) | 0); }
+      // (with area costs the coarse corridor could hide the cheaper way round: the cell search runs unbounded)
+      if (C > 1 && !ac) {
         if (!coarseSearch(P, coarseOf(P, s), coarseOf(P, t), maxNodes)) return done(null);
-        ok = stats.corridor = cellSearch(P, s, t, true, maxNodes);
+        ok = stats.corridor = cellSearch(P, s, t, true, maxNodes, null, canUse);
       }
-      if (!ok && !cellSearch(P, s, t, false, maxNodes)) return done(null);
+      if (!ok && !cellSearch(P, s, t, false, maxNodes, ac, canUse)) return done(null);
+      stats.cost = +g[t].toFixed(3);
       stats.searchMs = +(performance.now() - t1).toFixed(3);
       // the cell path (in a reused buffer); positions: the exact ends, cell centres between
       let n = 0;
@@ -365,21 +414,28 @@ export function createNavGrid(grid, opts = {}) {
       const ex = cellIdx(to[0], to[2]) === cellOf[t] ? to[0] : cx(t), ez = cellIdx(to[0], to[2]) === cellOf[t] ? to[2] : cz(t);
       const last = n + 1;
       const node = (q) => (q === 0 ? s : q === last ? t : pbuf[n - q]);
-      const X = (q) => (q === 0 ? sx : q === last ? ex : cx(node(q))), Z = (q) => (q === 0 ? sz : q === last ? ez : cz(node(q)));
-      const vis = (a, b) => los(fit, X(a), Z(a), node(a), X(b), Z(b), node(b));
+      // link crossings: path index q whose node was reached over a link (its two ends keep the link's own points,
+      // and no straight line is pulled across one)
+      let cuts = null;
+      if (E.length) for (let q = 2; q <= n; q++) { const e = via[pbuf[n - q]]; if (e) { (cuts ??= new Map()).set(q, E[e - 1]); } }
+      const X = (q) => (q === 0 ? sx : q === last ? ex : cuts && cuts.has(q) ? cuts.get(q).tx : cuts && cuts.has(q + 1) ? cuts.get(q + 1).fx : cx(node(q)));
+      const Z = (q) => (q === 0 ? sz : q === last ? ez : cuts && cuts.has(q) ? cuts.get(q).tz : cuts && cuts.has(q + 1) ? cuts.get(q + 1).fz : cz(node(q)));
+      const cut = (a, b) => { if (cuts) for (const c of cuts.keys()) if (c > a && c <= b) return true; return false; };
+      const vis = (a, b) => !cut(a, b) && los(fit, X(a), Z(a), node(a), X(b), Z(b), node(b), ac);
       // string pulling: from each corner the farthest path point in sight (gallop, then bisect; neighbours on the
       // path are always in sight), then drop any corner its neighbours see past
       const idx = [0];
       for (let a = 0; a < last;) {
         let good = a + 1, bad = last + 1;
+        if (cuts && cuts.has(a + 1)) { idx.push(a + 1); a++; continue; }   // over the link: its far end is the next point
         for (let jump = 1; good < last; jump *= 2) { const b = Math.min(last, good + jump); if (vis(a, b)) good = b; else { bad = b; break; } }
         while (bad - good > 1) { const m = (good + bad) >> 1; if (vis(a, m)) good = m; else bad = m; }
         idx.push(good); a = good;
       }
       for (let q = idx.length - 2; q > 0; q--) if (vis(idx[q - 1], idx[q + 1])) idx.splice(q, 1);
-      const out = idx.map((q) => [X(q), fy[node(q)], Z(q)]);
+      const out = idx.map((q) => { const w = [X(q), fy[node(q)], Z(q)]; if (cuts && cuts.has(q)) w.link = cuts.get(q).view; return w; });
       // drop a repeated point (an end exactly on a cell centre)
-      for (let q = out.length - 1; q > 0; q--) if (out[q][0] === out[q - 1][0] && out[q][2] === out[q - 1][2] && out.length > 2) out.splice(q, 1);
+      for (let q = out.length - 1; q > 0; q--) if (out[q][0] === out[q - 1][0] && out[q][2] === out[q - 1][2] && out.length > 2 && !out[q].link) { if (out[q - 1].link) out[q].link = out[q - 1].link; out.splice(q - 1, 1); }
       let len = 0;
       for (let q = 1; q < out.length; q++) len += Math.hypot(out[q][0] - out[q - 1][0], out[q][1] - out[q - 1][1], out[q][2] - out[q - 1][2]);
       stats.length = +len.toFixed(3);
@@ -471,21 +527,78 @@ export function createNavGrid(grid, opts = {}) {
       return field;
     },
     /** a dynamic obstacle (box [x0, y0, z0, x1, y1, z1] or cylinder [x, z, r, y0, y1]): paths and nav.grid avoid it */
-    block(shape) { const o = { ...shape, box: shape.box && [...shape.box], cylinder: shape.cylinder && [...shape.cylinder], id: ++obstacleId, nodes: [] }; edit(o, 1); obstacles.set(o.id, o); return o.id; },
+    block(shape) { const o = { ...shape, box: shape.box && [...shape.box], cylinder: shape.cylinder && [...shape.cylinder], obb: shape.obb && [...shape.obb], id: ++obstacleId, nodes: [] }; edit(o, 1); obstacles.set(o.id, o); return o.id; },
     /** remove an obstacle made by block() */
     unblock(id) { const o = obstacles.get(id); if (!o) return false; obstacles.delete(id); edit(o, -1); return true; },
     obstacles: () => [...obstacles.values()],
+    /** mark the nodes inside a shape (block()'s shapes) as area `id` (0..255, 0: plain ground); returns how many */
+    setArea(shape, id) {
+      const { inside, lo, hi, i0, i1, j0, j1 } = bounds(shape);
+      let n = 0;
+      for (let j = Math.max(0, j0); j <= Math.min(nz - 1, j1); j++) for (let i = Math.max(0, i0); i <= Math.min(nx - 1, i1); i++) {
+        if (!inside(x0 + (i + 0.5) * cell, z0 + (j + 0.5) * cell)) continue;
+        for (let v = base[j * nx + i]; v < base[j * nx + i + 1]; v++) if (lo < cy[v] && hi >= fy[v]) { area[v] = id; n++; }
+      }
+      areas++; nav.version++;
+      return n;
+    },
+    /** what a metre in area `id` costs every query that does not say otherwise (1: plain; Infinity: closed; keep >= 1) */
+    setAreaCost(id, cost) { areaCosts[id] = cost; nav.version++; },
+    areaCosts,
+    /** the area id under a body with feet at (x, y, z) (0 off the grid) */
+    areaAt(x, y, z) { const v = nav.nodeAt(x, y, z); return v < 0 ? 0 : area[v]; },
+    areaOf: (v) => area[v],
+    /** an off-mesh link between two floor points: { from, to, cost (metres-worth, default the distance), bidirectional,
+     *  type ('jump' | 'ladder' | 'door' | yours), ...your fields (time, height, canEnter, traverse) } -> the link
+     *  (null when an end is not on walkable floor within `snap`) */
+    link(def) {
+      const P = profile(def.radius), a = nodeNear(P, def.from, def.snap ?? 1), b = nodeNear(P, def.to, def.snap ?? 1);
+      if (a < 0 || b < 0) return null;
+      const at = (p, v) => (cellIdx(p[0], p[2]) === cellOf[v] ? [p[0], fy[v], p[2]] : [cx(v), fy[v], cz(v)]);
+      const l = { type: 'jump', bidirectional: false, ...def, id: ++linkId, from: at(def.from, a), to: at(def.to, b), a, b };
+      l.cost = def.cost ?? Math.hypot(l.to[0] - l.from[0], l.to[1] - l.from[1], l.to[2] - l.from[2]);
+      links.set(l.id, l); relink();
+      return l;
+    },
+    unlink(l) { const ok = links.delete(l?.id ?? l); if (ok) relink(); return ok; },
+    links: () => [...links.values()],
+    /** nodes of the grid cell by cell, for debug views: fn(x, y, z, node, fits, area, blocked) */
+    eachNode(fn, { radius } = {}) { const fit = profile(radius).fit; for (let v = 0; v < F; v++) fn(cx(v), fy[v], cz(v), v, fit[v] === 1, area[v], blk[v] > 0); },
   };
+  function relink() {
+    E.length = 0; linkFrom.clear();
+    const ij = (v) => { const k = cellOf[v], i = k % nx; return [i, (k - i) / nx]; };
+    for (const l of links.values()) for (const back of l.bidirectional ? [false, true] : [false]) {
+      const u = back ? l.b : l.a, v = back ? l.a : l.b, f = back ? l.to : l.from, t = back ? l.from : l.to, [ui, uj] = ij(u), [vi, vj] = ij(v);
+      // what a waypoint carries: the link as walked (from / to in the direction of travel)
+      const view = back ? Object.assign(Object.create(l), { from: f.slice(), to: t.slice(), reverse: true, link: l }) : Object.assign(Object.create(l), { reverse: false, link: l });
+      const e = { u, v, ui, uj, vi, vj, cost: l.cost, link: l, idx: E.length, fx: f[0], fz: f[2], tx: t[0], tz: t[2], view };
+      E.push(e);
+      if (!linkFrom.has(u)) linkFrom.set(u, []);
+      linkFrom.get(u).push(e);
+    }
+    nav.version++;
+  }
+  /** a block / area shape as a cell range, a y range and an inside test over cell centres */
+  function bounds(o) {
+    let inside, lo, hi, X0, X1, Z0, Z1;
+    if (o.box) { const b = o.box; [X0, lo, Z0, X1, hi, Z1] = [Math.min(b[0], b[3]), Math.min(b[1], b[4]), Math.min(b[2], b[5]), Math.max(b[0], b[3]), Math.max(b[1], b[4]), Math.max(b[2], b[5])]; inside = (x, z) => x >= X0 && x <= X1 && z >= Z0 && z <= Z1; }
+    else if (o.cylinder) { const [x, z, r, y0, y1] = o.cylinder; [X0, X1, Z0, Z1, lo, hi] = [x - r, x + r, z - r, z + r, y0, y1]; inside = (px, pz) => (px - x) ** 2 + (pz - z) ** 2 <= r * r; }
+    else if (o.obb) {
+      // a box turned about y: local x = (cos, -sin), local z = (sin, cos) of the offset (three's rotation.y)
+      const [x, z, hx, hz, yaw, y0, y1] = o.obb, c = Math.cos(yaw), sn = Math.sin(yaw), ex = Math.abs(c) * hx + Math.abs(sn) * hz, ez = Math.abs(sn) * hx + Math.abs(c) * hz;
+      [X0, X1, Z0, Z1, lo, hi] = [x - ex, x + ex, z - ez, z + ez, y0, y1];
+      inside = (px, pz) => { const dx = px - x, dz = pz - z; return Math.abs(dx * c - dz * sn) <= hx && Math.abs(dx * sn + dz * c) <= hz; };
+    }
+    else throw new Error('nav.block: give { box: [x0, y0, z0, x1, y1, z1] }, { cylinder: [x, z, r, y0, y1] } or { obb: [cx, cz, hx, hz, yaw, y0, y1] }');
+    return { inside, lo, hi, X0, X1, Z0, Z1, i0: Math.floor((X0 - x0) / cell), i1: Math.floor((X1 - x0) / cell), j0: Math.floor((Z0 - z0) / cell), j1: Math.floor((Z1 - z0) / cell) };
+  }
 
   const obstacles = new Map();
   let obstacleId = 0;
   function edit(o, sign) {
     const t1 = performance.now();
-    let inside, lo, hi, X0, X1, Z0, Z1;
-    if (o.box) { const b = o.box; [X0, lo, Z0, X1, hi, Z1] = [Math.min(b[0], b[3]), Math.min(b[1], b[4]), Math.min(b[2], b[5]), Math.max(b[0], b[3]), Math.max(b[1], b[4]), Math.max(b[2], b[5])]; inside = (x, z) => x >= X0 && x <= X1 && z >= Z0 && z <= Z1; }
-    else if (o.cylinder) { const [x, z, r, y0, y1] = o.cylinder; [X0, X1, Z0, Z1, lo, hi] = [x - r, x + r, z - r, z + r, y0, y1]; inside = (px, pz) => (px - x) ** 2 + (pz - z) ** 2 <= r * r; }
-    else throw new Error('nav.block: give { box: [x0, y0, z0, x1, y1, z1] } or { cylinder: [x, z, r, y0, y1] }');
-    const i0 = Math.floor((X0 - x0) / cell), i1 = Math.floor((X1 - x0) / cell), j0 = Math.floor((Z0 - z0) / cell), j1 = Math.floor((Z1 - z0) / cell);
+    const { inside, lo, hi, X0, X1, Z0, Z1, i0, i1, j0, j1 } = bounds(o);
     // a node is filled when the cell centre is inside and the obstacle reaches into its air (floor .. ceiling);
     // a thin obstacle that misses every centre still fills the cell nearest its centre
     let any = false;
@@ -530,7 +643,8 @@ export function createNavAgent(nav, opts = {}) {
   let goal = null, field = null, ver = nav.version, stuck = 0, retry = 0, last = [0, 0, 0];
   const a = { walker, pos: walker.pos, radius, speed, path: null, index: 0, arrived: false, moving: false, blocked: false, separation: opts.separation ?? 1, push: [0, 0], heading: [0, 1] };
   function repath() {
-    a.path = nav.findPath(walker.pos, goal, { radius, snap: opts.snap ?? 1.5 });
+    if (a.link) return;   // mid-link: the plan waits for the landing
+    a.path = nav.findPath(walker.pos, goal, { radius, snap: opts.snap ?? 1.5, costs: opts.costs, canUse: opts.canUse });
     a.index = 1; ver = nav.version; stuck = 0;
   }
   /** a point [x, y, z] (feet) or a flow field; false if there is no way there */
@@ -542,7 +656,7 @@ export function createNavAgent(nav, opts = {}) {
     repath();
     return !!a.path;
   };
-  a.stop = () => { goal = null; field = null; a.path = null; };
+  a.stop = () => { goal = null; field = null; a.path = null; a.link = null; };
   /** one step: dt seconds; push: a [x, z] steering push added to the way (the crowd's separation) */
   a.update = (dt, push = a.push) => {
     const [x, y, z] = walker.pos;
@@ -554,8 +668,19 @@ export function createNavAgent(nav, opts = {}) {
       if (p) {
         // on to the next waypoint once at this one, or as soon as the next is in a straight walk from here (only
         // lines checked by nav.visible are walked: the walker steps onto each cell where the bits were baked)
-        while (a.index < p.length - 1 && (Math.hypot(p[a.index][0] - x, p[a.index][2] - z) < 1e-3 || nav.visible(walker.pos, p[a.index + 1], { radius }))) a.index++;
+        while (a.index < p.length - 1 && !p[a.index].link && (Math.hypot(p[a.index][0] - x, p[a.index][2] - z) < 1e-3 || (!p[a.index + 1].link && nav.visible(walker.pos, p[a.index + 1], { radius })))) a.index++;
         const w = p[a.index], d = Math.hypot(w[0] - x, w[2] - z);
+        if (w.link) {
+          // an off-mesh link: wait while link.canEnter says no (a shut door), then cross in link.time seconds (default: its
+          // length at this speed) along link.traverse(f, link, agent) -> [x, y, z], or straight with a hop for 'jump'
+          const l = w.link;
+          if (!a.link) { if (l.canEnter && l.canEnter(a, l) === false) { a.moving = false; return a; } a.link = { link: l, t: 0, T: l.time ?? Math.max(0.2, Math.hypot(l.to[0] - l.from[0], l.to[1] - l.from[1], l.to[2] - l.from[2]) / speed) }; opts.onLink?.(a, l, 'start'); }
+          const s = a.link, f = Math.min(1, (s.t += dt) / s.T), q = l.traverse ? l.traverse(f, l, a) : [l.from[0] + (l.to[0] - l.from[0]) * f, l.from[1] + (l.to[1] - l.from[1]) * f + (l.type === 'jump' ? Math.sin(Math.PI * f) * (l.height ?? 0.5) : 0), l.from[2] + (l.to[2] - l.from[2]) * f];
+          walker.pos[0] = q[0]; walker.pos[1] = q[1]; walker.pos[2] = q[2]; walker.vy = 0; a.moving = true;
+          if (f >= 1) { walker.place(l.to); a.link = null; a.index++; opts.onLink?.(a, l, 'end'); if (a.index >= p.length) { a.index = p.length - 1; a.arrived = true; } }
+          last = walker.pos.slice();
+          return a;
+        }
         if (a.index === p.length - 1 && d < arrive) a.arrived = true;
         else if (d > 1e-6) { dx = (w[0] - x) / d; dz = (w[2] - z) / d; slow = Math.min(1, d / (speed * Math.max(dt, 1e-3))); }   // lands on it
       }

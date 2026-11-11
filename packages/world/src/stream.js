@@ -70,9 +70,10 @@ export function createStreamer(world, { plan, modules = [], shared = {}, camera 
     if (entries.has(m.name)) throw new Error(`two streamed modules are called "${m.name}"`);
     entries.set(m.name, { m, want: false, state: 'out', root: null, updates: [], pinned: false, gen: 0, dist: Infinity, timing: null });
   }
-  // one callback for every streamed module's onUpdate (the world's list has no unsubscribe): a module's callbacks
+  // one callback for every streamed module's onUpdate, unsubscribed in dispose(): a module's callbacks
   // live on its entry, run while it is in the scene and go with it when it is freed
-  world.ctx.onUpdate((t) => { for (const e of entries.values()) if (e.root && e.root.parent === scene) for (const fn of e.updates) fn(t); });
+  const offUpdate = world.ctx.onUpdate((t) => { for (const e of entries.values()) if (e.root && e.root.parent === scene) for (const fn of e.updates) fn(t); });
+  const NOOP = () => {};   // an unsubscribed slot (the list may be mid-iteration)
   const distTo = (m) => Math.hypot(pos.x - m.center[0], pos.z - m.center[1]);
 
   async function build(e) {
@@ -80,7 +81,7 @@ export function createStreamer(world, { plan, modules = [], shared = {}, camera 
     root.name = m.name;
     const R = rng(`${plan.seed}/${m.name}`);
     const ctx = { ...world.ctx, world, plan, shared, name: m.name, root, scene: root, R, rng: (sub) => (sub === undefined || sub === '' ? R : rng(`${plan.seed}/${m.name}/${sub}`)),
-      anchors: {}, modules: {}, onUpdate: (fn) => updates.push(fn), collider: colliderFor(root), log: (...a) => log.log(`[${m.name}]`, ...a) };
+      anchors: {}, modules: {}, onUpdate: (fn) => { updates.push(fn); return () => { const i = updates.indexOf(fn); if (i >= 0) updates[i] = NOOP; }; }, collider: colliderFor(root), log: (...a) => log.log(`[${m.name}]`, ...a) };
     await m.build(ctx);
     return { root, updates, buildMs: performance.now() - t0 };
   }
@@ -166,7 +167,7 @@ export function createStreamer(world, { plan, modules = [], shared = {}, camera 
     idle: () => jobs.idle(),
     /** take every streamed module out of the scene and free it; a load in progress stops at its next step */
     dispose() {
-      stop(); stopped = null; stopping();
+      stop(); stopped = null; stopping(); if (typeof offUpdate === 'function') offUpdate();
       for (const e of entries.values()) {
         e.want = false; e.gen++; jobs.cancel(e.m.name);
         if (e.root) { const r = e.root; scene.remove(r); cache.delete(e.m.name); e.pinned = false; free(e, r); }

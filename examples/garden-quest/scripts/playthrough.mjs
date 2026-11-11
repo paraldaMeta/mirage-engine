@@ -9,7 +9,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { launch, serve, open } from '../../../packages/tools/src/chrome.mjs';
+import { launch, serve } from '../../../packages/tools/src/chrome.mjs';
 
 const args = process.argv.slice(2);
 const flag = (k, d) => { const i = args.indexOf('--' + k); return i >= 0 ? args[i + 1] : d; };

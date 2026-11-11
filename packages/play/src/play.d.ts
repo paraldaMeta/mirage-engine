@@ -14,6 +14,8 @@ export type PlayPlan = PlanInput & { viewpoints: readonly Viewpoint[] };
 export interface PlayOptions<W extends WalkerLike = GridWalker> {
   plan: PlayPlan; canvas?: HTMLCanvasElement; spp?: number; refine?: readonly [number, number]; animate?: boolean;
   grid?: WalkGrid; walker?: W; mode?: ViewMode; viewSize?: number; fov?: number; appearance?: CharacterAppearance;
+  /** Opt-in: build the player figure yourself (createRigCharacter for an imported rigged model). Default: the procedural traveller. */
+  character?: (world: WorldRenderer) => Character;
   ui?: boolean; devKeys?: boolean; pointerLock?: boolean; touch?: boolean; shadowRadius?: number;
   input?: (dt: number) => MotionInput; simulation?: SimulationDriver; onStep?: (dt: number) => boolean | void;
   fit?: boolean; idle?: number; maxFps?: number; hud?: boolean; quality?: Quality;
@@ -50,6 +52,8 @@ export interface Play<W extends WalkerLike = GridWalker> {
   /** Pauses automatic frames. start() resumes and step() still works. */
   stop(): void;
   start(): void; wake(): void;
+  /** false after stop() */
+  readonly running: boolean;
   /** Reads true while reduced motion is on; set 'auto', true, false or { sway, rain }. */
   get reducedMotion(): boolean;
   set reducedMotion(option: ReducedMotionOption);

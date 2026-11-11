@@ -24,6 +24,8 @@ export function createAudio({ volumes = {} } = {}) {
   const pendingLoops = [], J = sfc32(hash32('mirage/audio/jitter'));   // variant and pitch jitter
   const a = {
     get ctx() { return ctx; }, stats, get volumes() { return { ...vol }; },
+    // for createAudioEngine (audio-engine.js): the bus gains, the generated sounds, and where a bus's sounds go instead
+    get buses() { return buses; }, get buffers() { return bufs; }, route: null,
     unlock() {
       if (closing) return;
       if (ctx) { if (ctx.state === 'suspended') a.suspend(false); return; }
@@ -100,9 +102,9 @@ export function createAudio({ volumes = {} } = {}) {
     },
   };
   function startSource(source, gain, at, ref, bus, loop) {
-    const spatial = at ? panner(at, ref, buses[bus]) : null;
+    const out = a.route?.(bus) || buses[bus], spatial = at ? panner(at, ref, out) : null;
     source.connect(gain);
-    gain.connect(spatial || buses[bus]);
+    gain.connect(spatial || out);
     function release() {
       source.removeEventListener('ended', release);
       source.disconnect(); gain.disconnect(); spatial?.disconnect();

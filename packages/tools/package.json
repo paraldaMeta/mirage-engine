@@ -26,7 +26,10 @@
     "mirage-gpu-load": "./src/gpu-load.mjs",
     "mirage-still-pop": "./src/still-pop.mjs",
     "mirage-export": "./src/export.mjs",
-    "mirage-xr-check": "./src/xr-check.mjs"
+    "mirage-xr-check": "./src/xr-check.mjs",
+    "mirage-ship": "./src/ship.mjs",
+    "mirage-desktop-check": "./src/desktop-check.mjs",
+    "mirage-xr-stereo-check": "./src/xr-stereo-check.mjs"
   },
   "files": [
     "src",
@@ -44,7 +47,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "node validate-plan.check.mjs && node diagnostics.check.mjs && node acceptance.check.mjs && node gpu-ci.check.mjs && node unit.mjs && node verify.unit.mjs && node export.check.mjs"
+    "test": "node validate-plan.check.mjs && node diagnostics.check.mjs && node acceptance.check.mjs && node gpu-ci.check.mjs && node unit.mjs && node verify.unit.mjs && node export.check.mjs && node snap-seq.check.mjs && node ship.check.mjs"
   },
   "author": "灰叔 Racso",
   "devDependencies": {

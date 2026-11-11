@@ -340,15 +340,15 @@ export function makeGrid({ nx, nz, x0, z0, cell, floors, count }) {
       return out;
     },
     /** the highest floor at most `step` above y, with its ceiling: [floor, ceil], or null (inside a solid, off the grid) */
-    supportAt(k, y, step) {
+    supportAt(k, y, step, out) {                     // out: a caller's [_, _] to fill instead of a new array (the walker asks ~50 times a frame)
       if (k < 0) return null;
       for (let l = count[k] - 1; l >= 0; l--) {
         const f = floors[(k * MAXL + l) * 2];
-        if (f <= y + step) return [f, floors[(k * MAXL + l) * 2 + 1]];
+        if (f <= y + step) { if (!out) return [f, floors[(k * MAXL + l) * 2 + 1]]; out[0] = f; out[1] = floors[(k * MAXL + l) * 2 + 1]; return out; }
       }
       return null;
     },
-    support(x, z, y, step = 0.4) { return this.supportAt(idx(x, z), y, step); },
+    support(x, z, y, step = 0.4, out) { return this.supportAt(idx(x, z), y, step, out); },
     /** the ground a body standing at (x, z) at height y would stand on (NaN if none) */
     groundAt(x, z, y = 1e4, step = 0) { const s = this.support(x, z, y, step); return s ? s[0] : NaN; },
   };

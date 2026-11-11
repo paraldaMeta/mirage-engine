@@ -9,13 +9,24 @@ a release may change. `npm run test:pack` fails if a package exports a name that
 - **experimental**: public and usable, but a minor release may change it (listed in the changelog). Mostly the
   rendering internals and constants a world rarely needs.
 
-The entry points `@mirage/<pkg>` are the API. Every file under `src/` can also be imported as a subpath
-(`"./*"` in the export map) and has its own `.d.ts`; the world kits live there (`@mirage/world/kits/vegetation`,
-`/kits/terrain`, `/kits/water`, `/kits/rain`, `/kits/fur` (experimental), documented in the world README). Which subpaths stay supported is open:
-`/kits/terrain`, `/kits/water`, `/kits/rain`, `/kits/splat`, documented in the world README). Which subpaths stay supported is open:
-[API-CANDIDATE.md](API-CANDIDATE.md) lists them; until a whitelist is decided, treat subpaths other than the kits,
-`@mirage/core/rng`, `@mirage/world/plan`, `@mirage/core/export` (`exportWorld`, experimental: [export.md](export.md)) and `@mirage/core/ktx2` (`createKTX2Loader(renderer, { transcoderPath, workers })`, experimental: a KTX2Loader for `createTextures({ ktx2 })`; a subpath so bundles that never import it never contain three's KTX2Loader) as internal. Types: each package's root entry declares `types`
-([TYPES.md](TYPES.md)).
+The entry points `@mirage/<pkg>` are the API. Subpaths are an explicit allow-list: each package's `exports` map
+names every importable file (there is no `"./*"`), each with its own `.d.ts`, and a file under `src/` that is not
+listed is internal and cannot be imported from an installed package. `npm test` fails on an import of a subpath
+that is not listed (`scripts/check-imports.mjs`, over source, examples and docs) and on a `.d.ts` that declares
+other value names than its module exports (`scripts/check-types.mjs`). The subpaths a world normally needs:
+
+- the world kits `@mirage/world/kits/vegetation`, `/kits/terrain`, `/kits/water`, `/kits/rain`, `/kits/splat` and
+  `/kits/fur` (experimental), documented in the world README;
+- `@mirage/core/rng`, `@mirage/core/geom`, `@mirage/world/plan`;
+- `@mirage/core/export` (`exportWorld`, experimental: [export.md](export.md)), `@mirage/core/assets`
+  ([import.md](import.md)) and `@mirage/core/ktx2` (`createKTX2Loader(renderer, { transcoderPath, workers })`,
+  experimental: a KTX2Loader for `createTextures({ ktx2 })`; a subpath so bundles that never import it never contain
+  three's KTX2Loader).
+
+The other listed subpaths are the same modules the entry points re-export, importable one at a time; their names
+carry the stability of the row that describes them below. Adding a subpath is a line in the package's `exports`;
+removing one is a breaking change. Types: each package's root entry declares `types` ([TYPES.md](TYPES.md)). The
+count of stable and experimental exports, and how a name is promoted: [STABILITY.md](STABILITY.md).
 
 > The split 1.0.0 ships with, as proposed in the 1.0 review (docs/review-1.0.md); the owner can still move names
 > before the tag. After it, moving a name from experimental to stable is a minor release, the other way a major one.
@@ -33,12 +44,19 @@ The entry points `@mirage/<pkg>` are the API. Every file under `src/` can also b
 | `glslName(name)` | stable | how a texture set name is spelled in `MG_TEX_<name>` (`'stone-wall'` → `stone_2d_wall`; plain names unchanged) |
 | `LIGHT2_DEFAULTS` | experimental | light2's settings (`ls` lamp shadows, `ssr` reflections, `vol` volumetric light, `bloom` mixed bloom); `createWorldRenderer({ light2 })` turns it on |
 | `light2Config(option)` | experimental | the full light2 settings for `true` / a partial object; null when off |
-| `installLight2()` | experimental | patch three's chunks for light2 (page-global, idempotent; the world renderer calls it) |
+| `installLight2()` | experimental | patch three's chunks for light2 (page-global while a world lives, three's own again when the last world is disposed; idempotent; the world renderer calls it) |
 | `addLampSource(scene, fn)` | experimental | register a lamp table (not PointLights) that competes for lamp-shadow slots |
 | `LampShadows` | experimental | the lamp-shadow slots and their octahedral atlas (the pipeline owns one when light2 is on) |
 | `SOFTSHADOW_DEFAULTS` | experimental | the soft sun shadows' settings (`on`, `sunAngle`, `maxPenumbra`, `maxPenumbraTexels`, `minBlocker`, tap counts, `slopeMax`, `edgeFade`); `createWorldRenderer({ softShadows })` turns them on |
 | `softShadowConfig(option)` | experimental | the full soft-shadow settings for `true` / a partial object (numbers clamped); null when off |
 | `installSoftShadows(settings)` | experimental | patch three's sun-shadow lookup for contact-hardening soft shadows (page-global, idempotent; tap counts compiled in by the first call; the world renderer calls it) |
+| `createLighting(world, option)` | experimental | the realtime lighting features behind `createWorldRenderer({ lighting })` (the world renderer calls it; `world.lighting` is its result): `csm`, `gi`, `probes`, `lights`, `addLight(light, { shadow })`, `removeLight`, `invalidate()`, `busy`. Shader parts go into the world's own lit materials, not three's chunks (`docs/lighting.md`) |
+| `CSM_DEFAULTS` | experimental | cascaded sun shadows' settings (`cascades` 2-4, `distance`, `lambda`, `blend`, `tile`, `taps`, `stagger`, ...); `lighting: { csm: true }` |
+| `GI_DEFAULTS` | experimental | the irradiance probe volume's settings (`spacing`, `bounces`, `cube`, `perFrame`, `intensity`, `fade`, `bias`, `specular`); `lighting: { gi: { min, max } }` |
+| `LIGHTS_DEFAULTS` | experimental | clustered local lights and their shadow atlas (`max`, `cluster`, `perCell`, `atlas`, `tileMax`, `tileMin`, `perFrame`, `bias`); `lighting: { lights: true }` |
+| `SCREEN_DEFAULTS` | experimental | the screen-space passes' buffers (`scale`, `refScale`, `layer`); `lighting: { screen: true }` (`docs/lighting.md`) |
+| `SCREEN_POST` | experimental | their post settings, all off: `ssr2`, `ssrRough`, `ssrDist`, `ssrThick`, `ssgi`, `ssgiRange`, `ssgiRays`, `contact`, `contactLen` |
+| `PROBE_DEFAULTS` | experimental | a reflection probe's defaults (`fade`, `intensity`); `lighting: { probes: [{ min, max, position }] }`, at most 4 |
 | `TEX_RELIEF_GLSL` | experimental | the texture layer's relief taps (`mgTexTriRelief`, `mgTexWallRelief`, `mgTexGroundRelief`); compiled in by the relief opt-ins |
 | `RELIEF` | experimental | the close-range relief's shared uniforms (`uRelief` on / off, `uReliefFar` fade distance) |
 | `setRelief(level)` | experimental | relief level: 0 off, 1 full (8 m), in between a shorter reach |
@@ -54,7 +72,7 @@ The entry points `@mirage/<pkg>` are the API. Every file under `src/` can also b
 | `WET_GLSL` | experimental | the wet GLSL (`mgWetApply`, `mgWetNormal`, `mgWetRipples`, `mgWetH`) |
 | `NOISE_GLSL` | stable | the GLSL noise library (`mgHash`, `mgValue2/3`, `mgFbm2/3`, `mgCell2/3`, …) |
 | `rng(seed)` | stable | seeded random stream: `next`, `float`, `range`, `int`, `pick`, `chance`, `sign`, `gauss`, `inDisc`, `onSphere`, `fork(name)` (also `@mirage/core/rng`) |
-| `geom` | stable | geometry helpers: `wall`, `archPath`, `lathe`, `taperedTube`, `instances`, `MeshBatch`, `compose`, `lerp`, `clamp`, `smoothstep`, `remap` (experimental: `softExtrude`, `softBox`, `sootPlumes`, `wall({ round })`); three's `mergeGeometries` and `RoundedBoxGeometry` re-exported |
+| `geom` | stable | geometry helpers: `wall`, `archPath`, `lathe`, `taperedTube`, `instances`, `MeshBatch`, `compose`, `lerp`, `clamp`, `smoothstep`, `remap` (experimental: `softExtrude`, `softBox`, `sootPlumes`, `wall({ round })`, `openingProblem(opening, wallHeight)`: why an opening does not fit its wall, the text of MG206). A `wall` opening's `height` is where its arch springs, not its top, and `arch` defaults to `'round'` (top = height + width / 2): give `arch: 'flat'` for a straight lintel at `height`; three's `mergeGeometries` and `RoundedBoxGeometry` re-exported |
 | `skyAt(date, place)` | stable | Sun and Moon position for a date and a place (pure JS) |
 | `placeDate(day, time, tzHours)` | stable | a `Date` for a local wall-clock time |
 | `placeClock(date, tzHours)` | stable | the local wall-clock parts of a `Date` |
@@ -80,13 +98,42 @@ The entry points `@mirage/<pkg>` are the API. Every file under `src/` can also b
 | `transmitAtGround(elevation, k)` | experimental | sunlight transmittance at the ground |
 | `scatter(d, L, I, ms)` | experimental | sky radiance on the CPU (same as the shader) |
 | `skyLightAt(elevation, I)` | experimental | sky irradiance and horizon radiance |
-| `installFog()` | experimental | Mirage's height fog in three's shader chunks (under `THREE.FogExp2` only) |
+| `installFog()` | experimental | Mirage's height fog in three's shader chunks (under `THREE.FogExp2` only; `world.dispose()` of the last world on the page puts three's chunks back) |
 | `FOG` | experimental | the page-global fog uniforms |
 | `Pipeline` | experimental | the sub-frame accumulation / TAA / post pipeline |
 | `DEFAULT_POST` | experimental | default post settings (exposure, tone map, bloom, AO, DOF, …) |
+| `FX_DEFAULTS` | experimental | the post settings of `postfx.js`, all off: `taa2`, `upscale`, `motionBlur`, `bokeh`, `bloomPyramid`, `lut`, `chroma`, `rcas` (`docs/post.md`) |
+| `PostFX` | experimental | the passes behind them (velocity buffer, temporal resolve / upscale, lens blur, motion blur, bloom pyramid, LUT grade); `pipeline.fx` |
+| `postFromQuery(query)` | experimental | post settings from URL flags (`?taa2=1&upscale=0.67&mb=0.5&bokeh=1&lens=0.03&bloom2=1&lut=warm&chroma=0.6`) |
+| `parseCube(text)` | experimental | an Adobe / Resolve `.cube` 3D lookup table -> `{ size, data }` |
+| `makeLut(fn, size)` | experimental | a lookup table from a function of display-referred RGB |
+| `lutTexture(lut)` | experimental | the table as a `Data3DTexture` for `post.lut` |
+| `apertureRadius(focalMm, fStop)` | experimental | the lens radius (m) of a real lens: `post.dof` |
+| `halton(i, base)` | experimental | the Halton sequence (taa2's jitter) |
 | `createMaterials(G)` | experimental | the `world.mat` kit (`std`, `phys`, `patch`, `depth`, `glow`) for a set of uniforms |
 | `createEnvLight(renderer, { size, fade })` | experimental | image-based light captured from the world, cross-faded |
+| `createVfx(world, { hz, maxParticles, instances, gain })` | experimental | GPU particles and effects (`docs/vfx.md`): `spawn`, `burst`, `prewarm`, `beam`, `decal`, `setGround`, `registerMesh` / `registerField` / `registerSheet`, `stats`; also takes `{ renderer, scene, camera }` with `update(seconds)` called by hand |
+| `VFX_LIBRARY` | experimental | ten ready effects as JSON: fire, smoke, sparks, dust, splash, snow, leaves, fireflies, magic, explosion |
+| `defineEffect(json)` | experimental | validate an effect description and fill its defaults (no GPU; unknown keys throw with their path) |
+| `evalCurve(curve, t)` | experimental | a `[[t, v], ...]` curve at `t` |
+| `bakeCurves(emitter)` | experimental | an emitter's curves and gradients as the lookup rows the shaders read |
+| `effectRadius(emitter)` | experimental | radius of a sphere about a defined emitter that holds its particles, for culling |
+| `VFX_ENUMS` | experimental | the allowed values of the format's enumerated keys (shapes, blends, sorts, …) |
 | `createLod()` | experimental | merge-and-swap level-of-detail helper |
+| `chunkGeometry(geometry, { maxVertices, maxSize, minVertices })` | experimental | split one geometry into spatial pieces with tight bounds (also `@mirage/core/chunk`); guide: `docs/big-worlds.md` |
+| `chunkObject(root, options)` | experimental | replace every large static mesh under `root` by its chunks so frustum culling can work; `MeshBatch.finish({ chunk })` calls it |
+| `createSimplifier(mesh)` | experimental | Mirage's own quadric-error mesh simplifier (attributes, locked and border vertices), resumable: `run({ triangles, error, budgetMs })`, `extract()` |
+| `simplify(mesh, { triangles, ratio, error })` | experimental | one simplified level of a `{ positions, index, attributes }` mesh |
+| `createChain(mesh, { ratios, error, minGain })` | experimental | a chain of LOD levels in one pass, built in time slices with `step(budgetMs)` |
+| `createAutoLod(world, { ratios, errorPx, hysteresis, fade, workers, budgetMs })` | experimental | automatic LOD: `add(root)` builds chains in workers (or on a frame budget) and selects by screen-space error with hysteresis and a dithered cross-fade |
+| `buildProxy(roots, { ratio, triangles, material, lockBorder })` | experimental | HLOD: merge every mesh under `roots` into one vertex-coloured, simplified mesh |
+| `buildProxyAsync(roots, options, workers)` | experimental | the same with the simplifier in a worker |
+| `createSimplifyWorkers(count)` | experimental | a small pool of simplifier workers (falls back to the main thread) |
+| `createInstances(world, { source, matrices, impostor, cell, maxDistance })` | experimental | instanced drawing with per-instance frustum culling and per-instance LOD on the CPU, an octahedral impostor as the last level |
+| `bakeImpostor(world, object, { frames, tile })` | experimental | hemi-octahedral impostor atlas (albedo + alpha, normal) of an object |
+| `impostorMaterial(world, impostor, params)` | experimental | the lit billboard material that blends the atlas frames nearest the view |
+| `createOcclusion(world, { margin, confirm, cutMetres, cutDegrees })` | experimental | occlusion culling from the previous frame's depth (max-depth pyramid, async readback, CPU test; camera cuts show everything) |
+| `onView(scene, camera, before, after)` | experimental | run a function before / after every render of the scene through that camera (not the shadow pass); returns `off()` |
 | `hash32(string)` | experimental | 32-bit string hash used for seeds |
 | `sfc32(seed)` | experimental | the raw SFC32 generator |
 | `valueNoise2(x, z, seed)` | experimental | smooth 2D value noise on the CPU |
@@ -100,6 +147,15 @@ The entry points `@mirage/<pkg>` are the API. Every file under `src/` can also b
 | `disposeObject(root, { keepTextures })` | experimental | free an object tree's geometries, materials and textures |
 | `watchLongTasks()` | experimental | count main-thread long tasks (PerformanceObserver `longtask`, or frame gaps over 50 ms): `stop()` → `{ count, totalMs, maxMs, source, tasks }` |
 | `nextFrame(timeout)` | experimental | resolves after the next frame was drawn (a macrotask where there is no `requestAnimationFrame`) |
+| `writeGLB(root, { clips, meshopt })` | experimental | a binary glTF of an object tree: nodes, meshes, skins, standard-material factors, embedded images, animation clips (clip `userData` as extras); `meshopt: true` compresses vertex streams (EXT_meshopt_compression, own encoder) |
+
+Model import, `@mirage/core/assets` (opt-in subpath, [import.md](import.md)):
+
+| export | stability | what it is |
+|---|---|---|
+| `createAssets(world, { decoders, adapt, anisotropy, workers })` | experimental | glTF / GLB import with a reference-counted cache: `load(urlOrBytes, { key, path, scale, shadows, collide, adapt })`, `instantiate`, `instances`, `retain`, `release`, `refs`, `get`, `stats`, `dispose`; Draco, meshopt and KTX2 decoders start only for files that name them; materials are patched into the world's fog, shadows and light; `collide: 'mesh' \| 'box' \| 'hull' \| false` says what the model adds to the walk grid and Rapier |
+| `gltfExtensions(buffer)` | experimental | the `extensionsUsed` of a .glb or .gltf buffer, without loading it |
+| `decoders` | experimental | from `@mirage/core/assets-decoders`: three's Draco and Basis decoder files as Vite `?url` imports (a single-file build inlines them); pass to `createAssets` |
 
 ## @mirage/world
 
@@ -113,6 +169,8 @@ The entry points `@mirage/<pkg>` are the API. Every file under `src/` can also b
 | `buildWorld(world, { plan, modules, shared, log, slice })` | stable | build modules in order with failure isolation; anchors, finalize, ambient volumes, report; `slice` (experimental, opt-in) yields to the frame between modules after a time budget and reports `slices` |
 | `createStreamer(world, { plan, modules, shared, camera, concurrency, budget, uploadBytes, hysteresis, sync, onChange })` | experimental | modules that come into the scene near the viewer and leave when far: queued nearest first, built, compiled off-frame (`compileAsync`), textures uploaded over frames, cached in an LRU byte budget; `update(position)` once a frame |
 | `regionOf(root, pad)` | experimental | the XZ rectangle an object covers (for a walk-grid region re-bake) |
+| `createPartition(world, { bounds, size, build, load, hysteresis, proxy, origin, onCell, onProxy, onRebase })` | experimental | world partition on the streamer: square cells that load around the viewer, an HLOD proxy for every cell that is out, floating-origin rebasing; guide: `docs/big-worlds.md` |
+| `createFloatingOrigin({ roots, threshold, snap, onRebase })` | experimental | the floating origin alone: `update(camera)` moves camera and roots back by multiples of `snap` |
 | `LAYER` | stable | `{ VIEW: 0, COLLIDE: 2 }` |
 
 The module interface (`name`, `build`, `finalize`, `anchors`, `ambientVolumes`, and the `ctx` fields) is stable;
@@ -141,11 +199,61 @@ Gaussian splats, `@mirage/world/kits/splat` (opt-in subpath, world README "Gauss
 | `BODY` | stable | the character's sizes and speeds |
 | `makeGrid(data)` | experimental | a grid from raw arrays (tests, saved grids) |
 | `MAXL` | experimental | floors per grid column (4) |
-| `createNavGrid(grid, { coarse, step, head, drop, radius })` | experimental | NPC navigation on the walk grid: per-radius fit bits (the walker's own test), `findPath` (coarse A* + cell A* + string pulling), `flowField`, `block` / `unblock` dynamic obstacles, `visible`, `nearest`; `nav.grid` is the walk grid with the obstacles in |
-| `createNavAgent(nav, { radius, speed, pos, arrive })` | experimental | an NPC: a walker of its own radius steered along `findPath` waypoints or a flow field (`setGoal`, `update(dt)`); re-plans on edits and when stuck; never steps onto a cell it does not fit |
+| `createNavGrid(grid, { coarse, step, head, drop, radius })` | experimental | NPC navigation on the walk grid: per-radius fit bits (the walker's own test), `findPath` (coarse A* + cell A* + string pulling), `flowField`, `block` / `unblock` dynamic obstacles (box, cylinder, turned box `obb`), `visible`, `nearest`; `nav.grid` is the walk grid with the obstacles in. Areas with costs (`setArea`, `setAreaCost`, `findPath(..., { costs })`) and off-mesh links (`link({ from, to, type, cost, time, canEnter, traverse })`, `unlink`, `links`; a waypoint that crosses one carries `.link`): `docs/navigation.md` |
+| `createNavAgent(nav, { radius, speed, pos, arrive })` | experimental | an NPC: a walker of its own radius steered along `findPath` waypoints or a flow field (`setGoal`, `update(dt)`); re-plans on edits and when stuck; never steps onto a cell it does not fit; crosses off-mesh links (`onLink`), takes `costs` / `canUse` |
 | `createNavCrowd(nav, { separation, range })` | experimental | separation steering for many agents (`add`, `remove`, `update(dt)`) |
+| `createSolids(grid)` | experimental | a walk grid with moving shapes composed in at query time (doors, lifts, turntables, crates): `add({ box, cylinder, sphere, pos, yaw, kind })`, `solid.set({ pos, yaw })`, `groundSolid`, `solidAt`, `addVolume({ type: 'ladder' or 'water', box })`, `onChange`, `push`; anything that takes a walk grid takes it (`docs/character.md`) |
+| `gridRay(grid, from, to)` | experimental | 0..1: the fraction of a segment that is clear on a walk grid (cameras, sight) |
+| `airAt(grid, x, y, z)` | experimental | true when the point is in the air of its column |
+| `volumeAt(volumes, type, x, y, z)` | experimental | the ladder / water volume holding a point, or null |
+| `createMover(grid, { pos, body })` | experimental | the walker plus coyote time, jump buffering, variable jump height, sprint, crouch with a ceiling check, slope slide, ladders, swimming, mantling, riding and pushing solids; walker-shaped (`createPlay({ walker })`, @mirage/net's `applyInput`), `mode`, `save` / `restore` |
+| `driveAnimator(mover, animator)` | experimental | writes the mover's mode, speed, grounded and crouch into an animator's parameters and fires `jump` / `land` |
+| `MOVER` | experimental | the mover's default body numbers (`BODY` plus sprint, crouch, coyote, buffer, slope, climb, swim, mantle, push) |
+| `MOVER_MODES` | experimental | the mode names: idle, walk, run, sprint, crouch, jump, fall, slide, climb, swim, mantle |
+| `createFollowCamera(grid, { mode, distance, height, shoulder })` | experimental | a third-person spring arm that shortens against the walk grid and its solids, and a first-person eye: `turn`, `update(dt, mover)`, `apply(camera)`, `forward()` |
+| `linkSolids(space, physics)` | experimental | mirrors `createSolids` shapes into a Rapier world (`createPhysics` or `{ R, world }`): `pre()` copies kinematic poses and pushes in, `post()` copies dynamic poses back; `addMover` adds the character as a kinematic capsule |
+| `carveSolids(nav, space, { tolerance })` | experimental | every solid becomes a `nav.block` obstacle that follows it; `update()` re-blocks what moved (incremental re-bake) |
+| `createPathQueue(nav, { budgetMs, max })` | experimental | path queries by priority within a per-frame budget: `request(from, to, opts)` returns a promise with `cancel()`, `update()` runs them |
+| `smoothPath(nav, path, { radius, corner })` | experimental | rounds a path's corners with arcs the navigation accepts; link waypoints stay |
+| `pathLength(path)` | experimental | metres along a path |
+| `createCrowd(nav, { max, neighbours, range, horizon })` | experimental | ORCA local avoidance for hundreds of agents of different radii in typed arrays: `add`, `setGoal` (queued path), `setField`, `setVelocity`, fixed agents (the player), off-mesh link traversal (`onLink`), `actor(i)` for the behaviours |
+| `bt` | experimental | behaviour-tree nodes: `sequence`, `selector`, `parallel`, `invert`, `succeed`, `repeat`, `cooldown`, `timeout`, `wait`, `condition`, `action` |
+| `createBehaviorTree(root, { actor, nav, senses, perception })` | experimental | runs a tree with a blackboard: `tick(dt)`, `active()`, `describe()`; perception writes `target`, `lastKnown`, `heard` |
+| `createBlackboard(init)` | experimental | key / value store with write times (`age`) and change listeners |
+| `createSenses(grid)` | experimental | sight cones occluded by the walk grid (`sees`) and noise events (`noise`, `hears`) |
+| `agentActor(agent)` | experimental | wraps a `createNavAgent` so the behaviours can drive it |
+| `patrol(points)` | experimental | behaviour: walk the points in turn |
+| `chase({ reach })` | experimental | behaviour: run at the blackboard's `target` |
+| `flee({ distance })` | experimental | behaviour: get `distance` away from the target |
+| `investigate()` | experimental | behaviour: go to `lastKnown` or `heard`, wait, forget |
+| `follow({ distance })` | experimental | behaviour: keep `distance` from the target |
+| `guard({ points, onCatch })` | experimental | chase what is seen, investigate what was seen or heard, else patrol |
+| `createNavDebug(nav, { radius })` | experimental | debug draw: fitting cells by area, carved cells, links, paths, crowd velocities, a tree as text |
 | `createXR(play, opts)` | experimental | WebXR: Enter VR / Enter AR buttons, the walker in a headset, teleport, snap turn, in-world game prompts, AR table model; hand tracking (pinch, point-and-pinch teleport), `navigator.xr.offerSession` / `autoEnter` for hosts without a DOM, labels in a built-in glyph font where Canvas 2D draws no text (`opts.offer`, `autoEnter`, `hands`, `text`; `docs/xr.md`) |
 | `xrSupport()` | experimental | `{ vr, ar }`: which immersive sessions the browser offers; pass `vr \|\| ar` as the world's `xr` option |
+| `createXR` options `post`, `budget`, `profile`, `posture`, `bounds`, `interact`, `arFeatures` | experimental | opt-in XR parts ([xr.md](xr.md)): the post chain per eye, the frame-time governor, device defaults, height calibration, the play-area fence, interaction, AR features; `xr.post`, `xr.quality`, `xr.setLevel(i)`, `xr.calibrateHeight()`, `xr.anchor()`. Exercised only in an emulated session |
+| `createXRPost(world, { msaa, ao, bloom, lut, depth, scale })` | experimental | the engine's post chain per eye into the XR layer (`render(T, frame)`, `setLevel`, `stats`) |
+| `xrEyePost(post, level)`, `xrEyeSize(w, h, scale)`, `XR_POST_OFF` | experimental | an eye's post settings (temporal and lens passes off), its pipeline size, the passes a headset never gets |
+| `XR_PROFILES`, `xrProfile(nameOrUA)` | experimental | default quality per device class (Quest 2, Quest 3, Vision Pro, PC VR); none tested on hardware |
+| `createXRGovernor({ hz, levels, high, low, window, drops, calm, hold, warm })` | experimental | frame-time governor: `update(cpuMs, intervalMs)` -> level index; steps down before frames drop, up after calm |
+| `XR_LEVELS`, `XR_SCALE_LEVELS` | experimental | the governor's ladders with and without the post chain |
+| `heightOffset(posture, eye, headY)`, `boundsDistance(polygon, x, z)` | experimental | standing / seated rig lift; distance to the play area's edge |
+| `createXRInteraction({ physics, reach, rayReach, ground })` | experimental | grab (near and ray), throw (Rapier or ballistic), two-handed turn and scale, `snapZone`, `pokeable`, canvas UI `panel` by ray and poke, haptic pulses; fed pointers by `createXR` |
+| `createVelocityTracker(window)`, `twoHandTransform(a0, b0, a1, b1, out, range)`, `pokeTest(local, w, h, state)`, `POKE` | experimental | the interaction's pure parts: throw velocity, the two-hand transform, the fingertip press test and its thresholds |
+| `createXRAR(world, { anchors, planes, light, domOverlay })` | experimental | immersive-ar features: anchors, detected planes, light estimation onto the sun and a light probe, DOM overlay |
+| `shadowGround({ size, opacity })` | experimental | a ground that draws only the shadows cast on it (AR passthrough) |
+| `createAnimator(root, clips, { parameters, layers, rootMotion, fixedStep, events })` | experimental | the animation controller ([animation.md](animation.md)): per-layer state machines with cross-fades and conditions, 1D / 2D blend spaces on one phase, masked and additive layers, root motion returned from `update(dt)`, clip events, `snapshot` / `restore`, `poseClip`; `post` hooks for IK |
+| `blend1d(points, x)`, `blend2d(points, x, y, mode)` | experimental | the blend-space weights on their own |
+| `rootMotionInput(move, heading, body, dt)` | experimental | a root-motion step as the input `walker.update` takes, so clips drive the walker and the walk grid still decides where it may go |
+| `solveTwoBone(upper, lower, end, target, { pole, hint, weight })` | experimental | analytic two-bone IK in world space (arms, legs) |
+| `solveLookAt(bones, target, { share, limit, weight })` | experimental | turn a bone or a chain (neck, head) to face a point, within a limit |
+| `createFootIK(root, { ground, legs, hips })` | experimental | foot placement: each foot on its own floor (`grid.groundAt`), hips lowered to reach, feet pitched on slopes; `update(dt)` after the pose |
+| `humanoidRoles(root)`, `humanoidMap(source, target)` | experimental | humanoid bones found by name (Mixamo-style, `.L` / `_l` / `Left` spellings) and the bone map between two skeletons |
+| `retargetClip(clip, source, target, { map, scale, matchRest })` | experimental | a clip baked for another humanoid skeleton: world-space rotation deltas with rest poses matched, hip travel scaled by hip height, events kept |
+| `createTimeline({ tracks, duration, loop })` | experimental | a sequencer on one clock: camera, transform, animation, audio and event tracks; `play`, `pause`, `seek(t)` (the picture depends on `t` alone), `update(dt)` |
+| `createRigCharacter(root, clips, { clipNames, layers, rootBone, footIK, look })` | experimental | an imported rigged model as the play character: `createPlay(world, { character: () => createRigCharacter(...) })`; set `ground` for foot placement, `lookTarget` for the head |
+| `createRigModel({ material, colors })` | experimental | a rigged humanoid authored in code (20 bones, 880 vertices, T-pose, nine clips with root motion and foot events): the test rig of the checks and the anim demo |
+| `RIG` | experimental | that rig's measures and clip speeds |
 
 ## @mirage/game
 
@@ -162,10 +270,110 @@ Gaussian splats, `@mirage/world/kits/splat` (opt-in subpath, world README "Gauss
 | `createUI(opts)` | experimental | the HTML overlay (HUD, menus, touch controls) |
 | `PAD` | experimental | default gamepad buttons per action |
 | `loadRapier()` | experimental | load the Rapier WASM ahead of `createPhysics` |
+| `createPhysicsKit(phys, { hz, maxSteps, interpolate, layers, profile })` | experimental | the physics kit (docs/physics.md): rigid bodies with box / ball / capsule / hull / mesh / compound colliders, materials, layers, CCD, sensors, contact events with impulse, ray / shape casts and overlaps, fixed step with interpolation, state hash; opt-in, `createPhysics` unchanged |
+| `PHYSICS_MATERIALS` | experimental | the built-in materials (default, wood, stone, metal, rubber, ice) |
+| `createJoints(kit)` | experimental | fixed, ball, cone, hinge, slider, spring, rope and six-axis joints with limits, motors and a break force |
+| `createForces(kit)` | experimental | water volumes (buoyancy), explosions, kinematic platforms that carry bodies and the character |
+| `createVehicle(kit, object, { half, mass, wheels, engine, brake, topSpeed, maxSteer, grip })` | experimental | a ray-cast wheel vehicle on a kit body |
+| `createRagdoll(kit, model, { parts, mass, layer, settle, hitboxes })` | experimental | a ragdoll for a skinned rig: animated, ragdoll, partial, active, and the blend back |
+| `RAGDOLL_HUMANOID` | experimental | the default part list (14 parts) for humanoid bone names |
+| `createPhysicsDebug(kit, scene, { colliders, joints, contacts, stats })` | experimental | debug draw of colliders, joints and contacts, and a stats line |
+| `createAudioEngine({ audio, voices, buses, snapshots, ducks, zones, occlusion, cues })` | experimental | the audio engine (docs/audio.md): files and streams, voices with a cap and virtual voices, 3D placement, reverb zones, occlusion, cues; opt-in, keeps `createAudio` working |
+| `createMixer(ctx)` | experimental | bus tree with effect chains, sends, snapshots, ducking and meters on any (offline) audio context |
+| `EFFECT_TYPES` | experimental | the effect names a bus takes: eq, filters, compressor, limiter, delay, reverb, drive, pan, gain |
+| `createMusic(engine, { bpm, sections })` | experimental | adaptive music: sections of stems, bar / beat-quantised transitions, layers, stingers |
+| `zonesFromPlan(plan)` | experimental | the reverb zones of a world plan (`plan.audio.zones`) |
+| `zoneWeights(zones, pos)` | experimental | weight of each zone for a listener position; the last entry is the ambient share |
+| `gridOccluder(grid)` | experimental | occlusion test on the walk grid |
+| `physicsOccluder(physics)` | experimental | occlusion test by a Rapier ray |
+| `sceneOccluder(root, { raycaster })` | experimental | occlusion test by a three.js raycast |
+| `createAudioDebug(engine)` | experimental | overlay: voices, virtual voices, rays, zone weights, a meter per bus |
+| `audioStatsText(engine)` | experimental | the same stat block as a string |
+| `REVERBS` | experimental | reverb presets: room, hall, cave, cathedral, outdoor, plate |
+| `impulseResponse({ decay, damping, seed })` | experimental | a stereo impulse response made from seeded noise (unit energy) |
+| `encodeWav(channels, sampleRate, bits)` | experimental | PCM / float WAV bytes from Float32Arrays |
+| `decodeWav(bytes)` | experimental | `{ sampleRate, channels }` from a WAV file |
+| `distanceGain(d, { model, ref, max, rolloff, curve })` | experimental | the gain of a distance model or a custom roll-off curve |
+| `coneGain(dir, toListener, inner, outer, outerGain)` | experimental | the gain of a sound cone |
+| `dopplerRatio(src, vSrc, lis, vLis)` | experimental | the playback-rate factor of a moving source and listener |
+| `occlusionResponse(occlusion)` | experimental | the gain and low-pass corner for an occlusion of 0..1 |
+| `dbToGain(db)` | experimental | decibels to a linear gain |
+| `gainToDb(gain)` | experimental | a linear gain to decibels |
+| `rms(samples, from, to)` | experimental | root mean square of samples (checks) |
+| `peak(samples, from, to)` | experimental | largest absolute sample (checks) |
+| `toneLevel(samples, sampleRate, freq)` | experimental | amplitude of one frequency in samples (Goertzel; checks) |
+| `onset(samples, level)` | experimental | index of the first sample at or over a level (checks) |
+| `createUIKit(opts)` | experimental | the UI toolkit on the DOM: reactive descriptions, layout, themes, layers (`docs/ui.md`; widgets in `@mirage/game/ui-widgets`) |
+| `createI18n({ locale, tables })` | experimental | string tables, plurals and formats through `Intl`, runtime language switch, direction and font stack |
+| `createFocusNav({ root, input })` | experimental | spatial focus for keyboard and gamepad, focus scopes, last-used device |
+| `createWorldUI({ kit, camera })` | experimental | labels, markers and health bars anchored to 3D points, with occlusion and distance fade |
+| `createCanvasUI({ description })` | experimental | a widget panel drawn into a texture, for screens in the world and XR |
+| `createKitUI(opts)` | experimental | `createUI`'s overlay rebuilt on the toolkit: pass as `startGame`'s `ui` |
+
+## @mirage/net
+
+Multiplayer for walked worlds; all of it experimental and opt-in (nothing else imports it). Guide and numbers:
+`docs/multiplayer.md`. The Node server is not in the index: `import { createServer } from '@mirage/net/server'`
+(`createServer({ protocol, grid, dir, setup, conditions, origins, host })`, 127.0.0.1 by default), and the
+`mirage-net` command (`serve`, `bake`) wraps it.
+
+| export | stability | what it is |
+|---|---|---|
+| `createRoom(options)` | experimental | the authoritative room: runs the play walker on a walk grid from client inputs at `tickRate` (must divide 60); `accept(transport)`, `spawn` / `despawn`, `rpc`, `emit`, `hitscan` (lag compensated), `serialize` / `restore`; no GPU or DOM |
+| `createClient(options)` | experimental | prediction, reconciliation and interpolation: `walker` (give it to `createPlay`), `entities`, `input`, `rpc`, `on`, `stats` |
+| `connectLobby(url)` | experimental | the lobby client: `list`, `create`, `join`, `host`, `leave` |
+| `joinRoom(options)` | experimental | join a room by code wherever it runs; resolves to a session `{ client, room, mode, lobby }` |
+| `hostRoom(options)` | experimental | run the room in this page (host mode); members come over the relay or WebRTC; migrates when the host leaves |
+| `defineProtocol(def)` | experimental | entity, RPC and event schemas compiled to quantised bit layouts; both ends compare `hash` |
+| `field` | experimental | schema field makers: `q`, `angle`, `u`, `bool`, `f32`, `str`, `pos` |
+| `kitProtocol(options)` | experimental | a ready protocol: named players with a score, `pickup` entities, `chat` / `take` / `tag` RPCs |
+| `installKit(room, options)` | experimental | the server side of `kitProtocol`: pickups with reach checks and respawn, chat rate limit, tag by `hitscan` |
+| `createLoopbackNetwork(defaults)` | experimental | in-memory transports with seeded latency, jitter, loss, duplication and reordering on a virtual clock |
+| `conditioned(transport, conditions)` | experimental | the same network conditions around any real transport; the conditions object stays live |
+| `webSocketTransport(target)` | experimental | a transport over the platform's `WebSocket` (browser, Node 22) |
+| `rtcTransport(options)` | experimental | a transport over an unreliable, unordered WebRTC data channel; signalling is the caller's (the lobby's) |
+| `preferTransport(fallback, better)` | experimental | start on one transport, switch to the other when it opens |
+| `createChannel(options)` | experimental | acks, a reliable ordered stream over unreliable packets, rtt and loss estimates |
+| `serializeGrid(grid)` | experimental | a walk grid as bytes (what `mirage-net bake` writes) |
+| `deserializeGrid(bytes)` | experimental | bytes back to a walk grid, validated before anything is allocated |
+| `bakeGridCPU(triangles, options)` | experimental | a walk grid from triangles without a GPU (coarser than the GPU bake: do not mix the two in one room) |
+| `boxTriangles(boxes)` | experimental | triangles for `bakeGridCPU` from boxes |
+| `sceneTriangles(scene)` | experimental | triangles for `bakeGridCPU` from a three.js scene's meshes |
+| `createNetOverlay(client, options)` | experimental | debug overlay: rtt, loss, bytes/s per entity type, prediction error; keys change the simulated network |
+
+## @mirage/editor
+
+A visual editor in the browser against a live world; all of it experimental and opt-in (nothing else imports it).
+Guide, keys, numbers and limits: `docs/editor.md`. The command is `mirage-editor <project dir> [--write] [--port n]
+[--layer file.json] [--open]`; the Node server behind it is not in the index: `import { startEditor } from
+'@mirage/editor/server'` (`startEditor({ root, port, write, layerFile })`, 127.0.0.1 only). The page side of a
+project imports `@mirage/editor/runtime` (the last six rows). The editor's client (`src/client`) is not an API.
+
+| export | stability | what it is |
+|---|---|---|
+| `LAYER_VERSION` | experimental | the version number written into an edit layer (1) |
+| `emptyLayer()` | experimental | `{ version, set, objects, nodes, env, timelines }` with nothing in it |
+| `normalizeLayer(layer)` | experimental | a checked copy of a layer with every section present; throws on a layer that would not load |
+| `isEmptyLayer(layer)` | experimental | true for `{}` and for a layer whose sections are all empty |
+| `applyEdits(plan, layer)` | experimental | the plan with the layer applied: `set` paths written into a copy, placed objects as `plan.objects` and as the fields their systems read (`lighting`, `audio.zones`, `nav.areas`, `triggers`, `spawns`); the plan object itself for an empty layer |
+| `planHash(plan)` | experimental | 16 hex digits of a plan, independent of key order, the same in Node and in the page |
+| `serializeLayer(layer)` | experimental | the text Save writes: JSON with sorted keys |
+| `createDocument(plan, layer)` | experimental | the command stack: `exec(label, changes, { merge })`, `undo`, `redo`, `history`, `on`, `plan`, `layer`, `hash`, `dirty`, `markSaved`, `load` |
+| `OBJECT_TYPES` | experimental | the twelve placed-object types (`model`, `primitive`, `wall`, `light`, `probe`, `gi`, `audioZone`, `sound`, `vfx`, `nav`, `trigger`, `spawnPoint`) with their defaults and typed fields |
+| `newObject(type, at, extra)` | experimental | a new placed object: the type's defaults plus a pose |
+| `planElements(plan)` | experimental | every plan entry the editor can select: points, footprints, regions, paths, viewpoints, spawn |
+| `schemaAt(schema, path)` | experimental | the node of `plan.schema.json` a plan path points at, or null |
+| `fieldsFromSchema(schema, node, value)` | experimental | typed inspector fields (number, vector, color, enum, bool, string, asset, points, json) for a value |
+| `editable(plan, layer)` | experimental | the runtime half: `plan`, `lighting(cfg)`, `apply(world, built)`, `attach(host)`, `hash()`; every call is a no-op for an empty layer |
+| `createPlaced(world)` | experimental | the placed objects in a scene: `set(id, def)`, `get`, `ready`, `dispose` |
+| `applyNodes(scene, nodes)` | experimental | write node overrides (pose, visibility, material values) onto the nodes at their scene paths |
+| `applyEnv(world, env)` | experimental | apply environment edits: `time`, `date`, `wet`, `rain`, `post.<setting>`, `light2.<part>.<setting>` |
+| `createTimelines(plan, world, placed)` | experimental | `plan.timelines` as `createTimeline` instances of `@mirage/play`, bound to placed objects, nodes and the camera |
+| `createTriggers(plan, { onEnter, onLeave })` | experimental | `plan.triggers` as a test of a position against the boxes, with enter and leave callbacks |
 
 ## @mirage/tools
 
 Command-line tools (no JS entry point). Stable: `mirage-playtest` (scenario format in the playtest skill),
 `mirage-package`, `mirage-snap`, `mirage-deploy`. Experimental: `mirage-walktest`, `mirage-perf`, `mirage-e2e` (runs the `examples/` of the current folder or `--root`),
-`mirage-gpu-load`, `mirage-still-pop`, `mirage-xr-check` (WebXR in an emulated Quest 3; repository checks; some expect this repository's `examples/`). The tools
+`mirage-gpu-load`, `mirage-still-pop`, `mirage-xr-stereo-check` (both eyes of an emulated session against the desktop frame, interaction, locomotion, AR), `mirage-xr-check` (WebXR in an emulated Quest 3; repository checks; some expect this repository's `examples/`). `mirage-ship` (web, PWA and wrapper scaffolds; `mirage-desktop-check` runs an Electron scaffold or its packaged app and checks it over DevTools; with the subpaths `@mirage/core/platform`, `@mirage/core/byte-targets` and `@mirage/game/platform`: `docs/platforms.md`). The tools
 need Chrome: `$CHROME`, or the usual install place on macOS, Linux and Windows.

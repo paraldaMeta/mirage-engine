@@ -4,7 +4,7 @@
 // - one version for the root and every package; the packages' peer ranges on each other accept that version
 // - three: the version the examples build with is inside every package's peer range
 // - every export map target (and its types) ships; the root entry declares its types
-//   (the "./*" wildcard stays until the subpath whitelist is decided: docs/API-CANDIDATE.md)
+//   (the export maps are explicit allow-lists; scripts/check-imports.mjs checks every import against them)
 // - every name a package's index exports is described in docs/api.md
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -12,7 +12,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const PKGS = ['core', 'world', 'play', 'game', 'tools'];
+const PKGS = ['core', 'world', 'play', 'game', 'tools', 'net', 'editor'];
 const read = (f) => JSON.parse(fs.readFileSync(path.join(ROOT, f), 'utf8'));
 const root = read('package.json');
 const three = read('node_modules/three/package.json').version;

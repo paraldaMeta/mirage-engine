@@ -48,6 +48,38 @@ node ../../packages/tools/src/playtest.mjs scenarios/playtest.json dist   # scri
 node ../../packages/tools/src/package.mjs .                               # release/snow-hut.html, opens from disk
 ```
 
+## Make your own world (10 minutes, by hand)
+
+The examples are finished places; this is an empty one. A world is a folder in `examples/` with a plan (every
+shared position), one file per module, and a scenario that tests it.
+
+```sh
+cp -R agent/mirage-brief-to-plan/assets/skeleton examples/my-world && cd examples/my-world
+# write plan.js and modules/ground.js, modules/room.js: the three files are in docs/making-a-world.md
+npm run dev                                  # http://localhost:5190, rebuilds as you type
+npm run build && npm run playtest            # out/playtest/report.md + sheet.png: walk through the door, lean on a wall
+npm run package                              # release/my-world.html
+```
+
+A module is a function that adds three.js objects to `ctx.root`; what it adds is drawn and collided with:
+
+```js
+export default {
+  name: 'room',
+  build(ctx) {
+    const { geom, root, plan } = ctx, b = new geom.MeshBatch();
+    b.add(geom.wall({ length: 6.3, height: 2.6, thickness: 0.3, openings: [{ x: 0, width: 1.2, height: 2.1, arch: 'flat' }] }),
+      ctx.mat.std({ roughness: 0.92 }), geom.compose([0, 0, plan.room.rect[3]]));
+    root.add(b.finish({ name: 'room' }));
+  },
+};
+```
+
+[docs/making-a-world.md](docs/making-a-world.md) has the whole room (built and playtested as written), the four
+things newcomers walk into (a door arch taller than its wall, a room with no light of its own, lists under
+`plan.points`, what a `perf` step measures) and the escape hatches: plain three materials, your own shaders, glTF
+models, `AnimationMixer`, async builds. All guides: [docs/README.md](docs/README.md).
+
 ## The AI-native workflow
 
 **brief → plan → parallel modules → playtest → ship.** Each step is a skill in [`agent/`](agent/) (the open Agent
@@ -73,6 +105,8 @@ integration ([TRIAL.md](examples/agent-trial/TRIAL.md)).
 | [`@mirage/world`](packages/world) | the world protocol: site plan validation, modules (`build` / `anchors` / `finalize` / `ambientVolumes`), build order, failure isolation (a throwing module is skipped, the world still loads), per-module randomness, a build report ([docs/world-protocol.md](docs/world-protocol.md)) |
 | [`@mirage/play`](packages/play) | walk, fly, isometric game view, orbit; collision and ground from a walk grid baked from the real geometry; progressive refinement when the view stops; an embed API for host games |
 | [`@mirage/game`](packages/game) | a minimal game layer: Rapier physics (lazy WASM), character controller, doors, an action map (keys, gamepad, touch), procedural Web Audio, entities and interactables, inventory, versioned save / load, an accessible HTML overlay |
+| [`@mirage/net`](packages/net) | multiplayer: an authoritative room, prediction and reconciliation, delta snapshots, WebSocket and WebRTC transports (experimental) |
+| [`@mirage/editor`](packages/editor) | `mirage-editor`: edit a live world in the browser; edits are a layer file over the plan (experimental) |
 | [`@mirage/tools`](packages/tools) | the playtest runner, single-file packager, still snapshots and contact sheets, frame cost, a static deploy folder (no upload) |
 | [`agent/`](agent) | seven skills for agents, an install guide, a validator (run by `npm test`) |
 

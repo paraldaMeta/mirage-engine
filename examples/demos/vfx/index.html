@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <link rel="icon" href="data:,">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mirage · effects</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #000; overflow: hidden; font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; color: #e8e4dc; }
+    canvas { display: block; }
+    #bar { position: fixed; left: 10px; top: 10px; display: flex; flex-wrap: wrap; gap: 4px; max-width: 60vw; }
+    button { font: inherit; color: inherit; background: #1c1a17cc; border: 1px solid #5a554c; border-radius: 4px; padding: 4px 8px; cursor: pointer; }
+    button.on { background: #e8e4dc; color: #1c1a17; }
+    #stats { position: fixed; left: 10px; bottom: 10px; background: #1c1a17cc; padding: 6px 9px; border-radius: 4px; white-space: pre; }
+    #panel { position: fixed; right: 10px; top: 10px; width: 300px; max-height: calc(100vh - 20px); overflow: auto; background: #1c1a17dd; padding: 8px 10px; border-radius: 4px; }
+    #panel label { display: grid; grid-template-columns: 96px 1fr 48px; gap: 6px; align-items: center; margin: 2px 0; }
+    #panel input[type=range] { width: 100%; }
+    #panel textarea { width: 100%; height: 220px; box-sizing: border-box; font: 11px/1.35 ui-monospace, Menlo, monospace; background: #0e0d0c; color: #cfe6c8; border: 1px solid #5a554c; margin-top: 6px; }
+    #err { color: #ff8a6a; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <canvas></canvas>
+  <div id="bar"></div>
+  <div id="stats"></div>
+  <div id="panel"><b id="title"></b><div id="sliders"></div><textarea id="json" spellcheck="false"></textarea><button id="apply">apply JSON</button> <button id="copy">print to console</button><div id="err"></div></div>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

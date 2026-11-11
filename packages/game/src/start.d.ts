@@ -6,7 +6,7 @@ import type { Game, Migrations, ExtendedSnapshot, LoadedSave, InteractableEntity
 import type { Physics, PhysicsCharacter } from './physics.js';
 import type { Input } from './input.js';
 import type { AudioMixer } from './audio.js';
-import type { GameUI, GameMessages } from './ui.js';
+import type { GameUI, GameMessages, UIOptions } from './ui.js';
 export interface GameSetup<P extends PlanInput = PlanInput> {
   /** Register synchronous cleanup for resources owned by setup, including on startup failure. */
   onDispose(cleanup: () => void): void;
@@ -17,9 +17,12 @@ export type StartGameOptions<P extends PlanInput> = Pick<PlayOptions<PhysicsChar
   /** Unlike createPlay, startGame requires an explicit spawn. */
   built: BuildResult<P> & { plan: { spawn: Viewpoint } };
   id?: string; version?: number; migrate?: Migrations;
+  /** Where saves go (default localStorage): createSaveStorage() of '@mirage/game/platform' inside a native wrapper. */
+  storage?: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
   setup?: (context: GameSetup<P>) => void | Promise<void>;
   objective?: (game: Game) => readonly [string, string]; summary?: (game: Game) => string;
-  ui?: boolean; title?: string; subtitle?: string;
+  /** false: no overlay. A function: another overlay with createUI's contract (createKitUI from '@mirage/game/ui-menu'). */
+  ui?: boolean | ((options: UIOptions) => GameUI); title?: string; subtitle?: string;
   /** The menu's Restart. Default: reload the page. */
   onRestart?: () => void;
 };

@@ -12,6 +12,8 @@
 //        [--variants "time=dusk;post.bloom=0.2;quality=low"]   one labelled grid per view (<= 16 variants, 4 columns)
 //        [--adaptive [levels]]     adaptive spp: stop once the still converges (renderFrame converge; default 0.25
 //                                  display levels); [--adaptive-check] also draws the full spp and measures the difference
+//        [--seq N --fps 30 --from 0 --to 1 --shutter 0.5 --video [file]]   an image sequence (and its video) instead
+//                                  of the views; [--png16] [--exr] deeper stills / frames: all in snap-seq.mjs
 // For each of the plan's viewpoints: place the viewer there (play.viewpoint), render the still path at `spp`,
 // save <out>/vNN-name.png; then <out>/sheet.png (thumbnails with labels, composed in the page's 2D canvas)
 // and <out>/snap.json (load time, per-view render ms, console errors, diagnostics). Exit 1 when a baseline or
@@ -25,9 +27,10 @@ import { adaptiveOption, redrawOrder } from './snap-args.mjs';
 import { readPNG, encodePNG, regionSSIM, ssimVerdict, parseThresholds, pixelDiff, boxed, sideBySide } from './imgcmp.mjs';
 import { diag, sortDiagnostics, formatDiagnostic } from './diagnostics.mjs';
 import { encodePNG as encodeRGBA } from './png.mjs';
+import { seqOptions, runSequence, deepInPage, writeDeep } from './snap-seq.mjs';
 
 const args = process.argv.slice(2);
-const BOOL = ['--game', '--phone', '--determinism', '--adaptive-check', '--alpha'];
+const BOOL = ['--game', '--phone', '--determinism', '--adaptive-check', '--alpha', '--png16', '--exr'];
 const flag = (k, d) => { const i = args.indexOf('--' + k); return i >= 0 ? (args[i + 1] && !args[i + 1].startsWith('--') ? args[i + 1] : true) : d; };
 const target = args.find((a, i) => !a.startsWith('--') && !(i > 0 && args[i - 1].startsWith('--') && !BOOL.includes(args[i - 1]) && !(args[i - 1] === '--adaptive' && !/^[\d.]+$/.test(a))));
 if (!target) { console.error('usage: mirage-snap <dist dir | page.html> [--out dir] [--views all|0,1] [--query q] [--spp N] [--phone] [--baseline dir] [--determinism] [--variants "a=1;b=2"] [--adaptive]'); process.exit(2); }
@@ -36,6 +39,7 @@ const W = phone ? PHONE.w : +flag('w', 1440), H = phone ? PHONE.h : +flag('h', 9
 const OUT = path.resolve(flag('out', 'out/snap'));
 const BASE = flag('baseline') ? path.resolve(flag('baseline')) : null;
 const adaptive = adaptiveOption(args);
+let SEQ; try { SEQ = seqOptions(flag); } catch (e) { console.error(e.message); process.exit(2); }
 if (ALPHA && adaptive !== null) { console.error('mirage-snap: --alpha and --adaptive do not combine (a transparent still sums both passes over the same sub-frames)'); process.exit(2); }
 const grain0 = !!(BASE || flag('determinism'));   // the comparisons use the deterministic still: grain off, frameIndex 1
 fs.mkdirSync(OUT, { recursive: true });
@@ -99,8 +103,9 @@ try {
   report.loadMs = loadMs;
   const vps = await page.evaluate(() => window.__mirage.built.plan.viewpoints.map((v) => v.name));
   const pick = flag('views', 'all') === 'all' ? vps.map((_, i) => i) : String(flag('views')).split(',').map(Number);
-  const shots = pick.map((i) => ({ i, name: vps[i] }));
-  if (flag('game')) shots.push({ i: -1, name: 'game view' });
+  const shots = SEQ.n ? [] : pick.map((i) => ({ i, name: vps[i] }));   // --seq: the frames instead of the views
+  if (flag('game') && !SEQ.n) shots.push({ i: -1, name: 'game view' });
+  if (SEQ.n) report.sequence = await runSequence(page, SEQ, { out: OUT, spp: SPP, w: W, h: H });
   const files = [];
   const still = async (s, spp = SPP, o = {}, pg = page) => {
     const r = await pg.evaluate(stillInPage, s, spp, { grain0, alpha: ALPHA, ...o });
@@ -112,6 +117,7 @@ try {
     const r = await still(s, SPP, shotOpts);
     const f = `v${String(files.length).padStart(2, '0')}-${s.name.replace(/\W+/g, '-')}.png`;
     fs.writeFileSync(path.join(OUT, f), png64(r.png));
+    if (SEQ.png16 || SEQ.exr) writeDeep(path.join(OUT, f.replace(/\.png$/, '')), await page.evaluate(deepInPage, { spp: SPP, png16: SEQ.png16, exr: SEQ.exr }));
     files.push({ f, s, name: s.name, data: r.png });
     const row = { name: s.name, file: f, mode: r.mode, renderMs: r.ms };
     if (adaptive !== null) {
@@ -128,8 +134,10 @@ try {
     console.log(JSON.stringify(row));
   }
   // the contact sheet
-  const sheet = await page.evaluate(sheetInPage, files.map(({ name, data }) => ({ label: name, data })), { cols: COLS, tw: phone ? PHONE.w : 480 });
-  fs.writeFileSync(path.join(OUT, 'sheet.png'), png64(sheet));
+  if (files.length) {
+    const sheet = await page.evaluate(sheetInPage, files.map(({ name, data }) => ({ label: name, data })), { cols: COLS, tw: phone ? PHONE.w : 480 });
+    fs.writeFileSync(path.join(OUT, 'sheet.png'), png64(sheet));
+  }
 
   // ---- baseline: region SSIM of each view against dir/<file>
   if (BASE) {

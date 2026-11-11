@@ -1,5 +1,5 @@
 // Deferred CPU checks: missing evidence and nonzero pixels must never certify a run.
-import assert from 'node:assert/strict';
+import assert from '../../scripts/soft-assert.mjs';
 import { checkE2E, checkStillFrames, discoverExamples } from './src/acceptance-evidence.mjs';
 import { fileURLToPath } from 'node:url';
 

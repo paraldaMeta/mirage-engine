@@ -2,6 +2,7 @@ import type * as THREE from 'three';
 import type { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 import type { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import type { Light2Settings } from './light2.js';
+import type { PostFX } from './postfx.js';
 export interface PostSettings {
   exposure: number; temperature: number; saturation: number; contrast: number; lift: number; vignette: number;
   tonemap: 'agx' | 'aces' | 'neutral'; sharpen: number; grain: number; bloom: number; bloomRadius: number;
@@ -15,6 +16,29 @@ export interface PostSettings {
   aeKey: number; aeRange: number; aeUp: number; aeDown: number;
   /** Auto exposure: how many EV lower the target sits at full lamp level (night). */
   aeNight: number;
+  /** postfx.js (docs/post.md), all off by default. 1: velocity-buffer temporal AA instead of the depth-only one. */
+  taa2: number;
+  /** 0.5..1: render moving frames at this scale; taa2 reconstructs the output size (0 = off; needs taa2). */
+  upscale: number;
+  /** Shutter fraction 0..1 of the motion blur on moving frames (velocity buffer); motionBlurMax: longest blur, px at 1080p. */
+  motionBlur: number; motionBlurMax: number;
+  /** 1: lens blur on moving frames from `dof` (lens radius, m) and `focus`; bokehMax: largest blur radius, px at 1080p. */
+  bokeh: number; bokehMax: number;
+  /** 1: the bloom as a down / up-sample pyramid mixed in by `bloom` (energy conserving). */
+  bloomPyramid: number;
+  /** A 3D lookup table (lutTexture()) applied after the tone map, and how much of it (0..1). */
+  lut: THREE.Data3DTexture | null; lutStrength: number;
+  /** Chromatic aberration: the red / blue shift at the frame corner, % of the half diagonal. */
+  chroma: number;
+  /** 0..1: contrast-adaptive sharpening of moving frames after the temporal resolve / upscaler. */
+  rcas: number;
+  /** Screen-space reflections in the lit materials (needs `lighting: { screen: true }`): strength 0..1, the roughness
+   *  where they end, the longest ray (m) and the depth thickness (m). */
+  ssr2: number; ssrRough: number; ssrDist: number; ssrThick: number;
+  /** Screen-space indirect light: strength, range (m), rays per pixel on moving frames. */
+  ssgi: number; ssgiRange: number; ssgiRays: number;
+  /** Screen-space contact shadows of the sun: strength 0..1 and ray length (m). */
+  contact: number; contactLen: number;
 }
 export const DEFAULT_POST: PostSettings;
 export class Pipeline {
@@ -26,7 +50,7 @@ export class Pipeline {
   sceneRT: THREE.WebGLRenderTarget; aoRT: THREE.WebGLRenderTarget; accRT: THREE.WebGLRenderTarget;
   histA: THREE.WebGLRenderTarget; histB: THREE.WebGLRenderTarget;
   setSize(width: number, height: number): void;
-  /** Render at scale x the output size (reallocates when the render size changes; returns whether it did). */
+  /** Render at scale x the output size into a corner of the same targets (nothing is reallocated; returns false). */
   setRenderScale(scale: number): boolean;
   begin(): void;
   /** jitter: the light2 passes' pattern index (the sub-frame for stills, the TAA index while moving; default subframe). */
@@ -34,6 +58,10 @@ export class Pipeline {
   /** Turn on light2's passes (createWorldRenderer does this for `light2`). */
   useLight2(settings: Light2Settings, context: { sun: THREE.DirectionalLight; G: Record<string, THREE.IUniform> }): void;
   taa(inverseViewProjection: THREE.Matrix4, previousViewProjection: THREE.Matrix4, alpha: number): void;
+  /** The postfx.js passes, made on first use (taa2, motionBlur, bokeh, bloomPyramid, lut, chroma). */
+  fx: PostFX | null;
+  /** taa2's sub-pixel jitter of the next moving frame, in render pixels (-0.5..0.5). */
+  fxJitter(): [number, number];
   /** Adaptive stills: mean change (display levels) of the accumulation / wsum since the last call; null when first. */
   converge(wsum: number, exposure: number, first: boolean): number | null;
   /** Adaptive stills: scale the accumulation (1 / the weight sum drawn) before end(). */

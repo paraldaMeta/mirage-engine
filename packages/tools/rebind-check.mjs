@@ -9,7 +9,6 @@ try {
   const { page, errors } = await open(browser, srv.url + '?quality=low');
   const ui = await page.evaluate(() => !!document.querySelector('.mg-menu'));
   await page.keyboard.press('KeyW'); await new Promise((r) => setTimeout(r, 300));          // leave the start screen
-  const before = await page.evaluate(() => JSON.stringify(window.__mirage?.session?.input?.bindings || window.__game?.input?.bindings || null));
   await page.keyboard.press('Escape'); await new Promise((r) => setTimeout(r, 300));        // menu
   const opened = await page.evaluate(() => document.querySelector('.mg-menu')?.open);
   await page.click('.mg-menu [data-p="controls"]');
