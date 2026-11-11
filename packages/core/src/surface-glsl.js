@@ -727,7 +727,7 @@ MsS ms_stainless(vec2 u){
     // brushed: many parallel hairlines of random length along the grain (u), a few deeper ones
     // brushed: many parallel hairlines of random length along the grain (u), a few deeper ones; the belt's passes
     // overlap in bands a few cm wide, each a little brighter or duller; the lines wander a hair off straight
-    vec2 ub = u + vec2(0.0, 0.0015 * msFbm(u + 7.0, 1.5, 2));
+    vec2 ub = u + vec2(0.0, 0.0015 * msFbm(u + 7.0, 1.5, 1));
     float hair = msFbm2(ub, vec2(3.0 / msB.x, 1400.0), 3);
     float deep = msFbm2(ub + 3.0, vec2(1.0 / msB.x, 260.0), 2);
     float pass = msFbm2(ub + 5.0, vec2(0.3, 22.0), 2);
@@ -753,11 +753,11 @@ MsS ms_stainless(vec2 u){
   float scr = msLine(sd, 0.00012) * step(1.0 - msB.y, sc.w) * msLod(0.0008);
   r = mix(r, msA.a * 0.5, scr); h -= 0.2 * scr;
   // water spots: dried rings (a duller rim, a clean centre), and smudges (fingers, wiping): roughness only
-  vec2 ws = msSpeck(u + 4.0, 30.0, 0.25 * msB.z, 0.45, 3.0);
-  vec2 wr = msSpeck(u + 4.0, 30.0, 0.25 * msB.z, 0.55, 3.0);
-  float ring = clamp(wr.x - ws.x, 0.0, 1.0);
-  float smudge = smoothstep(0.55, 0.85, msFbm(msWarp(u, 6.0, 0.02) + 9.0, 4.0, 3) * 0.5 + 0.5) * msB.z;
-  r += 0.06 * ring + 0.03 * ws.x + 0.08 * smudge;
+  vec4 wc = msCell(u + 7.0, 30.0, 1.0);
+  float won = step(1.0 - 0.25 * msB.z, wc.z) * msLod(0.006);
+  float spot = (1.0 - smoothstep(0.3, 0.42, wc.x)) * won, ring = msLine(wc.x - 0.45, 0.04) * won;
+  float smudge = smoothstep(0.55, 0.85, msFbm(u + 9.0, 4.0, 3) * 0.5 + 0.5) * msB.z;
+  r += 0.06 * ring + 0.03 * spot + 0.08 * smudge;
   return MsS(col, clamp(r, 0.03, 1.0), clamp(h, 0.0, 1.0), 1.0, 1.0);
 }`,
 

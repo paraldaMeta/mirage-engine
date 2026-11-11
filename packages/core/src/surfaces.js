@@ -204,7 +204,7 @@ const KINDS = {
     edge: () => ({ rgb: [1.3, 1.3, 1.3], rough: 0.6, metal: 0, mode: 1, chip: 0.006 }),
   },
   rubber: {
-    cheap: true, family: 'polymer', variants: ['tread', 'sidewall', 'moulded', 'mat'], tile: 0.6, depth: 0.008, size: 512, porosity: 0.05,
+    family: 'polymer', variants: ['tread', 'sidewall', 'moulded', 'mat'], tile: 0.6, depth: 0.008, size: 512, porosity: 0.05,
     refs: { albedo: [0.015, 0.06], rough: [0.6, 0.95], metal: 0, note: 'tyre rubber 0.02-0.04 (carbon black), bloom to ~0.1' },
     defaults: { color: [0.026, 0.026, 0.028], roughness: 0.82, pitch: 0.03, groove: 0.008, bloom: 0.2 },
     variantDefaults: { sidewall: { roughness: 0.75 }, moulded: { roughness: 0.7 } },
