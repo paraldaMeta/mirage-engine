@@ -41,9 +41,11 @@ for (const i of [0, 1, 2]) {
     carShot(i, 'nose', [4.4, 0.9, 0], [0, 0.7, 0]), carShot(i, 'tail', [-4.4, 0.95, 0], [0, 0.8, 0]), carShot(i, 'beads', [0.4, 1.5, 0.75], [0.2, 1.05, 0.55]));
 }
 // ---- the civilians: where they stand (the machines' own `where`)
-SHOTS.civ.push({ name: 'civ-street-east', eye: [12.5, 1.55, 12.2], look: [17, 1.0, 10.5] }, { name: 'civ-stall', eye: [6.5, 1.5, -2.5], look: [9.5, 1.2, -5.5] },
-  { name: 'civ-west', eye: [-12, 1.5, 12.5], look: [-16, 1.0, 10.8] }, { name: 'civ-courier', where: ['courier'], d: 1.6, h: 0.5 }, { name: 'civ-walker', where: ['walker', 0], d: 1.8, h: 1.0 },
-  { name: 'civ-sweeper', where: ['sweeper'], d: 1.8, h: 0.5 }, { name: 'civ-totem', where: ['totem'], d: 2.2, h: 1.4 }, { name: 'civ-broken', where: ['broken', 0], d: 1.6, h: 0.6 }, { name: 'civ-vendor', where: ['vendor', 1], d: 1.6, h: 1.3 });
+// unit: a machines unit id (machineUnits); a: the camera's angle from the unit's front; d, h: distance and height
+for (const [u, d, h, look] of [['pedestrian-0', 1.5, 1.2, 0.85], ['pedestrian-2', 1.5, 1.2, 0.85], ['pedestrian-5', 1.5, 1.2, 0.85], ['walker-0', 1.6, 1.2, 0.85], ['walker-1', 1.6, 1.2, 0.85], ['courier-0', 1.3, 0.75, 0.4],
+  ['sweeper-0', 1.5, 0.8, 0.25], ['totem-0', 2.0, 1.6, 1.5], ['broken-0', 1.4, 0.8, 0.4], ['broken-1', 1.4, 0.8, 0.4], ['vendor-0', 1.4, 1.5, 1.25], ['vendor-1', 1.4, 1.5, 1.25]]) {
+  for (const [side, a] of [['front', 0.35], ['side', 1.57], ['back', 2.9]]) SHOTS.civ.push({ name: `civ-${u}-${side}`, unit: u, a, d, h, lookH: look });
+}
 // ---- the comparison: a sentinel posed beside a civilian
 SHOTS.compare.push({ name: 'compare-sentinel-civilian', ids: ['g1'], place: [['g1', 'civ', 0]], pose: 'idle', civ: true });
 
@@ -56,7 +58,7 @@ for (const time of times) {
   await page.waitForFunction(() => window.__mirage && window.__mirage.play && (!window.__mirage.game || window.__mirage.game.enemies), { timeout: 60000 });
   await new Promise((r) => setTimeout(r, 2500));
   for (const kind of only) for (const s of SHOTS[kind] || []) {
-    if (match && !s.name.includes(match)) continue;
+    if (match && !match.split(',').some((k) => s.name.includes(k))) continue;
     const png = await page.evaluate(async (s) => {
       const m = window.__mirage, { play, world } = m, E = m.game?.enemies;
       play.stop();
@@ -67,9 +69,10 @@ for (const time of times) {
       if (E && s.place) {
         for (const e of E.list) if (s.ids.includes(e.id)) e.__shot = true;
         for (const e of E.list) if (s.ids.includes(e.id)) { e.active = false; e.dead = false; e.rig.root.visible = true; e.rig.root.scale.setScalar(e.K.scale); }
-        for (const [id, p, yaw] of s.place) {
+        for (let [id, p, yaw] of s.place) {
           const e = E.list.find((x) => x.id === id); if (!e) continue;
-          const P = p === 'civ' ? [civAt[0] + 0.9, civAt[1], civAt[2]] : p;
+          const P = p === 'civ' ? [civAt[0] + 0.95, civAt[1], civAt[2]] : p;
+          if (p === 'civ') yaw = Math.sign(6 - civAt[2]) > 0 ? 0 : Math.PI;
           e.pos = P.slice(); e.yaw = yaw; e.rig.root.position.set(...P); e.rig.root.rotation.y = yaw; e.heading = [Math.sin(yaw), Math.cos(yaw)];
           e.lod = -1; for (const [i, set] of (e.sets || []).entries()) for (const mm of set) mm.visible = i === 0;
           const A = e.anim; A.reset?.();
@@ -86,8 +89,13 @@ for (const time of times) {
         }
       }
       let eye = s.eye, look = s.look;
-      if (s.civ) { eye = [civAt[0] + 0.45, 1.3, civAt[2] + 2.4]; look = [civAt[0] + 0.45, 0.85, civAt[2]]; }
-      if (s.where) { const g = world.scene.getObjectByName('machines'), p = g?.userData.where(...s.where); if (!p) return null; eye = [p[0] + s.d * 0.8, p[1] + s.h + 0.25, p[2] + s.d * 0.6]; look = [p[0], p[1] + s.h * 0.7, p[2]]; }
+      if (s.civ) { const k = Math.sign(6 - civAt[2]) || 1; eye = [civAt[0] + 0.45, civAt[1] + 1.25, civAt[2] + k * 2.6]; look = [civAt[0] + 0.45, civAt[1] + 0.85, civAt[2]]; }
+      if (s.unit) {
+        const g = world.scene.getObjectByName('machines'), u = g?.userData.units?.().find((x) => x.id === s.unit); if (!u) return null;
+        const P = new m.world.camera.position.constructor().setFromMatrixPosition(u.frame), e = u.frame.elements, yaw = Math.atan2(e[8], e[10]) + s.a;
+        const base = u.kind === 'vendor' ? P.y - 1.2 : u.kind === 'courier' ? P.y - 0.4 : u.kind === 'sweeper' || u.kind === 'totem' ? P.y : P.y - 0.75;
+        eye = [P.x + Math.sin(yaw) * s.d, base + s.h, P.z + Math.cos(yaw) * s.d]; look = [P.x, base + s.lookH, P.z];
+      }
       play.place(eye, look, 'fly'); play.step(1 / 60);
       const vm = world.scene.getObjectByName('viewmodel'); if (vm) vm.visible = false;
       if (E && s.place) for (const e of E.list) if (s.ids.includes(e.id)) { e.rig.root.position.set(...e.pos); e.rig.root.rotation.y = e.yaw; }
