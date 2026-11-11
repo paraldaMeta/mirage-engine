@@ -24,6 +24,7 @@ Chinese; the dated ones are records of what was done and are not kept current.
 | [editor.md](editor.md) | mirage-editor: edit a live world in the browser, the plan edit layer, round-trip |
 | [character.md](character.md) | the mover: jumps, crouch, ladders, swimming, mantling, moving solids, follow camera |
 | [navigation.md](navigation.md) | areas and costs, off-mesh links, carving, path queue, crowds, behaviour trees, senses |
+| [surfaces.md](surfaces.md) | the material library made in code: concrete, asphalt, metals, glass, fabric, wood, neon and more; procedural or baked; reference values; adding a surface |
 | [vfx.md](vfx.md) | particles, trails, beams, decals, the effect library |
 | [animation.md](animation.md) | the animation controller, IK, retargeting, timelines |
 | [audio.md](audio.md) | the audio engine |

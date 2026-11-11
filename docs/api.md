@@ -72,6 +72,9 @@ count of stable and experimental exports, and how a name is promoted: [STABILITY
 | `renderHeight(name, und, swipe)` | experimental | GLSL declaring a hand-applied render's height (m), faded with distance |
 | `renderShade(name)` | experimental | `output` hook snippet: shade the render's hollows |
 | `withWet(hooks, options)` | experimental | wet surfaces on a hooks object: damp → soaked → standing water (puddles), run-off streaks, a damp band at the ground, rain rings; options `porosity`, `ground`, `band`, `puddles`, `height`, `heightMid`, `heightScale`, `wear`, `wearDepth`, `shelter`, `rim`, `ripples`, `specAA` |
+| `SURFACES.<kind>(options)`, `SURFACE_KINDS`, `METALS` | experimental | the surface library ([surfaces.md](surfaces.md)): 35 kinds (27 bakeable, 8 per pixel: emissive and liquid), each a GLSL recipe plus numbers in measured ranges |
+| `createSurfaces(world, { mode, size, anisotropy })` | experimental | `{ material(spec, options), hooks, bake, stats, dispose }`: `mode` `'auto'` (default) \| `'baked'` \| `'procedural'`; mappings `tri` / `wall` / `ground` / `grain` / `uv`, `space: 'object'`, `wet`, `decals`, asphalt `paint` |
+| `surfaceHooks(spec, options)`, `bakeSurface(renderer, spec, options)`, `bakeDecalAtlas(renderer)`, `noiseTexture()` | experimental | the parts: hooks without a library, a set baked by hand, the weathering decal atlas, the runtime layer's noise |
 | `setWetness(level)` | experimental | wetness 0 (off: the wet code not compiled; crossing 0 recompiles the opted-in materials) .. 1 (full puddles); page-global |
 | `setRain(intensity)` | experimental | rain 0 .. 1: ripples on standing water and the rain kit's streak density; page-global |
 | `WET` | experimental | the wetness's page-global uniforms (`uWet`, `uRain`) |

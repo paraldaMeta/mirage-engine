@@ -389,6 +389,24 @@ space; `normal = mgBump(normal, height, strength)`), `emissive`, `lighting` (`re
 (`uTime, uWind, uKeyDir, uKeyColor, uLamp, uLampGain, uSkyLight, uNight, uUser, uFrame`) and the noise
 library (`mgHash, mgHash3, mgValue2/3, mgGrad2/3, mgFbm2/3, mgRidge3, mgCell2/3, mgTriWeights, mgLuma`).
 
+### The surface library: `SURFACES`, `createSurfaces`
+
+Physically plausible surfaces made in code (no image files): concrete, asphalt, paving, brick, render, ceramic tile,
+corrugated and painted steel, stainless, galvanised, cast iron, aluminium, chrome, raw metals, powder coat, car
+paint, glass, plastics, rubber, fabric, paper, wood, bamboo, leather, carbon fibre, glazed ceramic, roofing, and the
+per-pixel emissive and liquid kinds (neon, fluorescent, LED panel, LCD, light box, paper lantern, water, oil). Each
+is a tileable GLSL recipe with numbers in measured ranges, run per pixel or baked once into a texture set; the same
+`patch()` path, so the wet layer, reflections and lights keep working. Guide: [docs/surfaces.md](../../docs/surfaces.md).
+
+```js
+import { SURFACES, createSurfaces } from '@miragekit/core';
+const lib = createSurfaces(world);                                   // mode 'auto': bakes the costly kinds
+const wall = lib.material(SURFACES.concrete({ variant: 'cast', age: 0.5 }), { mapping: 'wall', wet: true });
+const stair = lib.material(SURFACES.stainless(), { mapping: 'grain', grain: [1, 0, 0] });   // brushed along the run
+```
+(`@miragekit/game` also exports a `SURFACES`: the footstep names. Import one under another name where both meet;
+materials from the library set `userData.surface` to the footstep of their family.)
+
 ### Metals: `PROC.brushed`, `PROC.hammered`, `PROC.patina`
 
 ```js

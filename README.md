@@ -128,7 +128,9 @@ makes the single file.
 
 **Demos** (single files, [`examples/demos`](examples/demos)): `day-night` — the snow hut under a running clock
 from dawn to night, lamps coming on at dusk (0.80 MB); `assemble` — the walled garden assembling itself module by
-module while the loader's report scrolls by, including the module that fails and is skipped (2.11 MB). Build them
+module while the loader's report scrolls by, including the module that fails and is skipped (2.11 MB). `materials` — the surface library
+([docs/surfaces.md](docs/surfaces.md)): every surface on a sphere, a bevelled cube, a wall and a ground patch under
+studio, golden-hour and night light, dry or wet, from 5 m or 0.5 m, baked or procedural. Build them
 from the repository root with `node packages/tools/src/package.mjs examples/demos/<name> --out examples/demos/release/<name>.html`.
 
 ## Made with the Mirage approach

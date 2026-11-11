@@ -40,6 +40,8 @@ const snap = (T, s) => T / Math.max(1, Math.round(T / s));
 // sit in (linear albedo or F0, roughness, metalness), quantum: the repetition breaker's offset step (m, the pattern's
 // module), edge: what worn edges expose, dirt: the grime colour.
 const DIRT = [0.11, 0.095, 0.08];
+// the footstep sound a family walks with (@miragekit/game's surfaces; metal rattles like gravel)
+const FOOTSTEP = { wood: 'wood', metal: 'gravel', coating: 'gravel', composite: 'gravel', ground: 'stone', masonry: 'stone', ceramic: 'stone' };
 const STEEL = [0.53, 0.53, 0.54];
 const KINDS = {
   concrete: {
@@ -85,7 +87,7 @@ const KINDS = {
     edge: () => ({ rgb: [0.85, 0.85, 0.85], rough: 0.95, metal: 0, mode: 1, chip: 0.03 }),
   },
   tile: {
-    family: 'ceramic', variants: ['subway', 'square', 'mosaic', 'floor'], tile: 1.2, depth: 0.004, size: 1024, porosity: 0.1,
+    cheap: true, family: 'ceramic', variants: ['subway', 'square', 'mosaic', 'floor'], tile: 1.2, depth: 0.004, size: 1024, porosity: 0.1,
     refs: { albedo: [0.03, 0.85], rough: [0.04, 0.95], metal: 0, note: 'white glaze 0.70-0.85 (roughness 0.05-0.15); grout 0.30-0.60' },
     defaults: { color: [0.78, 0.78, 0.76], roughness: 0.08, cell: [0.15, 0.075], grout: 0.003, bevel: 0.006, groutColor: [0.42, 0.41, 0.39], alt: 0, altColor: [0.05, 0.05, 0.055], crazing: 0 },
     variantDefaults: { square: { cell: [0.15, 0.15], bevel: 0.002 }, mosaic: { cell: [0.025, 0.025], grout: 0.0025, bevel: 0.001, color: [0.2, 0.42, 0.45] }, floor: { cell: [0.3, 0.3], grout: 0.004, bevel: 0.001, roughness: 0.55, altColor: [0.05, 0.05, 0.05] } },
@@ -111,7 +113,7 @@ const KINDS = {
     edge: (o) => ({ rgb: STEEL, rough: 0.42, metal: 1, mode: 0, chip: 0.012 }),
   },
   stainless: {
-    family: 'metal', variants: ['brushed', 'polished', 'blasted'], tile: 0.6, depth: 0.0006, size: 1024, porosity: 0.05,
+    cheap: true, family: 'metal', variants: ['brushed', 'polished', 'blasted'], tile: 0.6, depth: 0.0006, size: 1024, porosity: 0.05,
     refs: { albedo: [0.5, 0.7], rough: [0.03, 0.5], metal: 1, note: 'stainless steel F0 ~(0.58, 0.58, 0.56); brushed roughness 0.25-0.40, polished 0.04-0.10' },
     defaults: { color: [0.58, 0.58, 0.56], roughness: 0.3, grain: 0.3, scratches: 0.4, swirls: 0.5 },
     variantDefaults: { polished: { roughness: 0.06 }, blasted: { roughness: 0.42 } },
@@ -146,7 +148,7 @@ const KINDS = {
     edge: () => ({ rgb: [0.91, 0.92, 0.92], rough: 0.25, metal: 1, mode: 0, chip: 0.008 }),
   },
   chrome: {
-    family: 'metal', variants: ['new', 'pitted'], tile: 0.5, depth: 0.0005, size: 512, porosity: 0.02,
+    cheap: true, family: 'metal', variants: ['new', 'pitted'], tile: 0.5, depth: 0.0005, size: 512, porosity: 0.02,
     refs: { albedo: [0.5, 0.6], rough: [0.02, 0.12], metal: 1, note: 'chromium F0 (0.55, 0.56, 0.55)' },
     defaults: { color: [0.55, 0.56, 0.55], roughness: 0.04, pitting: 0, spots: 0.4 },
     variantDefaults: { pitted: { pitting: 0.6 } },
@@ -155,7 +157,7 @@ const KINDS = {
     edge: () => ({ rgb: [1, 1, 1], rough: 0.03, metal: 1, mode: 1, chip: 0.01 }),
   },
   metal: {
-    family: 'metal', variants: ['machined', 'cast', 'worn'], tile: 0.5, depth: 0.0006, size: 512, porosity: 0.05,
+    cheap: true, family: 'metal', variants: ['machined', 'cast', 'worn'], tile: 0.5, depth: 0.0006, size: 512, porosity: 0.05,
     refs: { albedo: [0.4, 1.0], rough: [0.05, 0.7], metal: 1, note: 'F0 by metal: iron (0.53, 0.51, 0.50), copper (0.96, 0.64, 0.54), brass (0.91, 0.78, 0.42), gold (1.0, 0.77, 0.34), titanium (0.54, 0.50, 0.45), nickel (0.65, 0.61, 0.54), silver (0.97, 0.96, 0.92), zinc (0.62, 0.64, 0.66)' },
     defaults: { metal: 'steel', color: null, roughness: 0.3, tarnishColor: [0.6, 0.55, 0.45], tarnish: 0.2 },
     pack: (o) => ({ A: [...(o.color || METALS[o.metal] || METALS.steel), o.roughness], B: [...o.tarnishColor, o.tarnish], C: [0, 0, 0, 0], D: [0, 0, 0, 0] }),
@@ -172,7 +174,7 @@ const KINDS = {
     edge: (o) => ({ rgb: lin(o.bare, STEEL), rough: 0.35, metal: 1, mode: 0, chip: 0.008 }),
   },
   carPaint: {
-    family: 'coating', variants: ['solid', 'metallic', 'pearl', 'matte'], tile: 0.3, depth: 0.00015, size: 1024, porosity: 0.0, physical: true,
+    cheap: true, family: 'coating', variants: ['solid', 'metallic', 'pearl', 'matte'], tile: 0.3, depth: 0.00015, size: 1024, porosity: 0.0, physical: true,
     refs: { albedo: [0.02, 0.85], rough: [0.05, 0.6], metal: 'binder 0 / flakes 1 (their share at range)', note: 'base coat as its pigment, a clear coat (F0 0.04, roughness 0.02-0.08) on top; metallic: aluminium flakes' },
     defaults: { color: [0.03, 0.12, 0.14], flakes: 0.35, flakeColor: [0.75, 0.76, 0.78], flakeSize: 0.00045, swirls: 0.3, clearcoatRoughness: 0.04 },
     pack: (o) => ({ A: [...o.color, o.flakes], B: [...o.flakeColor, o.flakeSize], C: [o.swirls, 0, 0, 0], D: [0, 0, 0, 0] }),
@@ -199,7 +201,7 @@ const KINDS = {
     edge: () => ({ rgb: [1.3, 1.3, 1.3], rough: 0.6, metal: 0, mode: 1, chip: 0.006 }),
   },
   rubber: {
-    family: 'polymer', variants: ['tread', 'sidewall', 'moulded', 'mat'], tile: 0.6, depth: 0.008, size: 512, porosity: 0.05,
+    cheap: true, family: 'polymer', variants: ['tread', 'sidewall', 'moulded', 'mat'], tile: 0.6, depth: 0.008, size: 512, porosity: 0.05,
     refs: { albedo: [0.015, 0.06], rough: [0.6, 0.95], metal: 0, note: 'tyre rubber 0.02-0.04 (carbon black), bloom to ~0.1' },
     defaults: { color: [0.026, 0.026, 0.028], roughness: 0.82, pitch: 0.03, groove: 0.008, bloom: 0.2 },
     variantDefaults: { sidewall: { roughness: 0.75 }, moulded: { roughness: 0.7 } },
@@ -237,7 +239,7 @@ const KINDS = {
     edge: (o, v) => ({ rgb: v === 2 ? [0.3, 0.28, 0.25] : [1.15, 1.12, 1.08], rough: 0.85, metal: 0, mode: v === 2 ? 0 : 1, chip: 0.02 }),
   },
   bamboo: {
-    family: 'wood', variants: ['poles', 'slats'], tile: 1.0, depth: 0.012, size: 1024, porosity: 0.5,
+    cheap: true, family: 'wood', variants: ['poles', 'slats'], tile: 1.0, depth: 0.012, size: 1024, porosity: 0.5,
     refs: { albedo: [0.15, 0.55], rough: [0.3, 0.8], metal: 0, note: 'dried bamboo ~(0.45, 0.36, 0.18), its skin waxy (0.3-0.45)' },
     defaults: { color: [0.45, 0.36, 0.17], roughness: 0.38, width: 0.04, node: 0.32 },
     variantDefaults: { slats: { width: 0.02, roughness: 0.55 } },
@@ -255,7 +257,7 @@ const KINDS = {
     edge: () => ({ rgb: [1.35, 1.3, 1.25], rough: 0.4, metal: 0, mode: 1, chip: 0.01 }),
   },
   carbonFibre: {
-    family: 'composite', variants: ['twill'], tile: 0.192, depth: 0.0003, size: 512, porosity: 0.0, physical: true,
+    cheap: true, family: 'composite', variants: ['twill'], tile: 0.192, depth: 0.0003, size: 512, porosity: 0.0, physical: true,
     refs: { albedo: [0.015, 0.06], rough: [0.2, 0.5], metal: 0, note: 'carbon tows ~0.03 under an epoxy clear coat (F0 0.04)' },
     defaults: { color: [0.03, 0.031, 0.034], roughness: 0.3, tow: 0.004, clearcoatRoughness: 0.03 },
     pack: (o) => ({ A: [...o.color, o.roughness], B: [o.tow, 0, 0, 0], C: [0, 0, 0, 0], D: [0, 0, 0, 0] }),
@@ -343,7 +345,7 @@ export const METALS = {
 
 /** Everything the library knows about each kind (family, variants, tile, depth, porosity, reference ranges, defaults). */
 export const SURFACE_KINDS = Object.fromEntries(Object.entries(KINDS).map(([k, v]) => [k, {
-  family: v.family, variants: [...v.variants], tile: v.tile, depth: v.depth, size: v.size || 0, porosity: v.porosity, live: !!v.live, physical: !!v.physical,
+  family: v.family, variants: [...v.variants], tile: v.tile, cheap: !!v.cheap, depth: v.depth, size: v.size || 0, porosity: v.porosity, live: !!v.live, physical: !!v.physical,
   refs: v.refs, defaults: v.defaults,
 }]));
 
@@ -839,7 +841,8 @@ export function bakeDecalAtlas(renderer, size = 1024) {
 
 // ---- the library bound to a world -----------------------------------------------------------------------------------
 /**
- * createSurfaces(world, { mode = 'baked' | 'procedural', size, anisotropy }) -> {
+ * createSurfaces(world, { mode = 'auto' | 'baked' | 'procedural', size, anisotropy }) -> {   ('auto': baked, except
+ *   the kinds cheaper per pixel than their taps: tile, stainless, chrome, metal, carPaint, rubber, bamboo, carbonFibre)
  *   material(spec, options)  a ready MeshStandard / MeshPhysical material (options: see surfaceHooks, plus wet: true |
  *                            withWet options, mode, size, and three material parameters in `params`)
  *   hooks(spec, options)     the hooks (baked on demand), to combine yourself
@@ -848,17 +851,19 @@ export function bakeDecalAtlas(renderer, size = 1024) {
  *   dispose()
  * }
  */
-export function createSurfaces(world, { mode = 'baked', size = 0, anisotropy = 8 } = {}) {
+export function createSurfaces(world, { mode = 'auto', size = 0, anisotropy = 8 } = {}) {
   const renderer = world.renderer, kit = world.mat;
   const cache = new Map();
   let atlas = null, bakeMs = 0, made = 0;
+  // 'auto': bake the kinds whose recipe costs more than its texture taps; the cheap ones (a grid, a few lines) run per pixel
+  const pathOf = (spec, m) => (spec.live ? 'procedural' : m === 'auto' ? (KINDS[spec.kind].cheap ? 'procedural' : 'baked') : m);
   const bake = (spec, sz = size) => {
     const key = spec.bakeKey + ':' + (sz || spec.size);
     if (!cache.has(key)) { const b = bakeSurface(renderer, spec, { size: sz, anisotropy }); bakeMs += b.ms; cache.set(key, b); }
     return cache.get(key);
   };
   const hooks = (spec, o = {}) => {
-    const m = spec.live ? 'procedural' : o.mode || mode;
+    const m = pathOf(spec, o.mode || mode);
     const extra = {};
     if (m === 'baked') extra.baked = bake(spec, o.size || size);
     if (o.decals) extra.decalAtlas = (atlas ??= bakeDecalAtlas(renderer)).texture;
@@ -872,7 +877,9 @@ export function createSurfaces(world, { mode = 'baked', size = 0, anisotropy = 8
     if (spec.kind === 'glass') Object.assign(base, { transparent: true, premultipliedAlpha: true, depthWrite: false, metalness: 1, ...(o.params || {}) });
     const m = spec.physical ? kit.phys(base, h) : kit.std(base, h);
     m.name = `surface-${spec.kind}-${spec.variant}`;
-    m.userData.surface = { kind: spec.kind, variant: spec.variant, mode: spec.live ? 'procedural' : o.mode || mode };
+    // footsteps (@miragekit/game reads userData.surface: 'stone' | 'gravel' | 'grass' | 'wood'); the spec beside it
+    m.userData.surface = FOOTSTEP[KINDS[spec.kind].family] || 'stone';
+    m.userData.surfaceKind = { kind: spec.kind, variant: spec.variant, mode: pathOf(spec, o.mode || mode) };
     made++;
     return m;
   };

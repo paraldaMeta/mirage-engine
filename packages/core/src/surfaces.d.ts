@@ -19,7 +19,7 @@ export interface SurfaceRefs {
 }
 export interface SurfaceKindInfo {
   family: string; variants: string[]; tile: number; depth: number; size: number; porosity: number;
-  live: boolean; physical: boolean; refs: SurfaceRefs; defaults: Record<string, unknown>;
+  live: boolean; physical: boolean; cheap: boolean; refs: SurfaceRefs; defaults: Record<string, unknown>;
 }
 /** Options every kind takes; each kind adds its own (see SURFACE_KINDS[kind].defaults). */
 export interface SurfaceOptions {
@@ -76,7 +76,8 @@ export interface SurfaceHookOptions {
   debug?: 'albedo' | 'rough' | 'height' | 'metal';
   lod?: number;
 }
-export interface SurfaceMaterialOptions extends SurfaceHookOptions {
+export interface SurfaceMaterialOptions extends Omit<SurfaceHookOptions, 'mode'> {
+  mode?: 'auto' | 'procedural' | 'baked';
   wet?: boolean | WetOptions;
   /** bake size (px) */
   size?: number;
@@ -100,6 +101,6 @@ export const METALS: Record<string, [number, number, number]>;
 export function surfaceHooks(spec: SurfaceSpec, options?: SurfaceHookOptions): MaterialHooks;
 export function bakeSurface(renderer: THREE.WebGLRenderer, spec: SurfaceSpec, options?: { size?: number; anisotropy?: number }): BakedSurface;
 export function bakeDecalAtlas(renderer: THREE.WebGLRenderer, size?: number): THREE.WebGLRenderTarget;
-export function createSurfaces(world: { renderer: THREE.WebGLRenderer; mat: MaterialKit }, options?: { mode?: 'procedural' | 'baked'; size?: number; anisotropy?: number }): SurfaceLibrary;
+export function createSurfaces(world: { renderer: THREE.WebGLRenderer; mat: MaterialKit }, options?: { mode?: 'auto' | 'procedural' | 'baked'; size?: number; anisotropy?: number }): SurfaceLibrary;
 /** The runtime layer's shared noise texture (RGBA8 256 x 256, four tileable fractal channels; made once in JS). */
 export function noiseTexture(): THREE.DataTexture;
