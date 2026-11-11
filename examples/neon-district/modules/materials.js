@@ -48,9 +48,12 @@ const facade = (style) => {
         vec2 uv = ndWallUV(p, n), g = uv / vec2(${S.bay.toFixed(2)}, ${S.floor.toFixed(2)}), id = floor(g), f = fract(g);
         float seed = dot(n, vec3(13.0, 0.0, 29.0));
         float w = ndRect(f, g, vec2(${S.lo}), vec2(${S.hi})) * step(4.4, p.y);                      // none on the ground storey
+        // far away a window is a few pixels: the grid (joints, lit rooms, glass) goes over to its average before its
+        // cells get smaller than about three pixels, so it cannot twinkle as the jitter moves it under the pixels
+        float far = smoothstep(0.18, 0.5, max(fwidth(g.x), fwidth(g.y)));
         // panel joints
         vec2 j = abs(f - 0.5) * 2.0;
-        c *= 1.0 - 0.35 * (1.0 - w) * smoothstep(0.93, 0.99, max(j.x, j.y));
+        c *= 1.0 - 0.35 * (1.0 - w) * smoothstep(0.93, 0.99, max(j.x, j.y)) * (1.0 - far);
         vec3 room = ndRoom(id, seed, ${S.share.toFixed(2)});
         c *= 0.9 + 0.2 * mgHash(vec3(id, seed + 9.0));                                                 // panels painted at different times
         float run = smoothstep(0.72, 0.95, mgValue2(vec2(uv.x * 4.0, id.y * 3.1 + seed))) * (1.0 - smoothstep(0.0, 0.42, ${S.lo.split(',')[1]} - f.y)) * step(f.y, ${S.lo.split(',')[1]}) * step(4.4, p.y);
@@ -61,9 +64,12 @@ const facade = (style) => {
         // glazing bars between the panes; they thin out with distance instead of crawling
         float q = abs(fract(f.x * ${S.panes.toFixed(1)}) - 0.5) / ${S.panes.toFixed(1)}, bars = smoothstep(0.004, 0.016, 0.5 / ${S.panes.toFixed(1)} - q);
         bars = mix(1.0, bars, clamp(1.0 - fwidth(g.x) * 45.0, 0.0, 1.0));
-        ndLit = room * inside * w * bars;
-        ndGlass = w * bars;
-        c = mix(c, vec3(0.012, 0.016, 0.022), w * bars);
+        // (the averages: a share of lit rooms, their mean colour and brightness, the window's part of the cell)
+        vec2 wa = vec2(${S.hi}) - vec2(${S.lo});
+        float area = wa.x * wa.y * step(4.4, p.y);
+        ndLit = mix(room * inside * w * bars, vec3(0.844, 0.745, 0.667) * (${S.share.toFixed(2)} * 0.675 * 0.5 * area), far);
+        ndGlass = mix(w * bars, 0.9 * area, far);
+        c = mix(c, vec3(0.012, 0.016, 0.022), ndGlass);
       }
       diffuseColor.rgb *= c; }`,
     roughness: `roughnessFactor = mix(${S.rough.toFixed(2)} + 0.08 * ndH, ${S.gloss.toFixed(2)}, ndGlass);`,
@@ -163,7 +169,7 @@ const SCREEN = (tint) => ({
     float on = step(0.52, mgHash(vec2(col, row))) * step(mgHash(vec2(row, floor(uTime * 0.4))), 0.8);
     vec2 f = fract(vec2(g.x + uTime * sp, g.y));
     float dot_ = on * step(0.18, f.x) * step(f.x, 0.82) * step(0.22, f.y) * step(f.y, 0.78);
-    float fade = 1.0 / (1.0 + 0.02 * max(fwidth(g.x), fwidth(g.y)) * 40.0);
+    float fade = 1.0 - smoothstep(0.2, 0.55, max(fwidth(g.x), fwidth(g.y)));   // the dots go to their average under ~4 px a cell
     ndE = ${tint} * (0.08 + mix(0.5, dot_, fade));
     diffuseColor.rgb *= vec3(0.01); }`,
   roughness: 'roughnessFactor = 0.12;',

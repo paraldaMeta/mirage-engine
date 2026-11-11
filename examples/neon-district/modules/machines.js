@@ -273,7 +273,7 @@ const mod = (a, n) => ((a % n) + n) % n;   // the clock can start a hair under 0
 export function buildMachines(ctx, spec) {
   const { mat } = ctx, cam = ctx.camera;
   // how near a machine is drawn in full, and from where in a hundred-odd triangles: closer in at lower detail
-  const det = (spec.detail ?? 1) ** 2, LN = Math.max(3, 9 * det), LF = Math.max(9, 26 * det);
+  const det = (spec.detail ?? 1) ** 2, LN = Math.max(7, 13 * det), LF = Math.max(18, 32 * det);   // (far enough that a switch is a few pixels, not a jump)
   const atlas = drawAtlas();
   const S = new Batch(), G = new Batch(), U = new Batch();
   // ---- shared geometries (two levels of detail for the android: switched by distance)
@@ -340,7 +340,7 @@ export function buildMachines(ctx, spec) {
   }
   const setFace = (r, k, force) => { if (r.faceK !== k || force) { r.faceK = k; G.mesh.setGeometryIdAt(r.face, gFaces[r.lod][k]); } };
   const setLod = (r, d) => {
-    const want = d > (r.lod === 2 ? LF - 3 : LF) ? 2 : d > (r.lod ? LN - 1.5 : LN) ? 1 : 0;   // near: the full machine; with some hysteresis
+    const want = d > (r.lod === 2 ? LF - 5 : LF) ? 2 : d > (r.lod ? LN - 2.5 : LN) ? 1 : 0;   // near: the full machine; with hysteresis
     if (want === r.lod) return;
     r.lod = want; const g = gA[want];
     S.mesh.setGeometryIdAt(r.torso, r.o.broken ? g.torsoB : (want || r.geoTorso === null ? g.torso : r.geoTorso));
@@ -514,7 +514,12 @@ export function buildMachines(ctx, spec) {
 
   // ---- the poses
   const camPos = new THREE.Vector3(), B = new THREE.Matrix4(), Bv = new THREE.Matrix4();
+  let lastT = Infinity;
   const update = (t) => {
+    // a jump of the view (play.place sets the scene clock back to 0): the LODs are chosen afresh, not through the
+    // hysteresis of where the eye was before, so a still of a view does not depend on the view before it
+    if (t < lastT - 0.25) for (const r of [...stand, ...walkers, ...broken, ...vendors, ...(tt ? [tt] : [])]) r.lod = undefined;
+    lastT = t;
     if (cam) camPos.setFromMatrixPosition(cam.matrixWorld);
     for (const r of stand) {
       const o = r.o, ph = r.seed;

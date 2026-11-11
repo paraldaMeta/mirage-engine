@@ -180,8 +180,12 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
       part(plates, 'LeftArm', side([[0.14, 0], [0.14, 0.06], [0.1, 0.085], [-0.14, 0.085], [-0.16, 0]], 0.1, 0.015), [0.3, 1.55, 0], C.a);
       part(lights, 'LeftArm', RBx(0.076, 0.036, 0.012), [0.3, 1.592, 0.142], 0xffffff);
     }
-    const skin = (list, material) => { const m = new THREE.SkinnedMesh(world.geom.mergeGeometries(list, false), material); m.bind(rig.mesh.skeleton, rig.mesh.bindMatrix); m.frustumCulled = false; m.castShadow = material === armour; m.receiveShadow = true; rig.root.add(m); return m; };
-    skin(plates, armour); skin(lights, visorMat[def.kind || 'grunt']);
+    const skin = (list, material) => { const m = new THREE.SkinnedMesh(world.geom.mergeGeometries(list, false), material); m.bind(rig.mesh.skeleton, rig.mesh.bindMatrix); m.castShadow = material === armour; m.receiveShadow = true; rig.root.add(m); return m; };
+    // culled by one fixed sphere in the rig's own space that holds every pose (arms out, the aim, lying on its back
+    // after the fall): without it every skinned part was drawn in every pass (each lamp's six shadow faces, the
+    // mirror, the sun) wherever the robot stood
+    const reach = new THREE.Sphere(new THREE.Vector3(0, 0.85, -0.25), 1.9);
+    for (const m of [rig.mesh, skin(plates, armour), skin(lights, visorMat[def.kind || 'grunt'])]) { m.boundingSphere = reach; m.frustumCulled = true; }
     // the rifle lies along the right hand's own -X (the arm's axis): receiver, barrel, magazine, stock, a lit muzzle
     const gun = new THREE.Group(); B.RightHand.add(gun); gun.position.set(-0.1, -0.02, 0.02);
     const gparts = [[RBx(0.5, 0.085, 0.055, 0.01), [-0.06, 0.02, 0]], [new THREE.CylinderGeometry(0.014, 0.014, 0.3, 8).rotateZ(Math.PI / 2), [-0.42, 0.03, 0]], [RBx(0.07, 0.16, 0.04, 0.01), [0.02, -0.08, 0]], [RBx(0.2, 0.06, 0.045, 0.01), [0.27, 0.0, 0]], [RBx(0.16, 0.03, 0.03, 0), [-0.1, 0.075, 0]]]

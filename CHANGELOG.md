@@ -4,6 +4,23 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
 
 ## Unreleased
 
+**Faster**
+- @miragekit/core: post.taa2 / motionBlur's velocity pass culls a skinned mesh's stand-in by the mesh's own bounding
+  sphere when the mesh culls itself (frustumCulled with a sphere, its own or one it was given); before, every skinned
+  mesh was drawn into the velocity buffer wherever it stood. What the scene pass did not draw has no pixel there, so
+  the buffer is the same (a skinned mesh with frustumCulled false is drawn as before). neon-district: 33 draws and
+  40 k triangles a frame less at the street view, its sentinels off screen.
+- @miragekit/core: the clustered lamps' cached shadow tiles (`lighting.lights`) are no longer redrawn for a moving
+  `mgDynamic` object that casts nothing (no visible mesh under it with castShadow): it cannot change a tile. The frame
+  it stops casting still redraws the tiles near it, so its old shadow goes. neon-district's kites (which cast none
+  now) had one lamp's six shadow faces redrawn every frame.
+
+**Fixed**
+- @miragekit/core: stills depend less on the view drawn before them. The clustered lamps' shadow atlas (`lighting.lights`)
+  is laid out afresh on a still (tile sizes for this view alone, every tile drawn), and light2's lamp-shadow slots go
+  to the still's own best lamps (no 1.4x hysteresis). Moving frames are unchanged. neon-district's "after another
+  view" difference in `npm run test:determinism` went from 260 k to 18 k pixels at its street view (not yet zero).
+
 **New**
 - @miragekit/game: destructibles (`createDestructibles`, also `@miragekit/game/destruct`; experimental, opt-in,
   `docs/destructibles.md`). Props register over what is already drawn (a mesh, one instance of an `InstancedMesh` or

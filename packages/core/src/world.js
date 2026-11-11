@@ -421,7 +421,7 @@ export function createWorldRenderer(config = {}) {
     // penumbra and AA footprint until the pattern fills in). Off (the default): nothing below runs.
     const on = opts.converge !== undefined && opts.converge !== null && opts.converge !== false;   // 0 = stop only when nothing moves
     const cv = !taa && spp >= 8 && on ? { tol: opts.converge === true ? 0.25 : +opts.converge, every: Math.floor(spp / 4), wsum: 0, diffs: [], used: spp } : null;
-    if (lighting) lighting.frame(opts.getCamera ? opts.getCamera(T) : opts.camera || camera, taa ? frameDt : 0);
+    if (lighting) lighting.frame(opts.getCamera ? opts.getCamera(T) : opts.camera || camera, taa ? frameDt : 0, !taa);
     pipeline.begin();
     for (let k = 0; k < spp; k++) {
       const tk = T + (spp > 1 ? ((shutterSlot(k, spp) + 0.5) / spp - 0.5) * shutter * dt : 0);

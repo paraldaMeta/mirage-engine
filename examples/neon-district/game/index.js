@@ -239,8 +239,9 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
   for (const p of plan.pickups) {
     const o = new THREE.Group(), ammo = p.kind === 'ammo';
     const box = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.2, 0.22), ammo ? crateMat : white); box.castShadow = true;
-    const tag = new THREE.Mesh(ammo ? new THREE.BoxGeometry(0.345, 0.04, 0.225) : new THREE.BoxGeometry(0.12, 0.205, 0.04), ammo ? M.neon.amber : M.neon.green);
-    o.add(box, tag); if (!ammo) { const t2 = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.205, 0.12), M.neon.green); o.add(t2); }
+    // (the med kit's cross is one mesh of its two bars)
+    const tag = new THREE.Mesh(ammo ? new THREE.BoxGeometry(0.345, 0.04, 0.225) : world.geom.mergeGeometries([new THREE.BoxGeometry(0.12, 0.205, 0.04), new THREE.BoxGeometry(0.04, 0.205, 0.12)], false), ammo ? M.neon.amber : M.neon.green);
+    o.add(box, tag);
     o.position.set(p.at[0], p.at[1] + 0.32, p.at[2]); root.add(o);
     let t = R() * 6;
     game.add(pickups[p.id] = { id: p.id, object: o, update: (dt, gm) => {
@@ -523,6 +524,9 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
         const first = () => { removeEventListener('pointerdown', first, true); enterFull(); };
         addEventListener('pointerdown', first, true); onDispose(() => removeEventListener('pointerdown', first, true));
       }
+      // a tool's still (mirage-snap, the determinism check: ?ui=0): the game waits paused and no title flies the camera
+      // (the title's flight runs on the wall clock, so a still after it was never the same twice)
+      else if (Q.get('ui') === '0') game.pause(true);
       else {
         if (!Q.get('time') && run.hour !== hour()) setHour(run.hour);
         game.pause(true); title.show(g);

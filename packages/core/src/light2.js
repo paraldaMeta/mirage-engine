@@ -393,14 +393,15 @@ export class LampShadows {
     this.stats.cands = cand.length;
     cand.sort((a, b) => b.score - a.score);
     this.top = cand.slice(0, VOL_LAMPS);
-    // keep slots whose lamp is still a candidate (hysteresis 1.4x), fill the rest with the best new ones
+    // keep slots whose lamp is still a candidate (hysteresis 1.4x), fill the rest with the best new ones; a still frame
+    // takes the best ones of its own view (no hysteresis), so a still does not depend on the view drawn before it
     const byKey = new Map(cand.map((q) => [q.key, q]));
     const top = cand.slice(0, this.slots);
     const weakestTop = top.length ? top[top.length - 1].score : 0;
     const keep = new Set();
     for (const s of this.slot) {
       const q = s.key && byKey.get(s.key);
-      if (q && (top.includes(q) || q.score * 1.4 > weakestTop)) {
+      if (q && (top.includes(q) || (!frame.still && q.score * 1.4 > weakestTop))) {
         keep.add(q.key); s.score = q.score;
         // the lamp moved (2 cm) or its range / near plane changed: redraw (unpublished until then: lit, not wrong)
         if (Math.hypot(q.x - s.x, q.y - s.y, q.z - s.z) > 0.02 || Math.abs(q.range - s.range) > 1e-3 || Math.abs(q.near - s.near) > 1e-3) {

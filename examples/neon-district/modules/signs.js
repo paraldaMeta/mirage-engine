@@ -49,7 +49,8 @@ export default {
           vec3 a = mix(vec3(1.0, 0.1, 0.5), vec3(0.1, 0.85, 1.0), smoothstep(0.2, 0.8, fract(id.x / px.x + t * 0.6)));
           vec3 b = vec3(1.0, 0.75, 0.15) * step(0.6, mgHash(vec2(floor(id.x / 3.0), floor(id.y / 4.0) + floor(uTime * 1.5))));
           vec3 c = mix(a * (0.25 + 0.75 * sweep), b, step(0.72, fract(id.y / px.y * 0.5 + 0.3)) * step(fract(id.x / px.x * 2.0 - t), 0.5));
-          float dotm = smoothstep(0.48, 0.3, length(f - 0.5));
+          // the LED dots go over to their mean cover (about half) before a dot is under ~3 px: no moire far off
+          float dotm = mix(smoothstep(0.48, 0.3, length(f - 0.5)), 0.5, smoothstep(0.18, 0.5, max(fwidth(g.x), fwidth(g.y))));
           outgoingLight = c * dotm * (2.4 * max(uLampGain, 0.12));
         }`,
       }));

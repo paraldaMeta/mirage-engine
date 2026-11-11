@@ -9,6 +9,8 @@
 //      ?ssr=0|1 ?ssgi=0|1 ?contact=0|1 (screen-space passes)  ?gi=0|1 ?probes=0|1 ?csm=0|1 ?shadows=0|1 (lamp tiles)
 //      ?vol=0|1 (volumetric lamps, light2)  ?taa2=0|1 ?mb=0..1 ?bloom2=0|1 ?lut=0|1 ?chroma=N ?upscale=0.5..1
 //      ?grade=0|1 (the hour's look) ?dusk=0|1 (the dusk sky) ?pool=0|1 (the lamp pool) ?bounce=0|1 ?godrays=0|1 ?flare=0|1
+//      ?moon=0|1 (the moon casts shadows by night) ?percell=N (the lamp pool's lamps per view cell, 32; 16 darkens the street)
+//      ?mirrorall=1 (the close-up props and the view model in the mirror too)
 //      ?time=night | dusk | day | dawn | HH:MM (in the game: T steps through them, the options panel has a slider)
 //      ?detail=0..1 (how much optional dressing: low 0.4, medium 0.8, high 1)   ?skip=module,module (leave modules out)
 //      ?wet=0..1 ?rain=0..1   ?big=chunk,occ,lod (docs/big-worlds.md)   ?lamps=N (N extra lamps: the cluster test)
@@ -22,6 +24,7 @@ import { startGame } from '@miragekit/game';
 import plan from './plan.js';
 import modules from './modules/index.js';
 import { setupGame, objective, summary, VERSION, T } from './game/index.js';
+import { mirrorLayer, distanceCull, MIRROR_LAYER } from './perf.js';
 
 const Q = new URLSearchParams(location.search);
 const W = +Q.get('w') || innerWidth, H = +Q.get('h') || innerHeight;
@@ -31,9 +34,9 @@ const quality = Q.get('quality') || (await pickQuality()).quality;
 
 // ---- what each quality level turns on; a URL flag overrides one feature
 const TIER = {
-  low: { grade: 1, dusk: 1, pool: 1, bounce: 0, godrays: 0, flare: 0, ssr: 0, ssgi: 0, contact: 0, gi: 0, probes: 1, csm: 0, shadows: 0, vol: 0, taa2: 0, mb: 0, bloom2: 1, lut: 1, chroma: 0, upscale: 0.75, rain: 0.6, big: 0, planar: 0, dirt: 0, streak: 0, sharp: 0 },
-  medium: { grade: 1, dusk: 1, pool: 1, bounce: 1, godrays: 1, flare: 1, ssr: 1, ssgi: 0, contact: 0, gi: 1, probes: 1, csm: 0, shadows: 1, vol: 1, taa2: 1, mb: 0, bloom2: 1, lut: 1, chroma: 0.06, upscale: 1, rain: 1, big: 0, planar: 2, dirt: 0.12, streak: 0.08, sharp: 0.5 },
-  high: { grade: 1, dusk: 1, pool: 1, bounce: 1, godrays: 1, flare: 1, ssr: 1, ssgi: 1, contact: 1, gi: 1, probes: 1, csm: 1, shadows: 1, vol: 1, taa2: 1, mb: 0.12, bloom2: 1, lut: 1, chroma: 0.08, upscale: 1, rain: 1, big: 0, planar: 1, dirt: 0.15, streak: 0.1, sharp: 0.55 },
+  low: { grade: 1, dusk: 1, pool: 1, bounce: 0, godrays: 0, flare: 0, ssr: 0, ssgi: 0, contact: 0, gi: 0, probes: 1, csm: 0, shadows: 0, vol: 0, taa2: 0, mb: 0, bloom2: 1, lut: 1, chroma: 0, upscale: 0.75, rain: 0.6, big: 0, moon: 0, percell: 32, planar: 0, dirt: 0, streak: 0, sharp: 0 },
+  medium: { grade: 1, dusk: 1, pool: 1, bounce: 1, godrays: 1, flare: 1, ssr: 0, ssgi: 0, contact: 0, gi: 1, probes: 1, csm: 0, shadows: 1, vol: 1, taa2: 1, mb: 0, bloom2: 1, lut: 1, chroma: 0.06, upscale: 1, rain: 1, big: 0, moon: 1, percell: 32, planar: 3, dirt: 0.12, streak: 0.08, sharp: 0.5 },
+  high: { grade: 1, dusk: 1, pool: 1, bounce: 1, godrays: 1, flare: 1, ssr: 1, ssgi: 1, contact: 1, gi: 1, probes: 1, csm: 1, shadows: 1, vol: 1, taa2: 1, mb: 0.12, bloom2: 1, lut: 1, chroma: 0.08, upscale: 1, rain: 1, big: 0, moon: 1, percell: 32, planar: 3, dirt: 0.15, streak: 0.1, sharp: 0.55 },
 }[quality] || {};
 const F = (k) => (Q.has(k) ? (isNaN(+Q.get(k)) ? Q.get(k) : +Q.get(k)) : TIER[k]);
 const on = (k) => !!F(k);
@@ -54,7 +57,8 @@ const lighting = {
   lights: { perCell: 0, perFrame: 1 },                                                            // clustered lamps, exact lists; one shadow tile redrawn a frame (sentinels walking past lamps)
   screen: on('ssr') || on('ssgi') || on('contact'),
   // the wet street mirrors the signs above it, off screen or not (?planar=N: the mirror is redrawn every Nth frame)
-  planar: on('planar') && { y: 0, scale: 0.5, roughMax: 0.4, every: Math.max(1, Math.round(F('planar'))) },
+  // (it draws one layer: everything but the view model and the close-up props, perf.js)
+  planar: on('planar') && { y: 0, scale: 0.5, roughMax: 0.4, every: Math.max(1, Math.round(F('planar'))), ...(Q.get('mirrorall') === '1' ? {} : { layers: [MIRROR_LAYER] }) },
   csm: on('csm') && { cascades: 3, stagger: true },
   gi: on('gi') && { min: [bar[0], 0, bar[1]], max: [bar[2], plan.bar.height, bar[3]], spacing: 1.3, fade: 0.5 },
   probes: on('probes') && [
@@ -78,7 +82,7 @@ const world = createWorldRenderer({
     golden: { exposure: 0.75, saturation: 1.15 },
     noon: { temperature: 0.8, tint: -0.04, saturation: 0.92, shadowTint: [1.0, 1.0, 0.95], hiTint: [1.08, 1.0, 0.84], exposure: 1.5 } },
   sky: on('dusk') ? { dusk: { haze: 3, night: 0.45 } } : undefined,
-  lampPool: on('pool') ? { perCell: 32, ...(Q.has('captures') ? { captures: Q.get('captures') !== '0' } : {}) } : undefined,
+  lampPool: on('pool') ? { perCell: F('percell'), ...(Q.has('captures') ? { captures: Q.get('captures') !== '0' } : {}) } : undefined,
   clouds: 0.85, shadow: { center: [0, 2, -6], radius: 46 }, envProbe: [-2, 5, 6], envIntensity: 0.6,
   fog: { groundDensity: 0.0045, height: 14, air: 0.0003, color: 1.3, glow: 1 },
   lighting,
@@ -121,10 +125,15 @@ if (world.light2) addLampSource(world.scene, () => { for (const v of volLamps) {
 
 const rain = F('rain') > 0 ? addRain({ ...world.ctx, root: world.scene }, { count: quality === 'low' ? 3000 : 9000, box: [26, 16, 26], speed: 11, streak: 0.045, width: 0.0016, gain: 2.6 }) : null;
 const vfx = createVfx(world, { maxParticles: quality === 'low' ? 30000 : 90000 });
+// moon shadows (?moon=0|1): at low (phones) the moon casts none once the lamps are on (by night the street lamps
+// make the shadows that read; by day and at dusk the sun still casts). It saves the shadow map's draw (89 calls).
+if (!on('moon')) world.ctx.onUpdate(() => { world.sun.castShadow = world.G.uLampGain.value < 0.5; });
 const big = F('big') ? applyBigWorld(world, world.scene, String(F('big'))) : null;                // ?big=chunk,occ,lod: off by default, it does not pay in a block this small (NOTES.md)
 
 const { camera } = world;
-camera.aspect = W / H; camera.fov = 62; camera.near = 0.08; camera.far = 3000; camera.updateProjectionMatrix();
+// depth: near 0.1 (the view model at the sight still clears it) and far 1600 (the sky dome is 1000 m round the eye; the
+// farthest towers and traffic lanes are within 250 m): more depth resolution on the far facades than 0.08 / 3000
+camera.aspect = W / H; camera.fov = 62; camera.near = 0.1; camera.far = 1600; camera.updateProjectionMatrix();
 const spp = +Q.get('spp') || 4, hud = Q.get('hud') !== '0';
 let play, g = null, game = null;
 if (Q.has('world')) {   // the district alone: walk, fly, orbit (stills, the world check)
@@ -141,6 +150,13 @@ if (Q.has('world')) {   // the district alone: walk, fly, orbit (stills, the wor
   game.start(g);
   if (Q.has('start')) g.ui.begin();
 }
+// the frame budget (perf.js, NOTES.md "Frame budget"): the close-up props (modelled for a look from a metre: cans,
+// bottles, keys, bolts, goods) stay out of the wet street's mirror, with the view model (?mirrorall=1 puts them back);
+// the goods of each row of vending machines are drawn within 30 m (userData.ndFar)
+const NO_MIRROR = /^(viewmodel|vending-(can|bottle|cup|box|pack|cap|spirals)|bar-props|relay-props|stall-goods|grime-props|clutter-props|shop-props)$/;
+{ const far = new Map(); world.scene.traverse((o) => { if (o.userData.ndFar) { if (!far.has(o.userData.ndFar)) far.set(o.userData.ndFar, []); far.get(o.userData.ndFar).push(o); } });
+  for (const [d, list] of far) { const cull = distanceCull(list, d); world.ctx.onUpdate((t) => cull(camera, t)); } }
+if (lighting.planar && Q.get('mirrorall') !== '1') mirrorLayer(world.scene, (o) => o.userData.mgClustered || NO_MIRROR.test(o.name));
 const v = plan.viewpoints.find((p) => p.name === Q.get('view'));
 if (v) play.place(v.eye, v.look, v.mode || (Q.has('world') ? Q.get('mode') || 'walk' : 'walk'));
 if (Q.has('world')) world.ctx.onUpdate(relight);

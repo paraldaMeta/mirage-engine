@@ -155,8 +155,12 @@ export default {
 
     const out = new THREE.Group(); out.name = 'vending';
     const shapes = { can: [canGeo(R.can0), 'can0'], bottle: [bottleGeo(R.bottle0), 'bottle0'], cup: [cupGeo(R.can0), 'can0'], box: [boxGeo(R.box0), 'box0'], pack: [packGeo(R.pack0), 'pack0'], cap: [capsuleGeo(R.cap0), 'cap0'] };
-    for (const [k, [geo, base]] of Object.entries(shapes)) { const im = P.instanced(geo, base, items[k], { name: 'vending-' + k }); if (im) out.add(im); }
-    if (items.spiral.length) { const sp = geom.instances(spiralGeo(), mats.metal, items.spiral.map((s) => s.m), { castShadow: false }); tintInstanced(sp); sp.name = 'vending-spirals'; out.add(sp); }
+    // the goods and the spirals: one instanced set per row of machines (not one for the district), so each is culled
+    // with its row and drawn only within FAR metres (a can is then under 3 px; the lit window behind stays)
+    const FAR = 30, rowOf = (m) => `${Math.round(m.elements[12] / 6)}:${Math.round(m.elements[14] / 6)}`;
+    const byRow = (list) => { const g = new Map(); for (const it of list) { const k = rowOf(it.m); if (!g.has(k)) g.set(k, []); g.get(k).push(it); } return [...g.values()]; };
+    for (const [k, [geo, base]] of Object.entries(shapes)) for (const list of byRow(items[k])) { const im = P.instanced(geo.clone(), base, list, { name: 'vending-' + k }); if (im) { im.userData.ndFar = FAR; out.add(im); } }
+    for (const list of byRow(items.spiral)) { const sp = geom.instances(spiralGeo(), mats.metal, list.map((s) => s.m), { castShadow: false }); tintInstanced(sp); sp.name = 'vending-spirals'; sp.userData.ndFar = FAR; out.add(sp); }
     out.add(b.finish({ name: 'vending-body', castShadow: false }), glass.finish({ name: 'vending-glass', castShadow: false }));
     out.traverse((o) => { if (o.isMesh) o.castShadow = false; });
     root.add(decor(out));

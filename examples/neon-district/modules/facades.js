@@ -21,7 +21,7 @@ export default {
     const faces = openFaces(plan), inst = { concrete: [], darkMetal: [], sheet: [], grate: [], blackMetal: [] };
     let mute = false;   // while set, a part is not built (it would stand in front of a sign); the random stream goes on
     const box = (m, pos, yaw, scale, tilt = 0) => { if (!mute) inst[m].push(geom.compose(pos, [tilt, yaw, 0], scale)); };
-    const loose = new geom.MeshBatch(), art = new THREE.Group(); art.name = 'wall-art'; decor(art);
+    const loose = new geom.MeshBatch(), art = new THREE.Group(), bills = []; art.name = 'wall-art'; decor(art);
     const signs = [], ledWalls = [{ pos: [5, 14, 9.9], rotY: Math.PI, w: 12, h: 6.5 }, { pos: [6.1, 14, -9], rotY: Math.PI / 2, w: 12, h: 5.5 }];
     // what must stay clear: every wall sign of the plan, the LED walls, the plan's other screens on walls (adverts)
     const clearRects = signRects(plan, [...ledWalls.map((a) => { const nx = Math.round(Math.sin(a.rotY)), nz = Math.round(Math.cos(a.rotY)), al = nx ? a.pos[2] : a.pos[0];
@@ -109,10 +109,10 @@ export default {
       for (let u = Q.range(0.8, 2.2); u < f.len - 1 && !k.y; u += Q.range(1.6, 4.2)) {
         const kind = Q.pick(['poster', 'poster', 'tag', 'tag', 'stencil']), s = kind === 'poster' ? Q.range(0.55, 0.85) : kind === 'tag' ? Q.range(1.1, 2.0) : Q.range(0.4, 0.7);
         const tex = artTexture(kind, Q.fork('art' + Math.round(u * 10)), { text: Q.pick(words), color: Q.pick(palette) });
-        const m = new THREE.Mesh(new THREE.PlaneGeometry(s, kind === 'poster' ? s * 1.35 : kind === 'tag' ? s * 0.6 : s),
-          mat.std({ map: tex, color: new THREE.Color().setScalar(kind === 'poster' ? 0.3 : 0.15), transparent: true, depthWrite: false, roughness: kind === 'poster' ? 0.85 : 0.6, polygonOffset: true, polygonOffsetFactor: -2 }));
-        m.position.set(...onFace(f, u, kind === 'tag' ? Q.range(0.9, 1.7) : Q.range(1.3, 2.2), 0.125)); m.rotation.set(0, yaw, Q.range(-0.08, 0.08));
-        m.castShadow = false; m.renderOrder = 2; art.add(m);
+        const geo = new THREE.PlaneGeometry(s, kind === 'poster' ? s * 1.35 : kind === 'tag' ? s * 0.6 : s);
+        const pos = onFace(f, u, kind === 'tag' ? Q.range(0.9, 1.7) : Q.range(1.3, 2.2), 0.125), roll = Q.range(-0.08, 0.08);
+        geo.applyMatrix4(new THREE.Matrix4().compose(new THREE.Vector3(...pos), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, yaw, roll)), new THREE.Vector3(1, 1, 1)));
+        bills.push({ kind, geo, canvas: tex.image }); tex.dispose();
       }
     }
 
@@ -148,6 +148,27 @@ export default {
     }
     for (const [m, list] of Object.entries(inst)) if (list.length) { const mesh = geom.instances(unit, M[m], list, { castShadow: m === 'concrete' }); mesh.name = 'kit:' + m; group.add(mesh); }   // only the balcony slabs cast
     group.add(loose.finish({ name: 'facade-pipes', castShadow: false }));
+    // the bills, tags and stencils: drawn one by one as before, then copied into one atlas, two draws in all (pasted
+    // paper and sprayed paint keep their own roughness and darkening); they were a draw and a texture each
+    if (bills.length) {
+      const C = 256, cols = 8, rows = Math.ceil(bills.length / cols), cv = document.createElement('canvas');
+      cv.width = C * cols; cv.height = C * rows;
+      const g2 = cv.getContext('2d');
+      bills.forEach((b, i) => {
+        const cx = i % cols, cy = Math.floor(i / cols);
+        g2.drawImage(b.canvas, 2, 2, b.canvas.width - 4, b.canvas.height - 4, cx * C + 2, cy * C + 2, C - 4, C - 4);   // a 2 px gutter
+        const uv = b.geo.attributes.uv;
+        for (let j = 0; j < uv.count; j++) uv.setXY(j, (cx * C + 2 + uv.getX(j) * (C - 4)) / cv.width, 1 - (cy * C + 2 + (1 - uv.getY(j)) * (C - 4)) / cv.height);
+      });
+      const atlas = new THREE.CanvasTexture(cv); atlas.colorSpace = THREE.SRGBColorSpace; atlas.anisotropy = 4;
+      for (const paper of [true, false]) {
+        const list = bills.filter((b) => (b.kind === 'poster') === paper);
+        if (!list.length) continue;
+        const m = new THREE.Mesh(geom.mergeGeometries(list.map((b) => b.geo), false),
+          mat.std({ map: atlas, color: new THREE.Color().setScalar(paper ? 0.3 : 0.15), transparent: true, depthWrite: false, roughness: paper ? 0.85 : 0.6, polygonOffset: true, polygonOffsetFactor: -2 }));
+        m.name = paper ? 'wall-bills' : 'wall-paint'; m.castShadow = false; m.renderOrder = 2; art.add(m);
+      }
+    }
     root.add(decor(group), art);
     return { signs, ledWalls, parts: Object.values(inst).reduce((a, l) => a + l.length, 0) };
   },
