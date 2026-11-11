@@ -4,7 +4,12 @@
 // embedded as Blob URLs started as classic workers (a page opened from file:// cannot start a module worker
 // from a Blob), and the bundle goes inline into the page.
 //
-// usage: mirage-package <example dir> [--out file.html]
+// usage: mirage-package <example dir> [--out file.html] [--keep-three-decoders]
+//
+// three's DRACOLoader and KTX2Loader name their default decoder files with new URL(..., import.meta.url) at module
+// top level, so any page that can reach them (the editor runtime's model import does, lazily) would carry ~2 MB of
+// Draco and Basis decoders inlined. Mirage's createAssets always sets its own decoder paths, so those defaults are
+// dropped here; --keep-three-decoders keeps them for a page that calls the loaders without setting a path.
 import { build, parseAst } from 'vite';
 import { embedWorkers, htmlSafe, scriptCloses } from './embed-workers.mjs';
 import fs from 'node:fs';
@@ -14,16 +19,26 @@ import { parseArgs } from 'node:util';
 
 let opts;
 try {
-  opts = parseArgs({ args: process.argv.slice(2), allowPositionals: true, options: { out: { type: 'string' } } });
+  opts = parseArgs({ args: process.argv.slice(2), allowPositionals: true, options: { out: { type: 'string' }, 'keep-three-decoders': { type: 'boolean' } } });
   if (opts.positionals.length > 1) throw new Error(`one example folder, got ${opts.positionals.join(' ')}`);
 } catch (e) { console.error(`[package] ${e.message}\nusage: mirage-package <example dir> [--out file.html]`); process.exit(2); }
 const root = path.resolve(opts.positionals[0] || '.');
 const outFile = path.resolve(opts.values.out ?? path.join(root, 'release', path.basename(root) + '.html'));
 const DIST = fs.mkdtempSync(path.join(os.tmpdir(), 'mirage-package-'));
 
+const DEFAULT_DECODERS = /new URL\(\s*'\.\.\/libs\/(?:draco|basis)\/[^']+',\s*import\.meta\.url\s*\)\.toString\(\)/g;
+const dropThreeDecoders = {
+  name: 'mirage-drop-three-default-decoders',
+  transform(code, id) {
+    if (!/three\/examples\/jsm\/loaders\/(DRACOLoader|KTX2Loader)\.js$/.test(id.split('?')[0])) return null;
+    const out = code.replace(DEFAULT_DECODERS, "''");
+    return out === code ? null : { code: out, map: null };
+  },
+};
+
 const t0 = Date.now();
 await build({
-  root, logLevel: 'warn', configFile: false,
+  root, logLevel: 'warn', configFile: false, plugins: opts.values['keep-three-decoders'] ? [] : [dropThreeDecoders],
   build: {
     outDir: DIST, emptyOutDir: true, target: 'es2022', modulePreload: false, assetsInlineLimit: () => true, minify: true,
     rolldownOptions: { output: { codeSplitting: false } }, chunkSizeWarningLimit: 1e5,

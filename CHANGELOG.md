@@ -2,6 +2,14 @@
 
 All notable changes. From 1.0.0 on, versions follow semver for the stable API in `docs/api.md`.
 
+## Unreleased
+
+**Fixes**
+- `mirage-package` (single-file builds) no longer inlines three's default Draco and Basis decoder files (~2.5 MB),
+  which three's DRACOLoader and KTX2Loader name at module top level; Mirage's `createAssets` always sets its own
+  decoder paths. hello-courtyard 5.32 -> 2.79 MB, walled-garden -> 2.83 MB (the site's 5 MB budget had stopped the
+  1.0.0 site build). `--keep-three-decoders` keeps them for a page that uses the loaders without a decoder path.
+
 ## 1.0.0 — 2026-11-11 (tagged `v1.0.0`; not published to npm)
 
 The first version with an API promise: the names marked *stable* in `docs/api.md` change only in a major release.
