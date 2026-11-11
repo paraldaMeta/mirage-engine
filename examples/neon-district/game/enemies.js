@@ -73,57 +73,91 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
       g.deleteAttribute('uv');
       list.push(g);
     };
-    // rounded only where it reads (helmet, breastplate, pauldrons, thighs): a chamfered box is 108 triangles, a plain one 12
-    const RBx = (w, h, d, r = 0.02) => (r >= 0.04 ? new world.geom.RoundedBoxGeometry(w, h, d, 1, Math.min(r, 0.45 * Math.min(w, h, d))) : new THREE.BoxGeometry(w, h, d));
+    // shaped where it reads: silhouettes extruded with chamfered edges (side: a (z, y) profile across the width;
+    // front: (x, y) through the depth; top: (x, z) through the height), lathed rings, tapered six-sided limbs.
+    // An n-point chamfered profile is 8n - 4 triangles, so the profiles stay short.
+    const HP = Math.PI / 2, O = [0, 0, 0], v2 = (pts) => pts.map(([a, b]) => new THREE.Vector2(a, b)), mx = (pts, s) => pts.map(([a, b]) => [a * s, b]);
+    const front = (pts, d, b = 0.02) => new THREE.ExtrudeGeometry(new THREE.Shape(v2(pts)), { depth: d - 2 * b, steps: 1, bevelEnabled: b > 0, bevelThickness: b, bevelSize: b, bevelOffset: -b, bevelSegments: 1 }).translate(0, 0, -(d - 2 * b) / 2);
+    const side = (pts, w, b) => front(pts, w, b).rotateY(-HP), top = (pts, h, b) => front(pts, h, b).rotateX(HP);
+    const ring = (pts, n = 8) => new THREE.LatheGeometry(v2(pts), n, Math.PI / n);
+    const limb = (r0, r1, len, x) => new THREE.CylinderGeometry(r1, r0, len, 6).rotateZ(-x * HP);   // along X: r0 at the body's end, r1 at the far end
+    const RBx = (w, h, d) => new THREE.BoxGeometry(w, h, d);
     const C = heavy ? { a: 0x5c4a44, b: 0x9a4a32, c: 0xe0703c, d: 0x1c1b1c } : { a: 0x56626f, b: 0x8593a2, c: 0xe2e8ee, d: 0x1c2026 };   // shell, plate, accent, joint
-    // head: a helmet with a brow, cheek guards, a chin, ear pods, an antenna; the visor is a lit band (one eye on a warden)
-    part(plates, 'Head', RBx(0.25, 0.25, 0.28, 0.07), [0, 1.675, -0.005], C.a);
-    part(plates, 'Head', RBx(0.27, 0.06, 0.2, 0.02), [0, 1.755, 0.05], C.b, [0.25, 0, 0]);
-    part(plates, 'Head', RBx(0.2, 0.09, 0.1, 0.03), [0, 1.585, 0.085], C.b, [-0.2, 0, 0]);
-    for (const s of [-1, 1]) { part(plates, 'Head', new THREE.CylinderGeometry(0.05, 0.05, 0.05, 10).rotateZ(Math.PI / 2), [s * 0.135, 1.66, -0.02], C.d); part(plates, 'Head', RBx(0.03, 0.12, 0.14, 0.01), [s * 0.125, 1.63, 0.07], C.b); }
-    part(plates, 'Head', RBx(0.012, 0.2, 0.012, 0), [0.1, 1.88, -0.07], C.d);
-    part(plates, 'Head', RBx(0.05, 0.16, 0.2, 0.02), [0, 1.8, -0.03], C.c);                                              // a crest
-    if (heavy) part(lights, 'Head', new THREE.CylinderGeometry(0.045, 0.045, 0.03, 14).rotateX(Math.PI / 2), [0, 1.675, 0.14], 0xffffff);
-    else part(lights, 'Head', RBx(0.21, 0.04, 0.03, 0.01), [0, 1.685, 0.135], 0xffffff);
-    part(plates, 'Neck', new THREE.CylinderGeometry(0.075, 0.095, 0.1, 10), [0, 1.5, 0], C.d);
-    // torso: a layered breastplate, a collar yoke, a core light, ribbed abdomen, a pelvis block with hip plates
-    part(plates, 'Chest', RBx(heavy ? 0.5 : 0.43, 0.3, 0.26, 0.05), [0, 1.34, 0.01], C.a);
-    for (const s of [-1, 1]) part(plates, 'Chest', RBx(0.19, 0.17, 0.06, 0.02), [s * 0.105, 1.37, 0.14], C.b, [-0.12, s * 0.2, 0]);
-    part(plates, 'Chest', RBx(heavy ? 0.56 : 0.48, 0.07, 0.24, 0.02), [0, 1.485, 0], C.b);
-    part(plates, 'Chest', RBx(0.1, 0.03, 0.02, 0), [0.1, 1.44, 0.165], C.c); part(plates, 'Chest', RBx(0.16, 0.012, 0.012, 0), [-0.1, 1.29, 0.165], C.c);
-    part(lights, 'Chest', RBx(0.05, 0.05, 0.02, 0.005), [0, 1.34, 0.168], 0xffffff);
-    for (const y of [1.06, 1.12, 1.18]) part(plates, 'Spine', RBx(0.31 - (1.18 - y) * 0.4, 0.045, 0.2, 0.015), [0, y, 0.005], y === 1.12 ? C.d : C.b);
-    part(plates, 'Hips', RBx(0.35, 0.15, 0.23, 0.04), [0, 0.945, 0], C.a);
-    for (const s of [-1, 1]) part(plates, 'Hips', RBx(0.05, 0.2, 0.2, 0.02), [s * 0.185, 0.9, 0], C.b, [0, 0, s * 0.12]);
-    part(plates, 'Hips', RBx(0.12, 0.12, 0.06, 0.02), [0, 0.9, 0.12], C.b);
-    // the pack: a power unit with two canisters and heat vents that glow
-    part(plates, 'Chest', RBx(0.32, 0.36, 0.15, 0.03), [0, 1.3, -0.2], C.b);
-    for (const s of [-1, 1]) part(plates, 'Chest', new THREE.CylinderGeometry(0.045, 0.045, 0.3, 10), [s * 0.11, 1.33, -0.29], C.d);
-    for (const y of [1.2, 1.25]) part(lights, 'Chest', RBx(0.2, 0.016, 0.012, 0), [0, y, -0.277], 0xffffff);
-    part(plates, 'Chest', RBx(0.3, 0.04, 0.16, 0.01), [0, 1.5, -0.2], C.c);
-    // arms and legs, both sides: pauldron, upper plate, elbow, gauntlet; thigh, knee, shin, boot; a light at each joint
-    for (const [side, x] of [['Left', 1], ['Right', -1]]) {
-      part(plates, `${side}Arm`, RBx(heavy ? 0.27 : 0.22, heavy ? 0.2 : 0.16, 0.24, 0.06), [x * 0.245, 1.45, 0], C.b, [0, 0, x * -0.25]);
-      part(plates, `${side}Arm`, RBx(0.05, 0.035, 0.25, 0.01), [x * 0.255, 1.53, 0], C.c);
-      part(plates, `${side}Arm`, RBx(0.17, 0.105, 0.11, 0.03), [x * 0.36, 1.4, 0], C.a);
-      part(plates, `${side}ForeArm`, new THREE.CylinderGeometry(0.052, 0.052, 0.07, 10).rotateX(Math.PI / 2), [x * 0.47, 1.4, 0], C.d);
-      part(lights, `${side}ForeArm`, RBx(0.025, 0.025, 0.115, 0), [x * 0.47, 1.4, 0], 0xffffff);
-      part(plates, `${side}ForeArm`, RBx(0.2, 0.095, 0.1, 0.03), [x * 0.6, 1.4, 0], C.b);
-      part(plates, `${side}ForeArm`, RBx(0.12, 0.03, 0.105, 0.01), [x * 0.6, 1.455, 0], C.c);
-      part(plates, `${side}Hand`, RBx(0.1, 0.06, 0.08, 0.02), [x * 0.78, 1.4, 0], C.d);
-      part(plates, `${side}UpLeg`, RBx(0.155, 0.32, 0.17, 0.04), [x * 0.1, 0.73, 0.012], C.a);
-      part(plates, `${side}UpLeg`, RBx(0.1, 0.2, 0.03, 0.01), [x * 0.1, 0.76, 0.1], C.b);
-      part(plates, `${side}Leg`, RBx(0.115, 0.11, 0.09, 0.03), [x * 0.1, 0.5, 0.065], C.b);
-      part(lights, `${side}Leg`, RBx(0.125, 0.02, 0.02, 0), [x * 0.1, 0.5, 0.112], 0xffffff);
-      part(plates, `${side}Leg`, RBx(0.125, 0.3, 0.135, 0.035), [x * 0.1, 0.29, 0.008], C.a);
-      part(plates, `${side}Leg`, RBx(0.05, 0.22, 0.03, 0.01), [x * 0.1, 0.3, -0.075], C.d);
-      part(plates, `${side}Foot`, RBx(0.135, 0.105, 0.27, 0.03), [x * 0.1, 0.052, 0.04], C.d);
-      part(plates, `${side}Foot`, RBx(0.14, 0.03, 0.1, 0.01), [x * 0.1, 0.11, 0.1], C.b);
+    const W = heavy ? 0.25 : 0.215, hw = heavy ? 0.27 : 0.24, k = heavy ? 1.2 : 1;
+    // head: a faceted helmet, a brow over the visor, a jaw with a grille, ear pods, a crest; the visor is a lit band
+    // in three facets (a warden has one round eye in a socket, and a heavier jaw)
+    part(plates, 'Head', side([[0.1, 1.6], [0.135, 1.64], [0.14, 1.71], [0.1, 1.775], [0, 1.81], [-0.1, 1.79], [-0.15, 1.72], [-0.15, 1.63], [-0.11, 1.565], [0.02, 1.555]], hw, 0.045), O, C.a);
+    part(plates, 'Head', top([[-0.118, 0.085], [-0.07, 0.166], [0.07, 0.166], [0.118, 0.085], [0.1, 0.05], [-0.1, 0.05]], 0.034, 0.008), [0, 1.74, 0], C.b, [0.14, 0, 0]);
+    part(plates, 'Head', top([[-0.102, 0.06], [-0.052, 0.158], [0.052, 0.158], [0.102, 0.06], [0.085, 0.02], [-0.085, 0.02]], heavy ? 0.1 : 0.07, 0.012), [0, heavy ? 1.59 : 1.6, 0], C.b);
+    part(plates, 'Head', RBx(0.07, 0.022, 0.01), [0, 1.6, 0.16], C.d);
+    for (const s of [-1, 1]) part(plates, 'Head', new THREE.CylinderGeometry(0.05, 0.05, 0.04, 8).rotateZ(HP), [s * (hw / 2 + 0.008), 1.67, -0.02], C.d);
+    part(plates, 'Head', side([[0.1, 1.775], [0.03, 1.842], [-0.1, 1.836], [-0.135, 1.765]], 0.045, 0.012), O, C.c);
+    if (heavy) {
+      part(plates, 'Head', new THREE.CylinderGeometry(0.064, 0.064, 0.05, 10).rotateX(HP), [0, 1.678, 0.128], C.d);
+      part(lights, 'Head', new THREE.CylinderGeometry(0.042, 0.042, 0.02, 12).rotateX(HP), [0, 1.678, 0.148], 0xffffff);
+    } else {
+      part(lights, 'Head', top([[-0.108, 0.098], [-0.06, 0.153], [0.06, 0.153], [0.108, 0.098], [0.09, 0.08], [-0.09, 0.08]], 0.048, 0), [0, 1.68, 0], 0xffffff);
+      part(plates, 'Head', RBx(0.012, 0.2, 0.012), [0.1, 1.88, -0.07], C.d);
     }
-    if (heavy) {   // a warden carries a light bar on the left shoulder and thicker shins
-      part(plates, 'LeftArm', RBx(0.1, 0.12, 0.3, 0.02), [0.27, 1.6, -0.02], C.a);
-      part(lights, 'LeftArm', RBx(0.08, 0.05, 0.02, 0), [0.27, 1.61, 0.135], 0xffffff);
-      for (const x of [-1, 1]) part(plates, x > 0 ? 'LeftLeg' : 'RightLeg', RBx(0.15, 0.16, 0.16, 0.03), [x * 0.1, 0.36, 0.02], C.b);
+    part(plates, 'Neck', new THREE.CylinderGeometry(0.07, 0.09, 0.1, 8), [0, 1.5, 0], C.d);
+    // torso: a chest that tapers to the waist, two breast plates, a sternum ridge with the core light, a collar ring,
+    // three abdomen rings, a pelvis with hip plates
+    part(plates, 'Chest', front([[-W, 1.47], [W, 1.47], [W + 0.01, 1.38], [0.165, 1.2], [-0.165, 1.2], [-W - 0.01, 1.38]], 0.32, 0.04), [0, 0, 0.005], C.a);
+    for (const s of [-1, 1]) part(plates, 'Chest', front(mx([[-0.09, 0.08], [0.075, 0.075], [0.095, 0.01], [0.01, -0.1], [-0.09, -0.07]], s * W / 0.215), 0.05, 0.015), [s * 0.105 * W / 0.215, 1.37, 0.172], C.b, [-0.1, s * 0.18, 0]);
+    part(plates, 'Chest', side([[0.15, 1.455], [0.205, 1.43], [0.218, 1.33], [0.19, 1.235], [0.15, 1.235]], 0.04, 0.01), O, C.d);
+    part(lights, 'Chest', RBx(0.028, 0.05, 0.012), [0, 1.37, 0.215], 0xffffff, [-0.12, 0, 0]);
+    part(plates, 'Chest', ring(heavy ? [[0.105, 1.455], [0.15, 1.475], [0.15, 1.555], [0.128, 1.58], [0.1, 1.55]] : [[0.1, 1.455], [0.135, 1.47], [0.13, 1.512], [0.108, 1.528], [0.088, 1.5]]).scale(1.25, 1, 1.05), O, C.b);
+    for (const [i, y] of [1.03, 1.09, 1.15].entries()) { const r = 0.168 + i * 0.007; part(plates, 'Spine', ring([[r - 0.024, y], [r, y + 0.01], [r, y + 0.034], [r - 0.024, y + 0.044]]).scale(1, 1, 0.97), O, C.b); }
+    part(plates, 'Hips', front([[-0.17, 1.0], [0.17, 1.0], [0.18, 0.93], [0.07, 0.85], [-0.07, 0.85], [-0.18, 0.93]], 0.32, 0.03), O, C.a);
+    for (const s of [-1, 1]) part(plates, 'Hips', front(mx([[-0.02, 0.1], [0.025, 0.1], [0.04, -0.02], [0.02, -0.12], [-0.015, -0.1]], s), 0.24, 0.012), [s * 0.185, 0.9, 0], C.b, [0, 0, s * 0.1]);
+    part(plates, 'Hips', side([[0.135, 0.995], [0.18, 0.975], [0.186, 0.91], [0.15, 0.85], [0.125, 0.86]], 0.11, 0.015), O, C.b);
+    // the pack: a power unit with two canisters and lit vents; cables run from it to the helmet (a warden has two
+    // exhaust stacks with hot tips instead of the antenna)
+    part(plates, 'Chest', side([[-0.14, 1.47], [-0.265, 1.455], [-0.3, 1.39], [-0.3, 1.2], [-0.255, 1.13], [-0.14, 1.15]], 0.3, 0.03), O, C.b);
+    for (const s of [-1, 1]) {
+      part(plates, 'Chest', new THREE.CylinderGeometry(0.045, 0.045, 0.27, 8), [s * 0.1, 1.31, -0.315], C.d);
+      part(plates, 'Chest', new THREE.CylinderGeometry(0.026, 0.045, 0.03, 8, 1, true), [s * 0.1, 1.46, -0.315], C.c);
+      part(plates, 'Chest', new THREE.TubeGeometry(new THREE.CatmullRomCurve3([new THREE.Vector3(s * 0.1, 1.47, -0.23), new THREE.Vector3(s * 0.14, 1.575, -0.235), new THREE.Vector3(s * 0.1, 1.645, -0.125)]), 5, 0.013, 4, false), O, C.d);
+      if (heavy) {
+        part(plates, 'Chest', new THREE.CylinderGeometry(0.03, 0.036, 0.34, 6), [s * 0.19, 1.6, -0.23], C.d);
+        part(lights, 'Chest', new THREE.CylinderGeometry(0.022, 0.022, 0.012, 6), [s * 0.19, 1.772, -0.23], 0xffffff);
+      }
+    }
+    for (const y of [1.2, 1.235, 1.27]) part(lights, 'Chest', RBx(0.09, 0.014, 0.012), [0, y, -0.304], 0xffffff);
+    part(plates, 'Chest', RBx(0.26, 0.03, 0.13), [0, 1.485, -0.215], C.a);
+    // arms and legs, both sides: a rimmed pauldron, tapered upper arm, elbow, gauntlet with a blade, a hand with three
+    // fingers and a thumb; a tapered thigh and its plate, a pointed knee, a greave with a calf, a foot with a toe cap
+    // and a heel; a light at each elbow and knee
+    for (const [sd, x] of [['Left', 1], ['Right', -1]]) {
+      part(plates, `${sd}Arm`, front(mx([[-0.085, -0.01], [-0.07, 0.075], [0.03, 0.1], [0.11, 0.06], [0.14, -0.04], [0.105, -0.065], [0, -0.03]], x), 0.25, 0.025).scale(k, k, k), [x * 0.25, 1.44, 0], C.b);
+      part(plates, `${sd}Arm`, RBx(0.056, 0.022, 0.256 * k), [x * (0.25 + 0.126 * k), 1.44 - 0.056 * k, 0], C.c, [0, 0, x * 0.62]);
+      part(plates, `${sd}Arm`, limb(0.068, 0.056, 0.17, x), [x * 0.365, 1.4, 0], C.a);
+      part(plates, `${sd}ForeArm`, new THREE.CylinderGeometry(0.05, 0.05, 0.08, 8).rotateX(HP), [x * 0.47, 1.4, 0], C.d);
+      part(lights, `${sd}ForeArm`, RBx(0.026, 0.026, 0.115), [x * 0.47, 1.4, 0], 0xffffff);
+      part(plates, `${sd}ForeArm`, limb(0.058, 0.044, 0.2, x), [x * 0.6, 1.4, 0], C.b);
+      part(plates, `${sd}ForeArm`, front(mx([[-0.075, 0], [0.06, 0], [0.08, 0.018], [-0.045, 0.04]], x), 0.05, 0.008), [x * 0.6, 1.443, 0], C.c);
+      part(plates, `${sd}Hand`, RBx(0.07, 0.04, 0.085), [x * 0.77, 1.4, 0], C.d);
+      part(plates, `${sd}Hand`, RBx(0.045, 0.012, 0.08), [x * 0.775, 1.424, 0], C.b);
+      for (const z of [-0.03, 0, 0.03]) part(plates, `${sd}Hand`, RBx(0.055, 0.024, 0.022), [x * 0.825, 1.39, z], C.d, [0, 0, -x * 0.45]);
+      part(plates, `${sd}Hand`, RBx(0.022, 0.022, 0.05), [x * 0.775, 1.386, 0.058], C.d, [0, x * 0.5, 0]);
+      part(plates, `${sd}UpLeg`, front(mx([[-0.08, 0.17], [0.085, 0.17], [0.095, 0.06], [0.068, -0.17], [-0.062, -0.17], [-0.085, 0.06]], x), 0.175, 0.035).scale(k, 1, k), [x * 0.1, 0.72, 0.01], C.a);
+      part(plates, `${sd}UpLeg`, front([[-0.05, 0.12], [0.05, 0.12], [0.042, -0.09], [0, -0.13], [-0.042, -0.09]], 0.03, 0.01), [x * 0.1, 0.745, 0.085 + 0.0875 * (k - 1) + 0.01], C.b);
+      part(plates, `${sd}Leg`, side([[0, 0.065], [0.06, 0.045], [0.09, 0], [0.07, -0.055], [0, -0.07]], 0.115, 0.02), [x * 0.1, 0.5, 0.035], C.a);
+      part(lights, `${sd}Leg`, RBx(0.085, 0.018, 0.014), [x * 0.1, 0.5, 0.127], 0xffffff);
+      part(plates, `${sd}Leg`, side([[0.075, 0.44], [0.09, 0.36], [0.068, 0.14], [0.03, 0.105], [-0.05, 0.115], [-0.08, 0.3], [-0.06, 0.44]], heavy ? 0.165 : 0.125, 0.03), [x * 0.1, 0, 0], C.b);
+      part(plates, `${sd}Leg`, RBx(0.03, 0.2, 0.016), [x * 0.1, 0.255, 0.082], C.c, [0.1, 0, 0]);
+      part(plates, `${sd}Leg`, RBx(0.028, 0.2, 0.028), [x * 0.1, 0.27, -0.078], C.d);
+      part(plates, `${sd}Foot`, side([[-0.09, 0], [0.13, 0], [0.13, 0.085], [0.07, 0.105], [0.03, 0.135], [-0.05, 0.135], [-0.1, 0.07]], heavy ? 0.155 : 0.13, 0.015), [x * 0.1, 0, 0], C.d);
+      part(plates, `${sd}Toe`, side([[0.118, 0], [0.19, 0], [0.208, 0.028], [0.17, 0.074], [0.118, 0.094]], heavy ? 0.161 : 0.136, 0.015), [x * 0.1, 0, 0], C.b);
+      part(plates, `${sd}Foot`, RBx(0.1, 0.05, 0.03), [x * 0.1, 0.06, -0.097], C.b, [-0.3, 0, 0]);
+      if (heavy) {   // heavier legs: an outer plate on the shin and on the thigh
+        part(plates, `${sd}Leg`, front(mx([[0, 0.13], [0.03, 0.105], [0.035, -0.1], [0, -0.14]], x), 0.13, 0.01), [x * 0.185, 0.3, 0], C.b);
+        part(plates, `${sd}UpLeg`, front(mx([[0, 0.12], [0.03, 0.1], [0.03, -0.08], [0, -0.12]], x), 0.14, 0.01), [x * 0.205, 0.74, 0.01], C.b);
+      }
+    }
+    if (heavy) {   // a warden carries a light bar on the left shoulder
+      part(plates, 'LeftArm', side([[0.14, 0], [0.14, 0.06], [0.1, 0.085], [-0.14, 0.085], [-0.16, 0]], 0.1, 0.015), [0.3, 1.55, 0], C.a);
+      part(lights, 'LeftArm', RBx(0.076, 0.036, 0.012), [0.3, 1.592, 0.142], 0xffffff);
     }
     const skin = (list, material) => { const m = new THREE.SkinnedMesh(world.geom.mergeGeometries(list, false), material); m.bind(rig.mesh.skeleton, rig.mesh.bindMatrix); m.frustumCulled = false; m.castShadow = material === armour; m.receiveShadow = true; rig.root.add(m); return m; };
     skin(plates, armour); skin(lights, visorMat[def.kind || 'grunt']);
