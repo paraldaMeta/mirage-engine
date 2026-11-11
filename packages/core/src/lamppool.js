@@ -64,11 +64,11 @@ const TW = 256, REC = 3, CELLS = CLUSTER.x * CLUSTER.y * CLUSTER.z;
 const MATCH2 = 0.03 * 0.03;   // a PointLight this close (m^2) to a pool lamp is that lamp's real light
 const lum = (r, g, b) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
 
-/** a lamp as given -> the numbers the pool keeps: { x, y, z, range, power, r, g, b, decay, n: [nx, ny, nz, d] | null, near } */
+/** a lamp as given -> the numbers the pool keeps: { x, y, z, range, power, r, g, b, decay, n: [nx, ny, nz, d] | null, near | null } */
 export function poolLamp(o) {
   const p = o.pos || [o.x, o.y, o.z];
   const c = o.color || [1, 0.56, 0.25];
-  const l = { x: +p[0], y: +p[1], z: +p[2], range: o.range ?? 6, power: o.power ?? 1, r: c[0], g: c[1], b: c[2], decay: o.decay ?? 2, n: null, near: o.near ?? 0.16 };
+  const l = { x: +p[0], y: +p[1], z: +p[2], range: o.range ?? 6, power: o.power ?? 1, r: c[0], g: c[1], b: c[2], decay: o.decay ?? 2, n: null, near: o.near ?? null };   // near: null = light2's own default (ls.near)
   if (o.normal) {
     const [nx, ny, nz] = o.normal, s = Math.hypot(nx, ny, nz) || 1;
     // the plane `back` m behind the flame along the normal: light where dot(n, P) + d > 0
@@ -307,7 +307,7 @@ export function createLampPool(w, cfg) {
       const l = lamps[i];
       if (l.power <= 0 || (l.x - cp.x) ** 2 + (l.y - cp.y) ** 2 + (l.z - cp.z) ** 2 > (l.range + reach) ** 2) continue;
       const p = l.power * gain;
-      out.push({ id: 'mgPool' + i, x: l.x, y: l.y, z: l.z, range: l.range, power: p, near: l.near, col: [l.r * p, l.g * p, l.b * p], pool: true });
+      out.push({ id: 'mgPool' + i, x: l.x, y: l.y, z: l.z, range: l.range, power: p, near: l.near ?? l2.ls.near, col: [l.r * p, l.g * p, l.b * p], pool: true });
     }
     return out;
   };
@@ -318,7 +318,7 @@ export function createLampPool(w, cfg) {
     cfg, part, uniforms: U, info, rows,
     get texture() { return tex; },
     get count() { return lamps.length; },
-    /** replace every lamp: [{ pos: [x, y, z], range = 6, power = 1, color = [1, 0.56, 0.25], decay = 2, normal?, back = 0, near = 0.16 }] */
+    /** replace every lamp: [{ pos: [x, y, z], range = 6, power = 1, color = [1, 0.56, 0.25], decay = 2, normal?, back = 0, near? }] */
     set(list = []) {
       lamps.length = 0;
       for (const o of list.slice(0, cfg.max)) lamps.push(poolLamp(o));

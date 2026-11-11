@@ -57,6 +57,9 @@ count of stable and experimental exports, and how a name is promoted: [STABILITY
 | `SCREEN_DEFAULTS` | experimental | the screen-space passes' buffers (`scale`, `refScale`, `layer`); `lighting: { screen: true }` (`docs/lighting.md`) |
 | `SCREEN_POST` | experimental | their post settings, all off: `ssr2`, `ssrRough`, `ssrDist`, `ssrThick`, `ssgi`, `ssgiRange`, `ssgiRays`, `contact`, `contactLen` |
 | `PROBE_DEFAULTS` | experimental | a reflection probe's defaults (`fade`, `intensity`); `lighting: { probes: [{ min, max, position }] }`, at most 4 |
+| `LAMPPOOL_DEFAULTS` | experimental | the lamp pool's settings (`max`, `perCell`, `far`, `fade`, `lampGain`, `real`, `soft`, `light2`, `captures`); `createWorldRenderer({ lampPool: true })` turns it on and `world.lampPool.set(lamps)` fills it (README "Lamp pool") |
+| `lampPoolConfig(option)` | experimental | the full lamp-pool settings for `true` / a partial object; null when off |
+| `createLampPool(world, settings)` | experimental | what `createWorldRenderer({ lampPool })` builds (`world.lampPool`): `set`, `add`, `update`, `clear`, `count`, `info`. A clustered term in the world's lit materials; a PointLight on a pool lamp takes its share of it |
 | `TEX_RELIEF_GLSL` | experimental | the texture layer's relief taps (`mgTexTriRelief`, `mgTexWallRelief`, `mgTexGroundRelief`); compiled in by the relief opt-ins |
 | `RELIEF` | experimental | the close-range relief's shared uniforms (`uRelief` on / off, `uReliefFar` fade distance) |
 | `setRelief(level)` | experimental | relief level: 0 off, 1 full (8 m), in between a shorter reach |

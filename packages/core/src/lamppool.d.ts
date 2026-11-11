@@ -36,10 +36,10 @@ export interface PoolLampInput {
   normal?: V3;
   /** Metres from the flame back to the wall face along `normal` (default 0). */
   back?: number;
-  /** The lamp-shadow cube's near plane with light2 (default 0.16 m: a lantern's cage does not shadow its flame). */
+  /** The lamp-shadow cube's near plane with light2 (default: light2's `ls.near`, as for a PointLight without `userData.lsNear`). */
   near?: number;
 }
-export interface PoolLamp { x: number; y: number; z: number; range: number; power: number; r: number; g: number; b: number; decay: number; n: [number, number, number, number] | null; near: number }
+export interface PoolLamp { x: number; y: number; z: number; range: number; power: number; r: number; g: number; b: number; decay: number; n: [number, number, number, number] | null; near: number | null }
 export interface LampPoolInfo {
   lamps: number;
   /** Lamps shaded by the last render (some light left for the pool, within `far`). */

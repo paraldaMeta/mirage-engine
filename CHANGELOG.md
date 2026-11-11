@@ -10,6 +10,13 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
   `@mirage-engine` are taken on npm). Imports change from `@mirage/...` to `@miragekit/...`; nothing else does.
 - `.github/workflows/release.yml` publishes them to npm with provenance after the owner approves (docs/releasing.md).
 
+**New**
+- @miragekit/core: the lamp pool (`createWorldRenderer({ lampPool: true })`, `world.lampPool.set(lamps)`; opt-in,
+  off = bit-identical): every lamp of a town lights its surroundings through the lit materials (clustered, three's
+  falloff and BRDF), not only the few PointLights near the eye; a PointLight on a pool lamp takes its share, so the
+  hand-off is seamless; a lamp's wall stops its light; with light2 the shadow slots go to the best pool lamps.
+  Closes gap 3 of the Nizwa probe (`probes/nizwa-probe` `?pools=1`); hello-courtyard `?lamppool=1`.
+
 **Fixes**
 - `mirage-package` (single-file builds) no longer inlines three's default Draco and Basis decoder files (~2.5 MB),
   which three's DRACOLoader and KTX2Loader name at module top level; Mirage's `createAssets` always sets its own
