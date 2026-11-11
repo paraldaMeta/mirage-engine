@@ -17,6 +17,15 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
   visibility from 16 depth taps over the sun's disc). Both follow the sun's radiance and draw nothing at night or
   with the sun out of view. Off, frames are bit-identical; on, stills are bit-identical run to run. hello-courtyard
   and the Nizwa probe read `?godrays=1&flare=1`. +0.19 / +0.0 ms at 1280 x 720, +1.3 / +0.3 ms at 2560 x 1440.
+- @miragekit/core: `post.lensDirt` and `post.streak` (experimental, opt-in, `postfx.js`, `docs/post.md`): a dirty lens
+  (a procedural smudge mask, `lensDirtMask`, lit by a wide blur of the light above `lensDirtThreshold`) and
+  anamorphic streaks (the light above `streakThreshold` smeared horizontally at low resolution, `streakLength`,
+  `streakTint`, a cool blue by default). Both added after the bloom, before the grade; their thresholds follow the
+  adapted auto exposure. Off, frames are bit-identical; on, stills are bit-identical run to run. URL flags
+  `?dirt=` and `?streak=` (`postFromQuery`; also `streakthr`, `streaklen`). hello-courtyard at night, moving frames:
+  about +0.1 ms each at 1440 x 900, +0.65 / +0.9 ms at 2880 x 1800. Auto exposure and `rcas` measured at night
+  (walled-garden with 64 lamps, hello-courtyard at 21:30): no pumping (< 0.01 EV per frame), no noise amplification;
+  unchanged.
 
 **Changes in behaviour**
 - The packages are named `@miragekit/core`, `@miragekit/world`, `@miragekit/play`, `@miragekit/game`,
