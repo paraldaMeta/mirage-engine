@@ -1,7 +1,7 @@
 // The shooter's own HUD over @miragekit/game's overlay (which keeps the objective, prompts, toasts and menus):
 // health and ammunition, a crosshair that opens with the spread, hit and kill markers, the direction a hit came
-// from, a red edge when hurt, the uplink's progress, a marker on the next objective, and on touch screens the
-// Fire / Aim / Reload buttons beside the overlay's own stick and Jump / Use.
+// from, a red edge when hurt, the uplink's progress, a marker on the next objective, and the options panel. On touch
+// screens its pieces move out from under the thumbs (the touch controls are in touch.js).
 const CSS = `
 .nd{position:fixed;inset:0;pointer-events:none;font:600 13px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;color:#d8f6ff;z-index:5;user-select:none;-webkit-user-select:none}
 .nd *{box-sizing:border-box}
@@ -31,25 +31,30 @@ const CSS = `
 .nd-mark{position:absolute;left:0;top:0;transform:translate(-50%,-50%);text-align:center;font-size:11px;letter-spacing:.1em;text-shadow:0 1px 3px #000;color:#ffd34a}
 .nd-mark:before{content:"";display:block;width:10px;height:10px;margin:0 auto 3px;border:2px solid #ffd34a;transform:rotate(45deg)}
 .nd-tally{position:absolute;right:max(18px,env(safe-area-inset-right));bottom:max(128px,calc(env(safe-area-inset-bottom) + 128px));text-align:right;font-size:11px;letter-spacing:.12em;opacity:.8;text-shadow:0 1px 3px #000}
-.mg-touch .nd-btn{position:absolute;pointer-events:auto;width:74px;height:74px;min-height:0;padding:0;border-radius:50%;border:1px solid #6fe8ffaa;background:#04141c99;color:#d8f6ff;font:600 12px ui-monospace,monospace;letter-spacing:.08em;touch-action:none}
-.mg-touch .nd-btn.on{background:#19d8ff66}
-/* left of the overlay's own Bag / Use / Jump cluster */
-.mg-touch .nd-fire{right:calc(max(16px,env(safe-area-inset-right)) + 180px);bottom:max(24px,env(safe-area-inset-bottom));width:92px;height:92px}
-.mg-touch .nd-aim{right:calc(max(16px,env(safe-area-inset-right)) + 189px);bottom:calc(max(24px,env(safe-area-inset-bottom)) + 104px)}
-.mg-touch .nd-rel{right:calc(max(16px,env(safe-area-inset-right)) + 284px);bottom:calc(max(24px,env(safe-area-inset-bottom)) + 6px);width:60px;height:60px}
-.nd.touch .nd-ammo{right:auto;left:50%;bottom:auto;top:max(10px,env(safe-area-inset-top));transform:translateX(-50%);text-align:center}
-.nd.touch .nd-ammo b{font-size:26px}.nd.touch .nd-ammo em,.nd.touch .nd-tally{display:none}
-.nd.touch .nd-up{top:max(50px,calc(env(safe-area-inset-top) + 50px))}
+/* touch: health and the gun bottom centre, the compass top centre, the radio under it, nothing under a thumb */
+.nd.touch .nd-vit{left:50%;bottom:max(8px,env(safe-area-inset-bottom));width:min(210px,28vw);transform:translateX(-50%)}
+.nd.touch .nd-vit span{text-align:center;margin-bottom:3px;font-size:10px}
+.nd.touch .nd-ammo{left:50%;right:auto;bottom:calc(max(8px,env(safe-area-inset-bottom)) + 30px);transform:translateX(-50%);text-align:center;white-space:nowrap}
+.nd.touch .nd-ammo b{font-size:24px}.nd.touch .nd-ammo span{font-size:13px}.nd.touch .nd-ammo em{font-size:9px;margin-bottom:1px}
+.nd.touch .nd-tally{display:none}
+.nd.touch .nd-comp{width:220px;margin-left:-110px;top:max(6px,env(safe-area-inset-top))}
+.nd.touch .nd-up{top:max(36px,calc(env(safe-area-inset-top) + 36px));width:min(260px,34vw)}
+.nd.touch .nd-radio{bottom:auto;top:max(66px,calc(env(safe-area-inset-top) + 66px));max-width:min(400px,42vw);padding:6px 10px;font-size:12px;line-height:1.4}
+.nd.touch .nd-feed{top:max(62px,calc(env(safe-area-inset-top) + 62px));right:max(12px,env(safe-area-inset-right))}
 .nd-comp{position:absolute;left:50%;top:max(12px,env(safe-area-inset-top));width:300px;height:26px;margin-left:-150px;overflow:hidden;font-size:11px;letter-spacing:.12em;text-shadow:0 1px 3px #000;-webkit-mask-image:linear-gradient(90deg,transparent,#000 22%,#000 78%,transparent);mask-image:linear-gradient(90deg,transparent,#000 22%,#000 78%,transparent)}
-.nd-comp div{position:absolute;top:0;left:150px;height:100%;white-space:nowrap}
+.nd-comp div{position:absolute;top:0;left:50%;height:100%;white-space:nowrap}
 .nd-comp span{position:absolute;top:2px;width:60px;margin-left:-30px;text-align:center}.nd-comp span.t{top:17px;width:1px;height:6px;margin-left:0;background:#d8f6ff99}
 .nd-comp:after{content:"";position:absolute;left:50%;top:0;width:1px;height:6px;background:#ffd34a}
-.nd.touch .nd-comp{display:none}
 .nd-radio{position:absolute;left:50%;bottom:max(96px,calc(env(safe-area-inset-bottom) + 96px));transform:translateX(-50%);max-width:min(640px,calc(100vw - 40px));padding:8px 14px;background:#04141cd9;border-left:2px solid #ffd34a;font:500 14px/1.45 system-ui,"PingFang TC","Noto Sans TC",sans-serif;letter-spacing:.01em;opacity:0;transition:opacity .35s}
 .nd-radio.on{opacity:1}.nd-radio b{display:block;font:600 10px ui-monospace,monospace;letter-spacing:.16em;color:#ffd34a;margin-bottom:2px}
 .nd-feed{position:absolute;right:max(18px,env(safe-area-inset-right));top:38%;text-align:right;font-size:11px;letter-spacing:.1em;text-shadow:0 1px 3px #000}
 .nd-feed div{margin:3px 0;transition:opacity .6s}.nd-feed div.head{color:#ffd34a}
-.nd-opt{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(380px,calc(100vw - 32px));padding:18px 20px;background:#06161ef2;border:1px solid #6fe8ff66;pointer-events:auto;font:500 13px/1.4 system-ui,"PingFang TC","Noto Sans TC",sans-serif}
+.nd-opt{position:fixed;z-index:45;box-sizing:border-box;left:50%;top:50%;transform:translate(-50%,-50%);width:min(380px,calc(100vw - 32px));max-height:calc(100vh - 16px);overflow:auto;overscroll-behavior:contain;touch-action:pan-y;padding:18px 20px;color:#d8f6ff;user-select:none;-webkit-user-select:none;background:#06161ef2;border:1px solid #6fe8ff66;pointer-events:auto;font:500 13px/1.4 system-ui,"PingFang TC","Noto Sans TC",sans-serif}
+.nd-opt *{box-sizing:border-box}
+.nd-opt.wide{width:min(680px,calc(100vw - 24px));padding:12px 18px}
+.nd-opt.wide .cols{display:grid;grid-template-columns:1fr 1fr;column-gap:26px}
+.nd-opt.wide label{margin:4px 0;min-height:34px}.nd-opt.wide input[type=range]{width:118px}.nd-opt.wide h2{margin-bottom:6px}.nd-opt.wide p{margin-top:6px}
+.nd-opt h3{grid-column:1/-1;margin:8px 0 0;font:600 11px ui-monospace,monospace;letter-spacing:.16em;color:#ffd34a}
 .nd-opt h2{margin:0 0 12px;font:600 13px ui-monospace,monospace;letter-spacing:.16em;color:#7af0ff}
 .nd-opt label{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:10px 0}
 .nd-opt output{width:44px}
@@ -57,7 +62,6 @@ const CSS = `
 .nd-opt button{min-height:32px;padding:0 12px;background:#04141c;color:#d8f6ff;border:1px solid #6fe8ff88;font:inherit;cursor:pointer}
 .nd-opt button:focus-visible,.nd-opt input:focus-visible{outline:2px solid #ffd34a;outline-offset:2px}
 .nd-opt p{margin:12px 0 0;font-size:11px;opacity:.7}
-.mg-touch .nd-optbtn{right:max(16px,env(safe-area-inset-right));top:max(190px,calc(env(safe-area-inset-top) + 190px));width:52px;height:52px;font-size:10px}
 .mg-ui .mg-cross{display:none}
 .mg-ui{--mg-accent:#19d8ff}
 `;
@@ -81,62 +85,54 @@ export function createHud({ camera, onDispose, T }) {
   document.body.appendChild(root);
   const $ = (s) => root.querySelector(s);
   const x = [...root.querySelectorAll('.nd-x i')], hitEl = $('.nd-hit'), hurtEl = $('.nd-hurt'), dirEl = $('.nd-dir'), vit = $('.nd-vit'), ammo = $('.nd-ammo'), up = $('.nd-up'), mark = $('.nd-mark');
-  let hitT = 0, hurtT = 0, dirT = 0, dirFrom = null, touch = null, radioT = 0, opt = null;
+  let hitT = 0, hurtT = 0, dirT = 0, dirFrom = null, radioT = 0, opt = null;
   // the compass: a strip of eight headings, three turns long, slid under a fixed window (3 px a degree)
   const strip = $('.nd-comp div'), PX = 3, radioQ = [], feed = $('.nd-feed'), radioEl = $('.nd-radio');
   for (let k = -8; k < 16; k++) { const s = document.createElement('span'); s.textContent = T.compass[((k % 8) + 8) % 8]; s.style.left = `${k * 45 * PX}px`; strip.appendChild(s); const t = document.createElement('span'); t.className = 't'; t.style.left = `${(k * 45 + 22.5) * PX}px`; strip.appendChild(t); }
   const shown = new WeakMap();
   const set = (el, k, v) => { let c = shown.get(el); if (!c) shown.set(el, (c = {})); if (c[k] !== v) { c[k] = v; if (k === 'text') el.textContent = v; else el.style[k] = v; } };
-  onDispose(() => { root.remove(); touch?.remove(); opt?.remove(); });
+  onDispose(() => { root.remove(); opt?.remove(); });
   const v3 = { x: 0, y: 0, z: 0 };
   return {
     root,
-    /** touch buttons, added once a finger is seen: hold Fire, toggle Aim, tap Reload */
-    touch(on, handlers) {
-      if (!on || touch) return;
-      touch = document.createElement('div'); root.classList.add('touch');
-      touch.innerHTML = `<button class="nd-btn nd-fire">${T.fire}</button><button class="nd-btn nd-aim">${T.aim}</button><button class="nd-btn nd-rel">${T.reloadBtn}</button><button class="nd-btn nd-optbtn">${T.optBtn}</button>`;
-      // inside the overlay's own touch layer, over its look area (which would otherwise take the finger first)
-      (document.querySelector('.mg-touch') || root).appendChild(touch);
-      const [fire, aim, rel, ob] = touch.children;
-      ob.addEventListener('pointerdown', (e) => { e.preventDefault(); handlers.options(); });
-      const hold = (el, fn) => { el.addEventListener('pointerdown', (e) => { e.preventDefault(); el.setPointerCapture(e.pointerId); el.classList.add('on'); fn(true); }); for (const ev of ['pointerup', 'pointercancel']) el.addEventListener(ev, () => { el.classList.remove('on'); fn(false); }); };
-      hold(fire, handlers.fire);
-      aim.addEventListener('pointerdown', (e) => { e.preventDefault(); aim.classList.toggle('on', handlers.aim()); });
-      rel.addEventListener('pointerdown', (e) => { e.preventDefault(); handlers.reload(); });
-    },
+    /** touch mode: the HUD's pieces move out from under the thumbs (the controls themselves are in touch.js) */
+    touch() { root.classList.add('touch'); },
     hit(kind) { hitEl.className = 'nd-hit ' + kind; hitT = kind === 'kill' ? 0.4 : 0.2; },
     /** a line from control, shown under the crosshair for a few seconds; lines queue */
     radio(text) { radioQ.push(text); },
     /** a line in the kill feed (head: a head shot) */
     feed(text, head) { const d = document.createElement('div'); d.textContent = text; if (head) d.className = 'head'; feed.prepend(d); while (feed.children.length > 4) feed.lastChild.remove(); setTimeout(() => { d.style.opacity = '0'; setTimeout(() => d.remove(), 700); }, 3500); },
     get optionsOpen() { return !!opt; },
-    /** the options panel: values { sens, fov, invert }, onChange(key, value), onClose(), onLang(), onFull() */
+    /** the options panel: values { sens, fov, invert, hour, lang, and with touch: tSens, tOpacity, tScale, leftFire,
+     *  sprintLock }, touch (show the touch rows), onChange(key, value), onHour(h), onClose(), onLang() */
     options(o) {
       if (opt) { opt.remove(); opt = null; o?.onClose?.(); return false; }
       if (!o) return false;
-      opt = document.createElement('div'); opt.className = 'nd-opt'; opt.setAttribute('role', 'dialog'); opt.setAttribute('aria-label', T.opt.title);
-      opt.innerHTML = `<h2>${T.opt.title}</h2>
-        <label>${T.opt.sens}<span><input type="range" data-k="sens" min="0.3" max="2.5" step="0.05" value="${o.values.sens}"><output>${(+o.values.sens).toFixed(2)}</output></span></label>
-        <label>${T.opt.fov}<span><input type="range" data-k="fov" min="50" max="90" step="1" value="${o.values.fov}"><output>${o.values.fov}</output></span></label>
-        <label>${T.opt.time}<span><input type="range" data-k="hour" min="0" max="23.75" step="0.25" value="${hourValue(o.values.hour)}"><output>${hourText(hourValue(o.values.hour))}</output></span></label>
-        <label>${T.opt.invert}<button data-b="invert">${o.values.invert ? T.opt.on : T.opt.off}</button></label>
+      const v = o.values, num = (k, x) => (k === 'fov' ? String(x) : k === 'tOpacity' ? `${Math.round(x * 100)}%` : (+x).toFixed(2));
+      const range = (k, min, max, step, label) => `<label>${label}<span><input type="range" data-k="${k}" min="${min}" max="${max}" step="${step}" value="${v[k]}"><output>${num(k, v[k])}</output></span></label>`;
+      const flip = (k, label) => `<label>${label}<button data-b="${k}" aria-pressed="${!!v[k]}">${v[k] ? T.opt.on : T.opt.off}</button></label>`;
+      opt = document.createElement('div'); opt.className = 'nd-opt' + (o.touch ? ' wide' : ''); opt.setAttribute('role', 'dialog'); opt.setAttribute('aria-label', T.opt.title);
+      opt.innerHTML = `<h2>${T.opt.title}</h2><div class="cols">
+        ${range('sens', 0.3, 2.5, 0.05, T.opt.sens)}${range('fov', 50, 90, 1, T.opt.fov)}
+        <label>${T.opt.time}<span><input type="range" data-k="hour" min="0" max="23.75" step="0.25" value="${hourValue(v.hour)}"><output>${hourText(hourValue(v.hour))}</output></span></label>
+        ${flip('invert', T.opt.invert)}
         <label>${T.opt.full}<button data-b="full">${document.fullscreenElement ? T.opt.on : T.opt.off}</button></label>
-        <label>${T.opt.lang}<button data-b="lang">${o.values.lang === 'zh' ? '繁體中文' : 'English'}</button></label>
-        <label><span></span><button data-b="close">${T.opt.close}</button></label><p>${T.opt.hint}</p>`;
-      root.appendChild(opt);
+        <label>${T.opt.lang}<button data-b="lang">${v.lang === 'zh' ? '繁體中文' : 'English'}</button></label>
+        ${o.touch ? `<h3>${T.opt.touch}</h3>${range('tSens', 0.3, 2.5, 0.05, T.opt.tSens)}${range('tOpacity', 0.2, 1, 0.05, T.opt.tOpacity)}${range('tScale', 0.8, 1.25, 0.05, T.opt.tScale)}${flip('leftFire', T.opt.leftFire)}${flip('sprintLock', T.opt.sprintLock)}` : ''}
+        <label><span></span><button data-b="close">${T.opt.close}</button></label></div><p>${o.touch ? T.opt.touchHint : T.opt.hint}</p>`;
+      document.body.appendChild(opt);
       for (const r of opt.querySelectorAll('input')) r.addEventListener('input', () => {
         if (r.dataset.k === 'hour') { r.nextElementSibling.textContent = hourText(+r.value); o.onHour(hourText(+r.value)); return; }
-        r.nextElementSibling.textContent = r.dataset.k === 'sens' ? (+r.value).toFixed(2) : r.value; o.onChange(r.dataset.k, +r.value);
+        r.nextElementSibling.textContent = num(r.dataset.k, +r.value); o.onChange(r.dataset.k, +r.value);
       });
       for (const b of opt.querySelectorAll('button')) { b.addEventListener('keydown', (e) => e.stopPropagation()); b.addEventListener('click', () => {
         const k = b.dataset.b;
         if (k === 'close') { opt.remove(); opt = null; o.onClose(); }
-        else if (k === 'invert') { o.values.invert = !o.values.invert; b.textContent = o.values.invert ? T.opt.on : T.opt.off; o.onChange('invert', o.values.invert); }
+        else if (k === 'invert' || k === 'leftFire' || k === 'sprintLock') { v[k] = !v[k]; b.textContent = v[k] ? T.opt.on : T.opt.off; b.setAttribute('aria-pressed', String(v[k])); o.onChange(k, v[k]); }
         else if (k === 'full') { const p = document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.(); Promise.resolve(p).catch(() => {}).then(() => { b.textContent = document.fullscreenElement ? T.opt.on : T.opt.off; }); }
         else if (k === 'lang') o.onLang();
       }); }
-      opt.querySelector('input').focus();
+      if (!o.touch) opt.querySelector('input').focus();   // on a phone a focused slider would take the first swipe
       return true;
     },
     hurt(from) { hurtT = 0.6; dirT = 1.2; dirFrom = from ? from.slice() : null; },

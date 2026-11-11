@@ -10,7 +10,7 @@ npm run dev -w neon-district            # http://localhost:5194
 npm run build -w neon-district && npm run playtest -w neon-district     # the whole route, headless
 npm run playtest:holdout -w neon-district                               # the holdout's first waves, headless
 node examples/neon-district/scripts/measure.mjs --ab                   # frame time per quality and per feature
-node examples/neon-district/scripts/controls-check.mjs                 # title, holdout, keys, gamepad and touch, with real events
+node examples/neon-district/scripts/controls-check.mjs                 # title, holdout, keys, gamepad and touch, with real events (ONLY=touch: one part)
 node examples/neon-district/scripts/gameshots.mjs                      # frames of the running game, a contact sheet
 ```
 
@@ -61,7 +61,7 @@ the first click. Nothing was taken from another project.
 | kites (flying drones) | the walk grid as a volume: `airAt` to stay out of solids, `gridRay` for a line of fire | `game/drones.js` |
 | sentinels: bodies | `createRigModel` + `createAnimator`: a speed blend, a masked aim layer, an additive flinch, a fall | `game/enemies.js` |
 | the title screen | the camera on a closed Catmull-Rom spline through six of the plan's viewpoints (the orbit camera, so the scene clock is not reset), the game paused behind it; replaces the overlay's start card | `game/title.js` |
-| HUD and menus | `@miragekit/game`'s overlay (objective, prompts, toasts, pause menu, save slots, rebinding, touch stick) plus the example's own HUD | `game/hud.js` |
+| HUD and menus | `@miragekit/game`'s overlay (objective, prompts, toasts, pause menu, save slots, rebinding, the touch layer) plus the example's own HUD and touch controls (the overlay's own stick and buttons hidden under them) | `game/hud.js`, `game/touch.js` |
 | sound | the mixer's buses and 3D placement, the engine's own pickup / door / chime, the example's synthesised set; the audio engine's reverb zones from `plan.audio.zones` (the bar, the relay, the open street) | `game/sfx.js`, `game/index.js` |
 | lightning | `vfx.beam` with `jitter` and `branches`, one clustered lamp 110 m up for the flash | `game/index.js` |
 | two languages | English and Traditional Chinese for everything the game itself shows (`?lang=`) | `game/text.js` |
@@ -72,11 +72,26 @@ the first click. Nothing was taken from another project.
 | | keyboard / mouse | gamepad | touch |
 |---|---|---|---|
 | the title: choose, change, select | ↑ ↓ / Tab / W S, ← → / A D, Enter or Space (O: options) | d-pad or left stick, A (Start deploys, B closes the options) | tap a row or its arrows |
-| move, look | WASD, mouse (click captures the pointer) | left stick, right stick | stick bottom-left, drag elsewhere |
-| fire, aim, reload | left button (or F), right button (or Q), R | right trigger, left trigger, right bumper | FIRE (hold), AIM (toggle), RLD |
-| strike, lean, crouch | V, Z / X (hold), C | right stick click, none, none | none |
-| options (sensitivity, field of view, inverted look, full screen, language) | O | none | the options button |
-| run, jump, use, menu | Shift, Space, E, Esc | LB, A, X, Start | push the stick past its rim, Jump, Use, ☰ |
+| move, look | WASD, mouse (click captures the pointer) | left stick, right stick | a floating stick: it appears where the left thumb lands in the lower left; drag anywhere on the right that is not a button to look (slower down the sight, slower again over a target) |
+| fire | left button (or F) | right trigger | the big FIRE low right, or the smaller one on the left above the stick; a finger on either fires **and** turns the view as it drags |
+| aim | right button (or Q), held | left trigger, held | AIM above FIRE: held, aims while held (and turns as it drags); a quick tap toggles |
+| reload, strike, crouch, jump | R, V, C, Space | right bumper, right stick click, none, A | the small buttons in an arc round FIRE (circular arrow, down arrow, up arrow) and the blade above them |
+| lean | Z / X, held | none | L and R beside the left FIRE: held, or a quick tap toggles |
+| run | Shift | LB | push the stick past its rim; pushed far up it locks (a padlock above the stick lights; let go and the run holds; a touch on the stick ends it) |
+| use | E | X | a hand and the label, centre right, only while something can be used (a door, the pass, the uplink) |
+| options (sensitivity, field of view, inverted look, full screen, language; on touch also touch look sensitivity, button opacity and size, the left FIRE on / off, the sprint lock on / off) | O | none | the gear, top right |
+| menu | Esc | Start | ☰, top right |
+
+Touch is laid out the way mobile battle-royale shooters lay theirs out (the genre's conventions only; the glyphs are
+drawn in `game/touch.js`). Every finger is tracked by its own pointer id, so moving, looking and firing go together.
+On touch the HUD moves out from under the thumbs: the objective top left, the compass top centre with the uplink bar
+and the radio under it, the gun and its rounds over the health bar at the bottom centre; the engine's quality and
+frame-rate corner is hidden there. Ammunition and med packs are taken by walking over them (all inputs). A hit taken
+and a magazine running dry buzz the phone where `navigator.vibrate` exists (Android Chrome; iOS Safari has none).
+**What was tested, and how:** only in headless Chrome emulating a phone held sideways (844 x 390, 667 x 375 and
+932 x 430, touch events with several fingers through the DevTools protocol, `scripts/controls-check.mjs`), not on a
+real phone: thumb reach, the feel of the look speed and the aim assist, the vibration, safe-area insets on a notched
+phone, and iOS Safari's own gestures (pinch, the swipe-up bar) are untested.
 
 ## Modes and difficulty
 

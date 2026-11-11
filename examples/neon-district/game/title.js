@@ -68,6 +68,8 @@ const CSS = `
   .nt-nav{display:none}
 }
 @media (max-width:700px) and (min-height:521px){.nt-legend{display:none}}
+/* a phone held sideways: no keyboard there, and its column would push the touch one off the screen */
+@media (pointer:coarse) and (max-height:520px){.nt-legend tr>:nth-child(2){display:none}}
 body.nd-titling .mg-ui>:not(dialog):not(style),body.nd-titling .mirage-hud{display:none!important}
 body.nd-titling .nd>:not(.nd-opt):not(style){display:none!important}
 body.nd-titling .nd{z-index:40}

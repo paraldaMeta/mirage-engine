@@ -5,8 +5,8 @@
 //   (plan.checkpoints: the game saves there and a death loads the last one), the HUD (hud.js), the sounds (sfx.js),
 //   steam on the `steam` anchors, sparks on `sparks`, motes round the hologram, rain rings round the player.
 // Input beyond the engine's action map: fire (mouse button, F, right trigger, touch), aim (right button, left
-// trigger, Q, touch toggle), reload (R, right bumper, touch), a strike with the stock (V, right stick click), lean (Z / X),
-// crouch (C), the options panel (O).
+// trigger, Q, touch hold or toggle), reload (R, right bumper, touch), a strike with the stock (V, right stick click,
+// touch), lean (Z / X, touch), crouch (C, touch), the options panel (O, touch). The touch controls are in touch.js.
 import * as THREE from 'three';
 import { FX } from './fx.js';
 import { createSfx } from './sfx.js';
@@ -15,6 +15,7 @@ import { createWeapon } from './weapon.js';
 import { createEnemies } from './enemies.js';
 import { createDrones } from './drones.js';
 import { createTitle } from './title.js';
+import { createTouch } from './touch.js';
 import { LANGS, pickLang } from './text.js';
 import { createAudioEngine, zonesFromPlan } from '@miragekit/game';
 
@@ -44,7 +45,7 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
     shake(k) { shake = Math.min(1.5, shake + k); },
     hurt(amount, from) {
       if (player.dead || game.flags.done) return;
-      player.hp -= amount; player.lastHurt = game.time; hud.hurt(from); sfx.play('nd_hurt', { gain: 0.7 }); player.shake(0.8);
+      player.hp -= amount; player.lastHurt = game.time; hud.hurt(from); sfx.play('nd_hurt', { gain: 0.7 }); player.shake(0.8); touch?.buzz(amount > 12 ? 60 : 30);
       if (player.hp <= 0) die();
     },
   };
@@ -61,7 +62,8 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
   const targets = { rayHit(o, d, max) { const a = enemies.rayHit(o, d, max), b = drones.rayHit(o, d, max); return a && b ? (a.t < b.t ? a : b) : a || b; }, noise: (p, r) => enemies.noise(p, r) };
   const wake = (zone) => { enemies.wake(zone, player.feet); drones.wake(zone); };
   // the player's own settings (kept with the key bindings and volumes, not in a save)
-  const opts = { sens: 1, fov: 62, invert: false, ...(game.settings.nd || {}) };
+  // touch: its own look sensitivity, the buttons' opacity and size, the left FIRE, the sprint lock
+  const opts = { sens: 1, fov: 62, invert: false, tSens: 1, tOpacity: 0.7, tScale: 1, leftFire: true, sprintLock: true, ...(game.settings.nd || {}) };
   if (Q.get('fov')) opts.fov = Math.min(90, Math.max(50, +Q.get('fov')));
   if (Q.get('sens')) opts.sens = +Q.get('sens');
   const weapon = createWeapon({ world, root, vfx, sfx, physics, M, player, targets, hud, stats, onReload: () => game.set('reloads', (game.flags.reloads || 0) + 1) });
@@ -70,7 +72,9 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
   game.on('kill', (e) => { stats.kills++; game.set('kills', stats.kills); hud.feed(`${T.kinds[e.K.name]} ${T.destroyed}${stats.lastHead && e.K.name !== 'drone' ? ' · ' + T.weak : ''}`, stats.lastHead && e.K.name !== 'drone'); });
 
   // ---- input: held flags from the mouse, the keys, the pad and the touch buttons
-  const held = { mouse: false, key: false, pad: false, touch: false, aimMouse: false, aimKey: false, aimPad: false, aimTouch: false, leanL: false, leanR: false };
+  const held = { mouse: false, key: false, pad: false, aimMouse: false, aimKey: false, aimPad: false, leanL: false, leanR: false };
+  let touch = null, touchOk = false, lastMag = 0;
+  const look = new THREE.Vector3();
   const live = () => g && g.ui.started && !game.paused && !player.dead;
   const canvas = world.renderer.domElement;
   const listen = (t, ev, fn, o) => { t.addEventListener(ev, fn, o); onDispose(() => t.removeEventListener(ev, fn, o)); };
@@ -86,11 +90,11 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
   let padReload = false, padMelee = false;
   // the options panel pauses the game; its values apply at once and are kept in the settings
   function toggleOptions() {
-    const open = hud.options({ values: { ...opts, lang, hour: hour() }, onHour: (h) => setHour(h),
-      onChange: (k, v) => { opts[k] = v; if (k === 'fov') weapon.S.fov = v; game.settings.nd = { ...opts }; game.saveSettings(); },
+    const open = hud.options({ values: { ...opts, lang, hour: hour() }, touch: !!touch, onHour: (h) => setHour(h),
+      onChange: (k, v) => { opts[k] = v; if (k === 'fov') weapon.S.fov = v; game.settings.nd = { ...opts }; game.saveSettings(); touch?.apply(); },
       onClose: () => { if (!title.shown) game.pause(false); title.render(); },
       onLang: () => { const u = new URL(location.href); u.searchParams.set('lang', lang === 'zh' ? 'en' : 'zh'); location.href = u.href; } });
-    if (open) { game.pause(true); if (document.pointerLockElement) document.exitPointerLock(); }
+    if (open) { game.pause(true); touch?.reset(); if (document.pointerLockElement) document.exitPointerLock(); }
   }
 
   // ---- the relay pass, on the bar's counter
@@ -163,7 +167,7 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
   for (const c of plan.checkpoints) game.zone({ id: 'cp-' + c.id, box: c.box, once: true, enter: () => checkpoint(c.id) });
   game.add({ id: 'player',
     save: () => ({ hp: Math.round(player.hp), gun: weapon.save(), stats: { ...stats } }),
-    load: (s) => { player.hp = Math.max(s.hp, 60); player.dead = false; player.lastHurt = -99; player.wantCrouch = false; weapon.load(s.gun); Object.assign(stats, s.stats, { deaths: stats.deaths }); stats.kills = game.flags.kills || 0; for (const k of Object.keys(held)) held[k] = false; } });
+    load: (s) => { player.hp = Math.max(s.hp, 60); player.dead = false; player.lastHurt = -99; player.wantCrouch = false; weapon.load(s.gun); Object.assign(stats, s.stats, { deaths: stats.deaths }); stats.kills = game.flags.kills || 0; for (const k of Object.keys(held)) held[k] = false; touch?.reset(); } });
   function die() {
     player.dead = true; stats.deaths++; sfx.play('nd_death', { gain: 0.6 });
     if (H.on) return holdoutOver();
@@ -216,10 +220,28 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
     padReload = pb(5);
     if (pb(11) && !padMelee && live()) weapon.melee();
     padMelee = pb(11);
-    if (g.ui.touch) hud.touch(true, { fire: (on) => { held.touch = on; }, aim: () => (held.aimTouch = !held.aimTouch), reload: () => { weapon.S.wantReload = true; }, options: toggleOptions });
+    if (g.ui.touch && !touch) {   // the touch controls, once a finger is seen (or the screen is a touch screen)
+      hud.touch();
+      touch = createTouch({ T, input, opts, parent: document.querySelector('.mg-touch'), onDispose, ready: () => g.ui.started, paused: () => game.paused || player.dead,
+        on: { reload: () => { weapon.S.wantReload = true; }, crouch: () => { player.wantCrouch = !player.wantCrouch; }, melee: () => { if (live()) weapon.melee(); }, options: toggleOptions } });
+    }
     const ok = live();
-    weapon.S.fire = ok && (held.mouse || held.key || held.pad || held.touch);
-    weapon.S.aim = ok && (held.aimMouse || held.aimKey || held.aimPad || held.aimTouch);
+    if (touch) {
+      if (touchOk && !ok) touch.reset();   // a death or a pause: every finger let go
+      touchOk = ok;
+      touch.use(ok && g.near ? game.label(g.near) : null);
+      if (touch.sprintLocked) { input.stick(0, 1); input.hold('run', true); }   // the overlay's own menu clears the input
+      // the aim assist (touch only): the turn slows while the crosshair is on a target the world does not hide
+      touch.slow = 1;
+      if (ok && touch.busy) {
+        const o = world.camera.position.toArray(), dv = world.camera.getWorldDirection(look).toArray(), on = targets.rayHit(o, dv, 70);
+        if (on && !physics.ray(o, dv, on.t, player.collider())) touch.slow = 0.45;
+      }
+      if (weapon.S.mag === 0 && lastMag > 0) touch.buzz([30, 40, 30]);   // the magazine ran dry
+    }
+    lastMag = weapon.S.mag;
+    weapon.S.fire = ok && (held.mouse || held.key || held.pad || !!touch?.fire);
+    weapon.S.aim = ok && (held.aimMouse || held.aimKey || held.aimPad || !!touch?.aim);
     if (assist && weapon.S.reserve < 48) weapon.S.reserve = 48;   // the easy mode never runs dry
     // the look: the player's sensitivity and the inverted axis, applied to what the mouse and the stick turned since
     // the last tick (play turns the view itself, at a fixed rate)
@@ -227,7 +249,7 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
     // crouching: a lower eye and a slower walk (the body's collider keeps its height: no crawling under things)
     player.crouch += ((ok && player.wantCrouch ? 1 : 0) - player.crouch) * Math.min(1, dt * 10); player.height = 1.62 - 0.6 * player.crouch;
     g.character.body.walk = player.crouch > 0.5 ? 1.7 : 3.3; g.character.body.run = player.crouch > 0.5 ? 1.7 : 5.4;
-    weapon.S.wantLean = ok ? (held.leanR ? 1 : 0) - (held.leanL ? 1 : 0) : 0;
+    weapon.S.wantLean = ok ? Math.max(-1, Math.min(1, (held.leanR ? 1 : 0) - (held.leanL ? 1 : 0) + (touch?.lean || 0))) : 0;
     weapon.update(dt, ok);
     enemies.update(dt); drones.update(dt);
     reverb?.update(dt, world.camera);
@@ -370,7 +392,7 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
   };
 
   return {
-    player, weapon, enemies, drones, stats, hud, sfx, leaves, opts, toggleOptions, run, tune, title, holdout: H,
+    player, weapon, enemies, drones, stats, hud, sfx, leaves, opts, toggleOptions, run, tune, title, holdout: H, get touch() { return touch; },
     /** once startGame has made the character and play */
     start(game_) {
       g = game_; play = g.play;
