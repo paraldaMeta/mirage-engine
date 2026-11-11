@@ -4,7 +4,7 @@ export { createEnv, GOLDEN, dirFromElevAz, elevAzOf, WIND_GLSL } from './env.js'
 export { createSky, createSkyUniforms, createSkyLut } from './sky.js';
 export { ATMO, ATMOSPHERE_GLSL, transmit, transmitAtGround, scatter, skyLightAt } from './atmosphere.js';
 export { installFog, FOG } from './fog.js';
-export { skyState, lightAt } from './daynight.js';
+export { skyState, lightAt, gradeConfig, gradeAt, GRADE_PRESETS } from './daynight.js';
 export { skyAt, placeDate, placeClock, dirFromAltAz } from './sky-time.js';
 export { createStars } from './stars.js';
 export { Pipeline, DEFAULT_POST } from './post.js';
@@ -31,7 +31,7 @@ export * as geom from './geom.js';
 export type { WorldRenderer, WorldRendererOptions, WorldContext, RenderFrameOptions, ConvergeResult, RenderCamera, ShadowRegion, AmbientVolume, XYZ } from './world.js';
 export type { EnvironmentUniforms } from './env.js';
 export type { SkyUniforms } from './sky.js';
-export type { SkyTime, SkyState, LightState, FixedSun, CalendarTime } from './daynight.js';
+export type { SkyTime, SkyState, LightState, FixedSun, CalendarTime, GradeLook, GradeLookPreset, GradeSettings, GradeOption, GradeOptionObject } from './daynight.js';
 export type { Place, AstronomicalSky, SunPosition, MoonPosition } from './sky-time.js';
 export type { PostSettings } from './post.js';
 export type { MaterialKit, MaterialHooks, UniformSet } from './materials.js';

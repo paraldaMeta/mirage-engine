@@ -7,7 +7,7 @@ import type { Pipeline, PostSettings } from './post.js';
 import type { Light2Option, Light2Settings } from './light2.js';
 import type { SoftShadowOption, SoftShadowSettings } from './softshadow.js';
 import type { Lighting, LightingOption } from './lighting.js';
-import type { SkyTime, SkyState, LightState } from './daynight.js';
+import type { SkyTime, SkyState, LightState, GradeOption, GradeSettings } from './daynight.js';
 import type { Place } from './sky-time.js';
 import type { Quality, DeviceProfile } from './device.js';
 
@@ -33,6 +33,9 @@ export interface WorldRendererOptions {
   softShadows?: SoftShadowOption;
   /** Realtime lighting features (off by default, each one opt-in): cascaded sun shadows, probe GI, reflection probes, clustered local lights. */
   lighting?: LightingOption;
+  /** The time-of-day grade (off by default): split toning, black point, S-curve, ACES / AgX-punchy blend, clarity, highlight warmth and a darker
+   *  night, keyed by the sun's elevation and the lamp level (GRADE_PRESETS; daynight.js gradeAt). */
+  grade?: GradeOption;
   /** Reduced motion from the start (off by default; @miragekit/play follows prefers-reduced-motion): see setReducedMotion. */
   reducedMotion?: boolean | Partial<ReducedMotionSettings>;
 }
@@ -79,6 +82,8 @@ export interface WorldRenderer {
   readonly resolutionScale: number;
   /** Auto exposure: forget the adapted exposure, so the next frame is metered on its own (after a teleport or cut). */
   resetExposure(): void;
+  /** The time-of-day grade's settings in use (live: `strength`, `nightAdapt`, the looks; read every frame), null when off. */
+  grade: GradeSettings | null;
   /** The soft-shadow settings in use (live: `on`, `sunAngle`, …), null when off. */
   softShadows: SoftShadowSettings | null;
   /** The lighting features of the `lighting` option, null when off. */

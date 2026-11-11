@@ -49,9 +49,10 @@ requestAnimationFrame(loop);
 | `dynamicRes` | off | `true` or `{ target: 60 fps, min: 0.6, step: 0.1 }`: moving frames render smaller when they run over budget (see below) |
 | `light2` | off | `true` or `{ ls, ssr, vol, bloom }` overriding `LIGHT2_DEFAULTS` (each part `false` to drop it): lamp shadows, screen-space reflections, volumetric light, mixed bloom (see below) |
 | `softShadows` | off | `true` or fields overriding `SOFTSHADOW_DEFAULTS`: contact-hardening soft sun shadows, per pixel, in still and walking frames alike (see below) |
+| `grade` | off | `true` or `{ strength, nightAdapt, lampTint, noon, golden, dusk, night }` (look overrides of `GRADE_PRESETS`): the time-of-day grade and a darker night (see below) |
 | `reducedMotion` | off | `true` or `{ sway: 0.25, rain: 0.4 }`: reduced motion from the start (see "Reduced motion"); @miragekit/play sets it from `prefers-reduced-motion` |
 
-Returns `{ renderer, scene, camera, sun, sky, stars, pipeline, ctx, G, keyDir, mat, geom, rng, post, device, light2, softShadows,
+Returns `{ renderer, scene, camera, sun, sky, stars, pipeline, ctx, G, keyDir, mat, geom, rng, post, device, light2, grade, softShadows,
 light, state, exposure, setTime(time, { ease }), tick(dt), prepare(), renderFrame(T, opts), resize(w, h), dispose(), captureEnv(),
 setAmbientVolumes(list), setReducedMotion(option), reducedMotion, renderTransparent(T, opts) }`.
 light, state, exposure, setTime(time, { ease }), tick(dt), prepare({ warm }), renderFrame(T, opts), resize(w, h), dispose(), captureEnv(),
@@ -142,6 +143,35 @@ All three are off by default; off, frames are bit-identical to before.
   probes. An app with its own frame cap sets `world.dynamicRes.cap` (fps) so the cap is not read as a slow GPU;
   @miragekit/play does this from `maxFps` and the power saver. `pipeline.w / h` stay the output size; the render size
   is `pipeline.rw / rh`.
+## Time-of-day grade (opt-in): `grade`
+
+`createWorldRenderer({ ..., grade: true })` (or an object: `{ strength: 0.7, golden: { saturation: 1.3 } }`). Off,
+the grade program is the plain one and a world renders bit-identical to before (hello-courtyard hero@golden,
+basin@12:00, pergola@21:00, gate@17:22: 0 px against the commit before it).
+
+- **What it does.** A look per hour, keyed by the sun's elevation: `night` (≤ −12°), `dusk` (−4°), `golden` (2–10°),
+  `noon` (≥ 25°), eased between (`GRADE_PRESETS`). A look has an exposure (EV), temperature and tint (added to the
+  white balance), saturation and contrast, `tonemapMix` (the AgX share of an ACES / AgX blend; null keeps
+  `post.tonemap`), display-referred split toning (`shadowTint`, `hiTint`), an sRGB black point (`black`), an S-curve
+  on luma (`curve`, hue kept), `punch` (the AgX branch steeper and more saturated: AgX-punchy), `clarity` (local
+  contrast against the bloom's 1/16 blur), `highlightWarmth` (the bright end leans warm, as film's halation), a
+  display-referred RGB `lift` and a display `gamma`. The lamps tint the highlights as they come on (`lampTint` by
+  `light.lamp`). Ported from the Nizwa Golden Hour project's day-night grade and post (which descend from Golden Temple's); its
+  lens flare and screen-space god rays are not (light2's volumetric shafts cover the latter).
+- **Night.** `lightAt`'s exposure adapts the eye up to 40x at night, which lifts the whole frame; `nightAdapt` (0.45)
+  takes back that share of it (in log: at 21:00 an exposure of 5 becomes 2.4). The lamps' gain follows the graded
+  exposure, so they stay as bright while the walls go dark; with auto exposure on, its target moves with it (it does
+  not undo the darker night).
+- **Live.** `world.grade` (the settings; `strength` 0..1 mixes every term from neutral) is read every frame;
+  `gradeAt(light, state, settings)` is the pure function behind it (`post.grade` carries the look to the pipeline, so
+  a host driving `Pipeline` itself can pass one).
+- **Cost** (Nizwa probe, 1440 x 900, Apple M4 Pro, GPU shared with other work, so ranges): the grade pass +0.04-0.1 ms
+  (0.14-0.2 ms plain); `clarity` reads the bloom's blur for free, and draws a 1/16-size pass of its own (+0.07-0.3 ms)
+  only when the bloom is off. Walking frames, 8 spots x 2 runs interleaved: 10.33 -> 10.43 ms mean, inside the noise.
+- **Limits.** One set of looks for every view (no per-shot grade). The grade cannot make bounce light or a sky: on the
+  Nizwa probe at 17:00 the sunlit plaster comes within about 0-20 levels of Nizwa's per channel (it was 32-40 levels
+  short in red before), the shade stays greyer (no bounce) and the dusk sky stays Mirage's.
+
 ## Soft sun shadows (opt-in): `softShadows`
 
 `createWorldRenderer({ ..., softShadows: true })` (or an object: `{ sunAngle: 1.5 }`). Off, nothing is patched and
@@ -418,7 +448,7 @@ const up = createUploadBudget(world.renderer, { bytes: 8 << 20 }).add(tex.textur
 ## Also exported
 
 `skyAt(date, place)`, `placeDate(day, time, tzHours)`, `placeClock(date, tzHours)` (astronomy, pure JS);
-`skyState`, `lightAt` (pure light model); `transmit`, `scatter`, `skyLightAt` (the atmosphere on the CPU);
+`skyState`, `lightAt` (pure light model); `GRADE_PRESETS`, `gradeConfig`, `gradeAt` (the time-of-day grade); `transmit`, `scatter`, `skyLightAt` (the atmosphere on the CPU);
 `createSky`, `createStars`, `Pipeline`, `installFog`, `LIGHT2_DEFAULTS`, `light2Config`, `installLight2`, `addLampSource`, `LampShadows`, `SOFTSHADOW_DEFAULTS`, `softShadowConfig`, `installSoftShadows`, `createLod`, `deviceProfile`, `createEnvLight`, `TEX_GLSL`,
 `geom.*`, `NOISE_GLSL`.
 `npm test -w @miragekit/core` runs `check.mjs`.

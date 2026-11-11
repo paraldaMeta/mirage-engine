@@ -4,7 +4,7 @@ import { createEnv } from './env.js';
 import { installFog, FOG, retainChunks, releaseChunks } from './fog.js';
 import { createSky, createSkyUniforms, createSkyLut } from './sky.js';
 import { createStars } from './stars.js';
-import { skyState, lightAt } from './daynight.js';
+import { skyState, lightAt, gradeConfig, gradeAt } from './daynight.js';
 import { Pipeline, DEFAULT_POST } from './post.js';
 import { installLight2, light2Config } from './light2.js';
 import { installSoftShadows, softShadowConfig, softShadowUniforms, softShadowsIdle } from './softshadow.js';
@@ -114,6 +114,10 @@ export function createWorldRenderer(config = {}) {
   const pipeline = new Pipeline(renderer, { width: width * pixelRatio, height: height * pixelRatio, msaa: device.msaa, aoSamples: Q.aoSamples });
   if (l2cfg) pipeline.useLight2(l2cfg, { sun, G });
   if (lighting && lighting.screen) pipeline.screen = lighting.screen;
+  // the time-of-day grade (opt-in, daynight.js gradeConfig / gradeAt): the hour's look rides on P.grade
+  const grade = gradeConfig(config.grade);
+  if (grade) pipeline.useGrade();
+  let look = null;
   // dynamic resolution (opt-in, moving frames only): the pipeline renders at resScale x the canvas and the grade pass
   // stretches it; still frames always render at full size, so they stay bit-identical
   const dynRes = dynamicResConfig(config.dynamicRes);
@@ -174,7 +178,19 @@ export function createWorldRenderer(config = {}) {
   let taaValid = false, taaK = 0, lastMoving = 0, seenWet = wetVersion();
   const prevVP = new THREE.Matrix4(), curVP = new THREE.Matrix4(), invVP = new THREE.Matrix4();
 
-  const setLampGain = () => { G.uLampGain.value = light.lamp * Math.pow(exposure, -0.9); };
+  // with the grade, its exposure counts too: a darker night keeps its lamps as bright
+  const setLampGain = () => { G.uLampGain.value = light.lamp * Math.pow(look ? exposure * look.exposure : exposure, -0.9); };
+  // the frame's post settings: the world's post, its exposure and white balance, and the grade's look (when on)
+  function framePost() {
+    const P = { ...post, exposure: post.exposure * exposure, temperature: post.temperature + light.warmth };
+    if (P.autoExposure > 0) P.aeKey = post.aeKey * Math.pow(2, -(post.aeNight || 0) * Math.min(1, Math.max(0, light.lamp)));
+    if (grade) {
+      look = gradeAt(light, state, grade); setLampGain();
+      P.exposure *= look.exposure; P.aeKey *= look.exposure;   // auto exposure aims as much lower: it does not undo the night
+      P.temperature += look.temperature; P.saturation *= look.saturation; P.contrast *= look.contrast; P.grade = look;
+    }
+    return P;
+  }
 
   /** time: see README. { ease: true } for a running clock: exposure adapts over ~1 s, the image-based light is
    *  recaptured only when the light changed enough and cross-fades in tick(dt). Without it everything snaps. */
@@ -197,6 +213,7 @@ export function createWorldRenderer(config = {}) {
     skyLut.bake();
     G.uLamp.value = L.lamp; G.uSkyLight.value = L.skyLight; G.uNight.value = L.night;
     expTarget = L.exposure;
+    if (grade) look = gradeAt(L, state, grade);
     if (!ease) { exposure = expTarget; envState = 'instant'; }
     else if (envState !== 'instant') {
       const moved = keyDir.angleTo(lastCap.dir) > 0.5 * Math.PI / 180;
@@ -361,8 +378,7 @@ export function createWorldRenderer(config = {}) {
     if (taa) spp = 1; else taaValid = false;
     const dt = opts.dt ?? 1 / 60, shutter = opts.shutter ?? (reduced ? 0 : 0.5);
     const sh = opts.shadow || shadow;
-    const P = { ...post, exposure: post.exposure * exposure, temperature: post.temperature + light.warmth };
-    if (P.autoExposure > 0) P.aeKey = post.aeKey * Math.pow(2, -(post.aeNight || 0) * Math.min(1, Math.max(0, light.lamp)));
+    const P = framePost();
     const now = performance.now();
     // the seconds since the last moving frame, for auto exposure (still frames are metered on their own)
     const frameDt = taa ? (lastMoving ? Math.min((now - lastMoving) / 1000, 0.25) : 1 / 60) : 0;
@@ -498,8 +514,7 @@ export function createWorldRenderer(config = {}) {
     calm(() => {
       if (!light) setTime(time);
       if (envState === 'instant') { const xe = renderer.xr.enabled; renderer.xr.enabled = false; try { captureEnv(true); } finally { renderer.xr.enabled = xe; } }
-      const P = { ...post, exposure: post.exposure * exposure, temperature: post.temperature + light.warmth };
-      if (P.autoExposure > 0) P.aeKey = post.aeKey * Math.pow(2, -(post.aeNight || 0) * Math.min(1, Math.max(0, light.lamp)));
+      const P = framePost();
       writeFog();
       if (opts.fog !== undefined) scene.fog.density *= opts.fog;
       G.uTime.value = T; G.uFrame.value = 0;
@@ -565,7 +580,7 @@ export function createWorldRenderer(config = {}) {
     return () => { if (on) { on = false; const i = updates.lastIndexOf(fn); if (i >= 0) updates = updates.filter((_, k) => k !== i); } };
   } };
   return {
-    renderer, scene, camera, sun, sky, stars, pipeline, ctx, G, keyDir, mat, geom, rng, post, device, light2: l2cfg, dynamicRes: dynRes, softShadows: sscfg, lighting,
+    renderer, scene, camera, sun, sky, stars, pipeline, ctx, G, keyDir, mat, geom, rng, post, device, light2: l2cfg, grade, dynamicRes: dynRes, softShadows: sscfg, lighting,
     /** the moving frames' render scale (1 = the canvas; below 1 only with `dynamicRes`) */
     get resolutionScale() { return resScale; },
     /** forget the adapted exposure (auto exposure): the next frame is metered on its own, e.g. after a teleport */

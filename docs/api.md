@@ -78,6 +78,9 @@ count of stable and experimental exports, and how a name is promoted: [STABILITY
 | `placeClock(date, tzHours)` | stable | the local wall-clock parts of a `Date` |
 | `skyState(time, place)` | stable | the light model's input for a time: sun, moon, night |
 | `lightAt(state)` | stable | key light, exposure, lamps and sky light for a sky state |
+| `GRADE_PRESETS` | experimental | the time-of-day grade's four looks (`noon`, `golden`, `dusk`, `night`: `exposure` EV, `temperature`, `tint`, `saturation`, `contrast`, `tonemapMix`, `shadowTint`, `hiTint`, `black`, `curve`, `punch`, `clarity`, `highlightWarmth`, `lift`, `gamma`); `createWorldRenderer({ grade })` turns the grade on |
+| `gradeConfig(option)` | experimental | the full grade settings for `true` / a partial object (`strength`, `nightAdapt`, `lampTint`, per-look overrides); null when off |
+| `gradeAt(light, state, settings)` | experimental | the look of an hour (pure): the presets eased by the sun's elevation, the lamps' tint, the darker night; what the pipeline's grade variant applies through `post.grade` |
 | `deviceProfile(renderer, { force })` | stable | the device tier (mobile, weak GPU) |
 | `pickQuality({ storage, nav })` | stable | the quality a page starts with (saved choice, battery, phone) |
 | `QUALITY_LEVELS` | stable | `['low', 'medium', 'high']` |
