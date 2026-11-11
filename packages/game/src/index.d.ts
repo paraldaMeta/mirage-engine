@@ -23,6 +23,7 @@ export { createFocusNav } from './ui-nav.js';
 export { createWorldUI } from './ui-world.js';
 export { createCanvasUI } from './ui-canvas.js';
 export { createKitUI } from './ui-menu.js';
+export { createDestructibles, DESTRUCT_MATERIALS, DESTRUCT_EFFECTS, DAMAGE_KINDS, DESTRUCT_SOUNDS, BROKEN_STATES, addDestructSounds } from './destruct.js';
 
 export type { GameSession, GameSetup, StartGameOptions, PlayerSnapshot } from './start.js';
 export type { Physics, PhysicsBody, PhysicsCharacter, DynamicProp, PropState, Hinge, RayHit } from './physics.js';
@@ -50,3 +51,4 @@ export type { FocusNav, FocusNavOptions } from './ui-nav.js';
 export type { WorldUI, WorldItem } from './ui-world.js';
 export type { CanvasUI, CanvasNode } from './ui-canvas.js';
 export type { KitUIOptions } from './ui-menu.js';
+export type { Destructibles, DestructiblesOptions, DestructibleSpec, Destructible, DamageKind, MaterialClass, DestructMaterial, HitResult, HitRecord, BlastOptions, BlastHit, BreakEvent, ActorSpec, DestructSnapshot, DrawHandleSpec, Tally } from './destruct.js';

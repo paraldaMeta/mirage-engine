@@ -321,6 +321,13 @@ Gaussian splats, `@miragekit/world/kits/splat` (opt-in subpath, world README "Ga
 | `createWorldUI({ kit, camera })` | experimental | labels, markers and health bars anchored to 3D points, with occlusion and distance fade |
 | `createCanvasUI({ description })` | experimental | a widget panel drawn into a texture, for screens in the world and XR |
 | `createKitUI(opts)` | experimental | `createUI`'s overlay rebuilt on the toolkit: pass as `startGame`'s `ui` |
+| `createDestructibles(target, options)` | experimental | destructibles (docs/destructibles.md): props over meshes, instances, batched ids or merged ranges that crack, dent, shatter, spill, burn, fall and explode; `hit` (rays with penetration), `blast` (falloff, cover), staged material classes, pooled debris and marks, lamps out, behaviours, movers, actors, tally, snapshot / restore; opt-in, nothing made until something breaks |
+| `DESTRUCT_MATERIALS` | experimental | the material classes as data: health, armour per damage kind, pierce, stages, debris, effects, sound, value |
+| `DESTRUCT_EFFECTS` | experimental | the particle effects (vfx JSON) the destructibles use: glitter, dust, sparks, a short circuit, spray, splash, blast, steam, water, fire |
+| `DAMAGE_KINDS` | experimental | `bullet`, `pellet`, `blast`, `melee`, `emp`, `fire` |
+| `DESTRUCT_SOUNDS` | experimental | the break sound sets (`dx_break_<name>`), made in code |
+| `addDestructSounds(audio)` | experimental | add the destructibles' procedural sounds to a `createAudio` mixer |
+| `BROKEN_STATES` | experimental | broken-state geometry in a unit box: a shattered pane rim, a split crate, a dented panel, a flat tyre |
 
 ## @miragekit/net
 

@@ -106,6 +106,19 @@ assert.equal(realShare(1, [1, 1, 1], 0, [1, 1, 1]), 1, 'a dark lamp (day) needs 
   assert.equal(pool.info.mode, 2, 'clustered for a perspective camera');
   real.intensity = 2; scene.onBeforeRender(r, scene, cam, null);
   assert.equal(pool.info.active, 1, 'a wholly real lamp is not shaded by the pool');
+  // scale(i, k): a broken lamp goes dark without a rebuild; the lit count drops and comes back
+  real.intensity = 0; scene.onBeforeRender(r, scene, cam, null);
+  const act0 = pool.info.active, bins0 = pool.info.bins;
+  assert.ok(pool.scale(1, 0) && pool.lit === 1 && pool.scaleOf(1) === 0, 'scale(1, 0): one lamp lit');
+  assert.ok(t[12 + 4] === 0 && pool.texture.needsUpdate !== false, 'its record is rewritten at once (colour 0)');
+  scene.onBeforeRender(r, scene, cam, null);
+  assert.ok(pool.info.active === act0 - 1 && pool.info.bins === bins0 + 1, 'the dark lamp leaves the active set (one re-binning)');
+  pool.scale(1, 0.5); scene.onBeforeRender(r, scene, cam, null);
+  assert.ok(near(pool.texture.image.data[12 + 4], 1) && pool.info.active === act0, 'half power: back in, at half the colour');
+  assert.equal(pool.scale(9, 0), false, 'no such lamp');
+  pool.set([{ pos: [0, 2, -6], power: 2 }, { pos: [3, 2, -8], power: 2, normal: [0, 0, 1], back: 0.4 }]);
+  assert.ok(pool.scaleOf(1) === 1 && pool.lit === 2, 'set() starts every lamp at 1 again');
+  real.intensity = 2;
   // by day (lamp gain 0) the loop is skipped
   const s2 = new THREE.Scene(), day = createLampPool({ scene: s2, G: { uLampGain: { value: 0 } }, injector: createInjector() }, lampPoolConfig(true));
   day.add({ pos: [0, 2, -6] });

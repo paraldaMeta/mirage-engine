@@ -23,6 +23,7 @@
     "./audio-mixer": { "types": "./src/audio-mixer.d.ts", "default": "./src/audio-mixer.js" },
     "./audio-music": { "types": "./src/audio-music.d.ts", "default": "./src/audio-music.js" },
     "./audio-occlusion": { "types": "./src/audio-occlusion.d.ts", "default": "./src/audio-occlusion.js" },
+    "./destruct": { "types": "./src/destruct.d.ts", "default": "./src/destruct.js" },
     "./game": { "types": "./src/game.d.ts", "default": "./src/game.js" },
     "./input": { "types": "./src/input.d.ts", "default": "./src/input.js" },
     "./physics": { "types": "./src/physics.d.ts", "default": "./src/physics.js" },
@@ -70,7 +71,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "node check.mjs && node audio-check.mjs && node ui.check.mjs && node platform.check.mjs && node physics.check.mjs"
+    "test": "node check.mjs && node audio-check.mjs && node ui.check.mjs && node platform.check.mjs && node physics.check.mjs && node destruct.check.mjs"
   },
   "author": "灰叔 Racso",
   "types": "./src/index.d.ts"

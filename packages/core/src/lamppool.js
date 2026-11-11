@@ -194,6 +194,7 @@ export function createLampPool(w, cfg) {
 
   const lamps = [];          // poolLamp records
   let weight = new Float32Array(cfg.max).fill(1), scratch = new Float32Array(cfg.max);   // the pool's share of each lamp (1 - its real light's)
+  const lscale = new Float32Array(cfg.max).fill(1);   // scale(i, k): a factor a game sets per lamp (a broken lamp: 0), records only
   const info = { lamps: 0, active: 0, real: 0, indices: 0, clipped: 0, binMs: 0, mode: 0, rows: TH, renders: 0, bins: 0, skipped: 0 };
   let dirtyRec = true, binKey = '', activeKey = '', renders = 0;
   const _v = new THREE.Vector3(), _vp = new THREE.Vector4();
@@ -201,8 +202,9 @@ export function createLampPool(w, cfg) {
   // ---- the records (only rewritten when a lamp or its weight changed)
   function writeRecords() {
     for (let i = 0; i < lamps.length; i++) {
-      const l = lamps[i], o = i * REC * 4, k = weight[i] * l.power;
-      data.set([l.x, l.y, l.z, l.range, l.r * k, l.g * k, l.b * k, l.decay], o);
+      const l = lamps[i], o = i * REC * 4, k = weight[i] * l.power * lscale[i];
+      data[o] = l.x; data[o + 1] = l.y; data[o + 2] = l.z; data[o + 3] = l.range;
+      data[o + 4] = l.r * k; data[o + 5] = l.g * k; data[o + 6] = l.b * k; data[o + 7] = l.decay;
       if (l.n) data.set([l.n[0], l.n[1], l.n[2], l.n[3] + (l.thick ?? cfg.thick)], o + 8); else data.fill(0, o + 8, o + 12);
     }
     dirtyRec = false;
@@ -273,7 +275,7 @@ export function createLampPool(w, cfg) {
     const act = [];
     for (let i = 0; i < lamps.length; i++) {
       const l = lamps[i];
-      if (weight[i] <= 0 || l.power <= 0) continue;
+      if (weight[i] <= 0 || l.power <= 0 || lscale[i] <= 0) continue;
       if ((l.x - _v.x) ** 2 + (l.y - _v.y) ** 2 + (l.z - _v.z) ** 2 < cfg.far * cfg.far) act.push(i);
     }
     info.active = act.length;
@@ -325,8 +327,8 @@ export function createLampPool(w, cfg) {
     const out = [], reach = l2.ls.reach;
     for (let i = 0; i < lamps.length; i++) {
       const l = lamps[i];
-      if (l.power <= 0 || (l.x - cp.x) ** 2 + (l.y - cp.y) ** 2 + (l.z - cp.z) ** 2 > (l.range + reach) ** 2) continue;
-      const p = l.power * gain;
+      if (l.power <= 0 || lscale[i] <= 0 || (l.x - cp.x) ** 2 + (l.y - cp.y) ** 2 + (l.z - cp.z) ** 2 > (l.range + reach) ** 2) continue;
+      const p = l.power * lscale[i] * gain;
       out.push({ id: l.id, x: l.x, y: l.y, z: l.z, range: l.range, power: p, near: l.near ?? l2.ls.near, col: [l.r * p, l.g * p, l.b * p], pool: true });
     }
     return out;
@@ -343,18 +345,33 @@ export function createLampPool(w, cfg) {
       lamps.length = 0;
       for (const o of list.slice(0, cfg.max)) lamps.push(poolLamp(o));
       if (list.length > cfg.max) console.warn(`[lampPool] ${list.length} lamps, max ${cfg.max}: the rest are dropped`);
-      weight.fill(1); changed();
+      weight.fill(1); lscale.fill(1); changed();
       return lamps.length;
     },
     /** add one lamp; returns its index, -1 when the pool is full */
-    add(o) { if (lamps.length >= cfg.max) return -1; lamps.push(poolLamp(o)); weight[lamps.length - 1] = 1; changed(); return lamps.length - 1; },
+    add(o) { if (lamps.length >= cfg.max) return -1; lamps.push(poolLamp(o)); weight[lamps.length - 1] = 1; lscale[lamps.length - 1] = 1; changed(); return lamps.length - 1; },
+    /** lamp i's power times k (0: off, 1: as given) without touching the lamp itself: one record is rewritten and
+     *  nothing is re-binned until the set of lit lamps changes (a flicker costs a texture upload, not a rebuild).
+     *  Kept until set() / clear(); `lit` counts the lamps with power left. Returns false for no such lamp. */
+    scale(i, k) {
+      if (!(i >= 0 && i < lamps.length)) return false;
+      k = Math.max(0, +k || 0);
+      if (lscale[i] === k) return true;
+      lscale[i] = k;
+      if (!dirtyRec) { const l = lamps[i], o = i * REC * 4, w = weight[i] * l.power * k; data[o + 4] = l.r * w; data[o + 5] = l.g * w; data[o + 6] = l.b * w; tex.needsUpdate = true; }
+      return true;
+    },
+    /** the factor scale() set on lamp i (1 when never set) */
+    scaleOf: (i) => (i >= 0 && i < lamps.length ? lscale[i] : 1),
+    /** lamps with some power left (not scaled to 0, power > 0) */
+    get lit() { let n = 0; for (let i = 0; i < lamps.length; i++) if (lamps[i].power > 0 && lscale[i] > 0) n++; return n; },
     /** change lamp i (the fields given; the rest stay) */
     update(i, o) {
       const l = lamps[i]; if (!l) return false;
       lamps[i] = poolLamp({ pos: [l.x, l.y, l.z], range: l.range, power: l.power, color: [l.r, l.g, l.b], decay: l.decay, near: l.near, thick: l.thick ?? undefined, ...(o.pos ? {} : { id: l.id }), ...(l.n ? { normal: l.n.slice(0, 3), back: l.n[3] + l.n[0] * l.x + l.n[1] * l.y + l.n[2] * l.z } : {}), ...o });
       changed(); return true;
     },
-    clear() { lamps.length = 0; changed(); },
+    clear() { lamps.length = 0; lscale.fill(1); changed(); },
     /** the lamps as kept (read only) */
     get lamps() { return lamps; },
     /** wrap the lit materials added since the last call (the world does it in prepare; the pool every 30 renders) */

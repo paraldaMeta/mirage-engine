@@ -76,6 +76,12 @@ export interface LampPool {
   add(lamp: PoolLampInput): number;
   /** Change lamp i (the fields given; the rest stay). */
   update(i: number, lamp: PoolLampInput): boolean;
+  /** Lamp i's power times k (0 off, 1 as given) without rebuilding it: one record rewritten, no re-binning until the lit set changes. Reset by set() / clear(). */
+  scale(i: number, k: number): boolean;
+  /** The factor scale() set on lamp i (1 when never set). */
+  scaleOf(i: number): number;
+  /** Lamps with some power left (power > 0, not scaled to 0). */
+  readonly lit: number;
   clear(): void;
   /** Wrap the lit materials added since the last call (the world does it in prepare, the pool every 30 renders). */
   adopt(): number;
