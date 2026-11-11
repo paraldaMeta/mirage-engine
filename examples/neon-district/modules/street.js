@@ -6,11 +6,12 @@
 import * as THREE from 'three';
 import { materials } from './materials.js';
 import { lamp, decor } from './lib.js';
+import { shopFronts } from './shopfronts.js';
 
 export default {
   name: 'street',
   build(ctx) {
-    const { geom, root, plan, R } = ctx, M = materials(ctx), K = plan.levels.kerb;
+    const { geom, root, plan } = ctx, M = materials(ctx), K = plan.levels.kerb;
     const b = new geom.MeshBatch(), fx = new geom.MeshBatch();   // fx: decor (no collision): tubes, strips, cables
     const proxy = (size, pos) => { const m = new THREE.Mesh(new THREE.BoxGeometry(...size)); m.position.set(...pos); ctx.collider(m); };
 
@@ -60,34 +61,22 @@ export default {
       lamp(ctx, { pos: at([-2.7, 0.6, 0]), color: 0xff2010, intensity: 1.4, range: 4.5 });
     }
 
-    // ---- shop fronts along both pavements: shutters, awnings, steps, wall plant
+    // ---- shop fronts along both pavements (shopfronts.js): open shops, shutters, doors, awnings, wall plant
     const S = plan.street.rect, shops = [];
     for (let x = -32; x < 33; x += 4.2) {
-      if (x > -23 && x < -9.5) continue;                                   // the bar's own front
+      if (x + 3.6 > -22 && x + 0.6 < -10) continue;                          // the bar's own front
       if (x > 5 && x < 30) continue;                                       // the plaza opens here
       shops.push([x, S[1], 1]);
     }
     for (let x = -32; x < 33; x += 4.2) { if (x > -25.5 && x < -19) continue; shops.push([x, S[3], -1]); }
-    for (const [x, z, out] of shops) {   // out: +1 the wall faces south, -1 north
-      const kind = R.int(0, 3);
-      if (kind < 2) {   // a roller shutter in a frame, sometimes an awning
-        b.box(kind ? M.sheet : M.sheetRed, [3.0, 2.9, 0.1], [x + 2.1, K + 1.45, z + out * 0.05]);
-        b.box(M.darkMetal, [3.3, 0.22, 0.26], [x + 2.1, K + 3.0, z + out * 0.13]);
-        if (R.chance(0.6)) fx.add(new THREE.BoxGeometry(3.4, 0.05, 1.3).rotateX(-out * 0.32), M.plastic, geom.compose([x + 2.1, K + 2.9, z + out * 0.7]));
-      } else {          // a recessed glass door with a light strip over it
-        b.box(M.blackMetal, [1.5, 2.5, 0.08], [x + 2.1, K + 1.25, z + out * 0.04]);
-        fx.box(M.neon[R.pick(['cyan', 'amber', 'pink', 'white'])], [1.5, 0.05, 0.05], [x + 2.1, K + 2.62, z + out * 0.1]);
-      }
-      // wall plant above: an AC unit, a conduit
-      if (R.chance(0.7)) { const ax = x + R.range(0.4, 3.6), ay = K + R.range(3.4, 4.1); fx.box(M.sheet, [0.9, 0.6, 0.42], [ax, ay, z + out * 0.21], [0, 0, 0], 0.03); fx.cylinder(M.blackMetal, 0.2, 0.2, 0.03, [ax, ay, z + out * 0.43], [Math.PI / 2, 0, 0], 16); }
-      fx.cylinder(M.darkMetal, 0.045, 0.045, 9, [x + R.range(0.1, 0.5), K + 4.5, z + out * 0.07], [0, 0, 0], 8);
-    }
+    shopFronts(ctx, fx, shops);
 
     // ---- vending machines: a lit front, a little light of their own
+    const faceMats = {};
     for (const [x, y, z, rot, tint] of [[-25.2, K, 2.5, 0, 'cyan'], [3.4, K, 9.5, Math.PI, 'pink'], [29.3, K, -2.2, -Math.PI / 2, 'amber'], [-23.55, 0, 16.5, Math.PI / 2, 'green']]) {
       const m = geom.compose([x, y, z], [0, rot, 0]);
       b.add(new geom.RoundedBoxGeometry(1.0, 1.95, 0.8, 2, 0.04), M.blackMetal, m.clone().multiply(geom.compose([0, 0.975, 0])));
-      fx.add(new THREE.BoxGeometry(0.84, 1.3, 0.02), M.neonSoft[tint], m.clone().multiply(geom.compose([0, 1.15, 0.405])));
+      fx.add(new THREE.BoxGeometry(0.84, 1.3, 0.02), (faceMats[tint] ||= ctx.mat.glow(M.NEON[tint], 0.75)), m.clone().multiply(geom.compose([0, 1.15, 0.405])));
       fx.add(new THREE.BoxGeometry(0.6, 0.18, 0.02), M.blackMetal, m.clone().multiply(geom.compose([0, 0.28, 0.405])));
       const p = new THREE.Vector3(0, 1.2, 0.9).applyMatrix4(m);
       lamp(ctx, { pos: p.toArray(), color: new THREE.Color().setRGB(...M.NEON[tint]), intensity: 6, range: 7, normal: [Math.sin(rot), 0, Math.cos(rot)], back: 0.5 });
@@ -111,7 +100,7 @@ export default {
     b.box(M.sheet, [ax1 - ax0, 3.2, 0.2], [(ax0 + ax1) / 2, 1.6, fence + 0.1]);                 // the gate that closes it
     fx.box(M.yellow, [ax1 - ax0, 0.14, 0.03], [(ax0 + ax1) / 2, 1.2, fence - 0.02]);
     for (const [x, o] of [[ax0, 1], [ax1, -1]]) {
-      for (const zz of [13, 19.5, 27]) fx.cylinder(M.darkMetal, 0.07, 0.07, 12, [x + o * 0.1, 6, zz + o], [0, 0, 0], 8);
+      for (const zz of [13, 19.5, x === ax0 ? 24.2 : 27]) fx.cylinder(M.darkMetal, 0.07, 0.07, 12, [x + o * 0.1, 6, zz + o], [0, 0, 0], 8);
       fx.add(new THREE.CylinderGeometry(0.05, 0.05, plan.alley.rect[3] - az0, 8).rotateX(Math.PI / 2), M.sheet, geom.compose([x + o * 0.09, 2.7, (az0 + plan.alley.rect[3]) / 2]));
     }
     // bulbs on sagging cables across the alley and across the street by the bar
@@ -124,10 +113,10 @@ export default {
       return pts[Math.floor(n / 2)];
     };
     for (const [z, tint] of [[14, ['warm']], [20.5, ['warm', 'pink']], [26.5, ['warm']]]) {
-      const mid = string([ax0, 4.4, z], [ax1, 4.2, z + 1.2], 0.45, 9, tint);
+      const mid = string([ax0, z > 25 ? 6.1 : 4.4, z], [ax1, 4.2, z + 1.2], 0.45, 9, tint);
       lamp(ctx, { pos: [mid[0], mid[1] - 0.3, mid[2]], color: 0xffb070, intensity: 3.2, range: 7 });
     }
-    for (const x of [-19.5, -12.5]) string([x, 5.2, S[1]], [x + 1.5, 5.0, S[3]], 0.7, 16, ['amber', 'pink', 'cyan']);
+    for (const x of [-19.5, -8.4]) string([x, 5.2, S[1]], [x + 1.5, 5.0, S[3]], 0.7, 16, ['amber', 'pink', 'cyan']);
 
     // ---- both ends of the street: a wall of sheet and barriers
     for (const [x, o] of [[S[0] + 1.0, 1], [S[2] - 1.0, -1]]) {
