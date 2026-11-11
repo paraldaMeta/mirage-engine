@@ -270,7 +270,8 @@ function part(U) {
 export function createScreen(w, cfg) {
   const { renderer, scene, sun } = w, LAYER = cfg.layer;
   const U = {
-    mgScrT: { value: null }, mgScr: { value: new THREE.Vector4() }, mgScrR: { value: new THREE.Vector4(1, 1, 1, 1) },
+    mgScrT: { value: null }, mgScr: { value: new THREE.Vector4(0, 0, 0, 0) },   // all off until before() says otherwise (a bare Vector4 has w = 1: contact shadows on, reading no atlas, which blacked the sun out of the first probe and sky captures)
+    mgScrR: { value: new THREE.Vector4(1, 1, 1, 1) },
     mgScrB: { value: new THREE.Vector4(1, 1, 0, 0) }, mgScrO: { value: [new THREE.Vector2(), new THREE.Vector2(), new THREE.Vector2()] },
   };
   const M4 = () => ({ value: new THREE.Matrix4() }), V4 = () => ({ value: new THREE.Vector4() });
@@ -383,7 +384,7 @@ export function createScreen(w, cfg) {
       u.uHT.value.set(x / AW, y / AH, (prev.act.x * S.tw) / AW, (prev.act.y * S.th) / AH);
       u.uHC.value.set(0.5 / Math.max(prev.act.x * S.tw, 1), 0.5 / Math.max(prev.act.y * S.th, 1), 1 - 0.5 / Math.max(prev.act.x * S.tw, 1), 1 - 0.5 / Math.max(prev.act.y * S.th, 1));
       if (i === 0) { u.uA.value.set(P.ssrDist, P.ssrThick, P.ssrRough, lum); u.uSteps.value = still ? 56 : 22; u.uRefine.value = still ? 7 : 5; u.uRays.value = 1; u.uAlpha.value = live ? 0.1 : 1; }
-      else if (i === 1) { u.uA.value.set(P.ssgiRange, Math.max(0.15, P.ssrThick), 1, lum); u.uSteps.value = still ? 20 : 9; u.uRefine.value = 2; u.uRays.value = Math.max(1, Math.min(8, Math.round(P.ssgiRays))); u.uAlpha.value = live ? 0.06 : 1; }
+      else if (i === 1) { u.uA.value.set(P.ssgiRange, Math.max(0.15, P.ssrThick), 1, lum); u.uSteps.value = still ? 20 : 9; u.uRefine.value = 2; u.uRays.value = Math.max(still ? 4 : 1, Math.min(8, Math.round(P.ssgiRays)));   /* a still has no history to average over: 4 rays a sub-frame */ u.uAlpha.value = live ? 0.06 : 1; }
       else { u.uA.value.set(P.contactLen, 0.12, 1, lum); u.uSteps.value = still ? 20 : 10; u.uRefine.value = 2; u.uRays.value = 1; u.uAlpha.value = live ? 0.25 : 1; }
       view(target, x, y, aw, ah);
       quad.material = trace; renderer.setRenderTarget(target); quad.render(renderer); info.passes++;

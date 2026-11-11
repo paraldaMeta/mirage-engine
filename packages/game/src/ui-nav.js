@@ -78,6 +78,7 @@ const TOUCH_LABELS = { interact: 'Use', jump: 'Jump', menu: '☰', inventory: 'B
 // way out of a menu is 'cancel' and the directions are navUp..navRight)
 const UI_PAD = { confirm: 0, cancel: 1, tabPrev: 4, tabNext: 5, navUp: 12, navDown: 13, navLeft: 14, navRight: 15 };
 const UI_KEYS = { confirm: 'Enter', cancel: 'Escape', tabPrev: 'KeyQ', tabNext: 'KeyE', navUp: 'ArrowUp', navDown: 'ArrowDown', navLeft: 'ArrowLeft', navRight: 'ArrowRight' };
+const UI_TOUCH = { confirm: 'Tap', cancel: 'Back', tabPrev: '‹', tabNext: '›', navUp: '↑', navDown: '↓', navLeft: '←', navRight: '→' };   // never an action's id on screen
 const KEY_SYMBOL = { Up: '↑', Down: '↓', Left: '←', Right: '→', Enter: '↵', Space: '␣', Esc: 'Esc' };
 /** The label for an action (a game action from the bindings, or a UI verb: confirm, cancel, tabPrev, tabNext) on a
  *  device. kind: 'key' | 'pad' | 'touch' (the kit styles them apart). */
@@ -86,7 +87,7 @@ export function glyphFor(action, { device = 'keyboard', bindings = {}, padKind: 
     const b = PAD[action] ? PAD[action][0] : UI_PAD[action];
     if (b != null) return { text: (PAD_GLYPHS[kind] || PAD_GLYPHS.xbox)[b] || String(b), kind: 'pad', button: b };
   }
-  if (device === 'touch') return { text: touchLabels[action] || (action === 'confirm' ? 'Tap' : action === 'cancel' ? 'Back' : action), kind: 'touch' };
+  if (device === 'touch') return { text: touchLabels[action] || UI_TOUCH[action] || action.charAt(0).toUpperCase() + action.slice(1), kind: 'touch' };
   const code = (bindings[action] || [])[0] || UI_KEYS[action];
   const name = code ? keyName(code) : '?';
   return { text: KEY_SYMBOL[name] || name, kind: 'key', code };

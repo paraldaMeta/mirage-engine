@@ -44,7 +44,7 @@ count of stable and experimental exports, and how a name is promoted: [STABILITY
 | `glslName(name)` | stable | how a texture set name is spelled in `MG_TEX_<name>` (`'stone-wall'` → `stone_2d_wall`; plain names unchanged) |
 | `LIGHT2_DEFAULTS` | experimental | light2's settings (`ls` lamp shadows, `ssr` reflections, `vol` volumetric light, `bloom` mixed bloom); `createWorldRenderer({ light2 })` turns it on |
 | `light2Config(option)` | experimental | the full light2 settings for `true` / a partial object; null when off |
-| `installLight2()` | experimental | patch three's chunks for light2 (page-global, idempotent; the world renderer calls it) |
+| `installLight2()` | experimental | patch three's chunks for light2 (page-global while a world lives, three's own again when the last world is disposed; idempotent; the world renderer calls it) |
 | `addLampSource(scene, fn)` | experimental | register a lamp table (not PointLights) that competes for lamp-shadow slots |
 | `LampShadows` | experimental | the lamp-shadow slots and their octahedral atlas (the pipeline owns one when light2 is on) |
 | `SOFTSHADOW_DEFAULTS` | experimental | the soft sun shadows' settings (`on`, `sunAngle`, `maxPenumbra`, `maxPenumbraTexels`, `minBlocker`, tap counts, `slopeMax`, `edgeFade`); `createWorldRenderer({ softShadows })` turns them on |
@@ -98,7 +98,7 @@ count of stable and experimental exports, and how a name is promoted: [STABILITY
 | `transmitAtGround(elevation, k)` | experimental | sunlight transmittance at the ground |
 | `scatter(d, L, I, ms)` | experimental | sky radiance on the CPU (same as the shader) |
 | `skyLightAt(elevation, I)` | experimental | sky irradiance and horizon radiance |
-| `installFog()` | experimental | Mirage's height fog in three's shader chunks (under `THREE.FogExp2` only) |
+| `installFog()` | experimental | Mirage's height fog in three's shader chunks (under `THREE.FogExp2` only; `world.dispose()` of the last world on the page puts three's chunks back) |
 | `FOG` | experimental | the page-global fog uniforms |
 | `Pipeline` | experimental | the sub-frame accumulation / TAA / post pipeline |
 | `DEFAULT_POST` | experimental | default post settings (exposure, tone map, bloom, AO, DOF, …) |

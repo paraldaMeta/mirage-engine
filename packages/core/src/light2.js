@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { CHUNK_EPOCH } from './env.js';
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 import { patch } from './materials.js';
+import { onChunksRestored } from './fog.js';
 
 // ---------------------------------------------------------------------------
 // light2: lamp shadows, volumetric light, screen-space reflections and an energy-conserving bloom. Opt-in:
@@ -176,6 +177,7 @@ float mgLsVis(vec3 lampW, vec3 pW, vec3 nW){ return 1.0; }
 `;
 
 let installed = false;
+onChunksRestored(() => { installed = false; });   // the last world on the page was disposed (fog.js)
 /** Patch three's chunks and uniform libraries (idempotent; createWorldRenderer calls it when light2 is on).
  *  Returns false when three's chunks are not the ones this was written against (nothing is patched then). */
 export function installLight2() {

@@ -82,8 +82,9 @@ function grade(world, mean, out) {
 }
 
 let gradeInstalled = null;
+const XR_STUB = 'vec3 CustomToneMapping( vec3 color ) { return color; }';
 function installGrade(post) {
-  if (gradeInstalled) return gradeInstalled;
+  if (gradeInstalled && !THREE.ShaderChunk.tonemapping_pars_fragment.includes(XR_STUB)) return gradeInstalled;   // (the stub is back when the last world was disposed: core's fog.js restores three's chunks)
   const tm = TM[post.tonemap] || TM.agx;
   const fn = /* glsl */ `
 uniform vec4 mgXR[ 3 ];
@@ -97,7 +98,7 @@ vec3 CustomToneMapping( vec3 color ) {
 	color = clamp( ( color - 0.5 ) * mgXR[ 2 ].x + 0.5, 0.0, 1.0 );
 	return color + mgXR[ 2 ].y * ( 1.0 - color );
 }`;
-  const stub = 'vec3 CustomToneMapping( vec3 color ) { return color; }';
+  const stub = XR_STUB;
   const chunk = THREE.ShaderChunk.tonemapping_pars_fragment;
   if (chunk.includes(stub)) THREE.ShaderChunk.tonemapping_pars_fragment = chunk.replace(stub, '') + fn;
   for (const lib of Object.values(THREE.ShaderLib)) if (lib.uniforms && !lib.uniforms.mgXR) lib.uniforms.mgXR = { value: XR_GRADE };

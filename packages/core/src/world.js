@@ -1,7 +1,7 @@
 // Mirage original code. Techniques informed by Golden Temple by Leon Lin (MIT) — see NOTICE.
 import * as THREE from 'three';
 import { createEnv } from './env.js';
-import { installFog, FOG } from './fog.js';
+import { installFog, FOG, retainChunks, releaseChunks } from './fog.js';
 import { createSky, createSkyUniforms, createSkyLut } from './sky.js';
 import { createStars } from './stars.js';
 import { skyState, lightAt } from './daynight.js';
@@ -71,6 +71,7 @@ export function createWorldRenderer(config = {}) {
   const fogCfg = { density: 1, groundDensity: 0.0016, height: 18, air: 0.00012, level: 0, color: 1, glow: 1, ...config.fog };
   const post = { ...DEFAULT_POST, ...config.post };
 
+  retainChunks();   // three's chunk table is page-global: dispose() gives it back with the last world (fog.js)
   installFog();
   // light2 (lamp shadows, reflections, volumetric light, mixed bloom): opt-in, patched before any material compiles
   let l2cfg = light2Config(config.light2);
@@ -535,7 +536,10 @@ export function createWorldRenderer(config = {}) {
 
   /** free what this world made on the GPU: geometries, materials (and their programs), the shadow map, the post and
    *  environment targets; and the renderer if the world created it. Take objects you still need out of the scene first. */
+  let disposed = false;
   function dispose() {
+    if (disposed) return;
+    disposed = true;
     updates = [];   // a disposed world holds no callback (and what they close over) alive
     pipeline.dispose(); envLight.dispose(); skyLut.dispose(); if (lighting) lighting.dispose();
     const mats = new Set();
@@ -543,6 +547,7 @@ export function createWorldRenderer(config = {}) {
     for (const m of mats) m.dispose();
     if (sun.shadow && sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; }
     if (!config.renderer) renderer.dispose();
+    releaseChunks();
   }
 
   /** after `webglcontextrestored` (three has re-made its state; @mirage/core/platform calls this): what lived only on

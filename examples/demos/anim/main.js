@@ -102,6 +102,8 @@ if (on('retarget') && !Q.get('src')) {
 let tl = null, tlActor = null;
 if (Q.get('timeline') === '1') {
   play.stop();
+  // the shot has one actor: the walk-about figures are not stepped while play is stopped and would stand in their rest pose
+  for (const o of [hero?.root, npc?.root, retargeted?.root]) if (o) o.visible = false;
   const actor = assets.instantiate(model); actor.position.set(-1, 0.15, 1.5); scene.add(actor); tlActor = actor;
   const anim = createAnimator(actor, model.animations, { layers: [] }), box = scene.getObjectByName('step3');
   let caption = '';

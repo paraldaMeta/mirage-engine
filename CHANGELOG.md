@@ -566,6 +566,16 @@ nothing is published. Evidence: `docs/STATUS-1.0.md`.
   cannot inline; `mirage-e2e` runs the `examples/` of the current folder or `--root`.
 
 **Fixes**
+- Screen-space lighting no longer darkens a room lit by the probe volume: its uniform started with contact shadows
+  on (a bare `Vector4` has w = 1), so the first probe and sky captures multiplied the sun by an atlas that did not
+  exist yet. walled-garden interior, mean luma: `?gi=1` 55.2; `?gi=1&ssgi=1` was 38.8, now 54.4. A still traces at
+  least 4 indirect rays a sub-frame.
+- `world.dispose()` of the last world on a page puts three's shader chunks back (fog, light2, soft shadows and the
+  XR grade rewrote them for good); a later world installs them again. `npm run test:dispose` checks it.
+- The `snow` preset is visible against a bright sky and snow ground (smaller hard-edged flakes, partly unlit). Touch
+  screens get glyph labels for `ui-nav` actions and the ui demo's buttons clear the touch controls. The anim demo's
+  timeline hides the other characters. The playtest paces its waits by frames on software GL (CI), and the net check
+  waits for the socket instead of a fixed time.
 
 - @mirage/core: `createLod().register()` threw a ReferenceError (`unit` was declared inside the traverse callback
   and read after it; found by the linter, regression check in `scripts/checks/tooling.check.mjs`). `createVfx` on

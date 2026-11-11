@@ -90,7 +90,8 @@ if (HUD) {
     anchor({ at: 'top-start' }, stack({ gap: 0.4, 'data-hud': 'bars' },
       h(Bar, { value: state.hp, max: 100, label: tx('ui.health'), tone: 'health', icon: '♥' }),
       h(Bar, { value: state.stamina, max: 100, label: tx('ui.stamina'), tone: 'stamina', icon: '⚡', showValue: false }))),
-    anchor({ at: 'top-end' }, stack({ gap: 0.6, align: 'flex-end' },
+    // on touch the game's own menu and bag buttons sit in this corner (top 70 px, 52 px tall): the map goes below them
+    anchor({ at: 'top-end' }, stack({ gap: 0.6, align: 'flex-end', style: { paddingTop: () => (state.touch.value ? '7.2em' : '0') } },
       h(MinimapFrame, { size: 8, heading: state.heading, markers: state.blips }),
       h(ObjectiveTracker, { objectives }))),
     anchor({ at: 'bottom', offset: [0, 5] }, show(() => !!state.near.value, () => h(Prompt, { action: 'interact', label: () => (state.near.value ? t('d.' + state.near.value) : '') }), { transition: 'fade' })),

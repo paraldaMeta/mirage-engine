@@ -128,7 +128,7 @@ let firstId = 0;
   b.client.rpc('take', { id: pid }); await sleep(100); a.client.rpc('take', { id: pid }); a.client.rpc('chat', { text: 'got it' + String.fromCharCode(0x202e) });
   ok(await until(() => took.length === 1 && chat.length === 1) && took[0].by === a.client.id && chat[0].text === 'got it' && chat[0].from === a.client.id, 'kit: the near player takes the pickup, the far one cannot; chat arrives cleaned');
   ok(await until(() => others(b)[0].state.score === 1 && pickupsOf(b).find((e) => e.id === pid).state.taken === true) && Math.abs(others(b)[0].state.x - a.client.walker.pos[0]) < 0.05, 'room: score, pickup state and position converge on the other client');
-  ok(a.client.stats.corrections === 0 && a.client.stats.exact > 20, `room: prediction over a real socket is exact (${a.client.stats.exact} confirmations, 0 corrections)`);
+  ok(await until(() => a.client.stats.exact > 20) && a.client.stats.corrections === 0, `room: prediction over a real socket is exact (${a.client.stats.exact} confirmations, 0 corrections)`);
   // reconnect: the socket dies, a new one resumes the same player with its token
   firstId = a.client.id;
   const where = a.client.walker.pos.slice();

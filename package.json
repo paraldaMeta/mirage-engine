@@ -28,6 +28,7 @@
     "test:e2e": "node packages/tools/src/e2e.mjs",
     "test:world-checks": "node packages/tools/world-checks.check.mjs",
     "test:fixed-step": "node packages/tools/src/fixed-step-check.mjs examples/snow-hut/dist",
+    "test:dispose": "node packages/tools/dispose-check.mjs",
     "test:determinism": "node packages/tools/determinism.check.mjs",
     "test:still-pop": "node packages/tools/src/still-pop.mjs examples/hello-courtyard/dist examples/walled-garden/dist examples/garden-quest/dist examples/agent-trial/dist",
     "test:ship": "node packages/tools/src/ship-browser-check.mjs",

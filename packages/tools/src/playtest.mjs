@@ -135,6 +135,11 @@ try {
     if (g) Object.assign(s, { near: g.near ? g.near.id : null, prompt: g.near ? g.game.label(g.near) : null, flags: { ...g.game.flags }, inventory: g.game.inventory.items.map((i) => i.id), paused: g.game.paused });
     return s;
   });
+  // Software GL draws a frame in about a second and the walker's step is capped at 0.1 s, so wall time says nothing
+  // about how far the world has moved: there every wait also lasts until that many 0.1 s frames have been drawn
+  // (at most 40 times the wall time). On a GPU `paced` is false and the waits are the plain ones.
+  const paced = SOFTWARE, frameNo = () => page.evaluate(() => window.__mirage.play.stats.frames);
+  const settle = async (ms) => { const f = paced ? await frameNo() : 0, end = Date.now() + ms * 40; await wait(ms); while (paced && (await frameNo()) - f < Math.max(1, Math.round(ms / 100)) && Date.now() < end) await wait(40); };
   const keysDown = async (ks) => { for (const k of ks) await page.keyboard.down(k); };
   const keysUp = async (ks) => { for (const k of ks) await page.keyboard.up(k); };
   for (const [idx, s] of sc.steps.entries()) {
@@ -144,10 +149,10 @@ try {
       if (s.place) await page.evaluate((p) => window.__mirage.play.place(p.eye, p.look, p.mode), s.place);
       if (s.mode) await page.evaluate((m) => window.__mirage.play.setMode(m), s.mode);
       if (s.viewpoint !== undefined) await page.evaluate((i) => window.__mirage.play.viewpoint(i), s.viewpoint);
-      if (s.place || s.viewpoint !== undefined) await wait(150);   // settle onto the ground
+      if (s.place || s.viewpoint !== undefined) await settle(150);   // settle onto the ground
       start = await state(); maxY = start.pos[1];
       const f0 = await page.evaluate(() => window.__mirage.play.stats.frames);
-      const track = async (until, each) => { while (Date.now() < until) { await wait(40); const st = await state(); maxY = Math.max(maxY, st.pos[1]); if (each && (await each(st))) return true; } return false; };
+      const track = async (ms, each) => { const t0 = Date.now(), fr0 = paced ? await frameNo() : 0; while (Date.now() < t0 + ms || (paced && Date.now() < t0 + ms * 40 && (await frameNo()) - fr0 < ms / 100)) { await wait(40); const st = await state(); maxY = Math.max(maxY, st.pos[1]); if (each && (await each(st))) return true; } return false; };
       if (s.walkTo) {
         let run = !!s.run;
         // the route map's path comes from the polls the walk makes anyway; entity trails ("onion": true) cost a page
@@ -160,11 +165,11 @@ try {
         try {
           for (const [k, [x, z]] of s.walkTo.entries()) {
             const last = k === s.walkTo.length - 1, tol = last ? s.tol || 0.35 : Math.max(s.tol || 0.35, 0.8);   // corners can be cut
-            let mark = [start.pos, Date.now()];   // no progress for 2.5 s = stuck
-            const ok = await track(Date.now() + (s.timeout || 30000), async (st) => {
+            let mark = [start.pos, Date.now(), paced ? await frameNo() : 0];   // no progress for 2.5 s (and, on software GL, 25 frames) = stuck
+            const ok = await track(s.timeout || 30000, async (st) => {
               await sample(st);
-              if (Math.hypot(st.pos[0] - mark[0][0], st.pos[2] - mark[0][2]) > 0.1) mark = [st.pos, Date.now()];
-              else if (Date.now() - mark[1] > 2500) route.stuck = [st.pos[0], st.pos[2]];
+              if (Math.hypot(st.pos[0] - mark[0][0], st.pos[2] - mark[0][2]) > 0.1) mark = [st.pos, Date.now(), paced ? await frameNo() : 0];
+              else if (Date.now() - mark[1] > 2500 && (!paced || (await frameNo()) - mark[2] >= 25)) route.stuck = [st.pos[0], st.pos[2]];
               if (route.stuck) throw new Error(`walkTo: stuck at ${st.pos.join(', ')} on the way to ${x}, ${z} (no progress for 2.5 s)`);
               await page.evaluate((x, z) => { const { play } = window.__mirage; play.lookAt([x, play.state().eye[1], z]); }, x, z);
               const d = Math.hypot(st.pos[0] - x, st.pos[2] - z);
@@ -180,7 +185,7 @@ try {
           const rf = `${String(idx).padStart(2, '0')}-${fileName(s.name ?? idx)}-route.png`;
           await page.evaluate(routeMapInPage, route).then((png) => { fs.writeFileSync(path.join(OUT, rf), Buffer.from(png.split(',')[1], 'base64')); metrics.route = rf; }).catch((e) => log('route map failed: ' + (e.message || e)));
         }
-        await wait(250);
+        await settle(250);
       }
       if (s.lookAt) {
         await page.evaluate((t) => {
@@ -189,11 +194,11 @@ try {
           if (!p) throw new Error('lookAt: no entity ' + t);
           play.lookAt(p);
         }, s.lookAt);
-        await wait(300);
+        await settle(300);
       }
-      for (const k of [s.tap || []].flat()) { await page.keyboard.down(k); await wait(80); await page.keyboard.up(k); await wait(250); }
-      if (s.keys && !s.perf) { await keysDown(s.keys); await track(Date.now() + (s.ms || 1000)); await keysUp(s.keys); }
-      else if (s.ms && !s.perf) await track(Date.now() + s.ms);
+      for (const k of [s.tap || []].flat()) { await page.keyboard.down(k); await settle(80); await page.keyboard.up(k); await settle(250); }
+      if (s.keys && !s.perf) { await keysDown(s.keys); await track(s.ms || 1000); await keysUp(s.keys); }
+      else if (s.ms && !s.perf) await track(s.ms);
       if (s.flicker) Object.assign(metrics, await page.evaluate((o) => {
         const { play, built } = window.__mirage, w = play.world, gl = w.renderer.getContext();
         let pts = typeof o.path === 'string' ? built.plan.paths[o.path].points : o.path;

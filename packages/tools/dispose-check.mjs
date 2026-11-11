@@ -2,7 +2,7 @@
 // Mount and dispose a world with play five times in one page (an app that opens and closes a world): after each
 // dispose the page must hold no more window / document listeners, DOM nodes, geometries, textures or shader
 // programs than after the first one, and no play keeps reacting to keys.
-// Needs Chrome with a GPU, so it is not in npm test:   node packages/tools/dispose-check.mjs
+// Needs Chrome with a GPU, so it is not in npm test:   npm run test:dispose
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -21,6 +21,7 @@ import { createPlay } from '@mirage/play';
 import { startGame } from '@mirage/game';
 
 const canvas = document.querySelector('canvas');
+const stockChunks = JSON.stringify(THREE.ShaderChunk);   // three's own shader text, before any world
 const renderer = new THREE.WebGLRenderer({ canvas });
 const plan = { name: 'box', bounds: [-6, -6, 6, 6], spawn: { eye: [0, 1.62, 3], look: [0, 1.6, 0] }, viewpoints: [{ name: 'a', eye: [3, 2, 3], look: [0, 1, 0] }] };
 const modules = [{ name: 'room', build(ctx) {
@@ -90,6 +91,26 @@ window.subs = async () => {
   return { mid, after, threw, disposedCalls };
 };
 window.counts = () => ({ geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures, programs: renderer.info.programs.length, nodes: document.body.querySelectorAll('*').length });
+// three's page-global shader chunks: rewritten while a world lives (fog; lamp and soft sun shadows when asked for),
+// three's own text again once the last world on the page is disposed, and a later world installs afresh
+window.chunks = async () => {
+  const same = () => JSON.stringify(THREE.ShaderChunk) === stockChunks;
+  const r = { before: same() };
+  const a = createWorldRenderer({ renderer, width: 320, height: 240, quality: 'low', light2: true, softShadows: true });
+  const b = createWorldRenderer({ renderer, width: 320, height: 240, quality: 'low' });
+  r.alive = same();
+  a.dispose(); a.dispose();   // (twice: the second call must not count)
+  r.oneLeft = same();
+  b.dispose();
+  r.after = same();
+  const c = createWorldRenderer({ renderer, width: 320, height: 240, quality: 'low', light2: true, softShadows: true });
+  await buildWorld(c, { plan, modules, log: { log() {}, error: console.error } });
+  await c.prepare(); c.renderFrame(0);
+  r.again = same();
+  c.dispose();
+  r.end = same();
+  return r;
+};
 window.__READY = true;
 `);
 await build({ root: src, logLevel: 'error', build: { outDir: dist, emptyOutDir: true } });
@@ -117,6 +138,8 @@ try {
   const E = await page.evaluate(() => window.embed());
   check('typing W into a host text field does not walk', E.start === E.typed, E);
   check("dispose gives the world camera's lens back", E.lens === E.after, E);
+  const K = await page.evaluate(() => window.chunks());
+  check("three's shader chunks: patched while a world lives, three's own after the last dispose, patched again by the next world", K.before && !K.alive && !K.oneLeft && K.after && !K.again && K.end, K);
   const S = await page.evaluate(() => window.subs());
   check('ctx.onUpdate returns an unsubscribe function', S.mid.type === 'function', S.mid);
   check('callbacks run each frame; one that unsubscribes itself runs once and does not skip its neighbour', S.mid.a >= 2 && S.mid.self === 1 && S.mid.c === S.mid.a, S.mid);   // (a frame is several sub-frames)

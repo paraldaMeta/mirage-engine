@@ -52,8 +52,8 @@ export const VFX_LIBRARY = {
   ] },
   // snowfall over a 30 m square that follows whatever it is attached to (spawn it with follow: the camera rig)
   snow: { name: 'snow', rate: 700, life: [7, 10], shape: { type: 'box', size: [30, 1, 30], offset: [0, 9, 0] }, velocity: { dir: [0, -1, 0], speed: [0.9, 1.5], spread: 8 }, wind: 1.2,
-    turbulence: { strength: 0.5, scale: 2.5, speed: 0.25 }, gravity: -2.4, drag: 0.6, size: [0.05, 0.1], color: '#f4f7fb', alpha: [[0, 0], [0.05, 0.9], [0.92, 0.9], [1, 0]], rotation: [0, 360], spin: [-60, 60],
-    render: { sprite: 'soft', lit: 1, nearFade: 0.25 }, collision: { mode: 'stick', ground: true, depth: true, lifeLoss: 0.7 }, lod: { near: 60, far: 200, min: 0.5 } },
+    turbulence: { strength: 0.5, scale: 2.5, speed: 0.25 }, gravity: -2.4, drag: 0.6, size: [0.035, 0.075], color: '#f4f7fb', alpha: [[0, 0], [0.05, 0.95], [0.92, 0.95], [1, 0]], rotation: [0, 360], spin: [-60, 60],
+    render: { sprite: 'disc', lit: 0.7, nearFade: 0.25 }, collision: { mode: 'stick', ground: true, depth: true, lifeLoss: 0.7 }, lod: { near: 60, far: 200, min: 0.5 } },
   // (wind couples on every axis, so it is drag too: the terminal fall speed is gravity / (drag + wind))
   // leaves coming down from a canopy: they tumble (mesh particles), drift on the wind and lie where they land
   leaves: { name: 'leaves', rate: 7, life: [6, 9], shape: { type: 'box', size: [8, 0.5, 8], offset: [0, 5, 0] }, velocity: { dir: [0, -1, 0], speed: [0.3, 0.8], spread: 30 }, gravity: -2.6, drag: 1.4, wind: 1.6,

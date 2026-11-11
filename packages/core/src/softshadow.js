@@ -1,6 +1,7 @@
 // Mirage original code.
 import * as THREE from 'three';
 import { CHUNK_EPOCH } from './env.js';
+import { onChunksRestored } from './fog.js';
 
 // ---------------------------------------------------------------------------
 // Soft sun shadows: contact-hardening penumbrae from the sun's own shadow map (PCSS). Opt-in:
@@ -154,6 +155,7 @@ float mgSoftShadow( sampler2DShadow shadowMap, vec2 shadowMapSize, float shadowI
 `;
 
 let installed = null;   // the tap counts compiled in, once installed
+onChunksRestored(() => { installed = null; });   // the last world on the page was disposed (fog.js)
 /** Patch three's shadow chunks once per page (createWorldRenderer calls it when softShadows is on). The tap counts
  *  (blockerSamples, blockerSteps, filterSamples of `cfg`, else the defaults) are compiled in by the first install on
  *  the page; a later cfg asking for others is set to them (warning). False, with a warning and nothing patched, when
