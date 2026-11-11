@@ -14,6 +14,11 @@ import * as THREE from 'three';
  *  vol: also scattered by the volumetric pass. ctx.shared.lamps / ctx.shared.pool collect them (main.js). */
 export function lamp(ctx, { pos, color = 0xffffff, intensity = 4, range = 8, shadow = false, vol = false, decay = 2, live = false, indoor = false, normal = null, back = 0.3 }) {
   const { world } = ctx, c = new THREE.Color(color), q = ctx.shared.quality || 'high';
+  // the street's key light is white and warm-white (LED street and shop lighting, sodium and tungsten windows); a
+  // saturated colour (a neon sign, a screen) is an accent: it tints what is right by it, it does not wash the street.
+  // Outdoors such a lamp keeps 55 % of its power and 65 % of its reach (and the view cells hold fewer lamps)
+  const sat = (Math.max(c.r, c.g, c.b) - Math.min(c.r, c.g, c.b)) / Math.max(c.r, c.g, c.b, 1e-6);
+  if (!indoor && sat > 0.55) { intensity *= 0.55; range *= 0.65; }
   if (world.lampPool && !live && !indoor && !(shadow && q !== 'low')) {
     (ctx.shared.pool ||= []).push({ pos: pos.slice(), range, power: intensity, color: [c.r, c.g, c.b], decay, ...(normal ? { normal, back } : {}) });
     return null;

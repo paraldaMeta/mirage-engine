@@ -23,10 +23,10 @@ export function spiritBottle(P, bt, geom, m, { r = 0.04, h = 0.3, glass = [0.5, 
 }
 /** a tumbler / sake cup in clear glass */
 export const tumbler = (P, bt, geom, m, s = 1) => P.put(bt, once('tum', () => glassGeo(0.034, 0.09)), P.mats.clear, C(m, geom, [0, 0, 0], [0, 0, 0], s), [0.8, 0.85, 0.85]);
-/** a stack of n bowls (glazed: paint, glossy) */
+/** a stack of n bowls (glazed ceramic) */
 export function bowls(P, bt, geom, m, n = 4, color = [0.85, 0.82, 0.75], r = 0.085) {
-  for (let i = 0; i < n; i++) P.put(bt, once('bowl' + r, () => bowlGeo(r, r * 0.8, 12)), P.mats.paint, C(m, geom, [0, i * r * 0.28, 0]), color);
-  P.put(bt, once('bowlrim' + r, () => new THREE.TorusGeometry(r * 0.97, 0.004, 4, 20).rotateX(Math.PI / 2)), P.mats.paint, C(m, geom, [0, (n - 1) * r * 0.28 + r * 0.8, 0]), [0.5, 0.06, 0.04]);
+  for (let i = 0; i < n; i++) P.put(bt, once('bowl' + r, () => bowlGeo(r, r * 0.8, 12)), P.mats.ceramic, C(m, geom, [0, i * r * 0.28, 0]), color);
+  P.put(bt, once('bowlrim' + r, () => new THREE.TorusGeometry(r * 0.97, 0.004, 4, 20).rotateX(Math.PI / 2)), P.mats.ceramic, C(m, geom, [0, (n - 1) * r * 0.28 + r * 0.8, 0]), [0.5, 0.06, 0.04]);
 }
 /** a stock pot with a lid, two handles; r, h */
 export function pot(P, bt, geom, m, r = 0.2, h = 0.26, lid = true) {

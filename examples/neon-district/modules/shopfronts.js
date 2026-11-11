@@ -8,8 +8,8 @@
 // stays solid (piers, shutters: they are walls); steps, awnings and signs are decor.
 import * as THREE from 'three';
 import { lamp } from './lib.js';
-import { materials } from './materials.js';
-import { corrugated, canopy, worn, interiorMaterial, textAtlas, atlasQuad, signRects, inFrontOfSign } from './kit.js';
+import { materials, surfaceLib } from './materials.js';
+import { corrugated, canopy, interiorMaterial, textAtlas, atlasQuad, signRects, inFrontOfSign } from './kit.js';
 import { propKit } from './props-kit.js';
 import { acUnit } from './props-street.js';
 
@@ -26,19 +26,15 @@ export function shopFronts(ctx, fx, shops) {
   const W = 2.92, H = 2.45;
   const P = propKit(ctx), pb = new geom.MeshBatch();   // close-up props (props-*.js): AC units, the doors' wired glass
   // ---- materials (shared by every bay)
-  const shutterMats = ['vec3(0.36, 0.37, 0.39)', 'vec3(0.42, 0.1, 0.07)', 'vec3(0.08, 0.3, 0.3)', 'vec3(0.5, 0.36, 0.08)', 'vec3(0.24, 0.27, 0.33)']
-    .map((c, i) => mat.std({ roughness: 0.5, metalness: 0.55, side: THREE.DoubleSide }, worn(c, { rows: 0.38, chip: [0.45, 0.7, 0.55, 0.6, 0.4][i], rust: [0.5, 0.8, 0.6, 0.7, 0.45][i] })));
-  const frameMat = mat.std({ roughness: 0.6, metalness: 0.3 }, worn('vec3(0.11, 0.115, 0.12)', { rows: 1.4, chip: 0.35, rust: 0.35 }));
-  const awnings = [['vec3(0.5, 0.06, 0.05)', 'vec3(0.6, 0.58, 0.5)'], ['vec3(0.05, 0.25, 0.22)', 'vec3(0.55, 0.52, 0.45)'], ['vec3(0.55, 0.38, 0.04)', 'vec3(0.06, 0.06, 0.06)'], ['vec3(0.12, 0.16, 0.35)', 'vec3(0.5, 0.5, 0.48)']]
-    .map(([a, c]) => mat.std({ roughness: 0.62, side: THREE.DoubleSide }, {
-      fragmentDecl: 'float ndH;',
-      albedo: `{ vec3 p = mgWorldPos; float u = abs(normalize(mgWorldNormal).x) > 0.5 ? p.z : p.x; float s = step(0.5, fract(u / 0.5));
-        float dirt = mgFbm3(p * vec3(1.5, 4.0, 1.5), 3); ndH = 0.5 + 0.5 * sin(u * 25.1);
-        diffuseColor.rgb *= mix(${a}, ${c}, s) * (0.7 + 0.4 * dirt) * (1.0 - 0.35 * smoothstep(0.3, 0.9, mgFbm3(p * vec3(4.0, 0.6, 0.6) + 3.0, 3))); }`,
-      normal: 'normal = mgBump(normal, ndH, 0.002);',
-    }));
+  // (surfaces from the engine's library: painted steel shutters and frames, chipped to primer and steel, rust run down
+  // from the slats; striped canvas awnings; dirty shop glass, docs/surfaces.md)
+  const { painted, surf, lib, SURFACES } = surfaceLib(ctx);
+  const shutterMats = [[0.36, 0.37, 0.39], [0.42, 0.1, 0.07], [0.08, 0.3, 0.3], [0.5, 0.36, 0.08], [0.24, 0.27, 0.33]].map((c) => painted(c, { side: THREE.DoubleSide }));
+  const frameMat = painted([0.11, 0.115, 0.12], { variant: 'panels', size: 'small' });
+  const awnings = [[[0.5, 0.06, 0.05], [0.6, 0.58, 0.5]], [[0.05, 0.25, 0.22], [0.55, 0.52, 0.45]], [[0.55, 0.38, 0.04], [0.06, 0.06, 0.06]], [[0.12, 0.16, 0.35], [0.5, 0.5, 0.48]]]
+    .map(([a, c]) => surf(SURFACES.fabric({ variant: 'canvas', color: a, stripe: c, stripeWidth: 0.25, age: 0.6 }), { size: 'small', mapping: 'grain', grain: [1, 0, 0], params: { side: THREE.DoubleSide } }));
   const interior = interiorMaterial(ctx, { W, H }), clinic = interiorMaterial(ctx, { W, H, kind: 'clinic' });
-  const darkGlass = mat.std({ color: new THREE.Color(0.01, 0.012, 0.015), roughness: 0.08, metalness: 0.2 });
+  const darkGlass = lib.material(SURFACES.glass({ variant: 'tinted', color: [0.05, 0.06, 0.065], opacity: 0.85 }));
   // ---- names: one atlas for every light box
   const labels = NAMES.map((n, i) => ({ text: n, style: i % 4 === 3 ? 'neon' : 'box', bg: BOX[i % BOX.length], color: ['#ff4fa0', '#2fe0ff', '#ffb347', '#7dff9a'][i % 4], w: 512, h: 96 }));
   labels.push({ text: ['義體診所 · CLINIC 24'], style: 'box', bg: '#e9fbff', ink: '#05343a', w: 512, h: 96 });
@@ -58,15 +54,15 @@ export function shopFronts(ctx, fx, shops) {
     bevel(b, frameMat, [3.5, 0.5, 0.26], at([0, 2.92 + 0.25, 0.13]), 0.035);
     if (kind === 'open') {
       insides.add(new THREE.PlaneGeometry(W, H), isClinic ? clinic : interior, at([0, 0.05 + H / 2, 0.012]));
-      glass.add(new THREE.PlaneGeometry(W, H), M.glass, at([0, 0.05 + H / 2, 0.05]));
+      glass.add(new THREE.PlaneGeometry(W, H), M.glassDirty, at([0, 0.05 + H / 2, 0.05]));
       fx.add(new THREE.BoxGeometry(0.05, H, 0.06), M.blackMetal, at([-0.45, 0.05 + H / 2, 0.06]));        // the door's frame
       fx.add(new THREE.BoxGeometry(W, 0.05, 0.06), M.blackMetal, at([0, 2.1, 0.06]));
       const hs = isClinic ? 0.35 : Q.range(0.35, 0.95);
       b.add(shutter(hs), shutterMats[Q.int(0, 4)], at([0, 2.5 - hs, 0.07]));
       fx.add(new THREE.BoxGeometry(W + 0.02, 0.07, 0.07), M.darkMetal, at([0, 2.5 - hs, 0.1]));             // the shutter's bottom bar
       fx.add(new geom.RoundedBoxGeometry(3.3, 0.12, 0.4, 2, 0.03), M.concrete, at([0, 0.06, 0.2]));         // the step
-      const tint = isClinic ? 0x8ff6ff : [0xffb070, 0x9fd0ff, 0xff8ac0, 0xa0ffc0][Math.floor(Q.next() * 4)];
-      lamp(ctx, { pos: new THREE.Vector3(0, 1.9, 0.9).applyMatrix4(m).toArray(), color: tint, intensity: 4, range: 4.5, normal: [0, 0, out], back: 0.9 });
+      const tint = isClinic ? 0xe6f4ff : [0xffcf96, 0xeef3ff, 0xfff0dc, 0xffd9a8][Math.floor(Q.next() * 4)];
+      lamp(ctx, { pos: new THREE.Vector3(0, 1.9, 0.9).applyMatrix4(m).toArray(), color: tint, intensity: 5, range: 5.5, normal: [0, 0, out], back: 0.9 });
       open++;
     } else if (kind === 'shut') {
       b.add(shutter(2.8), shutterMats[Q.int(0, 4)], at([0, 0.02, 0.03]));

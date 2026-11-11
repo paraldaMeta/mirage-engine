@@ -17,13 +17,13 @@ const DARK = [0.03, 0.03, 0.033];
 /** a street bin, r 0.26, h 0.85: a body colour, an open or shut lid */
 export function bin(P, bt, geom, m, color = [0.04, 0.12, 0.08], open = false) {
   const { mats, put } = P;
-  put(bt, lathe([[0.2, 0], [0.21, 0.02], [0.25, 0.78], [0.265, 0.8], [0.265, 0.83], [0.25, 0.83], [0.235, 0.79], [0.19, 0.03], [0, 0.03]], 14), mats.paint, m, color.map((c) => c * 2.2));
+  put(bt, lathe([[0.2, 0], [0.21, 0.02], [0.25, 0.78], [0.265, 0.8], [0.265, 0.83], [0.25, 0.83], [0.235, 0.79], [0.19, 0.03], [0, 0.03]], 14), mats.plastic, m, color.map((c) => c * 2.2));
   for (const y of [0.25, 0.55]) put(bt, new THREE.TorusGeometry(0.22 + y * 0.045, 0.008, 3, 16).rotateX(Math.PI / 2), mats.metal, C(m, geom, [0, y, 0]), color.map((c) => c * 0.7));
   // the liner, folded over the rim, a few creases
   put(bt, once('liner', () => { const g = new THREE.TorusGeometry(0.262, 0.018, 4, 18).rotateX(Math.PI / 2), p = g.attributes.position; for (let i = 0; i < p.count; i++) { const a = Math.atan2(p.getZ(i), p.getX(i)); p.setY(i, p.getY(i) * (1 + 0.6 * Math.abs(Math.sin(a * 5))) - 0.025 * Math.abs(Math.sin(a * 3))); } g.computeVertexNormals(); return g; }), mats.paint, C(m, geom, [0, 0.82, 0]), [0.01, 0.01, 0.012]);
   // the lid: a shallow dome on a hinge at the back
   const lid = C(m, geom, [0, 0.835, -0.25], [open ? -1.1 : -0.02, 0, 0]);
-  put(bt, lathe([[0.275, 0], [0.27, 0.025], [0.18, 0.06], [0, 0.07]], 14), mats.paint, lid.clone().multiply(geom.compose([0, 0, 0.25])), color.map((c) => c * 2.2));
+  put(bt, lathe([[0.275, 0], [0.27, 0.025], [0.18, 0.06], [0, 0.07]], 14), mats.plastic, lid.clone().multiply(geom.compose([0, 0, 0.25])), color.map((c) => c * 2.2));
   put(bt, new THREE.CylinderGeometry(0.015, 0.015, 0.12, 8).rotateZ(Math.PI / 2), mats.metal, C(m, geom, [0, 0.835, -0.26]), [0.3, 0.3, 0.3]);
   put(bt, new geom.RoundedBoxGeometry(0.1, 0.02, 0.03, 1, 0.008), mats.metal, lid.clone().multiply(geom.compose([0, 0.03, 0.52])), [0.4, 0.4, 0.42]);   // the handle
   put(bt, new THREE.PlaneGeometry(0.16, 0.12), mats.paint, C(m, geom, [0, 0.55, 0.245], [-0.05, 0, 0]), [1, 1, 1], P.R.sticker3);
@@ -32,13 +32,13 @@ export function bin(P, bt, geom, m, color = [0.04, 0.12, 0.08], open = false) {
 /** a slatted crate s (height), 1.2 s wide; the stencil on its front */
 export function crate(P, bt, geom, m, s = 0.7, color = [0.32, 0.22, 0.12], stencil = 0) {
   const { mats, put, R } = P, w = s * 1.2, d = s, sl = s / 4;
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) put(bt, new THREE.BoxGeometry(0.06, s, 0.06), mats.paint, C(m, geom, [sx * (w / 2 - 0.03), s / 2, sz * (d / 2 - 0.03)]), color.map((c) => c * 0.8));
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) put(bt, new THREE.BoxGeometry(0.06, s, 0.06), mats.wood, C(m, geom, [sx * (w / 2 - 0.03), s / 2, sz * (d / 2 - 0.03)]), color.map((c) => c * 0.8));
   for (let i = 0; i < 3; i++) {
     const y = sl * 0.7 + i * sl * 1.25;
-    for (const sz of [-1, 1]) put(bt, new THREE.BoxGeometry(w - 0.02, sl * 0.9, 0.02), mats.paint, C(m, geom, [0, y, sz * (d / 2 - 0.005)]), color.map((c, k) => c * (0.9 + 0.12 * Math.sin(i * 3 + k))));
-    for (const sx of [-1, 1]) put(bt, new THREE.BoxGeometry(0.02, sl * 0.9, d - 0.02), mats.paint, C(m, geom, [sx * (w / 2 - 0.005), y, 0]), color);
+    for (const sz of [-1, 1]) put(bt, new THREE.BoxGeometry(w - 0.02, sl * 0.9, 0.02), mats.wood, C(m, geom, [0, y, sz * (d / 2 - 0.005)]), color.map((c, k) => c * (0.9 + 0.12 * Math.sin(i * 3 + k))));
+    for (const sx of [-1, 1]) put(bt, new THREE.BoxGeometry(0.02, sl * 0.9, d - 0.02), mats.wood, C(m, geom, [sx * (w / 2 - 0.005), y, 0]), color);
   }
-  for (let i = 0; i < 4; i++) put(bt, new THREE.BoxGeometry(w - 0.02, 0.02, d / 4 - 0.02), mats.paint, C(m, geom, [0, s - 0.01, -d / 2 + d / 8 + i * d / 4]), color.map((c) => c * 1.05));
+  for (let i = 0; i < 4; i++) put(bt, new THREE.BoxGeometry(w - 0.02, 0.02, d / 4 - 0.02), mats.wood, C(m, geom, [0, s - 0.01, -d / 2 + d / 8 + i * d / 4]), color.map((c) => c * 1.05));
   put(bt, new THREE.PlaneGeometry(w * 0.7, s * 0.4), mats.paint, C(m, geom, [0, s * 0.5, d / 2 + 0.012]), [0.9, 0.9, 0.85], R['stencil' + (stencil % 2)]);
 }
 
@@ -64,9 +64,9 @@ export function bag(P, bt, geom, m, seed = 0, color = [0.012, 0.012, 0.014]) {
 /** a cardboard box with flaps open, a tape strip, printed goods faces */
 export function cardboard(P, bt, geom, m, s = 0.45, print = 0) {
   const { mats, put, R } = P, h = s * 0.8, d = s * 0.85, card = [0.55, 0.4, 0.25];
-  put(bt, new THREE.BoxGeometry(s, h, d).translate(0, h / 2, 0), mats.paint, m, [1, 0.95, 0.9], R['goods' + (print % 6)]);
-  for (const sz of [-1, 1]) put(bt, new THREE.BoxGeometry(s, 0.006, d / 2).translate(0, 0, sz * d / 4), mats.paint, C(m, geom, [0, h, sz * d / 2], [sz * -0.8, 0, 0]), card);    // flaps folded out
-  for (const sx of [-1, 1]) put(bt, new THREE.BoxGeometry(s / 2, 0.006, d).translate(sx * s / 4, 0, 0), mats.paint, C(m, geom, [sx * s / 2, h, 0], [0, 0, sx * (1.0 + 0.3 * sx)]), card);
+  put(bt, new THREE.BoxGeometry(s, h, d).translate(0, h / 2, 0), mats.cardboard, m, [1, 0.95, 0.9], R['goods' + (print % 6)]);
+  for (const sz of [-1, 1]) put(bt, new THREE.BoxGeometry(s, 0.006, d / 2).translate(0, 0, sz * d / 4), mats.cardboard, C(m, geom, [0, h, sz * d / 2], [sz * -0.8, 0, 0]), card);    // flaps folded out
+  for (const sx of [-1, 1]) put(bt, new THREE.BoxGeometry(s / 2, 0.006, d).translate(sx * s / 4, 0, 0), mats.cardboard, C(m, geom, [sx * s / 2, h, 0], [0, 0, sx * (1.0 + 0.3 * sx)]), card);
   put(bt, new THREE.BoxGeometry(0.05, h * 0.5, 0.004), mats.paint, C(m, geom, [0, h * 0.75, d / 2 + 0.002]), [0.6, 0.55, 0.4]);
 }
 
@@ -114,8 +114,8 @@ export function jersey(P, bt, geom, m, len = 2.4) {
   const { mats, put } = P;
   const sh = once('jersey', () => { const s = new THREE.Shape(); [[-0.31, 0], [0.31, 0], [0.31, 0.08], [0.2, 0.33], [0.1, 0.94], [-0.1, 0.94], [-0.2, 0.33], [-0.31, 0.08]].forEach(([a, b], i) => (i ? s.lineTo(a, b) : s.moveTo(a, b))); return s; });
   const g = new THREE.ExtrudeGeometry(sh, { depth: len - 0.04, bevelEnabled: true, bevelSize: 0.02, bevelThickness: 0.02, bevelSegments: 2 }).translate(0, 0, -(len - 0.04) / 2).rotateY(Math.PI / 2);
-  put(bt, g, mats.paint, m, [0.42, 0.41, 0.39]);
-  for (const sx of [-0.6, 0.6]) put(bt, new THREE.BoxGeometry(0.4, 0.09, 0.66), mats.paint, C(m, geom, [sx * len / 2.4, 0.04, 0]), [0.01, 0.01, 0.01]);   // the slots under it
+  put(bt, g, mats.concrete, m, [0.42, 0.41, 0.39]);
+  for (const sx of [-0.6, 0.6]) put(bt, new THREE.BoxGeometry(0.4, 0.09, 0.66), mats.concrete, C(m, geom, [sx * len / 2.4, 0.04, 0]), [0.01, 0.01, 0.01]);   // the slots under it
   for (const sx of [-0.35, 0.35]) put(bt, new THREE.TorusGeometry(0.05, 0.012, 5, 10, Math.PI), mats.metal, C(m, geom, [sx * len / 2.4, 0.94, 0]), [0.3, 0.2, 0.12]);
   put(bt, new THREE.BoxGeometry(len * 0.5, 0.012, 0.21), mats.paint, C(m, geom, [0, 0.946, 0]), hex('#d8a810'));
   for (let i = 0; i < 6; i++) put(bt, new THREE.BoxGeometry(0.06, 0.013, 0.215), mats.paint, C(m, geom, [-len * 0.25 + 0.05 + i * len * 0.5 / 6, 0.947, 0], [0, 0.6, 0]), [0.02, 0.02, 0.02]);
@@ -135,7 +135,7 @@ export function newsBox(P, bt, geom, m, color = [0.4, 0.05, 0.04], lit = [1, 0.2
 /** a bench: slats on two steel frames, 2 m */
 export function bench(P, bt, geom, m, len = 2.0) {
   const { mats, put } = P;
-  for (let i = 0; i < 4; i++) put(bt, new geom.RoundedBoxGeometry(len, 0.035, 0.11, 1, 0.012), mats.paint, C(m, geom, [0, 0.44, -0.18 + i * 0.12]), [0.28, 0.16, 0.08]);
+  for (let i = 0; i < 4; i++) put(bt, new geom.RoundedBoxGeometry(len, 0.035, 0.11, 1, 0.012), mats.wood, C(m, geom, [0, 0.44, -0.18 + i * 0.12]), [0.28, 0.16, 0.08]);
   for (const sx of [-0.8, 0.8]) {
     put(bt, new geom.RoundedBoxGeometry(0.06, 0.42, 0.5, 1, 0.02), mats.metal, C(m, geom, [sx * len / 2, 0.21, 0]), [0.06, 0.06, 0.065]);
     put(bt, new THREE.BoxGeometry(0.2, 0.012, 0.56), mats.metal, C(m, geom, [sx * len / 2, 0.006, 0]), [0.06, 0.06, 0.065]);
