@@ -113,6 +113,7 @@ export function createWorldRenderer(config = {}) {
 
   const pipeline = new Pipeline(renderer, { width: width * pixelRatio, height: height * pixelRatio, msaa: device.msaa, aoSamples: Q.aoSamples });
   if (l2cfg) pipeline.useLight2(l2cfg, { sun, G });
+  pipeline.lensSun = { dir: skyU.uSunDir.value, G };   // post.godrays / post.flare (postfx.js): where the sun is, how bright
   if (lighting && lighting.screen) pipeline.screen = lighting.screen;
   // dynamic resolution (opt-in, moving frames only): the pipeline renders at resScale x the canvas and the grade pass
   // stretches it; still frames always render at full size, so they stay bit-identical
