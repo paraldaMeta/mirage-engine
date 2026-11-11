@@ -32,8 +32,8 @@ const quality = Q.get('quality') || (await pickQuality()).quality;
 // ---- what each quality level turns on; a URL flag overrides one feature
 const TIER = {
   low: { grade: 1, dusk: 1, pool: 1, bounce: 0, godrays: 0, flare: 0, ssr: 0, ssgi: 0, contact: 0, gi: 0, probes: 1, csm: 0, shadows: 0, vol: 0, taa2: 0, mb: 0, bloom2: 1, lut: 1, chroma: 0, upscale: 0.75, rain: 0.6, big: 0, planar: 0, dirt: 0, streak: 0, sharp: 0 },
-  medium: { grade: 1, dusk: 1, pool: 1, bounce: 1, godrays: 1, flare: 1, ssr: 1, ssgi: 0, contact: 0, gi: 1, probes: 1, csm: 0, shadows: 1, vol: 1, taa2: 1, mb: 0, bloom2: 1, lut: 1, chroma: 0.25, upscale: 1, rain: 1, big: 0, planar: 2, dirt: 0.12, streak: 0.08, sharp: 0.35 },
-  high: { grade: 1, dusk: 1, pool: 1, bounce: 1, godrays: 1, flare: 1, ssr: 1, ssgi: 1, contact: 1, gi: 1, probes: 1, csm: 1, shadows: 1, vol: 1, taa2: 1, mb: 0.35, bloom2: 1, lut: 1, chroma: 0.3, upscale: 1, rain: 1, big: 0, planar: 1, dirt: 0.15, streak: 0.1, sharp: 0.4 },
+  medium: { grade: 1, dusk: 1, pool: 1, bounce: 1, godrays: 1, flare: 1, ssr: 1, ssgi: 0, contact: 0, gi: 1, probes: 1, csm: 0, shadows: 1, vol: 1, taa2: 1, mb: 0, bloom2: 1, lut: 1, chroma: 0.06, upscale: 1, rain: 1, big: 0, planar: 2, dirt: 0.12, streak: 0.08, sharp: 0.5 },
+  high: { grade: 1, dusk: 1, pool: 1, bounce: 1, godrays: 1, flare: 1, ssr: 1, ssgi: 1, contact: 1, gi: 1, probes: 1, csm: 1, shadows: 1, vol: 1, taa2: 1, mb: 0.12, bloom2: 1, lut: 1, chroma: 0.08, upscale: 1, rain: 1, big: 0, planar: 1, dirt: 0.15, streak: 0.1, sharp: 0.55 },
 }[quality] || {};
 const F = (k) => (Q.has(k) ? (isNaN(+Q.get(k)) ? Q.get(k) : +Q.get(k)) : TIER[k]);
 const on = (k) => !!F(k);

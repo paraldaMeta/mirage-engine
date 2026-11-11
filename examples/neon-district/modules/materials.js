@@ -183,9 +183,11 @@ export function materials(ctx) {
   };
   const M = {
     NEON,
-    asphalt: mat.std({ roughness: 0.86 }, wet(ASPHALT, { porosity: 0.35, puddles: 1.5, height: 'ndH', heightMid: 0.5, heightScale: 0.02 })),
-    pavement: mat.std({ roughness: 0.82 }, wet(slabs(1.2, 'vec3(0.27, 0.27, 0.275)', 0.035), { porosity: 0.5, puddles: 0.9, height: 'ndH', heightMid: 0.6, heightScale: 0.014 })),
-    plaza: mat.std({ roughness: 0.42 }, wet(slabs(0.9, 'vec3(0.12, 0.125, 0.14)', 0.02), { porosity: 0.2, puddles: 1.1, height: 'ndH', heightMid: 0.65, heightScale: 0.012 })),
+    asphalt: mat.std({ roughness: 0.86 }, wet(ASPHALT, { porosity: 0.35, puddles: 1.5, height: 'ndH', heightMid: 0.5, heightScale: 0.02, ripples: 1.3, specAA: 2.5,
+      // water gathers in the two wheel ruts along the street and in the gutters by the kerbs
+      wear: 'max(smoothstep(0.5, 0.0, abs(abs(mgWorldPos.z - 6.0) - 1.3)), 0.8 * smoothstep(0.55, 0.0, min(abs(mgWorldPos.z - 2.5), abs(mgWorldPos.z - 9.5))))' })),
+    pavement: mat.std({ roughness: 0.82 }, wet(slabs(1.2, 'vec3(0.27, 0.27, 0.275)', 0.035), { porosity: 0.5, puddles: 0.9, height: 'ndH', heightMid: 0.6, heightScale: 0.014, specAA: 2.5 })),
+    plaza: mat.std({ roughness: 0.42 }, wet(slabs(0.9, 'vec3(0.12, 0.125, 0.14)', 0.02), { porosity: 0.2, puddles: 1.1, height: 'ndH', heightMid: 0.65, heightScale: 0.012, ripples: 1.3, specAA: 2.5 })),
     kerb: mat.std({ roughness: 0.8 }, wet({ ...CONCRETE, albedo: CONCRETE.albedo.replace('diffuseColor.rgb *= c; }', `
       float zone = step(abs(p.x - 18.0), 4.4) + step(abs(p.x + 22.0), 2.4) + step(abs(p.x - 7.0), 1.6);
       float seg = step(0.5, fract((p.x + p.z) / 0.9)), wear = smoothstep(0.25, 0.6, mgFbm3(p * 2.3, 3) * 0.5 + 0.5);
