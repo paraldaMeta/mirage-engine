@@ -148,6 +148,7 @@ export const COL = {
 export function part(g, slot, c = COL.carbon, { r = 0, d = null, mud = null } = {}) {
   let x = g.index ? g.toNonIndexed() : g;
   if (!x.attributes.normal) x.computeVertexNormals();
+  x = noSlivers(x);
   const n = x.attributes.position.count, col = new Float32Array(n * 3), nr = new Float32Array(n).fill(r), nd = new Float32Array(n * 3);
   const P = x.attributes.position, U = x.attributes.uv;
   for (let i = 0; i < n; i++) {
@@ -160,6 +161,24 @@ export function part(g, slot, c = COL.carbon, { r = 0, d = null, mud = null } = 
   x.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(n * 2), 2));
   x.setAttribute('color', new THREE.BufferAttribute(col, 3)); x.setAttribute('ndR', new THREE.BufferAttribute(nr, 1)); x.setAttribute('ndD', new THREE.BufferAttribute(nd, 3));
   return { g: x, slot };
+}
+/** a non-indexed geometry without its zero-area triangles (a lathe's poles, where a profile starts or ends on the
+ *  axis, make one of every two triangles there a line; a closed cylinder's cap fans do not): nothing drawn changes */
+function noSlivers(x) {
+  const P = x.attributes.position.array, n = P.length / 9, keep = [];
+  for (let t = 0; t < n; t++) {
+    const o = t * 9, ax = P[o + 3] - P[o], ay = P[o + 4] - P[o + 1], az = P[o + 5] - P[o + 2], bx = P[o + 6] - P[o], by = P[o + 7] - P[o + 1], bz = P[o + 8] - P[o + 2];
+    const cx = ay * bz - az * by, cy = az * bx - ax * bz, cz = ax * by - ay * bx;
+    if (cx * cx + cy * cy + cz * cz > 1e-18) keep.push(t);
+  }
+  if (keep.length === n) return x;
+  const out = new THREE.BufferGeometry();
+  for (const [k, a] of Object.entries(x.attributes)) {
+    const w = a.itemSize, src = a.array, dst = new src.constructor(keep.length * 3 * w);
+    keep.forEach((t, i) => dst.set(src.subarray(t * 3 * w, (t + 1) * 3 * w), i * 3 * w));
+    out.setAttribute(k, new THREE.BufferAttribute(dst, w, a.normalized));
+  }
+  return out;
 }
 /** merge parts of one slot (and a transform each) into one geometry */
 export function mergeParts(list) {
@@ -192,10 +211,12 @@ const cyl = (r0, r1, len, seg, open = false) => new THREE.CylinderGeometry(r1, r
 const axisTo = (g, axis) => (axis === 'x' ? g.rotateZ(-HP) : axis === 'z' ? g.rotateX(HP) : g);
 /** an actuator: a dark housing ring round a machined face with a hub on each side, axis along `axis`, at p */
 export function drum(r, w, q, axis = 'x', p = [0, 0, 0], { housing = COL.carbon, face = COL.natural, hub = COL.dark, ring = true } = {}) {
-  const seg = [6, 8, 10][q], hw = w / 2, out = [];
+  // (a small drum, under 5 cm, has 8 sides near: at a metre and a half its facets are under a pixel off the circle)
+  const seg = [6, 8, r < 0.05 ? 8 : 10][q], hw = w / 2, out = [];
   out.push(part(tf(axisTo(lathe([[r * 0.82, -hw], [r, -hw * 0.55], [r, hw * 0.55], [r * 0.82, hw]], seg), axis), p), 's', housing));
-  // the machined face: a hub boss, a step down to the face, the face; both sides
-  if (q > 0) out.push(part(tf(axisTo(lathe([[0, -hw - 0.006], [r * 0.34, -hw - 0.006], [r * 0.8, -hw + 0.002], [r * 0.8, hw - 0.002], [r * 0.34, hw + 0.006], [0, hw + 0.006]], seg), axis), p), 'm', face));
+  // the machined face: a hub boss, a step down to the face, the face; both sides (two caps: the barrel between them
+  // is inside the housing, never seen)
+  if (q > 0) for (const k of [-1, 1]) out.push(part(tf(axisTo(lathe(k < 0 ? [[0, -hw - 0.006], [r * 0.34, -hw - 0.006], [r * 0.8, -hw + 0.002]] : [[r * 0.8, hw - 0.002], [r * 0.34, hw + 0.006], [0, hw + 0.006]], seg), axis), p), 'm', face));
   else out.push(part(tf(axisTo(cyl(r * 0.8, r * 0.8, w + 0.006, seg), axis), p), 'm', face));
   return out;
 }
@@ -214,7 +235,7 @@ export function cover(pts, seg, c, sx = 1, sz = 1, p = [0, 0, 0], { seam = null,
 /** a cable from a to b bulging by `bulge` (a vector) */
 export function cable(a, b, bulge, r, q, c = COL.rubber) {
   const A = new THREE.Vector3(...a), B = new THREE.Vector3(...b), M = A.clone().add(B).multiplyScalar(0.5).add(new THREE.Vector3(...bulge));
-  return part(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([A, A.clone().lerp(M, 0.6).add(new THREE.Vector3(...bulge).multiplyScalar(0.3)), M, B.clone().lerp(M, 0.6).add(new THREE.Vector3(...bulge).multiplyScalar(0.3)), B]), [3, 4, 6][q], r, [3, 3, 4][q], false), 's', c, { r: 0.6 });
+  return part(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([A, A.clone().lerp(M, 0.6).add(new THREE.Vector3(...bulge).multiplyScalar(0.3)), M, B.clone().lerp(M, 0.6).add(new THREE.Vector3(...bulge).multiplyScalar(0.3)), B]), [3, 4, 5][q], r, [3, 3, 4][q], false), 's', c, { r: 0.6 });
 }
 /** a printed decal: a w x h plane facing `rot` at p (1.5 mm proud of the surface the caller places it on) */
 export const decal = (k, w, h, p, rot = [0, 0, 0]) => ({ ...part(tf(new THREE.PlaneGeometry(w, h), p, rot), 's', COL.white, { d: k }), decal: true });
@@ -222,8 +243,10 @@ export const decal = (k, w, h, p, rot = [0, 0, 0]) => ({ ...part(tf(new THREE.Pl
 // ---------------------------------------------------------------------------------------------------------------
 // a hand at the wrist, hanging along -y, palm toward -x * s (the body), fingers curled by `curl` (0 open .. 1 a fist)
 function hand(s, q, curl, shell, k = 1) {
-  const out = [], seg = (a, b, r) => {
-    const A = new THREE.Vector3(...a), B = new THREE.Vector3(...b), d = B.clone().sub(A), g = cyl(r, r * 0.86, d.length(), 4);
+  // a phalanx: a four-sided tapered tube, closed only at the fingertip (its base sits inside the joint before it)
+  const out = [], seg = (a, b, r, tip = false) => {
+    const A = new THREE.Vector3(...a), B = new THREE.Vector3(...b), d = B.clone().sub(A), g = new THREE.CylinderGeometry(r * 0.86, r, d.length(), 4, 1, !tip);
+    if (tip) g.clearGroups();
     g.applyMatrix4(new THREE.Matrix4().compose(A.add(B).multiplyScalar(0.5), new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize()), new THREE.Vector3(1, 1, 1)));
     out.push(part(g, 's', COL.joint, { r: 0.55 }));
   };
@@ -232,7 +255,7 @@ function hand(s, q, curl, shell, k = 1) {
   out.push(part(tf(rb(0.022 * k, 0.07 * k, 0.062 * k, 0.006 * k), [-s * 0.012 * k, -0.05 * k, 0]), 's', COL.joint, { r: 0.6 }));   // the palm pad
   if (q === 1) {   // a mitten: the fingers as one curled block, the thumb
     out.push(part(tf(rb(0.026 * k, 0.05 * k, 0.064 * k, 0.008 * k), [-s * 0.012 * curl * k, -0.112 * k, 0], [0, 0, s * curl * 0.8]), 's', COL.joint, { r: 0.55 }));
-    seg([-s * 0.012 * k, -0.035 * k, 0.034 * k], [-s * (0.03 + 0.025 * curl) * k, -0.08 * k, 0.045 * k], 0.01 * k);
+    seg([-s * 0.012 * k, -0.035 * k, 0.034 * k], [-s * (0.03 + 0.025 * curl) * k, -0.08 * k, 0.045 * k], 0.01 * k, true);
     return out;
   }
   // four fingers: two phalanges each, curling toward the palm (-x * s)
@@ -242,12 +265,12 @@ function hand(s, q, curl, shell, k = 1) {
     for (let j = 0; j < 2; j++) {
       a += curl * [1.1, 1.2][j];
       const n = p.clone().add(new THREE.Vector3(-s * Math.sin(a) * len, -Math.cos(a) * len, 0));
-      seg(p.toArray(), n.toArray(), (0.0085 - j * 0.0015) * k); p = n;
+      seg(p.toArray(), n.toArray(), (0.0085 - j * 0.0015) * k, j === 1); p = n;
     }
   }
   // the thumb: from the palm's front edge, across
   const t0 = [-s * 0.012 * k, -0.035 * k, 0.034 * k], t1 = [-s * (0.02 + 0.02 * curl) * k, -0.065 * k, 0.05 * k], t2 = [-s * (0.03 + 0.025 * curl) * k, -0.09 * k, 0.04 * k];
-  seg(t0, t1, 0.01 * k); seg(t1, t2, 0.0085 * k);
+  seg(t0, t1, 0.01 * k); seg(t1, t2, 0.0085 * k, true);
   return out;
 }
 
@@ -280,21 +303,21 @@ export function humanoid(style, lod, kit = {}) {
   const sc = heavy ? 1.18 : home ? 1.06 : 1;   // limb girth
 
   // ---- pelvis and waist
-  add('Hips', cover([[0, -0.125], [0.05, -0.12], [0.1, -0.075], [0.13, -0.01], [0.13, 0.035], [0.11, 0.065], [0, 0.07]], [6, 9, 12][q], SH, home ? 1.15 : 1.12, home ? 0.9 : 0.78, [0, 0, 0], { seam: q > 1 ? 0.0 : null }));
+  add('Hips', cover([[0, -0.125], [0.05, -0.12], [0.1, -0.075], [0.13, -0.01], [0.13, 0.035], [0.11, 0.065], [0, 0.07]], [6, 9, 11][q], SH, home ? 1.15 : 1.12, home ? 0.9 : 0.78, [0, 0, 0], { seam: q > 1 ? 0.0 : null }));
   if (q > 0) add('Hips', mv(part(ext([[-0.06, 0.03], [0.06, 0.03], [0.05, -0.09], [-0.05, -0.09]], 0.05, 0.012), 's', SH2), [0, 0, home ? 0.12 : 0.1]));
   if (heavy) {   // the torso turns on a big bearing ring
     add('Spine', dr(0.15, 0.06, 'y', [0, 0.05, 0], { housing: COL.carbon }));
     add('Spine', part(lathe([[0.1, 0.08], [0.13, 0.1], [0.12, 0.16], [0.1, 0.17]], [6, 8, 14][q]), 's', COL.rubber, { r: 0.75 }));
   } else {
     add('Spine', dr(home ? 0.085 : 0.07, 0.05, 'y', [0, 0.025, 0], { housing: JT }));
-    add('Spine', part(lathe(home ? [[0.075, 0.05], [0.1, 0.07], [0.09, 0.1], [0.1, 0.13], [0.09, 0.16], [0.075, 0.175]] : [[0.06, 0.05], [0.08, 0.065], [0.07, 0.09], [0.08, 0.115], [0.07, 0.14], [0.08, 0.16], [0.06, 0.175]], [6, 8, 12][q]), 's', home ? COL.fabric : COL.rubber, { r: home ? 0.92 : 0.75 }));   // a bellows
+    add('Spine', part(lathe(home ? [[0.075, 0.05], [0.1, 0.07], [0.09, 0.1], [0.1, 0.13], [0.09, 0.16], [0.075, 0.175]] : [[0.06, 0.05], [0.08, 0.065], [0.07, 0.09], [0.08, 0.115], [0.07, 0.14], [0.08, 0.16], [0.06, 0.175]], [6, 8, 10][q]), 's', home ? COL.fabric : COL.rubber, { r: home ? 0.92 : 0.75 }));   // a bellows
   }
 
   // ---- the chest: a deep shell, the shoulder housings, the back pack, the neck base
   const W = heavy ? 0.25 : home ? 0.17 : 0.165;
   const chest = home ? [[0, -0.02], [0.09, -0.015], [0.125, 0.03], [0.148, 0.1], [0.15, 0.16], [0.13, 0.2], [0.08, 0.218], [0, 0.22]]
     : [[0, -0.02], [0.095, -0.015], [0.12, 0.03], [0.145, 0.1], [0.15, 0.165], [0.135, 0.2], [0.09, 0.218], [0, 0.222]];
-  add('Chest', cover(chest, [6, 10, 14][q], SH, W / 0.15, heavy ? 0.85 : home ? 0.88 : 0.74, [0, 0, 0], { seam: q > 1 ? 0.06 : null }));
+  add('Chest', cover(chest, [6, 10, 12][q], SH, W / 0.15, heavy ? 0.85 : home ? 0.88 : 0.74, [0, 0, 0], { seam: q > 1 ? 0.06 : null }));
   const fz = 0.15 * (heavy ? 0.85 : home ? 0.88 : 0.74);   // the chest's front
   if (!home) {   // a breast plate over the shell
     add('Chest', mv(part(ext([[-W * 0.8, 0.2], [W * 0.8, 0.2], [W * 0.85, 0.1], [W * 0.45, 0.02], [-W * 0.45, 0.02], [-W * 0.85, 0.1]], 0.03, 0.01, 'xy', 1), 's', heavy ? COL.graphite : COL.carbon), [0, 0, fz - 0.004]));
@@ -322,7 +345,7 @@ export function humanoid(style, lod, kit = {}) {
     add('Chest', part(tf(new THREE.SphereGeometry(0.007, 6, 4), [s * pw * 0.4, ph / 2 + 0.265, pz - 0.01]), 'l', [1, 1, 1]));
   }
   if (kit.mast) {   // the marksman: a tall sensor mast on the pack, a sensor pod with three lenses
-    add('Chest', part(tf(cyl(0.012, 0.01, 0.55, [4, 6, 8][q]), [-0.07, 0.48, pz - 0.02]), 'm', COL.dark));
+    add('Chest', part(tf(cyl(0.012, 0.01, 0.55, [4, 6, 6][q], true), [-0.07, 0.48, pz - 0.02]), 'm', COL.dark));   // (open: its ends are in the pack and the pod)
     add('Chest', part(tf(rb(0.09, 0.06, 0.07, 0.015), [-0.07, 0.77, pz - 0.01]), 's', COL.carbon));
     for (const x of [-0.025, 0, 0.025]) add('Chest', part(tf(cyl(0.01, 0.01, 0.01, 8).rotateX(HP), [-0.07 + x, 0.77, pz + 0.027]), 'l', [1, 1, 1]));
   }
@@ -345,11 +368,11 @@ export function humanoid(style, lod, kit = {}) {
     add('Head', part(tf(rb(0.07, 0.008, 0.004, 0.002), [0, 0.07, 0.137]), 'l', [1, 1, 1]));
     if (q > 0) for (const s of [-1, 1]) add('Head', dr(0.035, 0.025, 'x', [s * 0.12, 0.1, -0.01], { housing: COL.pale }));
   } else {   // the sentinel: a narrow head, a wraparound visor, a ring of cameras, a crest
-    add('Head', part(tf(lathe([[0, 0.0], [0.06, 0.005], [0.085, 0.04], [0.092, 0.11], [0.085, 0.16], [0.055, 0.19], [0, 0.198]], [6, 9, 12][q]), [0, 0, 0], [0, 0, 0], [0.92, 1, 1.12]), 's', COL.carbon));
+    add('Head', part(tf(lathe([[0, 0.0], [0.06, 0.005], [0.085, 0.04], [0.092, 0.11], [0.085, 0.16], [0.055, 0.19], [0, 0.198]], [6, 9, 11][q]), [0, 0, 0], [0, 0, 0], [0.92, 1, 1.12]), 's', COL.carbon));
     add('Head', part(tf(lathe([[0.083, 0.07], [0.094, 0.085], [0.096, 0.115], [0.09, 0.13]], [3, 5, 8][q], -1.15, 2.3), [0, 0, 0.004], [0, 0, 0], [0.95, 1, 1.15]), 's', COL.glass, { r: 0.05 }));
     add('Head', part(tf(lathe([[0.0935, 0.098], [0.0945, 0.104]], [3, 5, 8][q], -0.85, 1.7), [0, 0, 0.004], [0, 0, 0], [0.95, 1, 1.15]), 'l', [1, 1, 1]));
     if (q > 0) {
-      for (let i = 0; i < 6; i++) { const a = -2.4 + i * 0.96, x = Math.sin(a) * 0.088 * 0.92, z = Math.cos(a) * 0.088 * 1.12; if (Math.abs(a) < 1) continue; add('Head', part(tf(cyl(0.011, 0.011, 0.012, 8).rotateX(HP), [x, 0.15, z], [0, a, 0]), 's', COL.glass, { r: 0.05 })); add('Head', part(tf(new THREE.TorusGeometry(0.009, 0.0016, 3, 8), [x * 1.07, 0.15, z * 1.07], [0, a, 0]), 'l', [0.6, 0.6, 0.6])); }
+      for (let i = 0; i < 6; i++) { const a = -2.4 + i * 0.96, x = Math.sin(a) * 0.088 * 0.92, z = Math.cos(a) * 0.088 * 1.12; if (Math.abs(a) < 1) continue; add('Head', part(tf(cyl(0.011, 0.011, 0.012, 6).rotateX(HP), [x, 0.15, z], [0, a, 0]), 's', COL.glass, { r: 0.05 })); add('Head', part(tf(new THREE.TorusGeometry(0.009, 0.0016, 3, 6), [x * 1.07, 0.15, z * 1.07], [0, a, 0]), 'l', [0.6, 0.6, 0.6])); }
       add('Head', part(ext([[0.08, 0.17], [0.02, 0.215], [-0.09, 0.2], [-0.105, 0.15]], 0.03, 0.008, 'zy', 1), 's', COL.graphite));
       add('Head', decal(kit.number || 'n0', 0.05, 0.025, [0.084, 0.06, -0.02], [0, HP + 0.25, 0]));
     }
