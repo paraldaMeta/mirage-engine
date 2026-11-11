@@ -267,7 +267,9 @@ flashes at 0.3. `?comfort=standard|intense` sets one for a visit. Settings kept 
 the look and touch choices (sensitivity, inverted look, touch sizes) and get the new feel and field of view.
 **Field of view:** 75 degrees vertical on a desktop (107.5 horizontal at 16:9; it was 62, 94 horizontal), 62 on a
 touch screen (a phone held sideways, about 2.1:1, already sees 105 horizontal); the slider keeps 50-90. The aim
-down the sight narrows in the same ratio as before.
+down the sight narrows in the same ratio as before. The wider view costs frame time: the playtest's frame-cost view
+draws 1761 calls and 1412 k triangles at 75 against 1556 and 1305 k at 62 (25.0 against 21.1 ms on the same
+loaded machine; that step failed its 16.7 ms gate at 62 too).
 **The dash** never had a field-of-view warp, speed lines or blur: 0.2 s of movement and a tint, now faint.
 **The flashes:** raw, the lightning's lamp took a random level every tick (a 60 Hz flicker for 0.38 s), a sign that
 flickers dropped to a quarter on a random 4 % of ticks, the spark lamp flickered per tick. Below 1: the lightning is
