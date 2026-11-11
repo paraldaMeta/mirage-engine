@@ -46,6 +46,9 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
     spin: 0, heat: 0, vent: false, firing: false, switching: null, autoReload: 0, tuck: 0, swayX: 0, swayY: 0, shake: 0, flinchP: 0, flinchY: 0, dip: 0, pumpT: 0, slideT: 0, magOutAt: 0, reloadSaid: 0,
   };
   let play = null, grid = null, rnd = 0x1234567, unlocked = false, refillAt = -1e9;
+  // the comfort values (feel.js COMFORT), read where they act; without them (opts {}) the old feel, factor 1
+  const cv = (key, d, lo, hi) => { const v = +opts[key]; return opts[key] !== undefined && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d; };
+  const C = { shake: () => cv('shake', 1, 0, 1.5), bob: () => cv('bob', 1, 0, 1.5), punch: () => cv('punch', 1, 0, 1), roll: () => cv('roll', 1, 0, 1), kick: () => cv('kick', 1, 0.4, 1), settle: () => cv('settle', 1, 1, 2.5) };
   const R = () => ((rnd = (Math.imul(rnd ^ (rnd >>> 15), 0x2c1b3c6d) ^ (rnd << 7)) >>> 0) / 4294967296);
   const fwd = new THREE.Vector3(), mz = new THREE.Vector3(), right = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), tmp = new THREE.Vector3();
   const flags = (k, d = 1) => { game.flags[k] = (game.flags[k] || 0) + d; };   // test counters: written straight (no 'flag' event a round)
@@ -173,12 +176,17 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
     }
     targets.noise(player.feet, A.id === 'shotgun' || A.id === 'rocket' ? 34 : 26);
     // recoil: a climb that rises through a burst, the gun's side pattern, a little noise; most of it comes back
-    const P = A.recoil, k = (1 - 0.35 * S.ads) * (S.boost ? 0.85 : 1);
+    // comfort (feel.js): `kick` is the camera's share of the climb, what it gives up goes to the gun model's kick
+    const cam = C.kick(), P = A.recoil, k = (1 - 0.35 * S.ads) * (S.boost ? 0.85 : 1) * cam;
     // (the climb a burst has piled up is capped: without that a long burst, the gatling's above all, walked the view
     // up to the vertical and pinned it there for as long as the trigger was held)
-    const climb = Math.min(P.climb * (1 + Math.min(n, 10) * P.ramp) * k, Math.max(0, (P.cap ?? 0.2) - S.debtP)), side = (P.side[n % P.side.length] * P.climb * 0.7 + (R() - 0.5) * P.rand) * k;
-    play.pitch = Math.min(1.45, play.pitch + climb); play.yaw += side; S.debtP += climb; S.debtY += side;
-    S.kick = Math.min(1.6, S.kick + 1); S.roll = Math.min(1.5, S.roll + 1); S.rollSign = R() < 0.5 ? -1 : 1; S.fovPunch = Math.min(P.fov * 1.6, S.fovPunch + P.fov);
+    const climb = Math.min(P.climb * (1 + Math.min(n, 10) * P.ramp) * k, Math.max(0, (P.cap ?? 0.2) * cam - S.debtP)), side = (P.side[n % P.side.length] * P.climb * 0.7 + (R() - 0.5) * P.rand) * k;
+    // the debt is what the view actually climbed: at the top of the clamp a climb that did not happen is not paid back
+    // (it pulled the view below where the player had put it)
+    const was = play.pitch;
+    play.pitch = Math.min(1.45, was + climb); play.yaw += side; S.debtP += Math.max(0, play.pitch - was); S.debtY += side;
+    const punch = C.punch();
+    S.kick = Math.min(1.6 + (1 - cam), S.kick + 1 + 0.8 * (1 - cam)); S.roll = Math.min(1.5, S.roll + 1); S.rollSign = R() < 0.5 ? -1 : 1; S.fovPunch = Math.min(P.fov * 1.6 * punch, S.fovPunch + P.fov * punch);
     S.bloom = Math.min(A.spread.max, S.bloom + A.spread.bloom); S.flashT = 0.04;
     flash.distance = A.flash.gain > 30 ? 14 : 10;
     S.shake = Math.min(3, S.shake + P.shake);
@@ -376,7 +384,8 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
     S.kick = Math.max(0, S.kick - dt * 9); S.roll = Math.max(0, S.roll - dt * 8); S.fovPunch = Math.max(0, S.fovPunch - dt * 30 * Math.max(1, S.fovPunch)); S.flashT -= dt; S.jab = Math.max(0, S.jab - dt);
     S.pumpT = Math.max(0, S.pumpT - dt); S.slideT = Math.max(0, S.slideT - dt);
     if (A.id === 'shotgun' && S.pumpT > 0 && S.pumpT < 0.38 && S.pumpT + dt >= 0.38 && S.sinceShot < 0.6) { say('nd_pump', { gain: 0.6 }); eject('hull'); }
-    S.shake *= Math.exp(-dt * 7); S.flinchP *= Math.exp(-dt * 10); S.flinchY *= Math.exp(-dt * 10); S.dip *= Math.exp(-dt * 9);
+    const st = C.settle();   // comfort: the shake, the flinch and the dip die away `settle` times as fast
+    S.shake *= Math.exp(-dt * 7 * st); S.flinchP *= Math.exp(-dt * 10 * st); S.flinchY *= Math.exp(-dt * 10 * st); S.dip *= Math.exp(-dt * 9 * st);
     const sprinting = player.speed > 4.4 && !S.fire && !S.aim && S.reloading <= 0 ? 1 : 0;
     S.sprint += (sprinting - S.sprint) * Math.min(1, dt * 8);
     S.walked += player.speed * dt;
@@ -385,7 +394,7 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
   }
 
   // ---- before every sub-frame: the lens, the camera's offsets (once a frame), the view model on the camera
-  const left = { pos: new THREE.Vector3(1e9, 0, 0), q: new THREE.Quaternion() };
+  const left = { pos: new THREE.Vector3(1e9, 0, 0), q: new THREE.Quaternion() }, UP = new THREE.Vector3(0, 1, 0);
   let clock = 0;
   function pose(dt) {
     if (!play) return;
@@ -396,11 +405,13 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
     S.lean += (S.wantLean - S.lean) * Math.min(1, dt * 9);
     // the camera's offsets go on once a frame: play writes the camera every frame, so a camera that is not where these
     // left it is a new frame (a frame's later sub-frames find it where they left it)
-    const k = Math.min(1.5, opts.shake ?? 1), bobK = Math.min(player.speed / 3.4, 1.5) * (1 - 0.8 * S.ads) * Math.min(1, k + 0.25), ph = S.walked * 2.3;
+    // comfort: the shake's strength, the bob's (it used to follow the shake setting), the roll's share
+    const k = C.shake(), rl = C.roll(), bobK = Math.min(player.speed / 3.4, 1.5) * (1 - 0.8 * S.ads) * C.bob(), ph = S.walked * 2.3;
     const sh = S.shake * 0.0055 * k, t = clock;
-    const offY = -Math.abs(Math.cos(ph)) * 0.022 * bobK - player.crouch * 0.6 - S.dip;
+    S.bobY = -Math.abs(Math.cos(ph)) * 0.022 * bobK;   // (kept for the measurements: scripts/motion-check.mjs)
+    const offY = S.bobY - player.crouch * 0.6 - S.dip;
     const pitch = (Math.sin(t * 41) + Math.sin(t * 67 + 1.3)) * sh + S.flinchP, yaw = (Math.sin(t * 37 + 0.7) + Math.sin(t * 59 + 2.1)) * sh * 0.8 + S.flinchY;
-    const roll = -S.lean * 0.13 + Math.sin(ph) * 0.004 * bobK + S.roll * A.recoil.roll * S.rollSign * k * 0.35 + (Math.sin(t * 29) * sh * 0.6);
+    const roll = -S.lean * 0.13 + rl * (Math.sin(ph) * 0.004 * bobK + S.roll * A.recoil.roll * S.rollSign * k * 0.35 + Math.sin(t * 29) * sh * 0.6);
     const any = Math.abs(offY) + Math.abs(S.lean) + Math.abs(pitch) + Math.abs(yaw) + Math.abs(roll) > 1e-5;
     if (any && !(camera.position.equals(left.pos) && camera.quaternion.equals(left.q))) {
       right.set(1, 0, 0).applyQuaternion(camera.quaternion); right.y = 0; right.normalize();
@@ -410,7 +421,9 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
         reach = Math.min(0.42, side ? Math.max(0, side.distance - 0.22) : 0.42);
       }
       camera.position.addScaledVector(right, S.lean * reach); camera.position.y += offY;
-      camera.rotateY(yaw); camera.rotateX(pitch); camera.rotateZ(roll); camera.updateMatrixWorld();
+      // the yaw offset turns about the world's vertical (about the camera's own, on a view pitched up or down, it tilted
+      // the horizon), the pitch about the camera's level right axis: only `roll` rolls the view
+      camera.rotateOnWorldAxis(UP, yaw); camera.rotateX(pitch); camera.rotateZ(roll); camera.updateMatrixWorld();
       left.pos.copy(camera.position); left.q.copy(camera.quaternion);
     }
     holder.position.copy(camera.position); holder.quaternion.copy(camera.quaternion);
@@ -489,12 +502,12 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
     /** the low-health / hurt feel on the camera: a flinch away from where the hit came from */
     flinch(from, k = 1) {
       if (!play) return;
-      const m = Math.min(1.5, opts.shake ?? 1);
+      const m = C.shake();
       let side = 0;
       if (from) { const a = Math.atan2(from[2] - player.feet[2], from[0] - player.feet[0]); side = Math.sin(a - play.yaw); }
       S.flinchP += 0.035 * k * m; S.flinchY += -side * 0.03 * k * m; S.shake = Math.min(3, S.shake + 0.5 * k);
     },
-    land(v) { S.dip = Math.min(0.16, S.dip + v * 0.012); S.shake += Math.min(0.8, v * 0.05); },
+    land(v) { const b = Math.max(0.4, Math.min(1, C.bob() + 0.3)); S.dip = Math.min(0.16 * b, S.dip + v * 0.012 * b); S.shake += Math.min(0.8, v * 0.05); },
     addShake(k) { S.shake = Math.min(4, S.shake + k); },
     save: () => ({ cur, arms: Object.fromEntries(ORDER.map((id) => [id, { mag: W[id].mag, reserve: W[id].reserve === Infinity ? -1 : W[id].reserve, owned: W[id].owned }])), mag: W.carbine.mag, reserve: W.carbine.reserve }),
     load(s) {

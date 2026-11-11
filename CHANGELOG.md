@@ -100,6 +100,18 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
   `unlock()`; afterwards at once. Returns the mixer.
 
 **Fixes**
+- @miragekit/play look: `play.look` (`{ sens, invert }`, default 1 / false: no change) applies a sensitivity and an
+  inverted vertical axis to every turn as it arrives; a game that rescaled the turn afterwards in its own tick met
+  the pitch clamp first, so with the axis inverted the view latched at +-1.45 (neon-district: "the view gets stuck
+  looking up"). Pointer-lock jumps (one delta of hundreds of px right on capture, or out of nothing: over 250 px and
+  6x the last) are dropped; a drag whose button came up outside the window ends; `play.yaw` / `play.pitch` refuse
+  NaN and the pitch keeps to +-1.45; `play.turn(dx, dy, k, source)` and `play.lastTurn` say what turned it. Checked
+  by `examples/neon-district/scripts/look-check.mjs` (Chrome, real input events).
+- @miragekit/game input: the right stick is read on standard-mapping pads only (a wheel or HID device listed as a
+  gamepad, axes 2 / 3 resting at -1 or +1, turned the view to the top by itself); a standard pad is preferred over
+  another device at index 0; a stick counts only once it has been seen at rest; a right stick held still off centre
+  while the mouse and keys are in use (a drifting pad on the desk) gets a dead zone past its reading.
+  `input.sticks` exposes what is read. Checked in `packages/game/check.mjs`.
 - @miragekit/core vfx: when the scene clock goes back (`play.place()` sets it to 0), a particle pool's reset no longer
   draws into the state textures its pass still has bound (Chrome: "Feedback loop formed between Framebuffer and
   active Texture", 122 warnings in the new `vfx-check.mjs` case), a pool made after the clock had run no longer

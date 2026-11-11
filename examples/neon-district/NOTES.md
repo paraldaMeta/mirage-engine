@@ -243,6 +243,99 @@ Chrome; iOS Safari has none).
 real phone: thumb reach, the feel of the look speed and the aim assist, the vibration, safe-area insets on a notched
 phone, and iOS Safari's own gestures (pinch, the swipe-up bar) are untested.
 
+## Comfort
+
+The owner felt a little dizzy after 15 minutes. The game's motion was audited, put into numbers and calmed by
+default; the old feel is one setting away.
+
+**One setting, three presets** (`game/feel.js` `COMFORT`; `window.__mirage.game.comfort` for the options panel):
+
+| value | what it scales | comfort (default) | standard | intense (= before) |
+|---|---|---:|---:|---:|
+| `shake` | screen shake (shots, hits, blasts, landings), the flinch when hit | 0.45 | 0.75 | 1 |
+| `bob` | the walk's head bob (vertical only) and the landing dip | 0.35 | 0.7 | 1 |
+| `punch` | the field-of-view punch a shot gives | 0.25 | 0.6 | 1 |
+| `roll` | camera roll from recoil, the walk and the shake (the lean's tilt stays: the player asks for it) | 0 | 0.5 | 1 |
+| `kick` | the camera's share of the recoil climb (what it gives up goes to the gun model's kick) | 0.6 | 0.85 | 1 |
+| `settle` | how fast shake, flinch and dip die away | 2x | 1.4x | 1x |
+| `hitStop` | the 55 ms freeze of the robots on a kill | off | on | on |
+| `blur` | factor on the quality level's motion blur (high: 0.12 shutter) | 0 | 0.5 | 1 |
+| `flashes` | lightning, sparks, flickering signs, the dash / overdrive tint: below 1 smooth and dimmer | 0.6 | 0.8 | 1 (raw) |
+
+Changing one value after a preset makes it `custom`. `prefers-reduced-motion` gives the comfort preset with the
+flashes at 0.3. `?comfort=standard|intense` sets one for a visit. Settings kept before this pass (no `v: 2`) keep
+the look and touch choices (sensitivity, inverted look, touch sizes) and get the new feel and field of view.
+**Field of view:** 75 degrees vertical on a desktop (107.5 horizontal at 16:9; it was 62, 94 horizontal), 62 on a
+touch screen (a phone held sideways, about 2.1:1, already sees 105 horizontal); the slider keeps 50-90. The aim
+down the sight narrows in the same ratio as before.
+**The dash** never had a field-of-view warp, speed lines or blur: 0.2 s of movement and a tint, now faint.
+**The flashes:** raw, the lightning's lamp took a random level every tick (a 60 Hz flicker for 0.38 s), a sign that
+flickers dropped to a quarter on a random 4 % of ticks, the spark lamp flickered per tick. Below 1: the lightning is
+two smooth pulses (about 5 Hz) at the flashes' strength, a flickering sign dims by half for 0.6 s every 4.8 s, the
+spark lamp fades. The uplink's strobe (1.4 Hz) and the muzzle lamp (the player's own shots) are unchanged.
+
+**Measured** (`node scripts/motion-check.mjs`, `BEFORE=<old dist>` adds the first column): a scripted 20 s run with
+no look input (walk 3 s, sprint 2.5 s, strafe, each of four guns fired 0.9-2.2 s, three hits, a dash, a rocket into
+the street 5 m ahead); every rendered frame's final camera; headless Chrome, medium quality, 1280 x 720.
+
+| measure | before | comfort | standard | intense |
+|---|---:|---:|---:|---:|
+| camera angular velocity, peak / RMS (deg/s) | 235 / 16.5 | 120 / 8.1 | 178 / 10.7 | 266 / 16.5 |
+| the offsets' (shake, flinch, roll) angular velocity, peak / RMS (deg/s) | 140 / 7.0 | 70 / 3.7 | 110 / 4.7 | 145 / 7.3 |
+| shake + flinch offset, peak / RMS (deg) | 2.53 / 0.23 | 1.31 / 0.07 | 1.71 / 0.12 | 2.40 / 0.22 |
+| roll outside the lean, peak (deg) | 2.09 | 0.00 | 0.82 | 2.21 |
+| field-of-view punch, peak (deg; the rocket and shotgun reach 4 / 3.2 x 1.6 before) | 2.00 | 0.50 | 1.20 | 2.00 |
+| recoil climb in a burst, peak (deg) | 1.24 | 0.76 | 1.02 | 1.30 |
+| offsets over 0.1 deg after their cause ended (ms) | 340 | 117 | 204 | 298 |
+| head bob, walking, peak-to-peak (cm) at Hz | 3.5* at 2.6 | 0.74 at 2.5 | 1.49 at 2.4 | 2.12 at 2.3 |
+| head bob, sprinting, peak-to-peak (cm) at Hz | 3.6* at 4.7 | 1.13 at 3.9 | 2.30 at 3.9 | 3.27 at 4.1 |
+| camera vs mouse, largest error on a frame, sens 2.5, at 50 / 60 / 120 Hz (deg) | 2.84 / 0.95 / 3.78 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 |
+
+(*the old build reports no bob of its own: its column is the eye's height over the feet less its 0.6 s mean, which
+also holds the kerbs and steps.) Gates on the default: offsets <= 1.5 deg, no roll, punch <= 1 deg, bob <= 2 cm,
+nothing still moving the view 150 ms after its cause, the camera within 0.3 deg of the mouse on every frame.
+
+**Frame pacing and latency:** the mouse turns the view in its own event and the camera is set from it on the next
+rendered frame (no fixed-step lag); the position is interpolated between the 60 Hz steps (the simulation's
+`viewPosition`), so 50 and 120 Hz displays do not judder; the game draws at most 60 frames a second (play's frame
+gate). Before this pass the sensitivity was applied in the game's fixed tick, so at sens != 1 a frame without a tick
+showed the turn unscaled and the next caught up (up to 3.8 deg off at 120 Hz, the table's last row). The frame cost
+(16-27 ms a frame on a fast laptop) is the performance pass's, not this one's: below 60 fps the turn still lands on
+the frame, but each frame is a bigger step.
+
+**Not measured, and cannot be:** whether anyone feels better. Nobody can feel motion sickness in a headless browser;
+the presets follow the usual advice (a wide enough field of view, no camera roll the player did not cause, little
+bob, short and small shake, no flicker), and the numbers above say only that the motion is smaller and shorter.
+The HUD's low-health pulse (a red edge at about 1.1 Hz below 35 health) and the comic pop words (their own `pops`
+option) are the HUD's and were left as they are.
+
+## The stuck view ("if I carelessly look up, the view gets stuck looking up")
+
+Reproduced in `scripts/look-check.mjs` (real input over the DevTools protocol: pointer-lock mouse, multi-touch on a
+phone and a tablet, an injected gamepad), 189 cases, before the fix 67 failed:
+- **inverted look (any sensitivity, mouse, touch and pad):** the game rescaled what had turned since its last tick
+  (`endPitch + (pitch - endPitch) x sens x -1`) after play had already clamped the pitch to 1.45: at the top, a
+  look down was clamped away by play, and the game mirrored what was left back up. The view stayed at exactly
+  1.450 until a shot's recoil recovery happened to pull it below the clamp. A checkpoint load was "mirrored" too.
+- **a sensitivity other than 1:** a checkpoint load's pitch was rescaled as if it were a turn (saved -0.5 came back
+  as +0.66 at 0.3, -1.45 at 2.5).
+- **a "gamepad" that is not one:** Chrome and Safari list wheels, joysticks and HID devices as gamepads; their axes
+  2 / 3 (triggers, pedals) rest at -1 or +1, which the game read as the right stick held up: the view climbed to the
+  top in half a second and held there against the mouse. A pad with a stick reporting full deflection from the start,
+  or drifting 0.3 past the dead zone, crept the same way.
+- **a pointer-lock jump** (one movementY of hundreds of px on capture, as browsers report on focus return) threw the
+  view to the top in one frame.
+- **recoil at the top:** the climb that the clamp swallowed was still booked as debt and "paid back", pulling the
+  view below where the player had put it.
+Fixed at the cause: the sensitivity and inverted axis live in play (`play.look`) and act on each turn as it
+arrives; the pad's right stick is read on standard-mapping pads only, a stick counts once seen at rest, a drift on a
+pad lying on the desk gets its own dead zone; pointer-lock jumps are dropped; `play.pitch` / `yaw` refuse NaN; the
+kept settings are cleaned (NaN, strings, out of range); the recoil books only the climb that happened. Without the
+inverted look and without a pad nothing reproduced on the mouse or on touch; which of these the owner met is not
+known. `?debug=look` shows the pitch (game and camera), the last turn's device and size, dropped jumps, the pad as
+the browser reports it and as the game reads it, the fingers down and the camera offsets: a screenshot of it when
+the view sticks says which.
+
 ## Modes and difficulty
 
 The game opens on a title: the camera flies a slow loop through the district (street west, the bar's front, the

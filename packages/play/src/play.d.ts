@@ -39,8 +39,14 @@ export interface Play<W extends WalkerLike = GridWalker> {
   render(options: { transparent: true; spp?: number; frameIndex?: number }): import('@miragekit/core/world').TransparentStill;
   place(eye: XYZ, look: XYZ, mode?: ViewMode): void;
   viewpoint(index: number): void; setMode(mode: ViewMode): void;
-  turn(dx: number, dy: number, scale: number): void; syncWalkerView(): void; lookAt(position: XYZ): void;
+  /** Turn by (dx, dy) x scale x look.sens (dy inverted with look.invert); source names the device for lastTurn. */
+  turn(dx: number, dy: number, scale: number, source?: string): void; syncWalkerView(): void; lookAt(position: XYZ): void;
+  /** Non-finite values are ignored; pitch is clamped to +-1.45. */
   yaw: number; pitch: number; viewSize: number; powerSaver: boolean;
+  /** The look's sensitivity (a factor on every turn) and inverted vertical axis; mutable. */
+  readonly look: { sens: number; invert: boolean };
+  /** The last turn applied (radians) and how many pointer-lock jumps were dropped. */
+  readonly lastTurn: { source: string; dx: number; dy: number; at: number; dropped: number };
   /** Merged into each step's input (WebXR controllers, @miragekit/play/xr); null for none. */
   xrInput: ((input: MotionInput, dt: number) => MotionInput) | null;
   readonly mode: ViewMode; readonly still: number; readonly clock: number; readonly refine: [number, number];

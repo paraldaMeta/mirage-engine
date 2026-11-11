@@ -24,7 +24,7 @@ export function setupKit({ ctx, shared, vfx, Q, T, player, weapon, enemies, dron
   let story = null;
   const onPop = (kind, pos) => story?.pop(kind, pos);
   const hack = createHack({ world, game, plan, anchors, shared, lamps, enemies, drones, player, vfx, sfx, physics, root, T, overlay, onPop });
-  const abilities = createAbilities({ world, game, player, enemies, drones, vfx, sfx, physics, root, weapon, hack, overlay, onPop });
+  const abilities = createAbilities({ world, game, player, enemies, drones, vfx, sfx, physics, root, weapon, hack, overlay, onPop, opts });
   const ammo = createAmmo({ world, game, plan, weapon, player, vfx, sfx, lamps, root, stats, hud, T, overlay });
   story = createStory({ game, enemies, hud, overlay, sfx, player, T, hack, opts, holdout });
   drones.allies = enemies;

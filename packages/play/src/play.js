@@ -183,11 +183,38 @@ function mountPlay(world, opts, life) {
   life.listen(window, 'blur', () => keys.clear());
   // a field taking focus mid-press would otherwise leave the key held (its keyup goes to the field, handled above)
   life.listen(window, 'focusin', (e) => { if (typing(e)) keys.clear(); });
-  const turn = (dx, dy, k) => { turned = true; yaw += dx * k; pitch = THREE.MathUtils.clamp(pitch - dy * k, -1.45, 1.45); };
+  // look: the player's sensitivity and inverted vertical axis, applied to every turn as it arrives (mouse, drag, and
+  // what a host feeds play.turn: a stick, a touch look), never to a pitch set directly (a load, a recoil). A game
+  // that rescaled the turn afterwards, in its own fixed tick, met play's clamp first: with the axis inverted the view
+  // latched at +-1.45 (the clamp ate the delta the game then mirrored) and the scaled turn landed a frame late.
+  const lookOpts = { sens: 1, invert: false };
+  const lastTurn = { source: '', dx: 0, dy: 0, at: 0, dropped: 0 };
+  const turn = (dx, dy, k, source = 'host') => {
+    turned = true;
+    const s = Number.isFinite(lookOpts.sens) && lookOpts.sens > 0 ? lookOpts.sens : 1;
+    const a = dx * k * s, b = dy * k * s * (lookOpts.invert ? -1 : 1);
+    if (!Number.isFinite(a) || !Number.isFinite(b)) return;   // a NaN in would leave the view NaN for good
+    if (a || b) Object.assign(lastTurn, { source, dx: a, dy: b, at: performance.now() });
+    yaw += a; pitch = THREE.MathUtils.clamp(pitch - b, -1.45, 1.45);
+  };
+  // pointer-lock deltas: browsers report one jump of hundreds of px on capture, on focus return or at the screen's
+  // edge (Chrome on Windows and Linux, Safari): a big delta right after capture, or one out of nothing (6x the
+  // last within 50 ms, over 250 px), is dropped; a real flick builds up over several events
+  let lockAt = -1e9, sinceLock = 0, lastMag = 0, lastMoveAt = -1e9;
+  life.listen(document, 'pointerlockchange', () => { lockAt = performance.now(); sinceLock = 0; lastMag = 0; });
   life.listen(document, 'mousemove', (e) => {
     if (mode === 'orbit' || mode === 'game') return;
-    if (document.pointerLockElement === canvas) turn(e.movementX, e.movementY, 0.0022);
-    else if (drag) { turn(e.clientX - drag[0], e.clientY - drag[1], 0.004); drag = [e.clientX, e.clientY]; }
+    if (document.pointerLockElement === canvas) {
+      const mx = e.movementX || 0, my = e.movementY || 0, m = Math.hypot(mx, my), now = performance.now();
+      const prev = now - lastMoveAt < 50 ? lastMag : 0;
+      sinceLock++; lastMoveAt = now;
+      if ((sinceLock <= 2 && now - lockAt < 150 && m > 120) || (m > 250 && m > 6 * prev)) { lastTurn.dropped++; lastMag = 0; return; }
+      lastMag = m;
+      turn(mx, my, 0.0022, 'mouse');
+    } else if (drag) {
+      if (e.buttons === 0) { drag = null; return; }   // the button came up outside the window: no mouseup reached us
+      turn(e.clientX - drag[0], e.clientY - drag[1], 0.004, 'drag'); drag = [e.clientX, e.clientY];
+    }
   });
   let touchAt = -1e9;   // a tap also fires mousedown: no pointer lock for it (touch fingers need pointer capture)
   life.listen(canvas, 'mousedown', (e) => {
@@ -223,10 +250,10 @@ function mountPlay(world, opts, life) {
       const f = fingers.get(e.pointerId);
       if (!f) return;
       if (f.stick) padFrom(f, e);
-      else if (mode !== 'game') { turn(e.clientX - f.at[0], e.clientY - f.at[1], 0.005); f.at = [e.clientX, e.clientY]; }
+      else if (mode !== 'game') { turn(e.clientX - f.at[0], e.clientY - f.at[1], 0.005, 'touch'); f.at = [e.clientX, e.clientY]; }
     });
     const up = (e) => { const f = fingers.get(e.pointerId); if (!f) return; fingers.delete(e.pointerId); if (f.stick) Object.assign(pad, { x: 0, z: 0, run: false }); };
-    life.listen(canvas, 'pointerup', up); life.listen(canvas, 'pointercancel', up);
+    life.listen(canvas, 'pointerup', up); life.listen(canvas, 'pointercancel', up); life.listen(canvas, 'lostpointercapture', up);
   }
   life.listen(canvas, 'wheel', (e) => { if (mode === 'game') { viewSize = THREE.MathUtils.clamp(viewSize * Math.exp(e.deltaY * 0.0012), 3, 60); e.preventDefault(); } }, { passive: false });
 
@@ -471,7 +498,13 @@ function mountPlay(world, opts, life) {
     world, grid, walker, keys, figure, avatar, gameCam, controls, stats, render, place, viewpoint, setMode, turn, syncWalkerView,
     /** turn the view toward a world point without moving */
     lookAt: (p) => look(camera.position.toArray(), p),
-    get yaw() { return yaw; }, set yaw(v) { yaw = v; }, get pitch() { return pitch; }, set pitch(v) { pitch = v; },
+    // a non-number is refused (one NaN would leave the camera NaN for good); the pitch keeps to the turn's range
+    get yaw() { return yaw; }, set yaw(v) { if (Number.isFinite(v)) yaw = v; },
+    get pitch() { return pitch; }, set pitch(v) { if (Number.isFinite(v)) pitch = THREE.MathUtils.clamp(v, -1.45, 1.45); },
+    /** { sens, invert }: the look's sensitivity (a factor on every turn) and the inverted vertical axis; mutable */
+    get look() { return lookOpts; },
+    /** the last turn: { source: 'mouse' | 'drag' | 'host' | a host's name, dx, dy (rad), at (ms), dropped (pointer-lock jumps ignored) } */
+    get lastTurn() { return lastTurn; },
     get mode() { return mode; }, get still() { return still; },
     /** [xr] (input, dt) -> input: merged into each step's input by packages/play/src/xr.js (null: none) */
     get xrInput() { return xrInput; }, set xrInput(fn) { xrInput = fn || null; },

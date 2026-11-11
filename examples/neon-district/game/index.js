@@ -15,7 +15,7 @@ import { createSfx } from './sfx.js';
 import { createHud } from './hud.js';
 import { createWeapon } from './weapon.js';
 import { ARMS } from './arms.js';
-import { createFeel } from './feel.js';
+import { createFeel, COMFORT, COMFORT_KEYS, COMFORT_RANGES, comfortPreset, cleanOptions } from './feel.js';
 import { createEnemies } from './enemies.js';
 import { createDrones } from './drones.js';
 import { createTitle } from './title.js';
@@ -68,11 +68,25 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
   const wake = (zone) => { enemies.wake(zone, player.feet); drones.wake(zone); };
   // the player's own settings (kept with the key bindings and volumes, not in a save)
   // touch: its own look sensitivity, the buttons' opacity and size, the left FIRE, the sprint lock
-  // feel: camera shake (0-1.5), vibration (0-1), the hit-stop on kills; with prefers-reduced-motion a calmer default
+  // feel: vibration (0-1) and the comfort preset with its values (feel.js COMFORT: shake, bob, punch, roll, kick,
+  // settle, hit-stop, blur, flashes); prefers-reduced-motion: the comfort preset with the flashes down.
+  // Kept settings are cleaned (an old or hand-edited one: NaN, strings, out of range) before use.
   const calm = !!globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-  const opts = { sens: 1, fov: 62, invert: false, tSens: 1, tOpacity: 0.7, tScale: 1, leftFire: true, sprintLock: true, shake: calm ? 0.3 : 1, vibrate: 1, hitStop: !calm, unlocked: false, ...(game.settings.nd || {}) };
-  if (Q.get('fov')) opts.fov = Math.min(90, Math.max(50, +Q.get('fov')));
-  if (Q.get('sens')) opts.sens = +Q.get('sens');
+  const coarse = !!globalThis.matchMedia?.('(pointer: coarse)').matches;
+  const opts = cleanOptions(game.settings.nd, { reduced: calm, touch: coarse });
+  if (Q.get('fov') && Number.isFinite(+Q.get('fov'))) opts.fov = Math.min(90, Math.max(50, +Q.get('fov')));
+  if (Q.get('sens') && Number.isFinite(+Q.get('sens'))) opts.sens = Math.min(5, Math.max(0.1, +Q.get('sens')));
+  if (Q.get('comfort') in COMFORT) Object.assign(opts, comfortPreset(Q.get('comfort'), calm), { comfort: Q.get('comfort') });
+  // the world's motion blur at the quality level's strength; the comfort's `blur` is a factor on it
+  const blur0 = world.post?.motionBlur || 0;
+  /** the look and the comfort values to where they act (once a tick: the options and the tests write opts) */
+  function applyLook() {
+    if (!play) return;
+    const s = +opts.sens;
+    play.look.sens = Number.isFinite(s) && s > 0 ? Math.min(5, s) : 1;
+    play.look.invert = opts.invert === true;
+    if (world.post) world.post.motionBlur = blur0 * Math.max(0, Math.min(1, +opts.blur || 0));
+  }
   const feel = createFeel({ opts, input, sfx, canvas: world.renderer.domElement, game });
   // which room the shots ring in: the audio engine's zones (the bar, the relay) are indoors, the alley is the alley,
   // the rest (the street, the plaza, the roofs) is open
@@ -83,6 +97,19 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
     return p[0] > a[0] - 0.5 && p[0] < a[2] + 0.5 && p[2] > a[1] && p[2] < a[3] + 0.5 && p[1] < 3 ? 'alley' : 'open';
   };
   const saveOpts = () => { game.settings.nd = { ...opts }; game.saveSettings(); };
+  // the comfort setting, for the options panel (window.__mirage.game.comfort): a preset sets every value together;
+  // one value changed on its own makes the preset 'custom'. Both apply at once and are kept in the settings.
+  const comfort = {
+    presets: Object.keys(COMFORT), keys: COMFORT_KEYS, ranges: COMFORT_RANGES, table: COMFORT, reducedMotion: calm,
+    get preset() { return opts.comfort; },
+    get values() { return Object.fromEntries(COMFORT_KEYS.map((k) => [k, opts[k]])); },
+    set(name) { if (!(name in COMFORT)) return false; Object.assign(opts, comfortPreset(name, calm), { comfort: name }); saveOpts(); applyLook(); return true; },
+    setValue(k, v) {
+      if (k === 'hitStop') opts.hitStop = v === true || v === 'true';
+      else { const r = COMFORT_RANGES.find((x) => x[0] === k), x = +v; if (!r || !Number.isFinite(x)) return false; opts[k] = Math.min(r[2], Math.max(r[1], x)); }
+      opts.comfort = 'custom'; saveOpts(); applyLook(); return true;
+    },
+  };
   const onUnlock = (r) => {
     if (r === 'unlocked') { opts.unlocked = true; saveOpts(); game.ui.toast(T.arms.unlocked); hud.radio(T.arms.unlockRadio); }
     else if (r === 'refilled') game.ui.toast(T.arms.refilled);
@@ -126,7 +153,12 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
   // the options panel pauses the game; its values apply at once and are kept in the settings
   function toggleOptions() {
     const open = hud.options({ values: { ...opts, lang, hour: hour() }, touch: !!touch, onHour: (h) => setHour(h),
-      onChange: (k, v) => { if (k === 'code') { if (/0/.test(String(v))) weapon.unlock(); return; } opts[k] = v; if (k === 'fov') weapon.S.fov = v; saveOpts(); touch?.apply(); },
+      onChange: (k, v) => {
+        if (k === 'code') { if (/0/.test(String(v))) weapon.unlock(); return; }
+        if (k === 'comfort') { comfort.set(v); return; }
+        if (COMFORT_KEYS.includes(k)) { comfort.setValue(k, v); return; }
+        opts[k] = v; if (k === 'fov') weapon.S.fov = v; saveOpts(); applyLook(); touch?.apply();
+      },
       onClose: () => { if (!title.shown) game.pause(false); title.render(); },
       onLang: () => { const u = new URL(location.href); u.searchParams.set('lang', lang === 'zh' ? 'en' : 'zh'); location.href = u.href; } });
     if (open) { game.pause(true); touch?.reset(); if (document.pointerLockElement) document.exitPointerLock(); }
@@ -234,7 +266,7 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
   // ---- weather and sound: a lamp high over the block for the lightning, the audio engine for the rooms' reverb
   const sky = new THREE.PointLight(0xcfe0ff, 0, 600, 2); root.add(sky); world.lighting?.addLight(sky);
   const skyGain = 26000, said = { spotted: false, hurtT: -99 };
-  let boltT = 9, thunderT = 0, endYaw = 0, endPitch = 0, reverb = null;
+  let boltT = 9, thunderT = 0, reverb = null;
   try { reverb = createAudioEngine({ audio, voices: 24, zones: zonesFromPlan(plan), zoneOptions: { ambient: { reverb: 'outdoor', wet: 0.16 } } }); onDispose(() => reverb.dispose()); } catch { reverb = null; }
   game.on('start', () => hud.radio(H.on ? T.radio.holdStart : T.radio.start));
 
@@ -286,9 +318,11 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
     held.tap = false;
     weapon.S.aim = ok && (held.aimMouse || held.aimKey || held.aimPad || !!touch?.aim);
     if (assist && weapon.S.reserve < weapon.arm.mag) weapon.S.reserve = weapon.arm.mag;   // the easy mode never runs dry (one magazine in reserve: low enough for ammo.js's marker)
-    // the look: the player's sensitivity and the inverted axis, applied to what the mouse and the stick turned since
-    // the last tick (play turns the view itself, at a fixed rate)
-    if (opts.sens !== 1 || opts.invert) { play.yaw = endYaw + (play.yaw - endYaw) * opts.sens; play.pitch = Math.max(-1.45, Math.min(1.45, endPitch + (play.pitch - endPitch) * opts.sens * (opts.invert ? -1 : 1))); }
+    // the look: the player's sensitivity and inverted axis go to play, which applies them to each turn as it arrives.
+    // (They used to rescale here, once a tick, what had turned since the last tick: play had clamped the pitch first,
+    // so with the axis inverted the view latched at the top or the bottom for good, the scaled turn landed a frame
+    // late at 120 Hz, and a checkpoint's pitch was rescaled as if it were a turn.)
+    applyLook();
     // crouching: a lower eye and a slower walk (the body's collider keeps its height: no crawling under things)
     player.crouch += ((ok && player.wantCrouch ? 1 : 0) - player.crouch) * Math.min(1, dt * 10); player.height = 1.62 - 0.6 * player.crouch;
     // the gun's weight: the gatling slows the walk, more while it spins
@@ -315,7 +349,11 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
       vfx.beam({ from: [bx + (R() - 0.5) * 30, 150, bz + (R() - 0.5) * 30], to: [bx, 38 + R() * 20, bz], width: 1.6, color: '#cfe0ff', intensity: 7, jitter: 16, branches: 3, life: 0.4 });
       sky.position.set(bx * 0.4, 110, bz * 0.4); sky.userData.t = 0.38; thunderT = 0.7 + r / 340;
     }
-    sky.userData.t = (sky.userData.t || 0) - dt; sky.intensity = sky.userData.t > 0 ? skyGain * gains.room * (0.35 + 0.65 * R()) * Math.min(1, sky.userData.t * 6) : 0;
+    // the flash: raw (flashes 1) a random level every tick, a 60 Hz flicker; below 1 two smooth pulses (about 5 Hz,
+    // under the three-flashes-a-second line for the brighter one) at the flashes' strength
+    const fl = Math.max(0.2, Math.min(1, +opts.flashes || 0.6)), st = sky.userData.t = (sky.userData.t || 0) - dt;
+    sky.intensity = st <= 0 ? 0 : fl >= 1 ? skyGain * gains.room * (0.35 + 0.65 * R()) * Math.min(1, st * 6)
+      : skyGain * gains.room * fl * Math.min(1, st * 6) * (st > 0.2 ? 1 : 0.35 + 0.3 * Math.cos((0.2 - st) * 31));
     if (thunderT > 0 && (thunderT -= dt) <= 0) sfx.play('nd_thunder', { bus: 'ambience', gain: 0.9 });
     // health: a little of it comes back out of a fight
     if (!player.dead && assist) player.hp = Math.min(100, player.hp + dt * 6);
@@ -339,14 +377,14 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
       if (list.length) { const a = list[Math.floor(R() * list.length)]; vfx.burst(FX.sparks, a.pos, { direction: [0, -1, 0], scale: 0.7 }); sparkLight.position.set(...a.pos); sparkLight.userData.t = 0.12; sfx.play('nd_impact', { at: a.pos, gain: 0.5, ref: 4 }); }
       sparkT = 2.5 + R() * 5;
     }
-    sparkLight.userData.t = (sparkLight.userData.t || 0) - dt; sparkLight.intensity = sparkLight.userData.t > 0 ? 40 * gains.room * R() : 0;
-    for (const s of strobes) s.light.intensity = s.light.userData.base * (s.flicker ? (R() < 0.04 ? 0.25 : 1) : 0.35 + 0.65 * Math.pow(0.5 + 0.5 * Math.sin(game.time * (game.flags.uplink ? 9 : 3.2)), 2));
+    sparkLight.userData.t = (sparkLight.userData.t || 0) - dt; sparkLight.intensity = sparkLight.userData.t > 0 ? 40 * gains.room * (fl >= 1 ? R() : fl * sparkLight.userData.t / 0.12) : 0;
+    // a sign that flickers: raw, a random dip a tick (4 %); below 1 a slow half dip now and then (every 4.8 s, 0.6 s long)
+    for (const s of strobes) s.light.intensity = s.light.userData.base * (s.flicker ? (fl >= 1 ? (R() < 0.04 ? 0.25 : 1) : 1 - 0.5 * Math.max(0, Math.sin(game.time * 1.3 + s.light.id) - 0.92) / 0.08) : 0.35 + 0.65 * Math.pow(0.5 + 0.5 * Math.sin(game.time * (game.flags.uplink ? 9 : 3.2)), 2));
     for (const [i, l] of lanterns.entries()) l.light.intensity = l.light.userData.base * (0.93 + 0.07 * Math.sin(game.time * (5 + i) + i));
     const indoors = (p[1] < 4 && ((p[0] > plan.bar.rect[0] && p[0] < plan.bar.rect[2] && p[2] > plan.bar.rect[1] && p[2] < plan.bar.rect[3]) || (p[0] > plan.relay.rect[0] && p[2] < plan.relay.rect[3])));
     feet.position.set(p[0], Math.round(p[1] * 50) / 50 + 0.03, p[2]);
     if (rewound > 0 && --rewound === 0) for (const l of loops) { l.h.stop(); l.h = vfx.spawn(l.fx, l.o); }
     if (splash) splash.h.move({ position: feet.position, rate: indoors ? 0 : 1 });   // rate: a factor on the effect's own
-    endYaw = play.yaw; endPitch = play.pitch;
     // the HUD
     const S = weapon.S;
     hud.update(dt, { hp: player.hp, dead: player.dead, mag: S.mag, reserve: S.reserve, reloading: S.reloading > 0, ads: S.ads, pos: p, yaw: play.yaw,
@@ -431,7 +469,7 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
     weapon.holder.visible = true;
     if (run.mode === 'holdout') startHoldout();
     else if (play.mode !== 'walk') play.place(plan.spawn.eye, plan.spawn.look, 'walk');
-    endYaw = play.yaw; endPitch = play.pitch;
+    applyLook();
     game.pause(false);
   }
 
@@ -445,17 +483,42 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
     return [plan.alley.rect[0] + 2, 1.4, plan.alley.rect[1]];
   };
 
+  // ---- ?debug=look: what the view is doing, on screen, for a screenshot when it misbehaves: the pitch the game holds
+  // and the one the camera shows, the last turn (its device and size), dropped pointer-lock jumps, the pad as the
+  // browser reports it and what the game reads of it, the touch fingers down, the offsets on the camera
+  function lookDebug() {
+    const el = document.createElement('pre'), dir = new THREE.Vector3();
+    el.style.cssText = 'position:fixed;left:8px;top:96px;z-index:60;margin:0;padding:6px 8px;font:11px/1.4 ui-monospace,monospace;color:#bff;background:#000b;pointer-events:none;white-space:pre';
+    document.body.appendChild(el); onDispose(() => el.remove());
+    const deg = (r) => (r * 180 / Math.PI).toFixed(1).padStart(6), f2 = (v) => (+v).toFixed(2);
+    const tick = () => {
+      if (!el.isConnected) return;
+      requestAnimationFrame(tick);
+      const t = play.lastTurn, p = input.pad, d = world.camera.getWorldDirection(dir), S = weapon.S;
+      el.textContent = [
+        `pitch ${deg(play.pitch)} deg   camera ${deg(Math.asin(Math.max(-1, Math.min(1, d.y))))} deg   yaw ${deg(play.yaw % (2 * Math.PI))} deg`,
+        `last turn ${t.source || '-'}  dx ${deg(t.dx)}  dy ${deg(t.dy)} deg  ${t.at ? Math.round(performance.now() - t.at) + ' ms ago' : ''}   lock jumps dropped ${t.dropped}`,
+        `sens ${f2(play.look.sens)}  invert ${play.look.invert}  pointer lock ${!!document.pointerLockElement}  paused ${game.paused}  input ${input.source}`,
+        p ? `pad "${String(p.id).slice(0, 44)}" ${p.mapping || 'non-standard'}  axes ${[...p.axes].slice(0, 6).map(f2).join(' ')}  read L ${input.sticks.left.map(f2)} R ${input.sticks.right.map(f2)}` : 'pad none',
+        `touch fingers ${touch?.busy || 0}   shake ${f2(S.shake)}  flinch ${f2(S.flinchP)}  recoil debt ${f2(S.debtP)}  comfort ${opts.comfort}`,
+      ].join('\n');
+    };
+    tick();
+  }
+
   // ---- the city as a weapon: hacks, abilities, ammunition that can be found, the story (kit.js)
   const kit = setupKit({ ctx, shared, vfx, Q, T, player, weapon, enemies, drones, hud, sfx, stats, opts, holdout: H, live });
 
   return {
     player, weapon, enemies, drones, stats, hud, sfx, leaves, opts, toggleOptions, run, tune, title, holdout: H, kit, get touch() { return touch; },
+    comfort, applyOpts: applyLook,
     /** once startGame has made the character and play */
     start(game_) {
       g = game_; play = g.play;
       g.character.body.walk = 3.3; g.character.body.run = 5.4;      // a shooter's pace (the engine's walker strolls at 1.5 m/s)
-      weapon.start(play); enemies.start(play.grid); drones.start(play.grid); endYaw = play.yaw; endPitch = play.pitch;
+      weapon.start(play); enemies.start(play.grid); drones.start(play.grid); applyLook();
       kit.start(g);
+      if (Q.get('debug') === 'look') lookDebug();
       vfx.setGround(play.grid);
       checkpoint('start', true);
       if (Q.has('start')) begin();   // the tests: straight in (main.js starts the overlay)
