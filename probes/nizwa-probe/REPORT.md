@@ -57,8 +57,10 @@ Open `http://localhost:5291/?mode=walk` to walk it. `NIZWA_DIR` points the examp
 4. **Kept from Nizwa unchanged**: its texture layer (`textures.js`, KTX2 sets), `relief.js`, `geom.js` (`Builder`),
    `rng.js` (its own generator, so the fort is the same fort), `layout.js`, doors.
 5. **Specular AA**: Mirage's automatic `mgSpecAA` is switched off for bridged materials (Nizwa calls its own).
-6. **Ambient volumes**: Nizwa allows 48 boxes with an RGB tint; Mirage 8 with one factor. The fort's 5 fit; the
-   tint becomes its luminance.
+6. **Ambient volumes**: every box passes with its RGB tint (`factor: 1`, `tint`: Nizwa's tint is the whole value
+   inside). Nizwa's ramp runs from `soft` inside the box to `soft` outside, Mirage's from the surface outward, so
+   the bridge shrinks each box by `soft` and doubles the ramp (the same curve on every face). Until gap 5 was
+   closed the 8 largest went through with the tint's luminance and the ramp unmapped.
 7. **Anchors**: `wallLamps` (`pos`, `normal`) become Mirage `lamps` (`pos`, `rotY`).
 8. **Ground**: Nizwa's fallback disc, 3,000 m instead of 400 m (Mirage's sky is dark below the horizon).
 9. **Look**: `envIntensity: 1` (Nizwa's value; Mirage defaults to 0.5) and `exposure: 0.6` (default 0.4), so sunlit
@@ -83,7 +85,7 @@ Nizwa: 55,859 lines in `src/` (core 6,039; world 31,230; ten maps 16,297; walk, 
 | `rng.js` | 78 call sites | `rng.js` | other generator: a real port changes every seeded shape |
 | `light2.js` | 3 imports (`addLampSource`) | `light2.js` | ported (PR #6); works on bridged materials |
 | `lod.js` | `ctx.lod.register` | `lod.js` | same API |
-| `fog.js` ambient volumes | every module returns them | `setAmbientVolumes` | 48 tinted boxes vs 8 grey ones: **gap** for the town (956 rooms) |
+| `fog.js` ambient volumes | every module returns them | `setAmbientVolumes` | tinted boxes on a grid, any number: gap 5 closed |
 | `fog.js` aerial perspective | global | `fog.js` | Mirage's is thinner at these settings; not tuned |
 | `sky.js`, `stars.js`, `sky-time.js` | 2 imports each | same files | near-identical; Mirage's clouds are sparser at the default cover |
 | `daynight.js` (572 lines) | `ctx.dayNight` (7) | `daynight.js` (121 lines) | Mirage has no time-of-day grade (split toning, black point, curve), no per-map sky tuning |
@@ -187,7 +189,7 @@ Nizwa's texture layer globs the whole folder; the page fetches only the 8 sets i
 | 2 | bounce light that matches Nizwa's irradiance volume, or a fix for `lighting.gi` on these materials | shade, interiors, lanes | large |
 | 3 | far-lamp pools (sprites or a light proxy) | every dusk and night view | small |
 | 4 | dusk and night sky and exposure (afterglow, horizon haze, darker night) | 19:00 to 06:00 | medium |
-| 5 | ambient volumes: more than 8, with a tint | the town's 956 rooms, the mosque | medium |
+| 5 | ambient volumes: more than 8, with a tint (**done**: a grid in a data texture, 1,000 boxes cost what 8 do) | the town's 956 rooms, the mosque | medium |
 | 6 | texture layer: decals, macro tint, texture arrays | terrain, town walls | medium (or keep Nizwa's layer) |
 | 7 | relief: `reliefAuto`, recess lips | 24 world files | small (or keep Nizwa's) |
 | 8 | per-shot post (godrays, DOF by f-stop, lift / gain / gamma) and a shot format | the film | medium |

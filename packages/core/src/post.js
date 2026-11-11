@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { LampShadows, LS_SHARED, LS_N, VOL_LAMPS, lampShadowsIdle } from './light2.js';
-import { AMBIENT_GLSL } from './env.js';
+import { AMBIENT_GLSL, AMBIENT_GRID_DECL, AMBIENT_GRID_GLSL, ambientNear } from './env.js';
 import { FX_DEFAULTS, PostFX } from './postfx.js';
 import { SCREEN_POST } from './screen.js';
 
@@ -439,6 +439,8 @@ export class Pipeline {
       uniform float uAmbN; uniform vec4 uAmbLo[${G.uAmbLo.value.length}]; uniform vec4 uAmbHi[${G.uAmbHi.value.length}];
       ${VIEWPOS}
       ${AMBIENT_GLSL}
+      ${AMBIENT_GRID_DECL}
+      ${AMBIENT_GRID_GLSL}
       float ign(vec2 p){ return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
       float vnoise(vec3 p){
         vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -449,7 +451,7 @@ export class Pipeline {
         return mix(b.x, b.y, f.y);
       }
       // indoor-ness: how much an ambient volume dims the sky at p
-      float indoor(vec3 p){ return uAmbN > 0.0 ? clamp((1.0 - mgAmbient(p)) * 1.6, 0.0, 1.0) : 0.0; }
+      float indoor(vec3 p){ return uAmbN > 0.0 ? clamp((1.0 - (uAmbDim.x > 0.0 ? dot(mgAmbientGrid(p), vec3(0.2126, 0.7152, 0.0722)) : mgAmbient(p))) * 1.6, 0.0, 1.0) : 0.0; }
       float gFloor;
       float noiseK(vec3 p){ return uMed2.z > 0.0 ? 1.0 - uMed2.z + uMed2.z * 2.0 * vnoise(p * 0.7 + vec3(uTime * 0.11, uTime * 0.03, uTime * 0.07)) : 1.0; }
       float dustOut(vec3 p){ return uMed.x * exp(-max(p.y - gFloor, 0.0) / uMed.y); }
@@ -549,7 +551,7 @@ export class Pipeline {
       uMed: { value: new THREE.Vector4() }, uMed2: { value: new THREE.Vector4() }, uMed3: { value: new THREE.Vector4() },
       uLp: { value: Array.from({ length: NL }, () => new THREE.Vector4()) }, uLc: { value: Array.from({ length: NL }, () => new THREE.Vector4()) },
       tLs: { value: null }, uLsPos: { value: LS_SHARED.pos }, uLsInfo: { value: LS_SHARED.info }, uLsNear: { value: LS_SHARED.near },
-      uAmbN: G.uAmbN, uAmbLo: G.uAmbLo, uAmbHi: G.uAmbHi,
+      uAmbN: G.uAmbN, uAmbLo: G.uAmbLo, uAmbHi: G.uAmbHi, uAmbGrid: G.uAmbGrid, uAmbDim: G.uAmbDim, uAmbData: G.uAmbData,
     });
   }
 
@@ -587,14 +589,7 @@ export class Pipeline {
   }
 
   // is p within d metres of an ambient volume?
-  _nearVolume(p, G, d) {
-    for (let i = 0; i < G.uAmbN.value; i++) {
-      const lo = G.uAmbLo.value[i], hi = G.uAmbHi.value[i];
-      const dx = Math.max(lo.x - p.x, 0, p.x - hi.x), dy = Math.max(lo.y - p.y, 0, p.y - hi.y), dz = Math.max(lo.z - p.z, 0, p.z - hi.z);
-      if (dx * dx + dy * dy + dz * dz < d * d) return true;
-    }
-    return false;
-  }
+  _nearVolume(p, G, d) { return ambientNear(G, p, d); }
 
   /** The output size (w, h: what the caller sees, stable) and the render size (rw, rh = w, h x the render scale). */
   setSize(w, h) {

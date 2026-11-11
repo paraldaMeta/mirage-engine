@@ -76,9 +76,19 @@ setAmbientVolumes(list) }`. `prepare({ warm: true })` (opt-in) also draws one di
 - `dispose()` frees the scene's geometries and materials, the shadow map, the post and environment targets, and
   the renderer if the world made it. Take out of the scene anything you still need first (`mountWorld` does this for
   its `root`).
-- `setAmbientVolumes([{ min, max, factor = 0.3, soft = 0.6 }])` (up to 8 boxes): the image-based light is scaled by
-  `factor` inside each box (interiors), ramping over `soft` metres. Compiled in only while a world has volumes, so
-  worlds without them render exactly as before. `@miragekit/world` passes modules' `ambientVolumes` here.
+- `setAmbientVolumes([{ min, max, factor = 0.3, soft = 0.6, tint = [1, 1, 1] }], { grid })`: the image-based light
+  is scaled by `factor` x `tint` (per channel: warm light bounced off sunlit walls, a cool blue shade) inside each box
+  (interiors), ramping back over `soft` metres outside it; overlapping boxes multiply. Compiled in only while a world
+  has volumes, so worlds without them render exactly as before. `@miragekit/world` passes modules' `ambientVolumes`
+  here. Two paths, chosen by the list (the call returns `{ path, boxes, cells, maxPerCell, overfull, cellSize }`):
+  - **uniform**: up to 8 boxes without a tint, a loop over all of them; the original code, bit-identical.
+  - **grid**: more boxes (a town's hundreds of rooms) or any tint (`grid: true` forces it): the boxes sit in a float
+    data texture behind a 2D grid over x / z, cells sized near the median room, and a pixel visits only the boxes
+    listed in its cell, inside the y range they reach. The cost follows the boxes per cell, not the boxes in the
+    world (Nizwa probe, M4 Pro, 1280 x 720: 1,000 rooms cost what 8 do). A cell lists at most 16 (`AMB_PER_CELL`,
+    the loop's constant bound; a bound read from the texture made every material 5 - 7 ms slower on ANGLE /
+    Metal): cells shrink until each fits, and a pile of more than 16 boxes over one spot keeps its 16 darkest, with
+    a warning. Changing the path recompiles the patched materials once; changing boxes within a path does not.
 - `ctx` = `{ THREE, renderer, scene, camera, G, keyDir, mat, geom, rng, quality, place, onUpdate(fn) }` for
   world-building modules; `onUpdate(fn(t))` runs before every sub-frame.
 

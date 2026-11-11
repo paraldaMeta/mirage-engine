@@ -2,11 +2,17 @@
 // in place and unchanged) against a Nizwa context made from this Mirage world (compat/ctx.js). This file is the
 // whole adapter between the two module protocols:
 //   Nizwa build(ctx) -> { object, footprints, ambientVolumes, anchors: { wallLamps, doors }, site }
-//   Mirage module    -> build adds to ctx.root; anchors -> `lamps`; ambientVolumes -> [{ min, max, factor, soft }]
+//   Mirage module    -> build adds to ctx.root; anchors -> `lamps`; ambientVolumes -> [{ min, max, factor, soft, tint }]
 import { build } from '@nizwa/world/fort.js';
 
-const lum = (c) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
-const size = (v) => (v.max[0] - v.min[0]) * (v.max[1] - v.min[1]) * (v.max[2] - v.min[2]);
+// Nizwa's ramp runs from `soft` inside the box to `soft` outside it (1 - smoothstep(-soft, soft, signed distance));
+// Mirage's from the box's surface to `soft` outside. The same ramp on every face: the box shrunk by soft, ramp 2 soft
+// (an axis thinner than 2 soft shrinks to its middle).
+const volume = (v) => {
+  const soft = v.soft ?? 0.5, min = [], max = [];
+  for (let i = 0; i < 3; i++) { const s = Math.min(soft, (v.max[i] - v.min[i]) / 2); min.push(v.min[i] + s); max.push(v.max[i] - s); }
+  return { min, max, factor: 1, tint: v.tint || [0.3, 0.3, 0.3], soft: 2 * soft };
+};
 
 export default {
   name: 'fort',
@@ -23,7 +29,6 @@ export default {
   anchors: (ctx, res) => ({
     lamps: res.anchors.wallLamps.map((a) => ({ pos: a.pos, rotY: a.normal ? Math.atan2(a.normal[0], a.normal[2]) : a.rotY || 0, kind: 'wall', scale: a.scale ?? 1 })),
   }),
-  // Nizwa: up to 48 boxes with an RGB tint. Mirage: 8 boxes with one factor: the 8 largest, tint -> its luminance
-  ambientVolumes: (ctx, res) => [...res.ambientVolumes].sort((a, b) => size(b) - size(a)).slice(0, 8)
-    .map((v) => ({ min: v.min, max: v.max, factor: Math.min(1, lum(v.tint || [0.3, 0.3, 0.3])), soft: v.soft ?? 0.6 })),
+  // Nizwa: up to 48 boxes, each with an RGB tint (the whole value inside). Mirage: every box, factor 1 x the tint
+  ambientVolumes: (ctx, res) => res.ambientVolumes.map(volume),
 };

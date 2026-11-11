@@ -39,6 +39,15 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
   falloff and BRDF), not only the few PointLights near the eye; a PointLight on a pool lamp takes its share, so the
   hand-off is seamless; a lamp's wall stops its light; with light2 the shadow slots go to the best pool lamps.
   Closes gap 3 of the Nizwa probe (`probes/nizwa-probe` `?pools=1`); hello-courtyard `?lamppool=1`.
+- @miragekit/core: ambient volumes scale to a town and take a colour. `setAmbientVolumes` boxes accept
+  `tint: [r, g, b]` (the sky light inside is scaled by factor x tint per channel), and a list of more than 8 boxes,
+  or a tinted one, goes into a grid over x / z in a float data texture, where a pixel visits only its cell's boxes
+  (at most 16, a constant loop bound). Nizwa probe, 1280 x 720, M4 Pro, 8 interleaved rounds: no volumes 14.0 ms,
+  8 boxes on the uniform path 14.7, 8 on the grid 14.2, 1,000 on the grid 14.7 (735 cells, at most 9 per cell). Up
+  to 8 untinted boxes, and worlds that never call it, keep the original code (hello-courtyard stills bit-identical
+  to the base, with and without 3 boxes, with and without light2). light2's volumetric dust reads the grid too.
+  @miragekit/world validates `tint`. The Nizwa probe's bridge passes every box with its tint and maps Nizwa's
+  two-sided ramp onto Mirage's (box shrunk by soft, ramp doubled).
 
 **Fixes**
 - `mirage-package` (single-file builds) no longer inlines three's default Draco and Basis decoder files (~2.5 MB),
