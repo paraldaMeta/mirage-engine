@@ -124,7 +124,7 @@ async function mountGame(world, opts, life, dispose, ownAudio) {
       const p = input.pad;   // a pad has no DOM events: any button or stick counts as someone being there
       if (p && (p.buttons.some((b) => b.pressed) || p.axes.some((v) => Math.abs(v) > 0.2))) play.wake();
       const [lx, ly] = input.look(dt);
-      if (lx || ly) play.turn(lx, ly, 1);
+      if (lx || ly) play.turn(lx, ly, 1, input.lookSource || input.source);
       const m = input.move();
       return { x: m.x, z: m.z, run: input.down('run'), jump: input.down('jump'), jumpPressed: input.pressed('jump') };
     },

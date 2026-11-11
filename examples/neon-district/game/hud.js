@@ -188,7 +188,7 @@ export function createHud({ camera, onDispose, T }) {
       ${flip('full', T.opt.full, v.fullscreen !== false)}
       ${flip('pops', T.opt.pops, v.pops === true)}
       <label><span>${T.opt.lang}</span><button data-b="lang" lang="${HTML_LANG[lang]}">${LANG_NAMES[lang]}</button></label>
-      <h3>${T.opt.feel}</h3>${range('shake', 0, 1.5, 0.05, T.opt.shake)}${range('vibrate', 0, 1, 0.05, T.opt.vibrate)}
+      <h3>${T.opt.feel}</h3><label><span>${T.opt.comfort}</span><button data-b="comfort">${T.opt.comfortNames[v.comfort] || T.opt.comfortNames.custom}</button></label>${range('shake', 0, 1.5, 0.05, T.opt.shake)}${range('vibrate', 0, 1, 0.05, T.opt.vibrate)}
       ${flip('hitStop', T.opt.hitStop, v.hitStop !== false)}
       <label><span>${T.opt.code}</span><span><input type="text" inputmode="numeric" autocomplete="off" maxlength="4" data-c="code" placeholder="${T.opt.codeHint}" style="width:90px;min-height:30px;background:#04141c;color:#d8f6ff;border:1px solid #6fe8ff88;font:600 14px ui-monospace,monospace;text-align:center"></span></label>
       ${o.touch ? `<h3>${T.opt.touch}</h3>${range('tSens', 0.3, 2.5, 0.05, T.opt.tSens)}${range('tOpacity', 0.2, 1, 0.05, T.opt.tOpacity)}${range('tScale', 0.8, 1.25, 0.05, T.opt.tScale)}${flip('leftFire', T.opt.leftFire)}${flip('sprintLock', T.opt.sprintLock)}` : ''}
@@ -211,6 +211,7 @@ export function createHud({ camera, onDispose, T }) {
         else if (k === 'full') { v.fullscreen = v.fullscreen === false; show(b, v.fullscreen); Promise.resolve(o.onFull?.(v.fullscreen)).catch(() => {}); }
         else if (k === 'hitStop') { v[k] = v[k] === false; show(b, v[k]); o.onChange(k, v[k]); }
         else if (k === 'lang') o.onLang();   // the switch rebuilds this panel (relang) with values.lang from the game
+        else if (k === 'comfort') { const L = ['comfort', 'standard', 'intense']; v.comfort = L[(L.indexOf(v.comfort) + 1) % 3]; b.textContent = T.opt.comfortNames[v.comfort]; o.onChange('comfort', v.comfort); }
         else if (k === 'pops') { v.pops = v.pops !== true; show(b, v.pops); o.onChange('pops', v.pops); }
       });
     }

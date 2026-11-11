@@ -10,6 +10,11 @@ export interface Input {
   spend(code?: string): void; discardActions(): void;
   down(action: Action): boolean; pressed(action: Action): boolean; padPressed(index: number): boolean;
   move(): { x: number; z: number }; look(dt: number): [number, number]; poll(): void;
+  /** The pad's sticks after the dead zone, the rest check (a stick counts once seen at rest) and the drift guard;
+   *  the right stick is read on standard-mapping pads only. */
+  readonly sticks: { left: readonly [number, number]; right: readonly [number, number] };
+  /** What the last look() came from: 'touch', 'gamepad' or '' (nothing). */
+  lookSource?: string;
   rebind(action: Action, code: string, slot?: number): void;
   /** Restores default bindings; does not clear held keys. */
   reset(): void;

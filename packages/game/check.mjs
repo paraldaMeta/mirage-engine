@@ -217,6 +217,34 @@ press('keyup', 'Space');
 press('keydown', 'Space'); press('keyup', 'Space'); input.poll();
 ok(input.pressed('jump') && !input.down('jump'), 'short keyboard tap survives until the next poll');
 
+// ---- the pad's sticks: only a standard pad's right stick looks; a stick pinned since the pad appeared is not one
+{
+  const mk = (id, mapping, axes, index = 0) => ({ connected: true, index, id, mapping, axes, buttons: Array.from({ length: 17 }, () => ({ pressed: false, value: 0 })) });
+  let pads = [];
+  Object.defineProperty(globalThis.navigator, 'getGamepads', { value: () => pads, configurable: true });
+  const inp = createInput({ target: new EventTarget() }), look = () => { inp.poll(); return inp.look(1 / 60); };
+  const std = mk('pad (standard)', 'standard', [0, 0, 0, 0]);
+  pads = [std]; look(); std.axes = [0, 0, 0, -1];
+  ok(look()[1] < -0.03, 'a standard pad: the right stick pushed up looks up');
+  std.axes = [0, 0, 0, 0]; look();
+  const hid = mk('USB Joystick (Vendor: 0079)', '', [0, 0, -1, -1]);
+  pads = [hid];
+  let sum = 0; for (let f = 0; f < 60; f++) sum += Math.abs(look()[1]) + Math.abs(look()[0]);
+  ok(sum === 0, `a non-standard device: axes 2 / 3 resting at -1 do not look (${sum.toFixed(3)} rad in a second)`);
+  pads = [hid, mk('pad (standard)', 'standard', [0, 0, 0, 0], 1)]; look(); pads[1].axes = [0, 0, 0.9, 0];
+  ok(look()[0] > 0.02 && inp.pad === pads[1], 'with a HID device at index 0, the standard pad behind it is the one read');
+  const broken = mk('broken pad (standard)', 'standard', [0, -1, 0, -1], 2);
+  pads = [broken];
+  sum = 0; for (let f = 0; f < 30; f++) sum += Math.abs(look()[1]);
+  ok(sum === 0 && inp.move().z === 0, 'sticks pinned since the pad appeared neither look nor walk');
+  broken.axes = [0, 0, 0, 0]; look(); broken.axes = [0, -1, 0, -1];
+  ok(look()[1] < -0.03 && inp.move().z > 0.9, 'once seen at rest they count');
+  broken.axes = [0, 0, NaN, NaN];
+  ok(look().every(Number.isFinite), 'a NaN axis is no look');
+  inp.dispose();
+  Object.defineProperty(globalThis.navigator, 'getGamepads', { value: () => [pad], configurable: true });
+}
+
 // zones: enter / exit as the player crosses them, once-only zones, and a load that lands inside does not re-fire
 {
   const store = new Map(), st = { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, String(v)) };
