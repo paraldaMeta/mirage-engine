@@ -214,8 +214,9 @@ if (Q.has('world')) {   // the district alone: walk, fly, orbit (stills, the wor
 }
 // the frame budget (perf.js, NOTES.md "Frame budget"): the close-up props (modelled for a look from a metre: cans,
 // bottles, keys, bolts, goods) stay out of the wet street's mirror, with the view model (?mirrorall=1 puts them back);
-// the goods of each row of vending machines are drawn within 30 m (userData.ndFar)
-const NO_MIRROR = /^(viewmodel|vending-(can|bottle|cup|box|pack|cap|spirals)|bar-props|relay-props|stall-goods|grime-props|clutter-props|shop-props)$/;
+// the goods of each row of vending machines are drawn within 30 m (userData.ndFar); the robots' metal parts (joints, hubs, rods: robot-m) and their rifles are
+// left out of the mirror too (a puddle shows the shell's silhouette and the lit visor, not a 4 cm hub)
+const NO_MIRROR = /^(viewmodel|vending-(can|bottle|cup|box|pack|cap|spirals)|bar-props|relay-props|stall-goods|grime-props|clutter-props|shop-props|robot-m|robot-gun)$/;
 { const far = new Map(); world.scene.traverse((o) => { if (o.userData.ndFar) { if (!far.has(o.userData.ndFar)) far.set(o.userData.ndFar, []); far.get(o.userData.ndFar).push(o); } });
   for (const [d, list] of far) { const cull = distanceCull(list, d); world.ctx.onUpdate((t) => cull(camera, t)); } }
 if (lighting.planar && Q.get('mirrorall') !== '1') mirrorLayer(world.scene, (o) => o.userData.mgClustered || NO_MIRROR.test(o.name));

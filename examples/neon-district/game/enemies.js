@@ -80,12 +80,20 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
   const rim = { value: new THREE.Vector3(0.05, 0.11, 0.14) };
   const mats = robotMaterials(world, { rim, key: 'enemies' });
   const shieldMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.0, 0.55, 0.08).multiplyScalar(1.6), transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+  // (additive, so the order of its faces does not matter: one pass, not three's back-then-front pair, which flips the
+  // material's side and looks its program up twice a draw)
+  shieldMat.forceSinglePass = true;
   const beamMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.7, 0.2, 1.0).multiplyScalar(4), transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false });
   // the warden's tell: one clustered lamp, put on whichever warden is winding up
   const tell = new THREE.PointLight(0xff3010, 0, 9, 2); world.scene.add(tell); world.lighting?.addLight(tell);
   /** hooks the rest of the game sets: env.dark(pos) 0..1, env.blind(from, to) (smoke), on.bark(e, key), on.pop(word, pos), on.dealt(amount) */
   const env = { dark: () => 0, blind: () => false, rim: 0 }, on = { bark: () => {}, pop: () => {}, dealt: () => {} };
   const visorMat = Object.fromEntries(Object.entries(KIND).map(([k, v]) => [k, mat.glow(v.visor, 7, { vertexColors: true })]));
+  // the same looks for the parts that are not skinned (the rifle, its muzzle, the shield's emitter and frame): three
+  // keeps one program per material and looks it up again whenever a material goes from a skinned mesh to a plain one,
+  // so sharing them cost a program lookup per robot per pass
+  const plain = robotMaterials(world, { rim, key: 'enemies-plain' });
+  const visorPlain = Object.fromEntries(Object.entries(KIND).map(([k, v]) => [k, mat.glow(v.visor, 7, { vertexColors: true })]));
   const extra = extraClips(), CLIPS = robotClips(), BLEND = [0, CLIP_SPEED.walk[0], CLIP_SPEED.run[0]], bw = new Float32Array(3);
   const list = [], byZone = {}, hounds = [];
   let nav = null, crowd = null, senses = null, rnd = 0x9e3779b9;
@@ -111,6 +119,7 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
       return [['s', mats.shell], ['m', mats.metal], ['l', visorMat[kk]]].filter(([k]) => g[k]).map(([k, m]) => {
         const sm = new THREE.SkinnedMesh(g[k], m); sm.bind(rig.mesh.skeleton, rig.mesh.bindMatrix);
         sm.boundingSphere = reach; sm.frustumCulled = true; sm.castShadow = k === 's'; sm.receiveShadow = true; sm.visible = lod === 0;
+        sm.name = 'robot-' + k;   // (main.js: the metal parts and the rifle stay out of the wet street's mirror)
         rig.root.add(sm); return sm;
       });
     });
@@ -118,15 +127,15 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
     // an optic (the marksman: a long barrel, a scope and a folded bipod); the muzzle's tip lit
     const gun = new THREE.Group(); B.RightHand.add(gun); gun.position.set(-0.1, -0.02, 0.02);
     const sniper = K.name === 'marksman';
-    const gunMesh = new THREE.Mesh(rifle(sniper), mats.shell); gunMesh.castShadow = false; gun.add(gunMesh);
-    const tip = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.012, 8).rotateZ(Math.PI / 2), visorMat[kk]); tip.position.set(sniper ? -0.98 : -0.6, 0.03, 0); gun.add(tip);
+    const gunMesh = new THREE.Mesh(rifle(sniper), plain.shell); gunMesh.castShadow = false; gunMesh.name = 'robot-gun'; gun.add(gunMesh);
+    const tip = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.012, 8).rotateZ(Math.PI / 2), visorPlain[kk]); tip.position.set(sniper ? -0.98 : -0.6, 0.03, 0); gun.add(tip);
     // the shield sentinel's kit: a curved energy shield carried in front, its emitter a lit node on the lower rim
     let shield = null, emitter = null, beam = null;
     if (K.name === 'shield') {
       shield = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 1.55, 16, 1, true, -0.62, 1.24).translate(0, 0, -0.9 + 0.62), shieldMat);
       shield.position.set(0, 1.12, 0); shield.rotation.y = 0; shield.renderOrder = 2; shield.userData.occlude = false; shield.castShadow = false;
-      emitter = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 8), visorMat.shield); emitter.position.set(0, 0.42, 0.63);
-      const frame = new THREE.Mesh(projector(), mats.shell); frame.position.set(0, 0.36, 0.6); frame.castShadow = false;
+      emitter = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 8), visorPlain.shield); emitter.position.set(0, 0.42, 0.63);
+      const frame = new THREE.Mesh(projector(), plain.shell); frame.position.set(0, 0.36, 0.6); frame.castShadow = false;
       rig.root.add(shield, emitter, frame);
     }
     // the marksman's tell: a beam from the muzzle to the player that tightens before the shot
@@ -167,12 +176,23 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
       maxHp: K.hp, stun: 0, jam: 0, shieldHp: K.shieldHp || 0, shieldOff: 0, charge: 0, barkT: 0, lureT: 0, sparkT: 0, lod: 0, leapT: 0, cool: 0,
     };
     e.rig.root.position.set(...e.pos); e.rig.root.rotation.y = e.yaw; e.rig.root.visible = e.active;   // the wave and the relay's two are not drawn until they are woken
+    onceAStep(e);
     game.add({ id: def.id, enemy: e, interact: { can: () => false, label: '', at: () => [e.pos[0], e.pos[1] + (K.type === 'hound' ? 0.8 : 1.2) * K.scale, e.pos[2]] },   // not usable: `at` lets tools look at it by id
       save: () => ({ hp: e.hp, dead: e.dead, pos: e.pos.map((v) => +v.toFixed(2)), yaw: +e.yaw.toFixed(2), active: e.active, shown: e.rig.root.visible }),
       load: (s) => restore(e, s) });
     list.push(e); (byZone[def.zone] ||= []).push(e);
     if (K.type === 'hound') hounds.push(e);
     return e;
+  }
+  /** three updates a skeleton (its bone matrices and bone texture) once per render() call: a frame renders the scene,
+   *  the velocity buffer, the mirror and a lamp's six cube faces, so each robot's bones were computed and uploaded
+   *  several times a frame for one pose. The bones change only in a step (the animator, the root moved) or through
+   *  anim.update: the skeleton is updated once after each of those (e.boneV), whatever the passes */
+  function onceAStep(e) {
+    const sk = e.sets[0][0].skeleton, upd = sk.update.bind(sk), au = e.anim.update.bind(e.anim);
+    e.boneV = 1;
+    sk.update = () => { if (sk.ndV !== e.boneV) { sk.ndV = e.boneV; upd(); } };
+    e.anim.update = (dt) => { e.boneV++; return au(dt); };
   }
   /** a hound (a robot dog, game/robot-rig.js): no rig, no animator; a stand-in for the animator's calls that poses
    *  the dog in code from its speed, the distance it covered, a crouch (the tell), a leap and a fall */
@@ -595,6 +615,7 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
     let teller = null, tellD = 1e9;
     for (const e of list) {
       const rootObj = e.rig.root;
+      e.boneV++;   // (the root may move this step: its bones' world matrices with it)
       const kit = !e.dead && rootObj.visible && e.shieldOff <= 0 && e.stun <= 0;
       if (e.shield) { e.shield.visible = kit; e.emitter.visible = kit; }
       if (e.beam) e.beam.visible = false;
@@ -648,6 +669,7 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
       let hot = 0, jammed = 0;
       for (const e of list) if (!e.dead && e.K === KIND[k]) { if (e.tele > 0 || e.charge > 0) hot = 1; if (e.jam > 0 || e.stun > 0) jammed = 1; }
       visorMat[k].color.setRGB(...KIND[k].visor).multiplyScalar(7 * (1 + 2.2 * hot * (0.6 + 0.4 * Math.sin(game.time * 40))) * (jammed && Math.sin(game.time * 23) > 0.3 ? 0.15 : 1));
+      visorPlain[k].color.copy(visorMat[k].color);
     }
     rim.value.set(0.05, 0.11, 0.14).multiplyScalar(1 + 5 * env.rim);
     return moved;

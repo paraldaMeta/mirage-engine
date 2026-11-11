@@ -134,6 +134,7 @@ export function createHound({ style, mats, light }) {
     return [['s', mats.shell], ['m', mats.metal], ['l', light]].filter(([k]) => g[k]).map(([k, m]) => {
       const sm = new THREE.SkinnedMesh(g[k], m); sm.bind(skeleton, new THREE.Matrix4());
       sm.boundingSphere = reach; sm.frustumCulled = true; sm.castShadow = k === 's' && lod < 2; sm.receiveShadow = true; sm.visible = lod === 0;
+      sm.name = 'robot-' + k;
       model.add(sm); return sm;
     });
   });
