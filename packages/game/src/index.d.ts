@@ -36,7 +36,7 @@ export type { PhysicsDebug } from './physics-debug.js';
 export type { Game, GameOptions, Entity, InteractableEntity, Interaction, InventoryItem, Zone, ActiveZone, ZoneShape,
   Snapshot, ExtendedSnapshot, LoadedSave, SaveSlot, SlotInfo, Migrations, GameEvents, EventData, System } from './game.js';
 export type { Action, Bindings, Input } from './input.js';
-export type { AudioMixer, AudioLoop, AudioOptions, AudioBus, Sound, LoopSound, SingleBufferSound, Surface } from './audio.js';
+export type { AudioMixer, AudioLoop, AudioOptions, AudioSoundSource, AudioBus, Sound, LoopSound, SingleBufferSound, Surface } from './audio.js';
 export type { GameUI, GameMessages, UIOptions, UISaveHandler } from './ui.js';
 export type { AudioEngine, AudioEngineOptions, AudioEngineStats, Voice, PlayOptions, CueSpec, Stream, ZoneSpec, ZoneOptions, OcclusionOptions, PanningModel, Ears } from './audio-engine.js';
 export type { Mixer, Bus, BusSpec, Effect, EffectSpec, EffectType, Meter, Duck } from './audio-mixer.js';

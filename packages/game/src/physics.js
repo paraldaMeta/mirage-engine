@@ -8,7 +8,7 @@
 //   phys.character({ pos })     a kinematic character controller with the @miragekit/play walker's shape
 //   phys.step(dt)               one Rapier step; true while anything moved (props awake, a door turning)
 //   phys.settle(maxSteps?)      step until every dynamic prop sleeps (a hand-placed pile at rest before the first frame)
-//   phys.ray(from, dir, max)    -> { point, distance, surface, object } | null
+//   phys.ray(from, dir, max)    -> { point, distance, surface, object, normal } | null
 //   phys.snapshot() / phys.restore(snap)   the whole state (Rapier's own bytes, doors, characters and what the
 //                               physics kit keeps); restore swaps in a new Rapier world, so read `phys.world` and
 //                               `prop.body` afresh afterwards. More in docs/physics.md and physics-kit.js.
@@ -175,10 +175,10 @@ export async function createPhysics(scene, { gravity = 9.81 } = {}) {
 
   function ray(from, dir, max = 100, exclude) {
     const r = new R.Ray({ x: from[0], y: from[1], z: from[2] }, { x: dir[0], y: dir[1], z: dir[2] });
-    const hit = world.castRay(r, max, true, R.QueryFilterFlags.EXCLUDE_SENSORS, undefined, exclude);
+    const hit = world.castRayAndGetNormal(r, max, true, R.QueryFilterFlags.EXCLUDE_SENSORS, undefined, exclude);
     if (!hit) return null;
-    const d = hit.timeOfImpact ?? hit.toi, i = info.get(hit.collider.handle) || {};
-    return { point: from.map((v, k) => v + dir[k] * d), distance: d, surface: i.surface || 'default', object: i.object };
+    const d = hit.timeOfImpact ?? hit.toi, i = info.get(hit.collider.handle) || {}, n = hit.normal;
+    return { point: from.map((v, k) => v + dir[k] * d), distance: d, surface: i.surface || 'default', object: i.object, normal: [n.x, n.y, n.z] };
   }
 
   /** a cylinder on a kinematic character controller with the @miragekit/play walker's interface */

@@ -31,8 +31,10 @@ const xrs = await xrSupport();   // a headset browser: an MSAA context for the h
 const LF = (k) => Q.get(k) === '1';
 const NL = +Q.get('lights') || 0, stock = LF('stock');
 const SCR = ['ssr', 'ssgi', 'contact'].some((k) => +Q.get(k) > 0);   // ?ssr=1&ssgi=1&contact=1: screen-space lighting (docs/lighting.md)
-const lighting = ['csm', 'gi', 'probes'].some(LF) || (NL && !stock) || SCR ? {
-  screen: SCR,
+// ?planar=1: a planar reflection of the middle terrace's two pools (their water at 1.94 m; &planary=m &planarscale=0.5 &planarevery=N)
+const PLANAR = LF('planar') && { y: +(Q.get('planary') ?? plan.levels[1] + 0.34), ...(Q.has('planarscale') ? { scale: +Q.get('planarscale') } : {}), ...(Q.has('planarevery') ? { every: +Q.get('planarevery') } : {}) };
+const lighting = ['csm', 'gi', 'probes'].some(LF) || (NL && !stock) || SCR || PLANAR ? {
+  screen: SCR, planar: PLANAR,
   csm: LF('csm') && { cascades: +Q.get('cascades') || 4, stagger: LF('stagger') },   // &stagger=1: far cascades redrawn less often
   gi: LF('gi') && { min: [-4.08, 3.6, -29.08], max: [4.08, 7.4, -20.92], spacing: +Q.get('gispacing') || 1.4, fade: 0.4 },
   probes: LF('probes') && [{ min: [-4.08, 3.6, -29.08], max: [4.08, 7.4, -20.92], fade: 0.5 }],

@@ -41,7 +41,7 @@ requestAnimationFrame(loop);
 | `envProbe`, `envIntensity` | `[0, 3, 0]`, `0.5` | capture point and strength of the image-based light |
 | `envFade` | `1.5` | seconds an eased environment recapture cross-fades over |
 | `fog` | `{ density: 1, groundDensity: 0.0016, height: 18, air: 0.00012, level: 0, color: 1, glow: 1 }` | height fog (extinction /m at `level`, scale height m), thin air, multipliers for the haze colour and the glow toward the light |
-| `post` | `DEFAULT_POST` | `exposure (0.4), temperature, saturation, contrast, lift, vignette, tonemap ('aces' \| 'agx' \| 'neutral'), sharpen, grain, bloom, bloomRadius, ao, aoRadius, aoPower, aoLit, autoExposure, aeKey, aeNight, aeRange, aeUp, aeDown, sky, dof (lens radius m, 0 = off), focus (m)` (the opt-in ones: see "Ambient-only AO, auto exposure, dynamic resolution") |
+| `post` | `DEFAULT_POST` | `exposure (0.4), temperature, saturation, contrast, lift, vignette, tonemap ('aces' \| 'agx' \| 'neutral'), sharpen, grain, bloom, bloomRadius, ao, aoRadius, aoPower, aoLit, autoExposure, aeKey, aeNight, aeRange, aeUp, aeDown, sky, dof (lens radius m, 0 = off), focus (m)` (the opt-in ones: see "Ambient-only AO, auto exposure, dynamic resolution"; the post chain's `taa2`, `upscale`, `motionBlur`, `bokeh`, `bloomPyramid`, `lut`, `chroma`, `rcas`, `godrays`, `flare`, `lensDirt`, `streak`: `docs/post.md`) |
 | `spp` | per quality | sub-frames per frame |
 | `wind` | `{ dir: [0.8, 0.6], strength: 1 }` | for `mgWind()` in vertex hooks |
 | `clouds` | `0.35` | cloud cover 0..1 (`0.5` with the dusk sky) |
@@ -162,6 +162,8 @@ world.lampPool.set(lanterns.map((a) => ({ pos: a.flame, range: 6, power: 1.2, no
   wall or a floor between lamp and surface (a room across a lane narrower than `range`, the floor above), round
   corners and piers; a lamp without `normal` leaks every way. Short ranges keep it local.
 - **Captures.** Pool lamps light the environment and probe captures like PointLights do (`captures: false` to skip).
+  A render that shades nothing (an unlit `scene.overrideMaterial`: a clustered light's shadow tile, gi.js's distance
+  cubes) is left alone: the pool bins no lamp for it (`info.skipped` counts them, `info.bins` the binnings).
 - **Real lights found.** The scene's PointLights are looked for again every 30 renders and before every still frame
   (never by the clock); one counts only while it is visible and still in the scene. light2's slot for a pool lamp is
   keyed by its place (or its `id`), so removing another lamp moves no shadow. An XR (array) camera takes the list
@@ -256,6 +258,25 @@ createWorldRenderer({ canvas, post: { godrays: 1, flare: 1 } });   // or ?godray
   bit-identical run to run; moving frames ease them through a short history (no shimmer under TAA). Cost at
   1280 x 720 with the sun in view: +0.19 ms (god rays), +0.0 ms (flare); at 2560 x 1440, +1.3 / +0.3 ms.
 
+## Lens dirt and anamorphic streaks (opt-in): `post.lensDirt`, `post.streak`
+
+Two lens effects for lamp-lit nights, off by default (frames bit-identical to before); details and costs in
+`docs/post.md`.
+
+```js
+createWorldRenderer({ canvas, post: { lensDirt: 0.6, streak: 0.6 } });   // or ?dirt=0.6&streak=0.6 through postFromQuery
+```
+
+- **`post.lensDirt`** (0.5 subtle, 1 strong): a procedural smudge mask (`lensDirtMask`: blotches, dried drops, wiped
+  streaks, specks; made in code, no image) lit by a wide blur of the light above `lensDirtThreshold` (1, exposed
+  luminance), so the blotches round a lamp glow in its colour and the rest of the lens stays clean. Any bloom path.
+- **`post.streak`** (0..1): light above `streakThreshold` (3, exposed luminance) smeared horizontally at low
+  resolution (three passes of 9 taps), `streakLength` (1 = about a third of the frame width each way), tinted by
+  `streakTint` (`[0.5, 0.7, 1.0]`, a cool blue), added before the grade.
+- Both read the adapted auto exposure, so they keep their thresholds while it adapts. Cost on moving frames:
+  about +0.1 ms each at 1440 x 900, +0.65 (dirt) / +0.9 (streak) ms at 2880 x 1800. Auto exposure and `rcas` were
+  measured at night (no pumping, no noise amplification): `docs/post.md`.
+
 ## Soft sun shadows (opt-in): `softShadows`
 
 `createWorldRenderer({ ..., softShadows: true })` (or an object: `{ sunAngle: 1.5 }`). Off, nothing is patched and
@@ -342,6 +363,20 @@ stills are bit-identical. Limits: one height per (x, z), so under an arch, a roo
 is (ambient volumes handle rooms); no local lamps; not together with `gi` over the same area.
 `world.lighting.bounce.info` / `.strength` / `.bake()`; settings `BOUNCE_DEFAULTS`; details and measurements in
 [docs/lighting.md](../../docs/lighting.md).
+
+## Planar reflection (opt-in, experimental): `lighting: { planar }`
+
+`createWorldRenderer({ ..., lighting: { planar: { y: 0 } } })`: flat wet ground mirrors what screen-space reflections
+cannot, the lamp above the frame and the sky behind the camera. Each moving frame (and each still sub-frame) the scene
+is drawn once more from the camera mirrored in the plane `y` (oblique near plane at the plane, `scale` 0.5 x the
+frame, the world's own materials, lights and fog, no post, no `mgNoCapture` particles, no recursion); the shadow maps
+drawn by that pass are reused by the scene pass. Lit surfaces within `fade` (0.25 m) of the plane, facing up and no
+rougher than `roughMax` (0.35) read it instead of the probe / sky reflection, distorted by their normal (ripples,
+relief) and blurred and stretched with roughness; it sits over screen-space reflections. `every: N` redraws it every
+Nth moving frame. hello-courtyard 1440 x 900 `?wet=0.8&planar=1`: +0.4 ms (SSR: +0.5). Without `planar` nothing of it
+is built and stills are byte-identical. Limits: one horizontal plane; a second draw of the scene; per-view culling
+hooks run for the view only; double fog over the eye-to-puddle stretch; not in XR. `world.lighting.planar.info`;
+settings `PLANAR_DEFAULTS`; details in [docs/lighting.md](../../docs/lighting.md).
 
 ## Materials: `world.mat`
 
@@ -503,19 +538,43 @@ addRain(ctx);                     // falling streaks around the camera (a world 
   about `heightMid`, `heightScale` m per unit: the paving's joints fill first). Vertical surfaces get thin run-off
   streaks, undersides stay dry, a damp band rises `band` m from the ground (`ground`: a height, an Object3D or a
   horizontal THREE.Plane). `puddles`: 0 none, 1 default, more fuller.
+- **Wear, shelter, rim** (opt-in): `wear` (a GLSL float 0..1 of the material: wheel ruts, a trodden path, joints,
+  round a drain) says where the water goes: the bed's own noise is halved and a fully worn spot sits `wearDepth` m
+  (0.016) below the unworn bed, so puddles gather in the ruts instead of in noise blobs. `shelter` (0..1: a number,
+  a GLSL float or a `{ value }` uniform; 1 under an awning or indoors) keeps the surface dry and matte there. `rim`
+  (0..1; 1 when `wear` or `shelter` is given, else 0) draws a thin darker damp band round each puddle (the bed a few
+  mm above the water line) and eases the water's edge over ~2 mm of bed height (a meniscus, not one cut level).
+  Up-facing surfaces pool, walls only streak, undersides stay dry, as before.
+
+  ```js
+  const ground = world.mat.std({ roughness: 0.85 }, withWet(groundHooks, {
+    porosity: 0.5, height: 'mgS.h', heightMid: tex.info('paving').hMean,       // the joints fill first
+    wear: 'smoothstep(0.35, 0.0, abs(abs(mgWorldPos.x) - 0.8))',               // two wheel ruts 1.6 m apart along z
+    shelter: '1.0 - smoothstep(-0.2, 0.2, mgWorldPos.z - 4.0)',                 // dry under the awning (z < 4)
+  }));
+  ```
 - **Reflections**: without light2 the puddles reflect the environment map. Under light2 only standing water is
   flagged for screen-space reflection: the soaked film keeps its low roughness for the image-based light and the
   sun but is floored at 0.42 for the flag (light2's threshold), so damp ground is a sheen, not a second mirror.
 - **Rain rings**: a sparse cell layer (two scales, ~2 cm waves, a drop per cell per cycle at a hashed spot), a
-  normal perturbation on standing water only, from `uTime` alone (stills are identical on every run). They fade
-  where a pixel covers more than ~1 cm and the pool reads rougher instead.
+  normal perturbation on standing water only, in world space (they do not swim with the UVs), from `uTime` alone
+  (stills are identical on every run). As many drops as the rain is heavy (`setRain`), half as strong at a drizzle;
+  `ripples` scales them per material (0 off: the frame is byte for byte that of `setRain(0)`; 1 default). They fade
+  where a pixel covers more than ~1 cm and the pool reads rougher instead. Under `lighting.planar` the rings bend
+  the mirror's lookup (its `DISTORT`), and standing water stays under its `roughMax`.
 - **Stability**: octaves finer than the pixel footprint fade out, shorelines are antialiased by the height's screen
-  derivative, far pools thin to a soaked sheen, and patch()'s specular AA widens the lobe where the normal varies
-  (a material that had none gets it only while wet: `hooks.specAA`).
+  derivative, far pools thin to a soaked sheen, and the specular AA (`mgSpecAA`, Kaplanyan / Tokuyoshi: the shading
+  normal's screen-space variance added to the squared roughness, clamped) widens the lobe once the wet layer and the
+  rings have bent the normal. `specAA` is its strength while wet (1; 0 / false off); in rain it is 4x on standing
+  water. While dry the material keeps patch()'s own AA (`hooks.specAA`; withWet adds `hooks.specAAIf:
+  '!defined(MG_WET)'` so it is applied once). `SPEC_AA_GLSL` is the helper for shaders of your own.
 - **Off**: the wet code sits inside `#ifdef MG_WET`; `setWetness` sets the define on the opted-in materials (and
   only them) while the level is above 0 and recompiles them when it crosses 0, like `setAmbientVolumes`; moving
   between levels above 0 recompiles nothing. At `setWetness(0)` the program is the dry one: hello-courtyard's frames
-  are bit-identical with `?wet=0` (5 views, 0 px). The two uniforms (`WET`) are page-global, not in the world's `G`.
+  are bit-identical with `?wet=0` (5 views, 0 px). The two uniforms (`WET`) are page-global, not in the world's `G`;
+  the per-material numbers are two uniforms (`mgWetP`, `mgWetQ`), so materials that differ only in porosity, ground,
+  band, puddles, ripples, specAA, rim or a numeric shelter share one program (GLSL options: `height`, `wear`, a
+  string `shelter` make their own).
 - **Changing it live**: `world.tick(dt)` notices `setWetness` / `setRain` (and returns true, so @miragekit/play draws
   again); a wetness change recaptures the image-based light from scratch, so `setWetness(0)` after a wet spell
   gives the dry image exactly and wet puddles reflect a wet world. Without tick(), call `world.captureEnv(true)`
@@ -528,8 +587,7 @@ addRain(ctx);                     // falling streaks around the camera (a world 
   TAA, dry / wet / wet + rain interleaved in one page): wet 0.8 +0.15…0.57 ms median (+2…5 %), rain streaks
   +0.0…0.25 ms more and one draw call. TAA shimmer on an orbit over the paving: flicker / motion unchanged (1.40 dry,
   1.40 wet). Details in `examples/hello-courtyard/NOTES.md`.
-- **Limits**: no occlusion from above (the ground under a pergola or an arcade gets as wet as the open court; give
-  such materials their own `withWet` options or none); no splashes, drips or wet-darkened foliage; the ripples are
+- **Limits**: no occlusion from above computed for you (say where with `shelter`); no splashes, drips or wet-darkened foliage; the ripples are
   normals only (no refraction of the bed); `ground` is read once (an Object3D moved later needs the material
   re-made, or `hooks.uniforms.mgWetP.value.y` set). ponytail: the uniforms are shared by every world on a page.
 

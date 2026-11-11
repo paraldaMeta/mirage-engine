@@ -1,0 +1,1891 @@
+{
+ "title": "neon-district: the alley to the roof",
+ "query": "start=1&grain=0&assist=1&quality=medium&lang=en&reserve=0&drill=1",
+ "w": 1280,
+ "h": 720,
+ "steps": [
+  {
+   "name": "spawn",
+   "ms": 600,
+   "expect": {
+    "errors": "== 0",
+    "onGround": "== true",
+    "paused": "== false",
+    "y": "~ 0.02 0.05"
+   }
+  },
+  {
+   "name": "ammo-marker-when-low",
+   "ms": 400,
+   "shot": false,
+   "expect": {
+    "flags.ammoLow": "== true",
+    "flags.ammoTarget": "== crate-alley"
+   }
+  },
+  {
+   "name": "press-0-unlocks",
+   "tap": "Digit0",
+   "ms": 500,
+   "expect": {
+    "flags.unlocks": ">= 1"
+   },
+   "shot": false
+  },
+  {
+   "name": "rocket-up",
+   "place": {
+    "eye": [
+     -22,
+     1.62,
+     29.5
+    ],
+    "look": [
+     -22,
+     1.4,
+     20
+    ],
+    "mode": "walk"
+   },
+   "tap": "Digit4",
+   "ms": 900,
+   "expect": {
+    "flags.weapon": "== rocket"
+   },
+   "shot": false
+  },
+  {
+   "name": "drill-a-shield-sentinel",
+   "tap": "KeyJ",
+   "ms": 1200,
+   "expect": {
+    "flags.drills": ">= 1"
+   },
+   "shot": false
+  },
+  {
+   "name": "rocket-splash-kill-breaks-the-shield",
+   "lookAt": "g11",
+   "tap": "KeyF",
+   "ms": 1600,
+   "expect": {
+    "flags.rockets": ">= 1",
+    "flags.rocketKills": ">= 1",
+    "flags.splashKills": ">= 1",
+    "flags.shieldBreaks": ">= 1",
+    "flags.shieldsBroken": ">= 1"
+   }
+  },
+  {
+   "name": "shotgun-up",
+   "tap": "Digit3",
+   "ms": 800,
+   "expect": {
+    "flags.weapon": "== shotgun"
+   },
+   "shot": false
+  },
+  {
+   "name": "drill-a-sentinel-up-close",
+   "tap": "KeyK",
+   "ms": 500,
+   "expect": {
+    "flags.drills": ">= 2"
+   },
+   "shot": false,
+   "place": {
+    "eye": [
+     -22,
+     1.62,
+     29.5
+    ],
+    "look": [
+     -22,
+     1,
+     20
+    ],
+    "mode": "walk"
+   }
+  },
+  {
+   "name": "shotgun-close-kill",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 1800,
+   "expect": {
+    "flags.shotgunCloseKills": ">= 1",
+    "flags.shots_shotgun": ">= 1"
+   }
+  },
+  {
+   "name": "carbine-back",
+   "tap": "Digit2",
+   "ms": 700,
+   "expect": {
+    "flags.weapon": "== carbine"
+   },
+   "shot": false
+  },
+  {
+   "name": "fence-blocks",
+   "place": {
+    "eye": [
+     -22,
+     1.62,
+     30.5
+    ],
+    "look": [
+     -22,
+     1.62,
+     40
+    ],
+    "mode": "walk"
+   },
+   "keys": [
+    "KeyW"
+   ],
+   "ms": 1500,
+   "expect": {
+    "z": "< 31.9"
+   },
+   "shot": false
+  },
+  {
+   "name": "alley-sentinel",
+   "place": {
+    "eye": [
+     -22,
+     1.62,
+     26
+    ],
+    "look": [
+     -22,
+     1.3,
+     15
+    ],
+    "mode": "walk"
+   },
+   "lookAt": "g0",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 2600,
+   "expect": {
+    "flags.kills": ">= 1"
+   }
+  },
+  {
+   "name": "reload",
+   "tap": "KeyR",
+   "ms": 2000,
+   "expect": {
+    "flags.reloads_carbine": ">= 1"
+   },
+   "shot": false
+  },
+  {
+   "name": "a-cell-after-the-kill",
+   "ms": 200,
+   "shot": false,
+   "expect": {
+    "flags.drops": ">= 1"
+   }
+  },
+  {
+   "name": "take-the-cell",
+   "lookAt": "lastcell",
+   "keys": [
+    "KeyW"
+   ],
+   "ms": 3500,
+   "expect": {
+    "flags.cellsTaken": ">= 1"
+   }
+  },
+  {
+   "name": "take-the-crate",
+   "walkTo": [
+    [
+     -21.2,
+     25.5
+    ],
+    [
+     -20.75,
+     27.2
+    ]
+   ],
+   "expect": {
+    "flags.cratesTaken": ">= 1"
+   },
+   "shot": false
+  },
+  {
+   "name": "out-of-the-alley",
+   "walkTo": [
+    [
+     -22,
+     20
+    ],
+    [
+     -22,
+     9.2
+    ]
+   ],
+   "run": true,
+   "expect": {
+    "z": "< 9.8",
+    "flags.cp_street": "== true"
+   },
+   "see": [
+    "bar"
+   ]
+  },
+  {
+   "name": "fire-at-g1-1",
+   "lookAt": "g1",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-g1-2",
+   "lookAt": "g1",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-g1-3",
+   "lookAt": "g1",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "behind-the-barrier",
+   "walkTo": [
+    [
+     -14.5,
+     7.9
+    ]
+   ],
+   "run": true,
+   "expect": {
+    "x": "> -15.5"
+   },
+   "shot": false
+  },
+  {
+   "name": "taught-at-the-first-fight",
+   "ms": 100,
+   "shot": false,
+   "expect": {
+    "flags.taught": "== true"
+   }
+  },
+  {
+   "name": "hack-the-street-lamp",
+   "lookAt": [
+    -17,
+    5,
+    7.85
+   ],
+   "keys": [
+    "KeyG"
+   ],
+   "ms": 1300,
+   "expect": {
+    "flags.hackLights": ">= 1",
+    "flags.darkNow": ">= 1"
+   }
+  },
+  {
+   "name": "hack-the-kite",
+   "lookAt": "d0",
+   "keys": [
+    "KeyG"
+   ],
+   "ms": 1500,
+   "expect": {
+    "flags.kitesTurned": ">= 1"
+   },
+   "shot": false
+  },
+  {
+   "name": "the-kite-at-work",
+   "lookAt": "d0",
+   "ms": 4000,
+   "expect": {
+    "flags.kiteHits": ">= 1"
+   }
+  },
+  {
+   "name": "fire-at-g2-1",
+   "lookAt": "g2",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-g2-2",
+   "lookAt": "g2",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-g2-3",
+   "lookAt": "g2",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-g3-1",
+   "lookAt": "g3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-g3-2",
+   "lookAt": "g3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-g3-3",
+   "lookAt": "g3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-g3-4",
+   "lookAt": "g3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-g3-5",
+   "lookAt": "g3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-g3-6",
+   "lookAt": "g3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-g1-1",
+   "lookAt": "g1",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-g1-2",
+   "lookAt": "g1",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-g2-1",
+   "lookAt": "g2",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-g2-2",
+   "lookAt": "g2",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "street-cleared",
+   "ms": 300,
+   "expect": {
+    "flags.kills": ">= 3"
+   }
+  },
+  {
+   "name": "dash",
+   "place": {
+    "eye": [
+     0,
+     1.62,
+     6.2
+    ],
+    "look": [
+     -10,
+     1.62,
+     6.2
+    ],
+    "mode": "walk"
+   },
+   "tap": "AltLeft",
+   "ms": 700,
+   "expect": {
+    "flags.dashes": ">= 1",
+    "dist": "> 3.5"
+   },
+   "shot": false
+  },
+  {
+   "name": "bar-window-blocks",
+   "place": {
+    "eye": [
+     -20,
+     1.76,
+     4
+    ],
+    "look": [
+     -20,
+     1.76,
+     -4
+    ],
+    "mode": "walk"
+   },
+   "keys": [
+    "KeyW"
+   ],
+   "ms": 1500,
+   "expect": {
+    "z": "> 2.2"
+   },
+   "shot": false
+  },
+  {
+   "name": "into-the-bar",
+   "place": {
+    "eye": [
+     -16,
+     1.76,
+     5
+    ],
+    "look": [
+     -16,
+     1.76,
+     -4
+    ],
+    "mode": "walk"
+   },
+   "walkTo": [
+    [
+     -16,
+     0.6
+    ]
+   ],
+   "expect": {
+    "z": "< 1.0",
+    "y": "~ 0.16 0.05"
+   }
+  },
+  {
+   "name": "fire-at-g4-1",
+   "lookAt": "g4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-g4-2",
+   "lookAt": "g4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-g4-3",
+   "lookAt": "g4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "to-the-counter",
+   "walkTo": [
+    [
+     -17.05,
+     -4.2
+    ]
+   ],
+   "lookAt": "pass",
+   "expect": {
+    "near": "== pass",
+    "prompt": "has relay pass"
+   },
+   "see": [
+    "bar"
+   ]
+  },
+  {
+   "name": "take-the-pass",
+   "tap": "KeyE",
+   "ms": 400,
+   "expect": {
+    "inventory": "has pass"
+   },
+   "shot": false
+  },
+  {
+   "name": "the-crate-refilled",
+   "ms": 100,
+   "shot": false,
+   "expect": {
+    "flags.crateRefills": ">= 1"
+   }
+  },
+  {
+   "name": "to-the-plaza",
+   "walkTo": [
+    [
+     -16,
+     0.6
+    ],
+    [
+     -16,
+     5.8
+    ],
+    [
+     6,
+     5.8
+    ],
+    [
+     17.6,
+     3.2
+    ],
+    [
+     16,
+     -0.6
+    ]
+   ],
+   "run": true,
+   "timeout": 60000,
+   "expect": {
+    "flags.cp_plaza": "== true",
+    "y": "~ 0.14 0.05"
+   },
+   "see": [
+    "hologram"
+   ],
+   "lookAt": [
+    18,
+    3.5,
+    -9
+   ]
+  },
+  {
+   "name": "fire-at-g6-1",
+   "lookAt": "g6",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-g6-2",
+   "lookAt": "g6",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-g6-3",
+   "lookAt": "g6",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-g5-1",
+   "lookAt": "g5",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-g5-2",
+   "lookAt": "g5",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-g5-3",
+   "lookAt": "g5",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-g8-1",
+   "lookAt": "g8",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-g8-2",
+   "lookAt": "g8",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-g8-3",
+   "lookAt": "g8",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-g7-1",
+   "lookAt": "g7",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-g7-2",
+   "lookAt": "g7",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-g7-3",
+   "lookAt": "g7",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-g7-4",
+   "lookAt": "g7",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "plaza-fought",
+   "ms": 300,
+   "expect": {
+    "flags.kills": ">= 5"
+   }
+  },
+  {
+   "name": "to-the-relay-door",
+   "walkTo": [
+    [
+     16,
+     -5
+    ],
+    [
+     15.3,
+     -12.6
+    ],
+    [
+     15.6,
+     -18.4
+    ],
+    [
+     14.3,
+     -18.9
+    ]
+   ],
+   "run": true,
+   "lookAt": "door",
+   "expect": {
+    "near": "== door",
+    "prompt": "has Open the relay"
+   },
+   "shot": false
+  },
+  {
+   "name": "open-the-relay",
+   "tap": "KeyE",
+   "ms": 1800,
+   "expect": {
+    "flags.doorOpen": "== true"
+   }
+  },
+  {
+   "name": "emp-grenade",
+   "lookAt": "g9",
+   "tap": "KeyH",
+   "ms": 1800,
+   "expect": {
+    "flags.emps": ">= 1"
+   }
+  },
+  {
+   "name": "overdrive",
+   "tap": "KeyB",
+   "ms": 600,
+   "expect": {
+    "flags.overdrives": ">= 1",
+    "flags.marked": ">= 1"
+   }
+  },
+  {
+   "name": "fire-at-g9-1",
+   "lookAt": "g9",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-g9-2",
+   "lookAt": "g9",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-g9-3",
+   "lookAt": "g9",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-g10-1",
+   "lookAt": "g10",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-g10-2",
+   "lookAt": "g10",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-g10-3",
+   "lookAt": "g10",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-g10-4",
+   "lookAt": "g10",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "through-the-room",
+   "walkTo": [
+    [
+     14,
+     -21.6
+    ],
+    [
+     21.4,
+     -22.15
+    ],
+    [
+     24.5,
+     -22.2
+    ]
+   ],
+   "expect": {
+    "x": "> 24",
+    "y": "~ 0.16 0.05"
+   }
+  },
+  {
+   "name": "up-the-stairs",
+   "walkTo": [
+    [
+     24.5,
+     -27.9
+    ],
+    [
+     27.4,
+     -27.9
+    ],
+    [
+     27.4,
+     -22.3
+    ],
+    [
+     24.6,
+     -22.15
+    ],
+    [
+     21.9,
+     -22.15
+    ]
+   ],
+   "run": true,
+   "timeout": 60000,
+   "expect": {
+    "y": "~ 6 0.08",
+    "flags.cp_roof": "== true"
+   }
+  },
+  {
+   "name": "parapet-blocks",
+   "place": {
+    "eye": [
+     14,
+     7.62,
+     -22
+    ],
+    "look": [
+     14,
+     7.62,
+     -10
+    ],
+    "mode": "walk"
+   },
+   "keys": [
+    "KeyW"
+   ],
+   "ms": 1500,
+   "expect": {
+    "z": "< -20.6",
+    "y": "~ 6 0.05"
+   },
+   "shot": false
+  },
+  {
+   "name": "to-the-uplink",
+   "walkTo": [
+    [
+     11,
+     -23.6
+    ],
+    [
+     9.5,
+     -23.5
+    ]
+   ],
+   "lookAt": "uplink",
+   "expect": {
+    "near": "== uplink",
+    "prompt": "has Start the uplink"
+   }
+  },
+  {
+   "name": "start-the-uplink",
+   "tap": "KeyE",
+   "ms": 500,
+   "expect": {
+    "flags.uplink": "== true"
+   },
+   "shot": false
+  },
+  {
+   "name": "hold-1",
+   "place": {
+    "eye": [
+     8,
+     7.62,
+     -28
+    ],
+    "look": [
+     22,
+     7,
+     -22
+    ],
+    "mode": "walk"
+   },
+   "ms": 7000,
+   "shot": false
+  },
+  {
+   "name": "fire-at-w0-a1",
+   "lookAt": "w0",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-w0-a2",
+   "lookAt": "w0",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-w1-a1",
+   "lookAt": "w1",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-w1-a2",
+   "lookAt": "w1",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-w2-a1",
+   "lookAt": "w2",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-w2-a2",
+   "lookAt": "w2",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-w2-a3",
+   "lookAt": "w2",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d3-a1",
+   "lookAt": "d3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d3-a2",
+   "lookAt": "d3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d3-a3",
+   "lookAt": "d3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d3-a4",
+   "lookAt": "d3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d3-a5",
+   "lookAt": "d3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d3-a6",
+   "lookAt": "d3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d4-a1",
+   "lookAt": "d4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d4-a2",
+   "lookAt": "d4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d4-a3",
+   "lookAt": "d4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d4-a4",
+   "lookAt": "d4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d4-a5",
+   "lookAt": "d4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d4-a6",
+   "lookAt": "d4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-w0-b1",
+   "lookAt": "w0",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-w0-b2",
+   "lookAt": "w0",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-w1-b1",
+   "lookAt": "w1",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-w1-b2",
+   "lookAt": "w1",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-w2-b1",
+   "lookAt": "w2",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-w2-b2",
+   "lookAt": "w2",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-w2-b3",
+   "lookAt": "w2",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d3-b1",
+   "lookAt": "d3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d3-b2",
+   "lookAt": "d3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d3-b3",
+   "lookAt": "d3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d3-b4",
+   "lookAt": "d3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d3-b5",
+   "lookAt": "d3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d3-b6",
+   "lookAt": "d3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d4-b1",
+   "lookAt": "d4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d4-b2",
+   "lookAt": "d4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d4-b3",
+   "lookAt": "d4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d4-b4",
+   "lookAt": "d4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d4-b5",
+   "lookAt": "d4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d4-b6",
+   "lookAt": "d4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "hold-2",
+   "ms": 12000,
+   "shot": false
+  },
+  {
+   "name": "fire-at-w0-c1",
+   "lookAt": "w0",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-w0-c2",
+   "lookAt": "w0",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-w1-c1",
+   "lookAt": "w1",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-w1-c2",
+   "lookAt": "w1",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-w2-c1",
+   "lookAt": "w2",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-w2-c2",
+   "lookAt": "w2",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-w2-c3",
+   "lookAt": "w2",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d3-c1",
+   "lookAt": "d3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d3-c2",
+   "lookAt": "d3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d3-c3",
+   "lookAt": "d3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d3-c4",
+   "lookAt": "d3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d3-c5",
+   "lookAt": "d3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d3-c6",
+   "lookAt": "d3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d4-c1",
+   "lookAt": "d4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d4-c2",
+   "lookAt": "d4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d4-c3",
+   "lookAt": "d4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d4-c4",
+   "lookAt": "d4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d4-c5",
+   "lookAt": "d4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d4-c6",
+   "lookAt": "d4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-w0-d1",
+   "lookAt": "w0",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-w0-d2",
+   "lookAt": "w0",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-w1-d1",
+   "lookAt": "w1",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-w1-d2",
+   "lookAt": "w1",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-w2-d1",
+   "lookAt": "w2",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-w2-d2",
+   "lookAt": "w2",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-w2-d3",
+   "lookAt": "w2",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 900,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d3-d1",
+   "lookAt": "d3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d3-d2",
+   "lookAt": "d3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d3-d3",
+   "lookAt": "d3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d3-d4",
+   "lookAt": "d3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d3-d5",
+   "lookAt": "d3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d3-d6",
+   "lookAt": "d3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d4-d1",
+   "lookAt": "d4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d4-d2",
+   "lookAt": "d4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d4-d3",
+   "lookAt": "d4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d4-d4",
+   "lookAt": "d4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d4-d5",
+   "lookAt": "d4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "fire-at-d4-d6",
+   "lookAt": "d4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 350,
+   "shot": false
+  },
+  {
+   "name": "gatling-for-the-wave",
+   "tap": "Digit5",
+   "ms": 800,
+   "shot": false
+  },
+  {
+   "name": "gatling-at-w0",
+   "lookAt": "w0",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 1500,
+   "shot": false
+  },
+  {
+   "name": "gatling-at-w1",
+   "lookAt": "w1",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 1500,
+   "shot": false
+  },
+  {
+   "name": "gatling-at-w2",
+   "lookAt": "w2",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 1500,
+   "shot": false
+  },
+  {
+   "name": "gatling-at-d3",
+   "lookAt": "d3",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 1500,
+   "shot": false
+  },
+  {
+   "name": "gatling-at-d4",
+   "lookAt": "d4",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 1500,
+   "shot": false
+  },
+  {
+   "name": "carbine-for-the-end",
+   "tap": "Digit2",
+   "ms": 700,
+   "shot": false
+  },
+  {
+   "name": "uplink-complete",
+   "ms": 6000,
+   "tap": "Enter",
+   "expect": {
+    "flags.done": "== true",
+    "flags.kills": ">= 9",
+    "errors": "== 0"
+   }
+  },
+  {
+   "name": "sidearm-never-dry",
+   "place": {
+    "eye": [
+     14,
+     7.62,
+     -24
+    ],
+    "look": [
+     14,
+     9,
+     -4
+    ],
+    "mode": "walk"
+   },
+   "tap": "Digit1",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 6500,
+   "expect": {
+    "flags.weapon": "== sidearm",
+    "flags.shots_sidearm": ">= 14",
+    "flags.reloads_sidearm": ">= 1"
+   },
+   "shot": false
+  },
+  {
+   "name": "carbine-fires",
+   "tap": "Digit2",
+   "ms": 700,
+   "shot": false
+  },
+  {
+   "name": "carbine-burst",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 700,
+   "expect": {
+    "flags.weapon": "== carbine",
+    "flags.shots_carbine": ">= 5"
+   },
+   "shot": false
+  },
+  {
+   "name": "shotgun-fires",
+   "tap": "Digit3",
+   "ms": 700,
+   "shot": false
+  },
+  {
+   "name": "shotgun-shot",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 500,
+   "expect": {
+    "flags.weapon": "== shotgun",
+    "flags.shots_shotgun": ">= 3"
+   },
+   "shot": false
+  },
+  {
+   "name": "rocket-reloaded",
+   "tap": "Digit4",
+   "ms": 3600,
+   "shot": false
+  },
+  {
+   "name": "rocket-over-the-plaza",
+   "tap": "KeyF",
+   "ms": 600,
+   "expect": {
+    "flags.weapon": "== rocket",
+    "flags.rockets": ">= 2"
+   }
+  },
+  {
+   "name": "gatling-up",
+   "tap": "Digit5",
+   "ms": 800,
+   "expect": {
+    "flags.weapon": "== gatling"
+   },
+   "shot": false
+  },
+  {
+   "name": "gatling-spins-up-and-overheats",
+   "keys": [
+    "KeyF"
+   ],
+   "ms": 7500,
+   "expect": {
+    "flags.spunUp": "== 1",
+    "flags.shots_gatling": ">= 60",
+    "flags.overheats": ">= 1"
+   }
+  },
+  {
+   "name": "back-to-the-carbine",
+   "tap": "Digit2",
+   "ms": 900,
+   "expect": {
+    "flags.weapon": "== carbine",
+    "errors": "== 0"
+   },
+   "shot": false
+  },
+  {
+   "name": "flicker-walk",
+   "flicker": {
+    "path": "street",
+    "y": 0,
+    "speed": 2.8
+   },
+   "expect": {
+    "flicker": "< 10"
+   }
+  },
+  {
+   "name": "frame-cost",
+   "place": {
+    "eye": [
+     -29.5,
+     1.62,
+     6.4
+    ],
+    "look": [
+     8,
+     3.4,
+     5
+    ],
+    "mode": "walk"
+   },
+   "keys": [
+    "KeyW"
+   ],
+   "perf": {
+    "frames": 120
+   },
+   "expect": {
+    "frameMs": "< 16.7"
+   }
+  }
+ ]
+}

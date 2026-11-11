@@ -39,6 +39,7 @@ count of stable and experimental exports, and how a name is promoted: [STABILITY
 | `patch(material, hooks, G)` | stable | add GLSL hooks to a three.js material (vertex, albedo, roughness, normal, emissive, lighting, output) |
 | `createTextures(world, { manifest, url, anisotropy })` | stable | the optional world-space texture layer for CC0 PBR sets |
 | `PROC` | stable | ready hook sets: `plaster`, `stone`, `wood`, `terracotta` |
+| `SPEC_AA_GLSL` | experimental | the specular AA GLSL, guarded: `mgSpecAA(roughness, viewNormal[, strength])` widens the roughness by the shading normal's screen-space variance; every patched lit material has it, paste it into a shader of your own |
 | `createTextures(world, { manifest, url, anisotropy, decode, ktx2 })` | stable | the optional world-space texture layer for CC0 PBR sets; opt-ins (experimental): `decode: 'bitmap'` decodes off the main thread (same pixels), `ktx2` loads `.ktx2` files (`@miragekit/core/ktx2`); `tex.textures()` lists its textures |
 | `TEX_GLSL` | stable | the GLSL of the texture layer (`mgTexTri`, `mgTexWall`, `mgTexGround`, …) |
 | `glslName(name)` | stable | how a texture set name is spelled in `MG_TEX_<name>` (`'stone-wall'` → `stone_2d_wall`; plain names unchanged) |
@@ -50,13 +51,14 @@ count of stable and experimental exports, and how a name is promoted: [STABILITY
 | `SOFTSHADOW_DEFAULTS` | experimental | the soft sun shadows' settings (`on`, `sunAngle`, `maxPenumbra`, `maxPenumbraTexels`, `minBlocker`, tap counts, `slopeMax`, `edgeFade`); `createWorldRenderer({ softShadows })` turns them on |
 | `softShadowConfig(option)` | experimental | the full soft-shadow settings for `true` / a partial object (numbers clamped); null when off |
 | `installSoftShadows(settings)` | experimental | patch three's sun-shadow lookup for contact-hardening soft shadows (page-global, idempotent; tap counts compiled in by the first call; the world renderer calls it) |
-| `createLighting(world, option)` | experimental | the realtime lighting features behind `createWorldRenderer({ lighting })` (the world renderer calls it; `world.lighting` is its result): `csm`, `gi`, `probes`, `lights`, `addLight(light, { shadow })`, `removeLight`, `invalidate()`, `busy`. Shader parts go into the world's own lit materials, not three's chunks (`docs/lighting.md`) |
+| `createLighting(world, option)` | experimental | the realtime lighting features behind `createWorldRenderer({ lighting })` (the world renderer calls it; `world.lighting` is its result): `csm`, `gi`, `probes`, `lights`, `screen`, `planar`, `addLight(light, { shadow })`, `removeLight`, `invalidate()`, `busy`. Shader parts go into the world's own lit materials, not three's chunks (`docs/lighting.md`) |
 | `CSM_DEFAULTS` | experimental | cascaded sun shadows' settings (`cascades` 2-4, `distance`, `lambda`, `blend`, `tile`, `taps`, `stagger`, ...); `lighting: { csm: true }` |
 | `GI_DEFAULTS` | experimental | the irradiance probe volume's settings (`spacing`, `bounces`, `cube`, `perFrame`, `intensity`, `fade`, `bias`, `specular`); `lighting: { gi: { min, max } }` |
 | `BOUNCE_DEFAULTS` | experimental | the height-field bounce light's settings (`spacing`, `layers`, `curve`, `texel`, `margin`, `hmax`, `strength`, `multi`, `edge`, `lo`, `hi`, `bands`, `ease`, `maxProbes`, `maxMap`); `lighting: { bounce: true \| { min, max } }` |
 | `LIGHTS_DEFAULTS` | experimental | clustered local lights and their shadow atlas (`max`, `cluster`, `perCell`, `atlas`, `tileMax`, `tileMin`, `perFrame`, `bias`); `lighting: { lights: true }` |
 | `SCREEN_DEFAULTS` | experimental | the screen-space passes' buffers (`scale`, `refScale`, `layer`); `lighting: { screen: true }` (`docs/lighting.md`) |
 | `SCREEN_POST` | experimental | their post settings, all off: `ssr2`, `ssrRough`, `ssrDist`, `ssrThick`, `ssgi`, `ssgiRange`, `ssgiRays`, `contact`, `contactLen` |
+| `PLANAR_DEFAULTS` | experimental | the planar reflection of one horizontal plane (`y`, `scale`, `roughMax`, `fade`, `clip`, `layers`, `every`); `lighting: { planar: { y } }`, `world.lighting.planar.info` (`docs/lighting.md`) |
 | `PROBE_DEFAULTS` | experimental | a reflection probe's defaults (`fade`, `intensity`); `lighting: { probes: [{ min, max, position }] }`, at most 4 |
 | `LAMPPOOL_DEFAULTS` | experimental | the lamp pool's settings (`max`, `perCell`, `far`, `fade`, `lampGain`, `real`, `soft`, `light2`, `captures`); `createWorldRenderer({ lampPool: true })` turns it on and `world.lampPool.set(lamps)` fills it (README "Lamp pool") |
 | `lampPoolConfig(option)` | experimental | the full lamp-pool settings for `true` / a partial object; null when off |
@@ -69,7 +71,7 @@ count of stable and experimental exports, and how a name is promoted: [STABILITY
 | `withRelief(hooks)` | experimental | put the relief GLSL and uniforms in front of a hooks object |
 | `renderHeight(name, und, swipe)` | experimental | GLSL declaring a hand-applied render's height (m), faded with distance |
 | `renderShade(name)` | experimental | `output` hook snippet: shade the render's hollows |
-| `withWet(hooks, options)` | experimental | wet surfaces on a hooks object: damp → soaked → standing water (puddles), run-off streaks, a damp band at the ground, rain rings; options `porosity`, `ground`, `band`, `puddles`, `height`, `heightMid`, `heightScale` |
+| `withWet(hooks, options)` | experimental | wet surfaces on a hooks object: damp → soaked → standing water (puddles), run-off streaks, a damp band at the ground, rain rings; options `porosity`, `ground`, `band`, `puddles`, `height`, `heightMid`, `heightScale`, `wear`, `wearDepth`, `shelter`, `rim`, `ripples`, `specAA` |
 | `setWetness(level)` | experimental | wetness 0 (off: the wet code not compiled; crossing 0 recompiles the opted-in materials) .. 1 (full puddles); page-global |
 | `setRain(intensity)` | experimental | rain 0 .. 1: ripples on standing water and the rain kit's streak density; page-global |
 | `WET` | experimental | the wetness's page-global uniforms (`uWet`, `uRain`) |
@@ -111,9 +113,10 @@ count of stable and experimental exports, and how a name is promoted: [STABILITY
 | `FOG` | experimental | the page-global fog uniforms |
 | `Pipeline` | experimental | the sub-frame accumulation / TAA / post pipeline |
 | `DEFAULT_POST` | experimental | default post settings (exposure, tone map, bloom, AO, DOF, …) |
-| `FX_DEFAULTS` | experimental | the post settings of `postfx.js`, all off: `taa2`, `upscale`, `motionBlur`, `bokeh`, `bloomPyramid`, `lut`, `chroma`, `rcas`, `godrays`, `flare` (`docs/post.md`) |
-| `PostFX` | experimental | the passes behind them (velocity buffer, temporal resolve / upscale, lens blur, motion blur, bloom pyramid, LUT grade, god rays, lens flare); `pipeline.fx` |
-| `postFromQuery(query)` | experimental | post settings from URL flags (`?taa2=1&upscale=0.67&mb=0.5&bokeh=1&lens=0.03&bloom2=1&lut=warm&chroma=0.6&godrays=1&flare=1`) |
+| `FX_DEFAULTS` | experimental | the post settings of `postfx.js`, all off: `taa2`, `upscale`, `motionBlur`, `bokeh`, `bloomPyramid`, `lut`, `chroma`, `rcas`, `godrays`, `flare`, `lensDirt`, `streak` (`docs/post.md`) |
+| `PostFX` | experimental | the passes behind them (velocity buffer, temporal resolve / upscale, lens blur, motion blur, bloom pyramid, LUT grade, god rays, lens flare, lens dirt, anamorphic streaks); `pipeline.fx` |
+| `postFromQuery(query)` | experimental | post settings from URL flags (`?taa2=1&upscale=0.67&mb=0.5&bokeh=1&lens=0.03&bloom2=1&lut=warm&chroma=0.6&godrays=1&flare=1&dirt=0.6&streak=0.6`) |
+| `lensDirtMask({ width, height, seed })` | experimental | `post.lensDirt`'s procedural mask as bytes (blotches, dried drops, wiped streaks, specks; the same seed, the same bytes) |
 | `parseCube(text)` | experimental | an Adobe / Resolve `.cube` 3D lookup table -> `{ size, data }` |
 | `makeLut(fn, size)` | experimental | a lookup table from a function of display-referred RGB |
 | `lutTexture(lut)` | experimental | the table as a `Data3DTexture` for `post.lut` |
@@ -274,7 +277,7 @@ Gaussian splats, `@miragekit/world/kits/splat` (opt-in subpath, world README "Ga
 | `createInput({ target, bindings, deadzone })` | stable | the action map over keyboard, mouse, gamepad and touch |
 | `DEFAULT_BINDINGS` | stable | default keys per action |
 | `ACTIONS` | stable | the action names |
-| `createAudio({ volumes })` | stable | Web Audio buses and the procedural sounds |
+| `createAudio({ volumes })` | stable | Web Audio buses and the procedural sounds; `add(name, sound)` for your own (a buffer, variants, or a factory of the context), before or after `unlock()` |
 | `SURFACES` | stable | footstep surfaces: `stone`, `gravel`, `grass`, `wood` |
 | `createUI(opts)` | experimental | the HTML overlay (HUD, menus, touch controls) |
 | `PAD` | experimental | default gamepad buttons per action |

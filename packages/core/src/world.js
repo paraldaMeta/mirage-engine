@@ -120,6 +120,7 @@ export function createWorldRenderer(config = {}) {
   if (l2cfg) pipeline.useLight2(l2cfg, { sun, G });
   pipeline.lensSun = { dir: skyU.uSunDir.value, G };   // post.godrays / post.flare (postfx.js): where the sun is, how bright
   if (lighting && lighting.screen) pipeline.screen = lighting.screen;
+  if (lighting && lighting.planar) pipeline.planar = lighting.planar;
   // the time-of-day grade (opt-in, daynight.js gradeConfig / gradeAt): the hour's look rides on P.grade
   const grade = gradeConfig(config.grade);
   if (grade) pipeline.useGrade();

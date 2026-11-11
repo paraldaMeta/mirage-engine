@@ -156,4 +156,41 @@ assert.equal(realShare(1, [1, 1, 1], 0, [1, 1, 1]), 1, 'a dark lamp (day) needs 
   assert.deepEqual(c2.map((q) => q.key).sort(), [pl.uuid, other.uuid].sort(), 'without the pool: the two PointLights');
 }
 
+// --- a clustered light's shadow tile redrawn (lights.js: six cube faces with a distance override material) shades no
+// pool lamp: the pool does not bin its lamps for those faces (it did, six times a tile: 5 ms a frame with 163 lamps)
+{
+  const { createLights, lightsConfig } = await import('./src/lights.js');
+  const scene = new THREE.Scene(), renders = [];
+  let target = null;
+  const renderer = {   // a stand-in: render() calls the scene's hook as three's does, and draws nothing
+    isWebGLRenderer: false, reversedDepthBuffer: false, coordinateSystem: THREE.WebGLCoordinateSystem, autoClear: true, xr: { enabled: false }, shadowMap: { enabled: true },
+    getRenderTarget: () => target, setRenderTarget: (t) => { target = t; }, getActiveCubeFace: () => 0, getActiveMipmapLevel: () => 0,
+    getClearAlpha: () => 1, getClearColor: (c) => c.set(0, 0, 0), setClearColor() {}, clear() {}, clearDepth() {},
+    getCurrentViewport: (v) => v.set(0, 0, 800, 450),
+    render(s, cam) { if (s.isScene) { renders.push({ override: s.overrideMaterial }); s.onBeforeRender(this, s, cam, target); } },
+  };
+  scene.add(new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial()));
+  const lights = createLights({ renderer, scene }, lightsConfig(true));
+  const pool = createLampPool({ scene, G: { uLampGain: { value: 1 }, uLamp: { value: 1 } }, injector: createInjector() }, lampPoolConfig(true));
+  pool.set(Array.from({ length: 40 }, (_, i) => ({ pos: [(i % 8) * 3 - 12, 2, -4 - Math.floor(i / 8) * 3], range: 6 })));
+  const lamp = new THREE.PointLight(0xffaa66, 2, 8, 2); lamp.position.set(4, 2, -6); scene.add(lamp); scene.updateMatrixWorld(true);
+  lights.add(lamp, { shadow: true });
+  const cam = new THREE.PerspectiveCamera(60, 16 / 9, 0.1, 400); cam.position.set(0, 1.6, 0); cam.lookAt(0, 1.6, -10); cam.updateMatrixWorld();
+  renderer.render(scene, cam);                                   // the view: binned once
+  const bins0 = pool.info.bins, mode0 = pool.info.mode;
+  lights.frame(cam);                                             // the first frame draws the lamp's tile: six faces
+  const faces = renders.filter((r) => r.override).length;
+  assert.ok(lights.info.redrawsLastFrame === 1 && faces === 6, `the shadow tile was redrawn (${lights.info.redrawsLastFrame} tile, ${faces} faces)`);
+  assert.ok(bins0 === 1 && pool.info.bins === bins0, `no binning during the shadow tile's faces (bins ${bins0} -> ${pool.info.bins})`);
+  assert.ok(pool.info.skipped === 6 && pool.info.mode === mode0 && pool.uniforms.mgPA.value.y === 2, 'the six faces are skipped and the view\'s state stays');
+  renderer.render(scene, cam);
+  assert.equal(pool.info.bins, bins0, 'the view after it: the same camera, nothing to bin again');
+  // a lit capture (a cube render target, no override: the environment, a probe) is still shaded and binned
+  target = new THREE.WebGLCubeRenderTarget(16);
+  const cube = new THREE.CubeCamera(0.1, 100, target); cube.position.set(0, 2, -6); target = null;
+  cube.update(renderer, scene);
+  assert.ok(pool.info.bins === bins0 + 6 && pool.info.skipped === 6, `a cube capture of the lit scene is binned per face as before (bins ${pool.info.bins})`);
+  pool.dispose(); lights.dispose();
+}
+
 console.log('lamppool checks done');

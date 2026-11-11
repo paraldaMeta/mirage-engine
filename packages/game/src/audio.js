@@ -8,6 +8,8 @@
 // audio.loop('water', { at, bus: 'ambience', gain, ref })              a 3D loop; without `at` a flat one
 // audio.listen(camera)                once per frame; audio.volume('music', 0.5); audio.volumes; audio.stats
 // audio.suspend(true | false)         the device off / on again (a hidden tab)
+// audio.add('shot', (ctx) => buffer | [buffers])   a sound of your own (or an AudioBuffer); before unlock it is made
+//                                     at unlock, with the context; play / loop find it by name
 // ponytail: PannerNode + buffers made in JS instead of three's PositionalAudio (which wraps the same nodes and
 // needs the camera in the scene graph); no reverb, no occlusion; sounds are generated once (~0.2 s) on unlock.
 // ---------------------------------------------------------------------------
@@ -20,7 +22,8 @@ export function createAudio({ volumes = {} } = {}) {
   const stats = { played: {}, skipped: 0, state: 'locked', genMs: 0 };
   let ctx = null, buses = null, bufs = null;
   let closing;
-  const active = new Map();
+  const active = new Map(), added = new Map();   // add(): name -> AudioBuffer | AudioBuffer[] | (ctx) => either
+  const make = (sound) => (typeof sound === 'function' ? sound(ctx) : sound);
   const pendingLoops = [], J = sfc32(hash32('mirage/audio/jitter'));   // variant and pitch jitter
   const a = {
     get ctx() { return ctx; }, stats, get volumes() { return { ...vol }; },
@@ -38,6 +41,7 @@ export function createAudio({ volumes = {} } = {}) {
       for (const [k, v] of Object.entries(vol)) a.volume(k, v);
       const t0 = performance.now();
       bufs = makeSounds(ctx);
+      for (const [name, sound] of added) bufs[name] = make(sound);
       stats.genMs = +(performance.now() - t0).toFixed(1);
       const resumed = () => { stats.state = ctx.state; };
       ctx.onstatechange = resumed; resumed();
@@ -49,6 +53,12 @@ export function createAudio({ volumes = {} } = {}) {
       if (!ctx) return;
       const p = on ? ctx.suspend() : ctx.resume();
       if (p && p.catch) p.catch(() => {});
+    },
+    add(name, sound) {
+      if (closing) return a;
+      added.set(name, sound);
+      if (bufs) bufs[name] = make(sound);
+      return a;
     },
     volume(bus, v) { vol[bus] = v; if (buses && buses[bus]) buses[bus].gain.setTargetAtTime(v, ctx.currentTime, 0.05); },
     play(name, { at, bus = 'sfx', gain = 1, rate = 1, ref = 2 } = {}) {
@@ -68,7 +78,8 @@ export function createAudio({ volumes = {} } = {}) {
     loop(name, { at, bus = 'ambience', gain = 1, ref = 3 } = {}) {
       const h = { name, src: null, start() {
         if (!ctx || h.src) return;
-        h.src = ctx.createBufferSource(); h.src.buffer = bufs[name]; h.src.loop = true;
+        const list = [].concat(bufs[name]);   // one of a list's buffers (one buffer: no draw from the jitter)
+        h.src = ctx.createBufferSource(); h.src.buffer = list.length > 1 ? list[Math.floor(J() * list.length)] : list[0]; h.src.loop = true;
         const g = ctx.createGain(); g.gain.value = gain;
         startSource(h.src, g, at, ref, bus, h);
         stats.played[name] = (stats.played[name] || 0) + 1;
@@ -82,7 +93,7 @@ export function createAudio({ volumes = {} } = {}) {
       closing = Promise.resolve().then(() => {
         if (context && context.state !== 'closed') return context.close();
       });
-      pendingLoops.length = 0;
+      pendingLoops.length = 0; added.clear();
       for (const [source, release] of active) { source.stop(); release(); }
       if (context) context.onstatechange = null;
       if (buses) for (const bus of Object.values(buses)) bus.disconnect();

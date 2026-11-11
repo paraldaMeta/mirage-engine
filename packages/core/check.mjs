@@ -185,21 +185,27 @@ assert.deepEqual(dynamicResConfig({ target: 1000, min: 0, step: NaN }), { target
   assert.ok(at('#include <metalnessmap_fragment>') < at('mgWetApply(mgWorldPos') && at('#include <normal_fragment_begin>') < at('#include <normal_fragment_maps>') && at('#include <normal_fragment_maps>') < at('mgWetNormal(normal, nonPerturbedNormal'), 'wet hooks follow metalness and the normal maps');
   assert.ok(at('#include <lights_fragment_end>') < at('material.roughness = max(material.roughness') && at('material.roughness = max(material.roughness') < at('#include <opaque_fragment>'), 'the reflection floor comes after the lighting');
   // a tiny preprocessor: drop the #ifdef / #if defined blocks of a macro that is not defined, then compare the code
+  // (#if !defined(macro): kept, the #if / #endif lines themselves dropped)
   const pre = (src, macro) => {
     const out = [], stack = [];
     for (const raw of src.split('\n')) {
-      const l = raw.trim(), off = stack.includes(true);
-      if (/^#if/.test(l)) { stack.push(l === `#ifdef ${macro}` || (l.startsWith('#if ') && l.includes(`defined(${macro})`) && !l.includes('||'))); if (!stack.at(-1) && !off) out.push(l); continue; }
-      if (l === '#endif') { if (!stack.pop() && !stack.includes(true)) out.push(l); continue; }
+      const l = raw.trim(), off = stack.some((s) => s === true);
+      if (/^#if/.test(l)) {
+        const not = l === `#if !defined(${macro})`;
+        stack.push(not ? 'keep' : l === `#ifdef ${macro}` || (l.startsWith('#if ') && l.includes(`defined(${macro})`) && !l.includes(`!defined(${macro})`) && !l.includes('||')));
+        if (stack.at(-1) === false && !off) out.push(l);
+        continue;
+      }
+      if (l === '#endif') { const s = stack.pop(); if (s === false && !stack.some((x) => x === true)) out.push(l); continue; }
       if (!off && l) out.push(l);
     }
     return out.join('\n');
   };
   assert.ok(!/mgWet|uWet|MG_WET/.test(dry.fs), 'the dry program has no wet line');
   assert.equal(pre(fs, 'MG_WET'), pre(dry.fs, 'MG_WET'), 'wet program without MG_WET = the dry program');
-  assert.ok(/#if defined\(MG_WET\)\n\s*roughnessFactor = mgSpecAA\(/.test(fs) && !dry.fs.includes('mgSpecAA(roughnessFactor'), 'no AA dry: AA only while wet');
+  assert.ok(at('mgWetNormal(normal, nonPerturbedNormal') < at('roughnessFactor = mgSpecAA(roughnessFactor, normal, mgWetQ.y *') && !fs.includes('roughnessFactor = mgSpecAA(roughnessFactor, normal);') && !dry.fs.includes('mgSpecAA(roughnessFactor'), 'no AA dry: AA only while wet, after the wet normal');
   const stoneH = PR.stone(), stoneDry = fragOf(stoneH).fs, stoneWet = fragOf(withWet(stoneH)).fs;
-  assert.ok(stoneDry.includes('\troughnessFactor = mgSpecAA(') && !stoneWet.includes('defined(MG_WET)') && pre(stoneWet, 'MG_WET') === pre(stoneDry, 'MG_WET'), 'AA dry: the same unconditional AA');
+  assert.ok(stoneDry.includes('\troughnessFactor = mgSpecAA(') && /#if !defined\(MG_WET\)\nroughnessFactor = mgSpecAA\(roughnessFactor, normal\);/.test(stoneWet) && pre(stoneWet, 'MG_WET') === pre(stoneDry, 'MG_WET'), 'AA dry: the same unconditional AA (the wet layer applies its own while wet)');
   assert.equal(fragOf({ albedo: 'roughnessFactor;', specAA: false }).fs.includes('mgSpecAA(roughnessFactor'), false, 'specAA: false');
   assert.ok(wt.u.uWet === WET.uWet && wt.u.mgWetP && !('uWet' in dry.u) && !('uWet' in Gw), 'wet uniforms only in wet materials, never in the shared G');
   // MG_WET follows the wetness on the materials that opted in, and only on them; crossing 0 asks for a recompile

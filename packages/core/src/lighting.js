@@ -1,6 +1,6 @@
 // Mirage original code.
 // ---------------------------------------------------------------------------
-// Realtime lighting features, all opt-in: createWorldRenderer({ lighting: { csm, gi, bounce, probes, lights, screen } }).
+// Realtime lighting features, all opt-in: createWorldRenderer({ lighting: { csm, gi, bounce, probes, lights, screen, planar } }).
 //
 //   const world = createWorldRenderer({ lighting: { csm: true, gi: { min, max, spacing: 2 } } });
 //   world.lighting.addLight(new THREE.PointLight(0xffaa66, 40, 9), { shadow: true });   // clustered local light
@@ -18,12 +18,14 @@ import { bounceConfig, createBounce } from './bounce.js';
 import { lightsConfig, createLights } from './lights.js';
 import { probesConfig, createProbes } from './probes.js';
 import { screenConfig, createScreen } from './screen.js';
+import { planarConfig, createPlanar } from './planar.js';
 export { CSM_DEFAULTS } from './csm.js';
 export { GI_DEFAULTS } from './gi.js';
 export { BOUNCE_DEFAULTS } from './bounce.js';
 export { LIGHTS_DEFAULTS } from './lights.js';
 export { PROBE_DEFAULTS } from './probes.js';
 export { SCREEN_DEFAULTS, SCREEN_POST } from './screen.js';
+export { PLANAR_DEFAULTS } from './planar.js';
 
 export function createLighting(w, config) {
   const { renderer, scene, sun } = w;
@@ -55,8 +57,12 @@ export function createLighting(w, config) {
   const scfg = screenConfig(cfg.screen);
   const screen = scfg ? createScreen({ renderer, scene, sun }, scfg) : null;
   if (screen) { inj.add(screen.part); features.screen = screen; hooks.push(screen); }
+  // a planar reflection of one horizontal plane (planar.js): one more view of the scene per frame, driven by the pipeline
+  const plcfg = planarConfig(cfg.planar);
+  const planar = plcfg ? createPlanar({ renderer, scene }, plcfg) : null;
+  if (planar) { inj.add(planar.part); features.planar = planar; hooks.push(planar); }
   const api = {
-    injector: inj, csm, gi, bounce, probes, lights, screen, features, hooks,
+    injector: inj, csm, gi, bounce, probes, lights, screen, planar, features, hooks,
     /** hand a THREE.PointLight / SpotLight (already in the scene) to the clustered path; { shadow: true } gives it a tile of the shadow atlas */
     addLight(light, o) { if (!lights) { console.warn('[lighting] addLight needs lighting: { lights: true }'); return false; } return lights.add(light, o); },
     removeLight(light) { return !!lights && lights.remove(light); },

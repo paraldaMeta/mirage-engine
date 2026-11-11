@@ -193,6 +193,9 @@ export function createVfx(target, opts = {}) {
       h.follow.updateWorldMatrix(true, false);
       for (const s of h.sources) if (s.live) { prev.copy(s.position); setSourceTransform(s, { matrix: h.follow.matrixWorld }); if (dtFrame > 0) s.velocity.subVectors(s.position, prev).multiplyScalar(1 / dtFrame); }
     }
+    // the clock went back (play.place() sets it to 0): every pool restarts on the scene clock, frozen ones included
+    // (a pool's lag, kept while it was idle or off screen, would hold it behind the rewound clock, resetting each frame)
+    if (lastN >= 0 && n < lastN - 4) for (const k of kits.values()) for (const u of k.units) u.pool.lag = 0;
     stats.pools = stats.particles = stats.capacity = stats.instances = 0;
     let spawned = 0, dropped = 0, steps = 0, demand = 0;
     for (const k of kits.values()) for (const u of k.units) {

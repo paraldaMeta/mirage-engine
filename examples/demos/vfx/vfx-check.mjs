@@ -113,10 +113,40 @@ const IN_PAGE_2 = async () => {
   return { R };
 };
 
+// 10. the clock goes back (play.place() sets it to 0) under a looping instance spawned late, on a pool made late:
+// no GL warning (the reset drew into the textures its pass still had bound: a feedback loop), and the instance
+// emits again from the rewound step (it stayed silent until the clock reached its old start step)
+const IN_PAGE_3 = async () => {
+  const { world, createVfx } = window.__mirage, R = {};
+  const v = createVfx({ renderer: world.renderer, scene: world.scene, camera: world.camera }, {});
+  const run = (from, to) => { for (let i = from; i <= to; i++) v.update(i / 60); };
+  const fx = { name: 'rewind', rate: 200, life: 0.5, velocity: { random: [0.5, 1] } };
+  console.log('rewind: begin');
+  run(0, 300);                                    // the scene clock runs before the effect exists: its pool lags
+  const first = v.spawn(fx, { position: [0, 1, 0] }); run(301, 600); first.stop(); run(601, 700);   // retired: the pool idles
+  const h = v.spawn(fx, { position: [0, 1, 0] }), pool = v.pools()[0], start = h.sources[0].start;
+  run(701, 900);
+  const before = v.countAlive();
+  run(0, 60);                                     // rewound to 0, one second of frames
+  const after = v.countAlive(), steps = pool.step;
+  run(0, 60);                                     // and once more
+  const again = v.countAlive();
+  const gl = world.renderer.getContext(); gl.finish();
+  R.rewind = { start, before, after, again, steps, glError: gl.getError() };
+  v.dispose();
+  await new Promise((r) => setTimeout(r, 500));   // the browser reports GL warnings a little later
+  console.log('rewind: end');
+  return { R };
+};
+
 const b = await launch({ w: 640, h: 400 });
 async function load(fns) {
   const page = await b.newPage(), errors = [];
-  page.on('console', (m) => { if (m.type() === 'error' || /WebGL|GL_INVALID|shader/i.test(m.text())) errors.push(m.text().slice(0, 400)); });
+  let rewinding = false;
+  page.on('console', (m) => {
+    if (m.text() === 'rewind: begin') rewinding = true; else if (m.text() === 'rewind: end') rewinding = false;
+    else if (m.type() === 'error' || /WebGL|GL_INVALID|shader/i.test(m.text()) || (rewinding && (m.type() === 'warn' || m.type() === 'warning'))) errors.push(m.text().slice(0, 400));
+  });
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(pathToFileURL(html) + '?fx=none&ui=0&time=15:00&w=640&h=400&dpr=1&spp=1');
   await page.waitForFunction('window.__READY === true', { timeout: 120000, polling: 100 });
@@ -125,7 +155,7 @@ async function load(fns) {
   await page.close();
   return { R, errors };
 }
-const one = await load([IN_PAGE, IN_PAGE_2]), two = await load([IN_PAGE]);
+const one = await load([IN_PAGE, IN_PAGE_2]), two = await load([IN_PAGE]), three = await load([IN_PAGE_3]);
 await b.close();
 const R = one.R, errors = [...one.errors, ...two.errors], fails = [];
 const want = (ok, msg) => { if (!ok) fails.push(msg); };
@@ -149,10 +179,13 @@ const l = R.lod;
 want(l.far < l.near * 0.35 && l.far > l.near * 0.15 && l.culled === 0 && l.pausedSteps === 0 && l.pausedSpawned === 0 && l.behindSteps > 100, `lod: ${JSON.stringify(l)}`);
 want(R.sub.deathChildren > 50 && R.sub.hitChildren > 20 && R.sub.hitChildMaxY < 0.8, `sub-emitters: ${JSON.stringify(R.sub)}`);
 want(R.world.depthCopies > 10 && !R.world.depthFailed && R.world.alive > 500 && R.world.glError === 0, `world: ${JSON.stringify(R.world)}`);
+const rw = three.R.rewind;
+want(rw.start > 0 && rw.before > 0 && rw.after > 0 && rw.again > 0 && rw.steps === 60 && rw.glError === 0, `rewind: a late looping instance after the clock goes back to 0 ${JSON.stringify(rw)}`);
+want(three.errors.length === 0, `rewind: ${three.errors.length} console warnings (${three.errors.slice(0, 2).join(' | ')})`);
 want(errors.length === 0, `console: ${errors.slice(0, 3).join(' | ')}`);
 if (process.argv.includes('--json')) console.log(JSON.stringify(R, null, 1));
 console.log(`vfx: state ${d.first} on two loads and at 30 updates/s (${d.alive} alive), library ${Object.keys(R.library).length} effects live, sort ${R.sort.live} particles in ${R.sort.passes} passes, ` +
   `collide kill/bounce/stick/plane ok, cap ${R.capacity.alive}/${R.capacity.cap}, global budget ${R.global.budget}, 200 bursts +${p.textures} textures, lod ${l.near}/${l.far}/${l.culled}, ` +
-  `sub ${R.sub.deathChildren}+${R.sub.hitChildren}, errors ${errors.length} -> ${fails.length ? 'FAIL' : 'ok'}`);
+  `sub ${R.sub.deathChildren}+${R.sub.hitChildren}, rewind ${rw.before}/${rw.after} alive, ${three.errors.length} warnings, errors ${errors.length} -> ${fails.length ? 'FAIL' : 'ok'}`);
 for (const f of fails) console.log('  ' + f);
 process.exit(fails.length ? 1 : 0);

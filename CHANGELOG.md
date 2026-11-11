@@ -5,6 +5,26 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
 ## Unreleased
 
 **New**
+- @miragekit/core: the wet layer learns where water goes and how it looks in rain (ported from the rainy ship deck
+  of the owner's Oman project, `withWet` options, all opt-in): `wear` (a GLSL float: ruts, a trodden path, joints,
+  round drains; the water gathers there, `wearDepth` 0.016 m) and `shelter` (a number, a GLSL float or a `{ value }`
+  uniform: dry and matte under cover), `rim` (a thin darker damp band round each puddle and an eased meniscus edge;
+  on with `wear` / `shelter`), `ripples` (the rain rings' strength per material, 0 off; their density and strength
+  follow `setRain`), `specAA` (the specular AA's strength while wet; the wet layer now applies it once, after its
+  normal and the rings, 4x on rippled standing water in rain). `SPEC_AA_GLSL` exports `mgSpecAA(r, n[, k])` for
+  shaders of your own; `patch()` hooks take `specAA: <number>` and `specAAIf`. Per-material numbers are a second
+  uniform (`mgWetQ`): no program per material. Without rain and the new options, stills are byte-identical to before
+  (hello-courtyard: no flag, `?wet=0`, `?wet=0.9`, `?wet=0.9&planar=1`); with rain the AA on the rings changes
+  puddle pixels only. hello-courtyard `&wear=1` (a trodden path and a ring round the basin, the pergola's strip dry);
+  checked by `packages/core/wet.check.mjs` (in `npm test`) and `packages/tools/src/wet-check.mjs` (Chrome).
+- @miragekit/core: a planar reflection for flat wet ground (`lighting: { planar: { y, scale, roughMax, fade, clip,
+  layers, every } }`; experimental, opt-in, `PLANAR_DEFAULTS`, `docs/lighting.md`): the scene drawn once more from the
+  camera mirrored in one horizontal plane (oblique near clip, half size, mipmapped), read by the lit materials for
+  up-facing surfaces near the plane up to `roughMax`, distorted by the normal and blurred with roughness, over
+  screen-space reflections. Puddles now mirror what is off screen. Off: nothing is created and stills are
+  byte-identical; on: stills repeat byte for byte. hello-courtyard `?wet=0.8&planar=1` (+0.4 ms at 1440 x 900, inside
+  the spread at 2880 x 1800), walled-garden `?planar=1` (the pools); `world.lighting.planar.info`. Checked by
+  `packages/tools/src/planar-check.mjs`.
 - @miragekit/core: bounce light (`lighting: { bounce: true | { min, max, spacing, ... } }`; experimental, opt-in,
   `docs/lighting.md`): one-bounce light from sunlit walls into the shade beside them and the sky occlusion of lanes,
   as a factor (local / reference) on the image-based diffuse light, gathered from a height field of the built scene
@@ -17,6 +37,26 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
   visibility from 16 depth taps over the sun's disc). Both follow the sun's radiance and draw nothing at night or
   with the sun out of view. Off, frames are bit-identical; on, stills are bit-identical run to run. hello-courtyard
   and the Nizwa probe read `?godrays=1&flare=1`. +0.19 / +0.0 ms at 1280 x 720, +1.3 / +0.3 ms at 2560 x 1440.
+- `examples/neon-district`: a small first-person shooter in a rain-wet city block at night, the engine's showcase.
+  Seven modules on one plan, no asset files. Clustered lamps with shadow tiles, screen-space reflections on wet
+  streets, a probe volume and reflection probes indoors, volumetric lamps, the post chain, GPU particles, beams and
+  decals, lightning; a carbine with recoil, reload, aiming and a strike, leaning and crouching, navgrid sentinels with
+  an animation controller and a state machine, flying kites, a radio, a compass, an options panel, checkpoints,
+  English and Traditional Chinese, keyboard / gamepad / touch. A 140-step playtest plays it from the alley to the roof.
+  Any hour of the day (`?time=`, T in the game, a slider): it uses the time-of-day grade, the dusk sky, the lamp pool
+  (163 lamps), bounce light, god rays and the flare. Dressed buildings (balconies, units, pipes, fire escapes, wall
+  art), skybridges, megatowers, a train, street clutter, armoured sentinels. Which
+  feature each part shows, the frame times and what it works around: `examples/neon-district/NOTES.md`. No engine
+  code changed.
+- @miragekit/core: `post.lensDirt` and `post.streak` (experimental, opt-in, `postfx.js`, `docs/post.md`): a dirty lens
+  (a procedural smudge mask, `lensDirtMask`, lit by a wide blur of the light above `lensDirtThreshold`) and
+  anamorphic streaks (the light above `streakThreshold` smeared horizontally at low resolution, `streakLength`,
+  `streakTint`, a cool blue by default). Both added after the bloom, before the grade; their thresholds follow the
+  adapted auto exposure. Off, frames are bit-identical; on, stills are bit-identical run to run. URL flags
+  `?dirt=` and `?streak=` (`postFromQuery`; also `streakthr`, `streaklen`). hello-courtyard at night, moving frames:
+  about +0.1 ms each at 1440 x 900, +0.65 / +0.9 ms at 2880 x 1800. Auto exposure and `rcas` measured at night
+  (walled-garden with 64 lamps, hello-courtyard at 21:30): no pumping (< 0.01 EV per frame), no noise amplification;
+  unchanged.
 
 **Changes in behaviour**
 - The packages are named `@miragekit/core`, `@miragekit/world`, `@miragekit/play`, `@miragekit/game`,
@@ -48,8 +88,29 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
   to the base, with and without 3 boxes, with and without light2). light2's volumetric dust reads the grid too.
   @miragekit/world validates `tint`. The Nizwa probe's bridge passes every box with its tint and maps Nizwa's
   two-sided ramp onto Mirage's (box shrunk by soft, ramp doubled).
+- @miragekit/game: `startGame` passes `animate`, `fov` and `maxFps` on to `createPlay` (a game could not keep the
+  scene clock running while the player stands still, nor set its field of view).
+- @miragekit/game: `physics.ray(from, dir, max, exclude)` also returns `normal: [x, y, z]`, the surface's unit normal
+  at the hit (Rapier's `castRayAndGetNormal`).
+- @miragekit/game: `ui.message(title, body, button)` returns a promise that resolves when the dialog closes (also
+  when another dialog or message replaces it, or the overlay is disposed), in `createUI` and `createKitUI`; calls
+  that ignore it work as before.
+- @miragekit/game: `audio.add(name, sound)`: a sound of your own for `play` / `loop` (an `AudioBuffer`, a list of
+  variants, or a factory `(ctx) => buffer | buffers`). Added before the first user gesture, the factory runs at
+  `unlock()`; afterwards at once. Returns the mixer.
 
 **Fixes**
+- @miragekit/core vfx: when the scene clock goes back (`play.place()` sets it to 0), a particle pool's reset no longer
+  draws into the state textures its pass still has bound (Chrome: "Feedback loop formed between Framebuffer and
+  active Texture", 122 warnings in the new `vfx-check.mjs` case), a pool made after the clock had run no longer
+  lags behind the rewound clock (it reset every frame and stayed empty), and a live looping instance that started
+  after the rewound step emits again from that step instead of staying silent until the clock reaches its old start.
+  Runs without a rewind are bit-identical (vfx-check's state hash unchanged).
+- @miragekit/core lamp pool: renders that shade nothing (an unlit `scene.overrideMaterial`: a clustered light's
+  shadow tile, six cube faces; gi.js's distance cubes) no longer bin every pool lamp again per face. Environment and
+  probe captures are shaded as before. `lampPool.info` gains `bins` and `skipped`. Node, 163 lamps, the pool's CPU
+  work over one tile redraw and the view: 0.79 ms -> 0.008 ms (median of 9 interleaved rounds; ranges
+  0.77-1.45 / 0.005-0.13 ms), plus the index texture's upload for each face it used to re-bin.
 - `mirage-package` (single-file builds) no longer inlines three's default Draco and Basis decoder files (~2.5 MB),
   which three's DRACOLoader and KTX2Loader name at module top level; Mirage's `createAssets` always sets its own
   decoder paths. hello-courtyard 5.32 -> 2.79 MB, walled-garden -> 2.83 MB (the site's 5 MB budget had stopped the

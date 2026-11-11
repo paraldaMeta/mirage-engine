@@ -686,6 +686,7 @@ export class Pipeline {
   /** Render sub-frame k of the frame with weight w (weights of one frame sum to 1). */
   add(scene, camera, w, k, P, jk = k, still = false) {
     const r = this.r, l2 = this.l2;
+    if (this.planar) this.planar.before(this, scene, camera, k, still, P);   // the planar reflection (planar.js, opt-in): the mirror view for this sub-frame
     if (this.screen) this.screen.before(this, scene, camera, k, still, P);   // screen-space lighting (screen.js, opt-in): its buffers for this sub-frame
     if (l2) l2.lamps.update(scene, camera, { k, still });
     else lampShadowsIdle();   // another world may have published its lamps into the page-global uniforms
@@ -695,6 +696,7 @@ export class Pipeline {
     r.clear(true, true, false);
     r.render(scene, camera);
     if (this.screen) this.screen.after(this, camera);
+    if (this.planar) this.planar.after();
     if (l2) l2.lamps.done();
     // opt-in passes (postfx.js): a moving frame is one sub-frame of weight 1; it gets a velocity buffer when asked
     this._live = w === 1 && !still; this._cam = camera; this._jk = jk;
@@ -861,6 +863,8 @@ export class Pipeline {
     this._bloomMip = null;
     if (!setOnly && P.godrays > 0) this._fx().godrays(P, this._cam, this._jk, this._volKey, live);   // the sun's shafts, bloomed with the rest
     const expK = P.bloomPyramid > 0 && P.bloom > 0 ? this._fx().bloom(P) : this._bloom(P);
+    if (!setOnly && P.lensDirt > 0) this._fx().lensDirt(P, P.exposure * expK);   // a dirty lens lit by the bright light, after the bloom
+    if (!setOnly && P.streak > 0) this._fx().streak(P, P.exposure * expK);   // anamorphic streaks, after the bloom
     if (!setOnly && P.flare > 0) this._fx().flare(P, this._cam, live);   // the sun's lens flare, after the bloom
     if (P.grade && !this.graded) this.useGrade();
     const gm = (!setOnly && (P.lut || P.chroma > 0) && this._fx().grade(P)) || this.grade;

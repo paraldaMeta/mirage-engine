@@ -1,4 +1,4 @@
-# Post chain: temporal AA, upscaling, lens, motion, bloom, god rays, lens flare, grade, offline output
+# Post chain: temporal AA, upscaling, lens, motion, bloom, god rays, lens flare, lens dirt, streaks, grade, offline output
 
 Everything here is **opt-in** and experimental. With every option off, the pipeline runs the code it ran before:
 the effects object (`world.pipeline.fx`, `packages/core/src/postfx.js`) is not even created, and the stills of
@@ -26,6 +26,8 @@ hello-courtyard and walled-garden read the flags: `examples/hello-courtyard/dist
 | `rcas: 0..1` | `?rcas=1` | contrast-adaptive sharpening of moving frames after the resolve / upscaler |
 | `godrays` (1 = Nizwa-like) | `?godrays=1` | screen-space light shafts from the sun; `godraysDecay`, `godraysThreshold`, `godraysVol` |
 | `flare` (1 = Nizwa-like) | `?flare=1` | the sun's lens flare (veiling glare, ghosts, halo), tested against the depth buffer |
+| `lensDirt: 0..1` + `lensDirtThreshold` (1) | `?dirt=0.6` | a dirty lens: a procedural smudge mask lit by a wide glow of the light above the threshold |
+| `streak: 0..1` + `streakThreshold` (3), `streakLength` (1), `streakTint` | `?streak=0.6&streakthr=3&streaklen=1` | anamorphic streaks: bright light smeared horizontally, a cool blue |
 | `ssr2`, `ssgi`, `contact` | `?ssr=1&ssgi=1&contact=1` | screen-space reflections, indirect light, contact shadows: need `lighting: { screen: true }`, see `docs/lighting.md` |
 
 Vignette and grain were already options (`vignette`, `grain`).
@@ -73,7 +75,7 @@ picture has less haze (measured: 36.2 dB to the old bloom's still on hello-court
 Applied after the tone map on display-referred colour, with the half-texel correction.
 
 Stills (`spp > 1`) never use taa2, bokeh or motionBlur: they integrate the lens and the shutter by accumulation,
-which is exact. bloomPyramid, lut, chroma, godrays and flare apply to stills and moving frames alike.
+which is exact. bloomPyramid, lut, chroma, godrays, flare, lensDirt and streak apply to stills and moving frames alike.
 
 ## God rays and the sun's lens flare (`godrays`, `flare`)
 
@@ -138,6 +140,98 @@ headless Chrome on an Apple M4 Pro that other jobs were using:
 
 A still pays the passes once per frame, not per sub-frame.
 
+## Lens dirt and anamorphic streaks (`lensDirt`, `streak`)
+
+Two lens effects for night scenes with lamps (they work by day too). Both are off by default and draw nothing (no
+pass, no target, no program, no mask) until set; set back to 0, the frame is bit-identical to before (the browser
+check compares). They are added into the frame after the bloom (whichever bloom ran) and before the flare and the
+grade, so the tone map rolls them off like any other light; on moving frames they read the resolved frame, so the
+jitter of the TAA does not make them crawl. No noise: stills stay bit-identical run to run.
+
+**Lens dirt** (`lensDirt`, 0.5 subtle, 1 strong; `?dirt=0.6`). The mask is made in code once, on first use
+(`lensDirtMask({ width, height, seed })`, 512 x 256 bytes, ~20 ms on the CPU): a faint mottle, 34 soft blotches
+(a fifth of them dried drops with a brighter rim), six wiped streaks, 140 specks of dust. What lights it is the
+frame's light above `lensDirtThreshold` (1, exposed luminance: after `exposure`, the bloom's factor and the adapted
+auto exposure, before the tone map; each pixel thresholded on its own, so a small hot lamp keeps its light and the
+dim pixels round it add none), taken to 1/8 size, then 1/32, and blurred there (a Gaussian of about 100 output
+pixels): a blotch beside a lamp lights up in the lamp's colour, a blotch over a dark wall stays dark. By day a
+sunlit pavement above the threshold shows a faint mottle; raise `lensDirtThreshold` (2-4) if that is not wanted.
+
+It does not ride on the bloom pyramid, although the first design did. The pyramid has no threshold (it moves energy,
+`bloomPyramid` above): dirt lit by its glow lit up the whole night sky as much as the lamps (tried: a uniform veil),
+and dirt that only strengthened the pyramid's mix where it lay was invisible round a lamp a few pixels wide (the
+glow round it is barely brighter than the wall). So it carries its own thresholded glow (four small passes) and
+works with either bloom, or none.
+
+**Anamorphic streaks** (`streak`, 0..1; `?streak=0.6`). The light above `streakThreshold` (3, exposed luminance, a
+soft knee) is taken at a quarter of the width and half the height (two bilinear taps a texel), smeared along x by
+three passes of 9 taps (steps of 1, 4 and 16 texels x `streakLength`, weights falling off exponentially), and the
+second and third passes added together: a bright core and a long tail, about a third of the frame width each way at
+`streakLength: 1`. The streak is mostly desaturated, tinted by `streakTint` (linear RGB, `[0.5, 0.7, 1.0]`: the cool
+blue an anamorphic lens's coating gives) and added x `streak`. A lamp's streak is as tall as the lamp's hot core
+(the vertical resolution is half the frame's: about 2 px thick for a point).
+
+Evidence (`out/` of the work, not committed): hello-courtyard `?time=21:30`, view 0, 1440 x 900, 8-sample stills: off,
+`lensDirt: 0.6` (the blotches round the three lanterns warm, the sky and the walls away from them unchanged) and
+`streak: 0.6` (blue lines through the lanterns, the rest unchanged). `node packages/tools/src/postfx-check.mjs` on
+hello-courtyard and walled-garden (golden hour, thresholds lowered so the view has light above them): each changes
+the still (lens dirt 78 % / 99 % of the pixels, streak 1 % / 6 %), no GL error, and set back to 0 the still is
+bit-identical to the one before.
+
+Cost, moving frames (`renderFrame({ taa: true })` + a 1-px read-back), hello-courtyard `?time=21:30` view 0 with a
+panning camera, 9 interleaved rounds of 30 frames (the order reversed every other round), headless Chrome on an Apple
+M4 Pro that other jobs were using: the median of the rounds, the range of the rounds in brackets, and the median of
+the paired differences (each round against its own `off`), which is steadier when the shared GPU's load changes:
+
+| | 1440 x 900 | paired | 2880 x 1800 | paired |
+|---|---|---|---|---|
+| off | 2.36 [2.33-2.41] | | 10.47 [8.68-11.01] | |
+| `lensDirt: 0.6` | 2.44 [2.43-2.46] | +0.09 | 11.07 [9.17-11.98] | +0.65 |
+| `streak: 0.6` | 2.46 [2.43-2.47] | +0.10 | 11.42 [9.43-11.93] | +0.89 |
+| both | 2.56 [2.55-2.58] | +0.21 | 12.28 [9.95-14.53] | +1.69 |
+
+A second run while the GPU was busier gave paired medians of +0.12 / +0.12 / +0.19 ms at 1440 x 900 and +0.50 / +0.62
+/ +1.03 ms at 2880 x 1800 (rounds from 8.9 to 17 ms): at 2880 x 1800 the cost is resolved to about ±0.3 ms. A still
+pays the passes once per frame, not per sub-frame.
+
+## Auto exposure and rcas at night
+
+Checked on walled-garden `?lights=64&time=21:30` and hello-courtyard `?time=21:30` (view 0, 1440 x 900), against
+the same views at 12:00. Neither misbehaves at night; nothing was changed.
+
+**Auto exposure** (`autoExposure: 0.5` and `1`, `taa2: 1`), 240 moving frames at 60 fps while the camera pans
+±0.6 rad (three slow sweeps across the lamps), the adapted EV read back each frame:
+
+| | walled-garden 21:30 | hello-courtyard 21:30 | walled-garden 12:00 | hello-courtyard 12:00 |
+|---|---|---|---|---|
+| EV at 0.5, min..max | -0.05..-0.01 | -0.02..+0.04 | -0.66..-0.58 | -0.38..-0.06 |
+| EV at 1, min..max | -0.10..-0.02 | -0.05..+0.08 | -1.00..-0.98 | -0.75..-0.12 |
+| largest step between frames (EV), at 1 | 0.004 | 0.008 | 0.002 | 0.026 |
+| a still's own EV, at 1 | -0.06 | -0.05 | -1.00 | -0.44 |
+
+No pumping: the EV moves by less than a hundredth of a stop per frame and stays within 0.13 EV over the pan. No noise
+amplification: at night the correction is about zero, because the target sits `aeNight` (1) EV lower at full lamp
+level (`world.js` framePost) and the meter is a centre-weighted log mean (a lamp entering the frame moves it little).
+So at night auto exposure leaves the image as the day-night exposure made it; by day it darkens, as before. Set
+`aeNight: 0` to let it lift a night scene (by at most `aeRange` EV, with the noise that brings). The lens effects'
+thresholds include the adapted EV (read on the GPU), so a lamp streaks as much after adaptation as before.
+
+**rcas with taa2** (static camera, 32 moving frames after 32 to settle): temporal noise is the mean |change| of a
+pixel's display luma between frames (levels of 255), over every pixel and over the dark ones (luma < 40); the
+high-frequency energy is the mean |4c - n - s - e - w| / 4 of the last frame:
+
+| | temporal, all | temporal, dark | high-frequency, all | high-frequency, dark |
+|---|---|---|---|---|
+| walled-garden 21:30, rcas 0 / 0.5 / 1 | 0.345 / 0.352 / 0.355 | 0.340 / 0.342 / 0.346 | 0.77 / 1.02 / 1.12 | 0.68 / 0.92 / 1.02 |
+| hello-courtyard 21:30 | 0.370 / 0.389 / 0.396 | 0.387 / 0.408 / 0.416 | 1.33 / 1.76 / 1.91 | 1.31 / 1.69 / 1.82 |
+| walled-garden 12:00 | 0.356 / 0.373 / 0.380 | (no dark pixels) | 1.07 / 1.49 / 1.64 | |
+| hello-courtyard 12:00 | 0.399 / 0.434 / 0.447 | 0.437 / 0.486 / 0.505 | 1.78 / 2.44 / 2.68 | 1.94 / 2.81 / 3.16 |
+
+At night `rcas: 1` adds 3-7 % of temporal noise (7-12 % by day) and sharpens the dark pixels by as much as the rest
+(+39-50 %, by day +51-63 %): the squashed-space limit (the lobe as strong as the local range allows) keeps it from
+lifting the low-contrast noise of shaded ground more than detail. Grain is added after it, in the grade, so it is
+never sharpened.
+
 ## Offline output (`mirage-snap`)
 
 ```
@@ -192,6 +286,9 @@ bias is applied under upscaling (WebGL2 has no sampler LOD bias): textures are a
 
 - **God rays and flare in XR.** The XR pipeline (`createXRPost`) gets no `lensSun`, so `post.godrays` and `post.flare`
   draw nothing in a headset.
+- **Lens dirt from an image.** `lensDirt` takes only its procedural mask (`lensDirtMask`, a seed); there is no option
+  for a texture of one's own. Streaks are horizontal only (no rotation, no vertical or star pattern), and their
+  vertical size is the source's (no separate thickness).
 
 - **Screen-space reflections** now live in the lit materials (`lighting: { screen: true }`, `docs/lighting.md`);
   light2's older pass is unchanged.

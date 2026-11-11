@@ -246,7 +246,18 @@ function mountUI({ game, input, audio, title = 'Mirage', subtitle = '', slots = 
     $('.mg-list').innerHTML = game.inventory.items.map((i) => `<li><b>${esc(i.name)}</b>${i.text ? ' — ' + esc(i.text) : ''}</li>`).join('') || '<li>Nothing yet.</li>';
     show(inv); $('.mg-inv button').focus();
   }
-  function message(h, p, button = 'Continue') { if (life.disposed) return; $('#mg-msg-h').textContent = h; $('.mg-msg-p').textContent = p; $('.mg-msg button').textContent = button; show(msg); $('.mg-msg button').focus(); }
+  // message() resolves when its dialog closes: the button, the menu key, another dialog taking its place, another
+  // message replacing its text, or dispose()
+  let messageDone = null;
+  const endMessage = () => { const done = messageDone; messageDone = null; if (done) done(); };
+  life.listen(msg, 'close', endMessage);
+  life.defer(endMessage);
+  function message(h, p, button = 'Continue') {
+    if (life.disposed) return Promise.resolve();
+    endMessage();
+    $('#mg-msg-h').textContent = h; $('.mg-msg-p').textContent = p; $('.mg-msg button').textContent = button; show(msg); $('.mg-msg button').focus();
+    return new Promise((resolve) => { messageDone = resolve; });
+  }
   function toast(s, ms = 2200) { const t = $('.mg-toast'); t.textContent = s; t.classList.add('on'); toastT = performance.now() + ms; }
   function objective(head, text) { $('.mg-obj').innerHTML = `<b></b><span></span>`; $('.mg-obj b').textContent = head; $('.mg-obj span').textContent = text; }
   function prompt(e) {

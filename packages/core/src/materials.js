@@ -26,7 +26,8 @@ import { RELIEF_GLSL, RELIEF, renderHeight, renderShade } from './relief.js';
 //   output        before <opaque_fragment>           outgoingLight
 //   uniforms, defines                                extra uniforms (kept by reference) and defines
 //   specAA                                           mgSpecAA on the roughness: by default where a hook mentions
-//                                                    roughnessFactor; false never; a string: an #if expression
+//                                                    roughnessFactor; false never; a string: an #if expression;
+//                                                    a number: always, with that strength (1 = the default)
 //   attach(material)                                 called once patched (wet.js keeps its define in step)
 // Materials with identical hooks share one program (the cache key is a hash of the hooks).
 // ---------------------------------------------------------------------------
@@ -36,6 +37,26 @@ const FRAG_HOOKS = {
   normal: '#include <normal_fragment_maps>', emissive: '#include <emissivemap_fragment>', lighting: '#include <lights_fragment_end>',
 };
 
+// specular anti-aliasing: widen the lobe by the normal's variance across the pixel, so bumped glossy surfaces
+// (water, polished stone, rippled puddles) stop sparkling when the camera moves (Kaplanyan & Hoffman / Tokuyoshi:
+// the screen-space variance of the shading normal, 0.25 (|dn/dx|^2 + |dn/dy|^2), added twice to the squared
+// roughness and clamped). k scales the added variance (1 = the default, 0 = none).
+const SPEC_AA_GLSL_BODY = /* glsl */ `#ifndef MG_SPEC_AA
+#define MG_SPEC_AA
+float mgSpecAA(float r, vec3 n){
+  vec3 a = dFdx(n), b = dFdy(n);
+  return sqrt(clamp(r * r + min(0.5 * (dot(a, a) + dot(b, b)), 0.18), 0.0, 1.0));
+}
+float mgSpecAA(float r, vec3 n, float k){
+  vec3 a = dFdx(n), b = dFdy(n);
+  return sqrt(clamp(r * r + min(0.5 * k * (dot(a, a) + dot(b, b)), 0.18), 0.0, 1.0));
+}
+#endif`;
+/** The specular AA GLSL (mgSpecAA(roughness, viewNormal[, strength])), guarded: every patch()ed lit material has it
+ *  already; paste it into a ShaderMaterial or onBeforeCompile of your own and call it after the last normal edit,
+ *  e.g. roughnessFactor = mgSpecAA(roughnessFactor, normal, 1.0); */
+export const SPEC_AA_GLSL = SPEC_AA_GLSL_BODY;
+
 const BUMP_GLSL = /* glsl */ `
 vec3 mgBump(vec3 n, float h, float k){
   vec3 p = -vViewPosition, dpx = dFdx(p), dpy = dFdy(p);
@@ -44,12 +65,7 @@ vec3 mgBump(vec3 n, float h, float k){
   vec3 g = sign(det) * (dFdx(h) * r1 + dFdy(h) * r2);
   return normalize(abs(det) * n - k * g);
 }
-// specular anti-aliasing: widen the lobe by the normal's variance across the pixel, so bumped glossy surfaces
-// (water, polished stone) stop sparkling when the camera moves (Kaplanyan-style screen-space variance)
-float mgSpecAA(float r, vec3 n){
-  vec3 a = dFdx(n), b = dFdy(n);
-  return sqrt(clamp(r * r + min(0.5 * (dot(a, a) + dot(b, b)), 0.18), 0.0, 1.0));
-}
+${SPEC_AA_GLSL_BODY}
 `;
 
 function uniformDecls(G, amb) {
@@ -99,9 +115,12 @@ export function patch(material, hooks, G) {
     if (A === 2) fs = fs.replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\n{ vec3 mgAmb = mgAmbientRGB(mgWorldPos); reflectedLight.indirectDiffuse *= mgAmb; reflectedLight.indirectSpecular *= mgAmb; }');
     for (const [name, inc] of Object.entries(FRAG_HOOKS)) if (hooks[name]) fs = fs.replace(inc, `${inc}\n${hooks[name]}`);
     // specular AA where the hooks touch the roughness; hooks.specAA overrides: false never, a string is a preprocessor
-    // #if expression (wet.js: a dry material that had none gets it only while wet, 'defined(MG_WET)')
-    const aa = hooks.specAA ?? fs.includes('roughnessFactor'), sa = 'roughnessFactor = mgSpecAA(roughnessFactor, normal);';
-    if (bump && aa) fs = fs.replace('#include <emissivemap_fragment>', (typeof aa === 'string' ? `#if ${aa}\n${sa}\n#endif` : sa) + '\n#include <emissivemap_fragment>');
+    // #if expression; a number: on with that strength (0 = off); hooks.specAAIf: an #if expression it is wrapped in
+    // as well (wet.js: '!defined(MG_WET)', the wet layer then applies its own after its normal)
+    const aa0 = hooks.specAA ?? fs.includes('roughnessFactor'), aa = typeof aa0 === 'number' ? aa0 > 0 : aa0;
+    const sa = typeof aa0 === 'number' ? `roughnessFactor = mgSpecAA(roughnessFactor, normal, ${(+aa0).toFixed(4)});` : 'roughnessFactor = mgSpecAA(roughnessFactor, normal);';
+    const cond = [typeof aa === 'string' ? aa : '', hooks.specAAIf || ''].filter(Boolean), ifx = cond.length > 1 ? cond.map((c) => `(${c})`).join(' && ') : cond[0];
+    if (bump && aa) fs = fs.replace('#include <emissivemap_fragment>', (ifx ? `#if ${ifx}\n${sa}\n#endif` : sa) + '\n#include <emissivemap_fragment>');
     if (hooks.output) fs = fs.replace('#include <opaque_fragment>', `${hooks.output}\n#include <opaque_fragment>`);
     shader.fragmentShader = fs;
   };
