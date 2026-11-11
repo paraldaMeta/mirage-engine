@@ -215,6 +215,26 @@ basin@12:00, pergola@21:00, gate@17:22: 0 px against the commit before it).
 - **Limits.** One set of looks for every view (no per-shot grade). The grade cannot make bounce light or a sky: on the
   Nizwa probe at 17:00 the sunlit plaster comes within about 0-20 levels of Nizwa's per channel (it was 32-40 levels
   short in red before), the shade stays greyer (no bounce) and the dusk sky stays Mirage's.
+## God rays and the sun's lens flare (opt-in): `post.godrays`, `post.flare`
+
+The two lens effects Golden Temple and Nizwa have, off by default (frames bit-identical to before); details,
+evidence and costs in `docs/post.md`.
+
+```js
+createWorldRenderer({ canvas, post: { godrays: 1, flare: 1 } });   // or ?godrays=1&flare=1 through postFromQuery
+```
+
+- **`post.godrays`** (1 = Nizwa-like): screen-space light shafts, the cheap alternative to light2's volumetric light.
+  The sky round the sun is blurred toward it at half resolution and shows only where something (a wall, a palm)
+  hides part of it, tinted by the sun's colour, fading with the air in front of each surface. With light2's
+  volumetric light marching the sun on the same frame, the god rays are weighted by `godraysVol` (0.35; 0 leaves the
+  shafts to light2). `godraysDecay` (0.965), `godraysThreshold` (0.3 x the sun's luminance).
+- **`post.flare`** (1 = Nizwa-like): veiling glare, six ghosts along the line from the sun through the centre and a
+  faint halo, when 16 depth taps over the sun's disc see the sky (a sun behind a wall or a frond leaves none).
+- Both scale with the sun's radiance at the ground (weaker and redder toward the horizon) and draw nothing at
+  night, below the horizon, with the sun behind the camera or under an orthographic camera. Stills stay
+  bit-identical run to run; moving frames ease them through a short history (no shimmer under TAA). Cost at
+  1280 x 720 with the sun in view: +0.19 ms (god rays), +0.0 ms (flare); at 2560 x 1440, +1.3 / +0.3 ms.
 
 ## Soft sun shadows (opt-in): `softShadows`
 

@@ -14,6 +14,7 @@
 //      ?sky=dusk the dusk sky (@miragekit/core sky.js): twilight colours, a darker night dome, a hazy horizon, altocumulus
 //      ?lamppool=1 the lanterns are lit by the lamp pool (@miragekit/core lamppool.js) instead of PointLights;
 //      &lampreal=1 keeps the PointLights too (the pool then adds nothing: the A/B of the hand-off)
+//      ?godrays=1 light shafts from the sun, ?flare=1 the sun's lens flare (@miragekit/core postfx.js, docs/post.md)
 //      Enter VR / Enter AR appear in a WebXR browser: docs/xr.md
 import { createWorldRenderer, createTextures, placeDate, pickQuality, setRelief, setWetness, setRain, postFromQuery } from '@miragekit/core';
 import { buildWorld } from '@miragekit/world';
@@ -69,7 +70,7 @@ const world = createWorldRenderer({ quality, byteTargets: Q.get('bytetargets') =
   fog: { groundDensity: 0.0022, height: 30 }, ...(sky ? { sky } : {}),
   post: { grain: Q.get('grain') === '0' ? 0 : 0.012, dof: Q.get('dof') ? 0.025 : 0, focus: 9,
     ...(Q.get('aolit') === '1' ? { aoLit: 1 } : {}), ...(Q.get('ae') === '1' ? { autoExposure: 0.5 } : {}),
-    ...postFromQuery(Q) },   // ?taa2=1&upscale=0.67&mb=0.5&bokeh=1&lens=0.03&bloom2=1&lut=warm&chroma=0.6 (docs/post.md)
+    ...postFromQuery(Q) },   // ?taa2=1&upscale=0.67&mb=0.5&bokeh=1&lens=0.03&bloom2=1&lut=warm&chroma=0.6&godrays=1&flare=1 (docs/post.md)
 });
 const urls = import.meta.glob('./tex/*.webp', { eager: true, query: '?url', import: 'default' });
 const tex = createTextures(world, { manifest, url: (f) => urls['./tex/' + f] });

@@ -33,6 +33,13 @@ export interface PostSettings {
   chroma: number;
   /** 0..1: contrast-adaptive sharpening of moving frames after the temporal resolve / upscaler. */
   rcas: number;
+  /** Screen-space light shafts from the sun (0 = off; 1 = Nizwa-like): the sky round the sun blurred toward it where
+   *  something hides part of it. godraysDecay: fall-off per tap of the radial blur; godraysThreshold: sky dimmer than
+   *  this x the sun's luminance casts weaker shafts; godraysVol: their weight while light2's volumetric light marches
+   *  the sun (0 = leave the shafts to it). */
+  godrays: number; godraysDecay: number; godraysThreshold: number; godraysVol: number;
+  /** The sun's lens flare (0 = off): veiling glare, ghosts, a faint halo, depth-tested; scales with the sun's radiance. */
+  flare: number;
   /** Screen-space reflections in the lit materials (needs `lighting: { screen: true }`): strength 0..1, the roughness
    *  where they end, the longest ray (m) and the depth thickness (m). */
   ssr2: number; ssrRough: number; ssrDist: number; ssrThick: number;
@@ -66,8 +73,11 @@ export class Pipeline {
   /** Turn on light2's passes (createWorldRenderer does this for `light2`). */
   useLight2(settings: Light2Settings, context: { sun: THREE.DirectionalLight; G: Record<string, THREE.IUniform> }): void;
   taa(inverseViewProjection: THREE.Matrix4, previousViewProjection: THREE.Matrix4, alpha: number): void;
-  /** The postfx.js passes, made on first use (taa2, motionBlur, bokeh, bloomPyramid, lut, chroma). */
+  /** The postfx.js passes, made on first use (taa2, motionBlur, bokeh, bloomPyramid, lut, chroma, godrays, flare). */
   fx: PostFX | null;
+  /** Where the sun is and how bright (post.godrays, post.flare): its direction and the world's uniforms (uKeyDir, uKeyColor);
+   *  createWorldRenderer sets it. Without it the lens passes draw nothing. */
+  lensSun?: { dir: THREE.Vector3; G: Record<string, THREE.IUniform> };
   /** taa2's sub-pixel jitter of the next moving frame, in render pixels (-0.5..0.5). */
   fxJitter(): [number, number];
   /** Adaptive stills: mean change (display levels) of the accumulation / wsum since the last call; null when first. */

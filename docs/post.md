@@ -1,4 +1,4 @@
-# Post chain: temporal AA, upscaling, lens, motion, bloom, grade, offline output
+# Post chain: temporal AA, upscaling, lens, motion, bloom, god rays, lens flare, grade, offline output
 
 Everything here is **opt-in** and experimental. With every option off, the pipeline runs the code it ran before:
 the effects object (`world.pipeline.fx`, `packages/core/src/postfx.js`) is not even created, and the stills of
@@ -24,6 +24,8 @@ hello-courtyard and walled-garden read the flags: `examples/hello-courtyard/dist
 | `lut`, `lutStrength` | `?lut=warm\|cool\|bleach` | 3D colour lookup after the tone map |
 | `chroma` | `?chroma=0.6` | chromatic aberration, % of the half diagonal at the corner |
 | `rcas: 0..1` | `?rcas=1` | contrast-adaptive sharpening of moving frames after the resolve / upscaler |
+| `godrays` (1 = Nizwa-like) | `?godrays=1` | screen-space light shafts from the sun; `godraysDecay`, `godraysThreshold`, `godraysVol` |
+| `flare` (1 = Nizwa-like) | `?flare=1` | the sun's lens flare (veiling glare, ghosts, halo), tested against the depth buffer |
 | `ssr2`, `ssgi`, `contact` | `?ssr=1&ssgi=1&contact=1` | screen-space reflections, indirect light, contact shadows: need `lighting: { screen: true }`, see `docs/lighting.md` |
 
 Vignette and grain were already options (`vignette`, `grain`).
@@ -71,7 +73,70 @@ picture has less haze (measured: 36.2 dB to the old bloom's still on hello-court
 Applied after the tone map on display-referred colour, with the half-texel correction.
 
 Stills (`spp > 1`) never use taa2, bokeh or motionBlur: they integrate the lens and the shutter by accumulation,
-which is exact. bloomPyramid, lut and chroma apply to stills and moving frames alike.
+which is exact. bloomPyramid, lut, chroma, godrays and flare apply to stills and moving frames alike.
+
+## God rays and the sun's lens flare (`godrays`, `flare`)
+
+The two lens effects Golden Temple and Nizwa have (their `post.js`), rebuilt on Mirage's pipeline. Both are off by
+default and draw nothing (no pass, no target, no program) until set; then they still draw nothing unless the sun
+is in front of the camera, above the horizon and the key light (`createWorldRenderer` gives the pipeline the sun's
+direction and the world's key light: `pipeline.lensSun`). At night, with the moon as the key light, and under an
+orthographic camera they draw nothing. Their strength follows the key light's radiance, the sun as it reaches the
+ground: weaker and redder toward the horizon, gone a minute after sunset.
+
+**God rays** (`godrays`; `?godrays=1`): the cheap screen-space alternative to light2's volumetric light, for worlds
+without light2. At half resolution, the sky (depth at the far plane) within a Gaussian round the sun's screen
+position, weighted by its brightness (`godraysThreshold` x the sun's luminance and brighter counts fully), is
+blurred along the line to the sun: three passes of 24 taps, decaying by `godraysDecay` (0.965). The plain sky mask
+and the kernel are blurred alongside, and their ratio is how much of the sky round the sun something (a wall, a
+palm, a tower) hides along a pixel's line to the sun: **shafts only show there**. An open sky round the sun keeps
+the glow its own aureole gives it (this is light2's choice too: an open, wholly lit ray lays no veil). The light is
+tinted by the key light's radiance, fades with the distance from the sun and with the air in front of each
+surface (1 - exp(-z / 20 m): a wall 3 m away gets 14 %, the sky all of it), and is added before the bloom.
+
+- **With light2.** light2's volumetric light marches the sun's own shafts through its shadow map (true shafts, in
+  3D) whenever the sun is low or the eye is near a room. On those frames the god rays are weighted by `godraysVol`
+  (0.35): they keep the streaks round the sun's disc that a 60 m dust march does not reach, without doubling the
+  shafts. `godraysVol: 0` leaves the shafts to light2; on frames where light2 does not march the sun (a high sun
+  over open ground) the god rays draw at full weight.
+- **Determinism and TAA.** The only pattern is a per-pixel dither of each blur's first tap, stepped by the
+  sub-frame / TAA index (constant for a still): stills stay bit-identical run to run. The passes run after the
+  temporal resolve and test the jittered sub-frame's depth, so on moving frames the result is eased through a
+  half-resolution history that follows the sun across the screen (20 % new per frame; a jump of the sun, a resize
+  or `fx.reset()` starts it again). Static camera at golden hour behind the palm, mean change between moving
+  frames (display levels): 0.28 off, 0.31 with god rays (1.24 before the history and the half-resolution air
+  term).
+
+**Lens flare** (`flare`; `?flare=1`): a 1 x 1 pass takes 16 depth taps over a disc 1.25 x the sun's (sky.js draws a
+0.27 degree disc) and keeps the share that sees the sky, on the GPU (no read-back). A sun behind a wall, a pier or
+the palm's trunk leaves no flare (the frame is bit-identical to `flare: 0`); half hidden among fronds, part of it;
+off the frame, none. The flare is a veiling glare round the sun, six ghosts on the line from the sun through the
+frame's centre, and a faint halo ring, x the key light's radiance x `flare`, added after the bloom. No noise; on
+moving frames the visibility eases over a few frames (30 % new per frame).
+
+Evidence (hello-courtyard, `?time=golden&date=2026-10-25`, stills at 8 sub-frames, 1280 x 720): with both effects
+on, the stills hero@golden, basin@12:00, pergola@21:00 and gate@17:22 are bit-identical to the effects off (none of them faces the sun), and the effects-off stills are bit-identical
+to the commit before. A sun-facing camera through the west arcade: flare and shafts; one step to the side, the
+sun behind a pier: no flare at all (0 px differ), faint shafts round the pier's edge. Above the court, the sun
+behind the palm's fronds: a partial flare, shafts between the fronds. From the court floor, the sun behind the
+west wall: no flare, shafts over the wall and through the palm. A camera that tracks the sun from 12:00 to 17:14:
+the effects fade with the key light and vanish below the horizon (0 px differ at 17:14). The Nizwa probe
+(`probes/nizwa-probe`, `?godrays=1&flare=1`): its `approach@17:00` faces away from the sun (bit-identical); a
+camera above the court looking west at the round tower shows the shafts over its crenellations, light2's own
+march and the god rays at `godraysVol` together.
+
+Cost, moving frames (`renderFrame({ taa })` + a 1-px read-back), the median of 7 interleaved blocks of 30 frames
+each way, panning round the sun behind the palm (the passes run; with the sun out of view they cost nothing),
+headless Chrome on an Apple M4 Pro that other jobs were using:
+
+| | 1280 x 720 | 2560 x 1440 |
+|---|---|---|
+| off | 2.73 | 7.52 |
+| `godrays: 1` | 2.92 (+0.19) | 8.81 (+1.29) |
+| `flare: 1` | 2.73 (+0.00) | 7.79 (+0.27) |
+| both | 3.08 (+0.35) | 9.09 (+1.57) |
+
+A still pays the passes once per frame, not per sub-frame.
 
 ## Offline output (`mirage-snap`)
 
@@ -135,8 +200,8 @@ bias is applied under upscaling (WebGL2 has no sampler LOD bias): textures are a
   comfortable in a headset: bloom pyramid, LUT, grade. No jittered TAA (the compositor reprojects, jitter swims),
   no motion blur, no depth of field, no chromatic aberration (the lens is already corrected). Fixed foveation and
   MSAA on the layer stay the anti-aliasing. Not built.
-- Variable-rate shading, a learned upscaler (FSR 2 / DLSS class), lens flares, auto-focus, object motion vectors
-  for shader-animated vertices.
+- Variable-rate shading, a learned upscaler (FSR 2 / DLSS class), auto-focus, object motion vectors for
+  shader-animated vertices. A lens flare of the moon (the flare is the sun's only); flares of lamps.
 
 Checks: `node packages/core/postfx.check.mjs`, `node packages/tools/snap-seq.check.mjs` (both in `npm test`),
 `node packages/tools/src/postfx-check.mjs <dist>` (headless Chrome with a GPU).

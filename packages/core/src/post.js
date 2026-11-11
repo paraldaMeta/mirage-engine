@@ -564,6 +564,7 @@ export class Pipeline {
     const cp = (this._cp || (this._cp = new THREE.Vector3())).setFromMatrixPosition(camera.matrixWorld);
     const sm = sun && sun.castShadow && sun.intensity > 0 && sun.shadow.map && sun.shadow.map.depthTexture;
     const keyOn = V.sun > 0 && !!sm && kc.x + kc.y + kc.z > 1e-4 && (low > 0.02 || this._nearVolume(cp, G, V.nearRoom));
+    this._volKey = keyOn;
     if (!keyOn && !(V.lamps > 0 && top.length)) return false;
     const u = this.l2.volMat.uniforms;
     u.tDepth.value = this.sceneRT.depthTexture; u.uInvProj.value.copy(camera.projectionMatrixInverse);
@@ -700,7 +701,7 @@ export class Pipeline {
     if (this.screen) this.screen.after(this, camera);
     if (l2) l2.lamps.done();
     // opt-in passes (postfx.js): a moving frame is one sub-frame of weight 1; it gets a velocity buffer when asked
-    this._live = w === 1 && !still; this._cam = camera;
+    this._live = w === 1 && !still; this._cam = camera; this._jk = jk;
     this._taa2 = this._live && P.taa2 > 0;
     if (this._live && (P.taa2 > 0 || P.motionBlur > 0)) this._fx().velocity(scene, camera);
     const useAO = P.ao > 0;
@@ -711,6 +712,7 @@ export class Pipeline {
       u.uRadius.value = P.aoRadius; u.uPower.value = P.aoPower; u.uK.value = k;
       this._draw(this.ao, this.aoRT);
     }
+    this._volKey = false;   // _vol: light2 marched the key light (postfx godrays weigh themselves down)
     const useSSR = !!l2 && this._ssr(camera, jk), useVol = !!l2 && this._vol(camera, jk);
     const a = this.acc.uniforms;
     a.uUseSSR.value = useSSR ? 1 : 0; a.uUseVol.value = useVol ? 1 : 0;
@@ -861,9 +863,11 @@ export class Pipeline {
     if (live && P.motionBlur > 0) this._fx().motionBlur(P);
     if (live && P.rcas > 0) this._fx().rcas(P);
     this._bloomMip = null;
+    if (!setOnly && P.godrays > 0) this._fx().godrays(P, this._cam, this._jk, this._volKey, live);   // the sun's shafts, bloomed with the rest
     const expK = P.bloomPyramid > 0 && P.bloom > 0 ? this._fx().bloom(P) : this._bloom(P);
+    if (!setOnly && P.flare > 0) this._fx().flare(P, this._cam, live);   // the sun's lens flare, after the bloom
     if (P.grade && !this.graded) this.useGrade();
-    const gm =(!setOnly && (P.lut || P.chroma > 0) && this._fx().grade(P)) || this.grade;
+    const gm = (!setOnly && (P.lut || P.chroma > 0) && this._fx().grade(P)) || this.grade;
     const u = gm.uniforms;
     u.tColor.value = this.accRT.texture; u.uTexel.value.set(1 / this.w, 1 / this.h);
     u.uExposure.value = P.exposure * expK; u.uSat.value = P.saturation; u.uCon.value = P.contrast; u.uLift.value = P.lift;

@@ -11,6 +11,12 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
   (ported from the Nizwa Golden Hour project's irradiance volume). Nizwa Fort: ~10 ms height field + 30-40 ms bake
   (42,240 probes) where `gi` took 51 s; stills bit-identical when off and between runs; eased re-bakes as the
   clock runs. `probes/nizwa-probe/?bounce=1`, hello-courtyard `?bounce=1`.
+- @miragekit/core: `post.godrays` and `post.flare` (experimental, opt-in, `postfx.js`, `docs/post.md`): screen-space
+  light shafts from the sun (half resolution, shafts only where something hides the sky round the sun, weighed down
+  by `godraysVol` while light2's volumetric light marches the sun) and the sun's lens flare (glare, ghosts, halo;
+  visibility from 16 depth taps over the sun's disc). Both follow the sun's radiance and draw nothing at night or
+  with the sun out of view. Off, frames are bit-identical; on, stills are bit-identical run to run. hello-courtyard
+  and the Nizwa probe read `?godrays=1&flare=1`. +0.19 / +0.0 ms at 1280 x 720, +1.3 / +0.3 ms at 2560 x 1440.
 
 **Changes in behaviour**
 - The packages are named `@miragekit/core`, `@miragekit/world`, `@miragekit/play`, `@miragekit/game`,
