@@ -4,7 +4,7 @@
 // where it was last time, keeps saves as files in the user's app-data folder, and refuses everything a game does
 // not need (other sites, new windows, device permissions).
 'use strict';
-const { app, BrowserWindow, ipcMain, protocol, session, screen, shell, powerSaveBlocker } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, protocol, session, screen, shell, powerSaveBlocker } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -74,7 +74,7 @@ function writeState(win) {
   } catch { /* a read-only profile: the window just opens at its default next time */ }
 }
 
-let win = null, awake = null;
+let win = null, awake = null, lastCrash = 0;
 const fromGame = (e) => { const f = e.senderFrame; return !!f && typeof f.url === 'string' && f.url.startsWith(ORIGIN + '/'); };
 const handle = (channel, fn) => ipcMain.handle(channel, (e, ...args) => { if (!fromGame(e)) throw new Error('refused'); return fn(...args); });
 
@@ -92,6 +92,18 @@ function createWindow() {
   if (state.maximized) win.maximize();
   if (state.fullscreen) win.setFullScreen(true);
   win.once('ready-to-show', () => win.show());
+  // the window is the game's: its name in the title bar, the dock and the task switcher, not the page's <title>
+  win.on('page-title-updated', (e) => e.preventDefault());
+  // a crashed or killed page (out of memory, a GPU driver reset that took the renderer down) is reloaded once; a
+  // second crash within a minute quits with a message rather than flashing a reload loop at the player
+  win.webContents.on('render-process-gone', (e, details) => {
+    if (details.reason === 'clean-exit') return;
+    const now = Date.now(), again = now - lastCrash < 60000;
+    lastCrash = now;
+    if (!again) { win.webContents.reload(); return; }
+    dialog.showErrorBox(CONFIG.name, `The game stopped unexpectedly (${details.reason}). Your saves are kept; start it again to continue.`);
+    app.quit();
+  });
   win.on('close', () => writeState(win));
   win.on('closed', () => { win = null; });
   // F11 and Alt+Enter (Ctrl+Cmd+F on a Mac) toggle fullscreen even when the game shows no button for it
@@ -103,7 +115,7 @@ function createWindow() {
   // the window shows the game and nothing else: no navigation away, no pop-ups; https links open in the browser
   win.webContents.on('will-navigate', (e, url) => { if (!url.startsWith(ORIGIN + '/')) e.preventDefault(); });
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https:\/\//.test(url)) shell.openExternal(url); return { action: 'deny' }; });
-  win.loadURL(ORIGIN + '/index.html');
+  win.loadURL(ORIGIN + '/index.html' + (CONFIG.query ? '?' + CONFIG.query : ''));
 }
 
 app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });

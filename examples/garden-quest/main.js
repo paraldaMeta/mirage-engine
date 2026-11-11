@@ -54,6 +54,6 @@ mounted.xr = createXR(g.play, { game: g, support: xrs });   // in the headset th
 if (Q.get('audio') === 'engine') mounted.audioEngine = (await import('./audio-engine.js')).mountAudioEngine(g, world, plan);   // ?audio=engine: reverb zone, occlusion, voices, overlay (docs/audio.md)
 if (Q.get('load')) g.load(+Q.get('load'));
 if (Q.has('start')) g.ui.begin();
-if (PF) window.__platform = PF.mount({ world, play: g.play, canvas, game: g.game, audio: g.audio, storage, caps });
+if (PF) window.__platform = PF.mount({ world, play: g.play, canvas, game: g.game, audio: g.audio, storage, caps, ui: g.ui });
 window.__mirage = { world, built, ...mounted, mountQuest, tex, render: (o = {}) => world.renderFrame(o.T ?? 0, { spp: 6, frameIndex: 1, ...o }) };
 window.__READY = true;

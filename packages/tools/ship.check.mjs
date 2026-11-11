@@ -125,6 +125,15 @@ await ok('electron: main and preload parse, locked-down window, saves in userDat
   const pkg = JSON.parse(text(A['desktop-electron'], 'package.json'));
   assert.equal(pkg.main, 'main.cjs'); assert.equal(pkg.build.appId, cfg.id); assert.deepEqual(pkg.build.files, ['main.cjs', 'preload.cjs', 'www/**/*']);
   assert.equal(parsePlist(text(A['desktop-electron'], 'build/entitlements.mac.plist'))['com.apple.security.cs.allow-jit'], true);
+  // Electron 45 fetches its binary only through install-electron; the packaged app has the Node entry points fused off
+  assert.equal(pkg.scripts.postinstall, 'install-electron'); assert.equal(pkg.author, cfg.author);
+  assert.deepEqual(pkg.build.electronFuses, { runAsNode: false, enableNodeOptionsEnvironmentVariable: false, enableNodeCliInspectArguments: false,
+    enableEmbeddedAsarIntegrityValidation: true, onlyLoadAppFromAsar: true, enableCookieEncryption: true, grantFileProtocolExtraPrivileges: false, resetAdHocDarwinSignature: true });
+  for (const need of ['page-title-updated', 'render-process-gone', 'showErrorBox']) assert.ok(main.includes(need), `main.cjs lacks ${need}`);
+  // --query: only plain key=value pairs reach the first URL
+  assert.equal(shipConfig({ query: '?platform=1&quality=low' }).query, 'platform=1&quality=low'); assert.equal(shipConfig({}).query, '');
+  for (const bad of ['a=1#x', '//evil.example', 'a=<b>', 'a=1&&b', 'x'.repeat(201)]) assert.throws(() => shipConfig({ query: bad }), /query/, bad);
+  assert.ok(electronFiles(shipConfig({ query: 'platform=1' }), { icons: iconSet(defaultIcon(cfg, 64), cfg) }).get('main.cjs').includes('"query": "platform=1"'));
 });
 
 // the save code of main.cjs, run for real against a temporary folder with a stand-in for Electron

@@ -13,6 +13,8 @@
 //     --name "Garden Quest"   --id studio.example.gardenquest   --version 1.2.0   (defaults: the folder's package.json)
 //     --icon icon.png         one square PNG, 1024 px or more (default: a placeholder; replace it before release)
 //     --orientation landscape | portrait | any      --theme #101418   --background #000000
+//     --query platform=1      desktop-electron: the query string the window opens the game with (key=value pairs only)
+//     --author "Studio"       the publisher name installers show (default: the name)
 //     --dist <folder>         use this built folder instead of running Vite (it must use relative URLs: base './')
 //     --isolated              web / pwa: add COOP + COEP headers (see HOSTING.txt before you do)
 //     --json                  print the result as JSON (target, out, files, toolchain)
@@ -30,7 +32,7 @@ import { decodePNG } from './imgcmp.mjs';
 import { TARGETS, shipConfig, iconSet, defaultIcon, patchHtml, webFiles, pwaFiles, electronFiles, tauriFiles, capacitorFiles, sha256 } from './ship-gen.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const USAGE = `usage: mirage-ship <example dir> --target ${TARGETS.join(' | ')} [--out dir] [--name s] [--id reverse.dns.id] [--version x.y.z] [--icon png] [--orientation landscape|portrait|any] [--theme #rrggbb] [--background #rrggbb] [--dist built-folder] [--isolated] [--json]`;
+const USAGE = `usage: mirage-ship <example dir> --target ${TARGETS.join(' | ')} [--out dir] [--name s] [--id reverse.dns.id] [--version x.y.z] [--icon png] [--orientation landscape|portrait|any] [--theme #rrggbb] [--background #rrggbb] [--query k=v&...] [--author s] [--dist built-folder] [--isolated] [--json]`;
 
 /** which wrapper toolchains this machine has (looked for, never installed) */
 export function detectToolchains({ env = process.env, exists = fs.existsSync, platform = process.platform } = {}) {
@@ -63,7 +65,7 @@ async function main() {
   try {
     opts = parseArgs({ args: process.argv.slice(2), allowPositionals: true, options: {
       target: { type: 'string' }, out: { type: 'string' }, name: { type: 'string' }, id: { type: 'string' }, version: { type: 'string' }, icon: { type: 'string' },
-      orientation: { type: 'string' }, theme: { type: 'string' }, background: { type: 'string' }, dist: { type: 'string' }, isolated: { type: 'boolean' }, json: { type: 'boolean' }, help: { type: 'boolean' },
+      orientation: { type: 'string' }, theme: { type: 'string' }, background: { type: 'string' }, dist: { type: 'string' }, query: { type: 'string' }, author: { type: 'string' }, isolated: { type: 'boolean' }, json: { type: 'boolean' }, help: { type: 'boolean' },
     } });
     if (opts.values.help) { console.log(USAGE); return 0; }
     if (opts.positionals.length > 1) throw new Error(`one example folder, got ${opts.positionals.join(' ')}`);
@@ -78,7 +80,7 @@ async function main() {
   let cfg;
   try {
     cfg = shipConfig({ name: v.name ?? folder.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()), slug: folder, id: v.id, version: v.version ?? (/^\d+\.\d+\.\d+$/.test(pkg.version || '') ? pkg.version : undefined),
-      orientation: v.orientation, theme: v.theme, background: v.background, description: pkg.description });
+      orientation: v.orientation, theme: v.theme, background: v.background, description: pkg.description, query: v.query, author: v.author ?? (typeof pkg.author === 'string' ? pkg.author : pkg.author?.name) });
   } catch (e) { console.error('[ship] ' + e.message); return 2; }
 
   if (target === 'single') {   // the existing packager does this one
