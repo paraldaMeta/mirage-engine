@@ -24,7 +24,7 @@
 import * as THREE from 'three';
 import { FOG } from '@miragekit/core';
 
-const SEEN = 'nd-intro-seen', D2R = Math.PI / 180, NEAR = 0.08, FADE = 0.32;
+const SEEN = 'nd-intro-seen', D2R = Math.PI / 180, NEAR = 0.08, FADE = 0.32, MIN_FOV = 12;
 let seenHere = false;   // storage blocked: once a page
 export function introSeen() { try { return seenHere || localStorage.getItem(SEEN) === '1'; } catch { return seenHere; } }
 function markSeen() { seenHere = true; try { localStorage.setItem(SEEN, '1'); } catch { /* storage blocked: once a page */ } }
@@ -161,6 +161,9 @@ export function createIntro({ T, world, game, enemies, onDispose, onFrame }) {
     let i = 0;
     while (i < shots.length - 1 && time >= starts[i + 1]) i++;
     const s = shots[i], lt = Math.min(s.len, Math.max(0, time - starts[i])), p = s.at(lt);
+    // the flattest lens drawn: below about 12 deg (hundreds of metres out) the frame came out as a far, wide view of
+    // the district in the stills (cause not found yet); about 12 deg was seen to draw right
+    p.fov = Math.max(MIN_FOV, p.fov);
     const aspect = world.pipeline.w / world.pipeline.h;
     const th = Math.tan(p.fov * D2R / 2), vt = th / aspect, D = p.W / (2 * th), h = p.h * D2R, dx = Math.cos(h), dz = Math.sin(h), te = Math.tan(p.el * D2R);
     cam.position.set(p.F[0] - dx * D, p.F[1] + D * te, p.F[2] - dz * D);
