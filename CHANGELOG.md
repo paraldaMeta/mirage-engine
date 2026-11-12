@@ -5,6 +5,21 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
 ## Unreleased
 
 **New**
+- 2.5D on Mirage, brought back from a game built on it (all experimental and opt-in; nothing else imports it;
+  guide `docs/sprites-25d.md`, example `examples/sprite-yard`). @miragekit/play: sprite atlases in a documented JSON
+  format with 8, 5 (mirrored) or 1 drawn directions (`parseAtlas` lists every problem, `makeAtlas`, `loadAtlas` with
+  a placeholder fallback, `makePlaceholderAtlas` drawing humanoid / blob / bird / crab / item figures in code), the
+  direction convention (`spriteDirection`, `drawnDirection`), `createSpriteAnim` (the hit frame as an event),
+  `createSpriteActor`: a card whose screen shape comes from a camera-facing card and depth from a vertical one, lit
+  by the world through `patch()` hooks (sun, shadows, sky light, lamps, fog, grade; one program for every sprite),
+  blob shadow on the slope, outline / flash at the frame's exposure, dithered fade, a see-through silhouette,
+  `screenRect` for picking. `createIsoCamera`: fixed pitch, yaw, clamped zoom, a smoothed target, optional input
+  (`bind` returns unbind: right-drag, wheel, Q / E, two-finger twist and pinch). `pickWalkGrid` (a screen ray's
+  first walkable floor, marched through the walk grid; no mesh lists) and `reachableGoal` (the point, the floors
+  under it, rings round its foot). @miragekit/world: `kits/cutaway` (`createCutaway`: a dithered hole between the
+  camera and the player in the marked materials, shadows untouched, `hides()` for picking) and `kits/edge`
+  (`addPerimeter`, `addBarrier`: invisible collider walls, one mesh each). Checked by
+  `packages/play/sprites.check.mjs` and `packages/world/cutaway.check.mjs` (in `npm test`); `docs/types/sprites-25d.mts`.
 - @miragekit/core: the wet layer learns where water goes and how it looks in rain (ported from the rainy ship deck
   of the owner's Oman project, `withWet` options, all opt-in): `wear` (a GLSL float: ruts, a trodden path, joints,
   round drains; the water gathers there, `wearDepth` 0.016 m) and `shelter` (a number, a GLSL float or a `{ value }`

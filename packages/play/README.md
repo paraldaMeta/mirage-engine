@@ -135,6 +135,29 @@ obstacle only (~1 ms); walkers made on `nav.grid` collide with it too. Agents ar
 radius), so they climb stairs and follow the ground as the player does. Numbers and limits: the CHANGELOG entry;
 the browser check `node packages/tools/nav-check.mjs` (walled-garden; `?npc=N` there shows N travellers).
 
+## 2.5D: sprite actors, the iso camera, click to move (experimental, opt-in)
+
+2D sprite figures in the lit world, a high camera, and picking the ground on the walk grid. Guide and atlas format:
+[docs/sprites-25d.md](../../docs/sprites-25d.md); example: `examples/sprite-yard`.
+
+```js
+const atlas = await loadAtlas('/sprites/hero/atlas.json', { placeholder: { shape: 'humanoid' } });
+const hero = createSpriteActor(world, atlas, { silhouette: true });
+const iso = createIsoCamera({ pitch: 52, yaw: 35, min: 10, max: 34 }); iso.bind(canvas);
+canvas.onpointerdown = (e) => {
+  ray.setFromCamera(ndc(e), world.camera);
+  const p = pickWalkGrid(grid, ray.ray, { nav, radius: 0.3 });
+  if (p) reachableGoal(nav, p, { from: agent.pos, tryGoal: (q) => agent.setGoal(q) });
+};
+// each frame: iso.follow(feet).update(dt).apply(world.camera); hero.group.position.set(...agent.pos);
+//             hero.setFacing(Math.atan2(agent.heading[0], agent.heading[1])); hero.update(dt, iso.yaw);
+```
+
+The card material is `world.mat.std` with `patch()` hooks, so the sun, its shadows, the sky light, lamps, fog and the
+grade all light the figure; one program for every sprite. Pure parts without three: `spriteDirection`,
+`drawnDirection`, `parseAtlas`, `createSpriteAnim`, `createIsoCamera`, `pickWalkGrid`, `reachableGoal`
+(`sprites.check.mjs`). Subpaths: `@miragekit/play/sprites`, `/iso-camera`, `/walk-pick`.
+
 ## Embedding (`mountWorld`)
 
 ```js

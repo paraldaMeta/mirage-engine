@@ -25,6 +25,9 @@ export { createPathQueue, smoothPath, pathLength } from './nav-path.js';
 export { createCrowd } from './crowd.js';
 export { bt, createBehaviorTree, createBlackboard, createSenses, agentActor, patrol, chase, flee, investigate, follow, guard } from './ai.js';
 export { createNavDebug } from './nav-debug.js';
+export { spriteDirection, drawnDirection, parseAtlas, createSpriteAnim, makePlaceholderAtlas, makeAtlas, loadAtlas, createSpriteMaterial, createSilhouetteMaterial, createSpriteActor } from './sprites.js';
+export { createIsoCamera } from './iso-camera.js';
+export { pickWalkGrid, reachableGoal } from './walk-pick.js';
 
 export type { Play, PlayOptions, PlayPlan, SimulationDriver } from './play.js';
 export type { Character, CharacterPalette, CharacterAppearance, CharacterState } from './character.js';
@@ -53,3 +56,6 @@ export type { Crowd, CrowdOptions, Actor } from './crowd.js';
 export type { BehaviorTree, BTNode, BTStatus, BTContext, Blackboard, Senses, Noise, SightOptions, Perception } from './ai.js';
 export type { NavDebug } from './nav-debug.js';
 export type { PathOptions, NavLink, NavLinkDef, NavLinkView, NavWaypoint } from './navgrid.js';
+export type { AtlasJSON, AtlasAnimJSON, AtlasData, SpriteAtlas, SpriteFrame, SpriteAnim, SpritePlayOptions, PlaceholderSpec, SpriteWorld, SpriteUniforms, SpriteActor, SpriteActorOptions, ScreenRect } from './sprites.js';
+export type { IsoCamera, IsoCameraOptions, IsoBindOptions } from './iso-camera.js';
+export type { PickWalkGridOptions, ReachableOptions } from './walk-pick.js';

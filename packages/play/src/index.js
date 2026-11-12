@@ -25,3 +25,6 @@ export { createPathQueue, smoothPath, pathLength } from './nav-path.js';
 export { createCrowd } from './crowd.js';
 export { bt, createBehaviorTree, createBlackboard, createSenses, agentActor, patrol, chase, flee, investigate, follow, guard } from './ai.js';
 export { createNavDebug } from './nav-debug.js';
+export { spriteDirection, drawnDirection, parseAtlas, createSpriteAnim, makePlaceholderAtlas, makeAtlas, loadAtlas, createSpriteMaterial, createSilhouetteMaterial, createSpriteActor } from './sprites.js';
+export { createIsoCamera } from './iso-camera.js';
+export { pickWalkGrid, reachableGoal } from './walk-pick.js';
