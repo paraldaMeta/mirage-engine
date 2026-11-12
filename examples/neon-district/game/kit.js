@@ -75,16 +75,17 @@ export function setupKit({ ctx, shared, vfx, Q, T, player, weapon, enemies, dron
     ammo.update(dt);
     story.update(dt);
     lamps.flush();
-    // the visor: robots' rims raised in the dark, while scanning or in overdrive; who is marked through walls
+    // the visor: robots' rims raised in the dark, while scanning or in overdrive; who is marked through walls (and
+    // the last wave's stragglers, enemies.js / drones.js: the one the uplink still waits for)
     const inDark = hack.dark(player.feet) > 0, over = abilities.active, scan = hack.scanning;
     enemies.env.rim = Math.max(enemies.env.rim * Math.exp(-dt * 4), inDark || over ? 1 : scan ? 0.6 : 0);
     const marks = [];
     for (const e of enemies.list) {
       if (e.dead || !e.active || !e.rig.root.visible) continue;
       const d = Math.hypot(e.pos[0] - player.feet[0], e.pos[2] - player.feet[2]);
-      if (over || (scan && d < 30) || (hack.dark(e.pos) && d < 30)) marks.push({ pos: [e.pos[0], e.pos[1] + 2.1 * e.K.scale, e.pos[2]], kind: e.K.name });
+      if (over || e.straggler || (scan && d < 30) || (hack.dark(e.pos) && d < 30)) marks.push({ pos: [e.pos[0], e.pos[1] + 2.1 * e.K.scale, e.pos[2]], kind: e.K.name });
     }
-    for (const e of drones.list) if (!e.dead && e.o.visible && !(e.turned > 0) && (over || (scan && Math.hypot(e.pos[0] - player.feet[0], e.pos[2] - player.feet[2]) < 30))) marks.push({ pos: [e.pos[0], e.pos[1] + 0.4, e.pos[2]], kind: e.kind === 'mender' ? 'mender' : 'kite' });
+    for (const e of drones.list) if (!e.dead && e.o.visible && !(e.turned > 0) && (over || e.straggler || (scan && Math.hypot(e.pos[0] - player.feet[0], e.pos[2] - player.feet[2]) < 30))) marks.push({ pos: [e.pos[0], e.pos[1] + 0.4, e.pos[2]], kind: e.kind === 'mender' ? 'mender' : 'kite' });
     overlay.marks(marks);
     setF('marked', marks.length); setF('darkNow', hack.darkZones); setF('turnedNow', drones.list.filter((e) => e.turned > 0).length);
     // teach it once, at the first fight of the mission; tell the player once when the overdrive is full

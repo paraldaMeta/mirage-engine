@@ -247,7 +247,8 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
   function revive(e, at, hp = 1) {
     const p = (nav && nav.nearest(at, { snap: 2 })) || at.slice();
     calm(e);
-    Object.assign(e, { maxHp: e.K.hp * tune.hp * hp, hp: e.K.hp * tune.hp * hp, dead: false, deadT: 0, state: 'post', aim: 0, burst: 0, tele: 0, next: 1 + R() * 1.5, lastSeen: null, seenT: -1e9, shift: 0, wait: 0, t: 0, active: true, watch: 0, speed: 0 });
+    Object.assign(e, { maxHp: e.K.hp * tune.hp * hp, hp: e.K.hp * tune.hp * hp, dead: false, deadT: 0, state: 'post', aim: 0, burst: 0, tele: 0, next: 1 + R() * 1.5, lastSeen: null, seenT: -1e9, shift: 0, wait: 0, t: 0, active: true, watch: 0, speed: 0,
+      revived: !e.drill, wokeT: game.time, straggler: false, stray: null });
     if (e.agent) { e.agent.stop(); e.agent.walker.place(p); e.pos = e.agent.pos; e.agent.speed = e.agent.walker.body.walk = e.agent.walker.body.run = e.K.speed; crowd.remove(e.agent); crowd.add(e.agent); } else e.pos = p.slice();
     e.home = e.pos.slice();
     const r = e.rig.root; r.visible = true; r.position.set(...e.pos); r.rotation.y = e.yaw; r.scale.setScalar(e.K.scale);
@@ -292,7 +293,7 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
   function noise(pos, radius = 22) {
     for (const e of list) if (!e.dead && e.active && Math.hypot(e.pos[0] - pos[0], e.pos[2] - pos[2]) < radius && Math.abs(e.pos[1] - pos[1]) < 5) alert(e, pos, 0.15);
   }
-  function wake(zone, where) { for (const e of byZone[zone] || []) if (!e.dead) { e.active = true; e.rig.root.visible = true; if (where) alert(e, where, R() * 0.8); } }
+  function wake(zone, where) { for (const e of byZone[zone] || []) if (!e.dead) { e.active = true; e.rig.root.visible = true; e.wokeT = game.time; if (where) alert(e, where, R() * 0.8); } }
 
   // ---- what the city does to them (hack.js, abilities.js)
   /** stunned for t seconds (an EMP): no aim, no shot, the shield down, sparks */
@@ -511,6 +512,33 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
     return sees && dist < 9 ? p : null;
   }
   const firing = () => { let n = 0; for (const o of list) if (!o.dead && (o.burst > 0 || o.tele > 0)) n++; return n; };
+
+  // ---- stragglers: the mission must always be completable. The last wave (zone 'wave') and the holdout's waves
+  // (revived) must all go down for the uplink or the wave to end; a robot of theirs that lost the player used to
+  // search, give up and walk home to its post on the ground floor, where the player on the roof never saw it again.
+  // Now it goes where the player is instead (the uplink tells them); one unseen for STRAY_S is a straggler (marked
+  // through walls, kit.js) and runs to the player; one that cannot get there (no progress for STUCK_S while unseen)
+  // or is still unseen after GIVE_UP_S withdraws (out of play, counted down, no kill credit).
+  const STRAY_S = 14, STUCK_S = 12, GIVE_UP_S = 50;
+  const pressed = (e) => !e.drill && (e.def.zone === 'wave' || e.revived);
+  /** after the player: a search whose goal is where they stand (the nearest walkable point) */
+  function hunt2(e) {
+    e.lastSeen = player.feet.slice(); e.lureT = 0;
+    e.agent.speed = e.agent.walker.body.walk = e.agent.walker.body.run = e.K.speed;
+    e.agent.setGoal(nav.nearest(player.feet, { snap: 3 }) || e.lastSeen);
+  }
+  function straggle(e) {
+    if (!pressed(e) || player.dead || e.stun > 0) { e.straggler = false; return; }
+    const unseen = game.time - Math.max(e.seenT, e.wokeT ?? 0);
+    e.straggler = unseen > STRAY_S;
+    if (!e.straggler) { e.stray = null; return; }
+    // progress: how far it got toward the player since the mark
+    const d = Math.hypot(player.feet[0] - e.pos[0], player.feet[2] - e.pos[2]) + Math.abs(player.feet[1] - e.pos[1]) * 2;
+    if (!e.stray || d < e.stray.d - 1) e.stray = { d, t: game.time };
+    if ((e.state === 'search' || e.state === 'post') && (e.agent.arrived || !e.agent.path || e.t > 2)) { e.state = 'search'; e.t = 0; hunt2(e); }
+    if (unseen > GIVE_UP_S || game.time - e.stray.t > STUCK_S + (e.K.name === 'marksman' ? 8 : 0)) { withdrawn++; game.set('withdrawn', withdrawn); park(e); }
+  }
+  let withdrawn = 0;
   function think(e, dt) {
     const p = player.feet, dx = p[0] - e.pos[0], dz = p[2] - e.pos[2], dist = Math.hypot(dx, dz);
     e.t += dt;
@@ -526,6 +554,7 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
     switch (e.state) {
       case 'post': {   // stand, or walk the patrol
         if (sees) { alert(e, p); for (const o of byZone[e.def.zone] || []) if (o !== e) alert(o, p, 0.5 + R() * 0.6); break; }
+        if (pressed(e) && e.t > 2) { e.state = 'search'; e.t = 0; hunt2(e); break; }   // (the marksman's post too: see straggle)
         const pts = e.def.patrol;
         if (pts && (e.agent.arrived || !e.agent.path)) { if ((e.wait -= dt) <= 0) { const [x, z] = pts[e.patrolI++ % pts.length]; e.agent.speed = e.agent.walker.body.walk = e.agent.walker.body.run = 1.3; e.agent.setGoal([x, e.pos[1], z]); e.wait = 1.5 + R() * 2; } }
         break;
@@ -576,7 +605,10 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
       case 'search': {   // at the last place it knew: look round, then go home (a lure holds them there a while)
         if (sees) { e.state = 'fight'; e.t = 0; e.lureT = 0; bark(e, 'fight', 6); break; }
         if (e.lureT > 0) { e.lureT -= dt; if (e.agent.arrived || !e.agent.path) e.yaw += dt * 1.2; break; }
-        if (e.agent.arrived || !e.agent.path || e.t > 9) { if (e.t > 3) { e.state = 'post'; e.t = 0; e.agent.setGoal(e.home); } else e.yaw += dt * 1.6; }
+        if (e.agent.arrived || !e.agent.path || e.t > 9) {
+          if (e.t > 3 && pressed(e)) { e.t = 0; hunt2(e); }   // a wave's robot does not go home: it goes where the player is
+          else if (e.t > 3) { e.state = 'post'; e.t = 0; e.agent.setGoal(e.home); } else e.yaw += dt * 1.6;
+        }
         break;
       }
     }
@@ -616,7 +648,7 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
     let moved = false;
     senses.update(dt);
     let seen = false;
-    for (const e of list) if (!e.dead && e.active) { think(e, dt); if (e.state === 'fight' && game.time - e.seenT < 0.1) seen = true; }
+    for (const e of list) if (!e.dead && e.active) { think(e, dt); straggle(e); if (e.state === 'fight' && game.time - e.seenT < 0.1) seen = true; }
     player.exposed = seen ? player.exposed + dt : Math.max(0, player.exposed - dt * 2);
     crowd.update(dt);
     let teller = null, tellD = 1e9;

@@ -76,7 +76,18 @@ export function createDrones({ world, game, physics, plan, vfx, sfx, player, ass
   const head = [0, 0, 0];
   const sees = (e) => { head[0] = player.feet[0]; head[1] = player.feet[1] + player.height * 0.85; head[2] = player.feet[2]; return gridRay(grid, e.pos, head, 0.25) === 1; };
   const clear = (a, b) => gridRay(grid, a, b, 0.25) === 1;
-  function wake(zone) { for (const e of byZone[zone] || []) if (!e.dead) { e.active = true; e.o.visible = true; } }
+  function wake(zone) { for (const e of byZone[zone] || []) if (!e.dead) { e.active = true; e.o.visible = true; e.wokeT = game.time; } }
+  // stragglers (as the sentinels', enemies.js): a kite of the last wave or of a holdout wave that has not had the player
+  // in sight for STRAY_S is marked (kit.js); one still unseen after GIVE_UP_S (caught behind a wall it cannot fly
+  // round) withdraws, so the wave can end
+  const STRAY_S = 14, GIVE_UP_S = 40;
+  let withdrawn = 0;
+  function straggle(e) {
+    if (!(e.def.zone === 'wave' || e.revived) || player.dead || e.turned > 0) { e.straggler = false; return; }
+    const unseen = game.time - Math.max(e.seenT, e.wokeT ?? 0);
+    e.straggler = unseen > STRAY_S;
+    if (unseen > GIVE_UP_S) { withdrawn++; game.set('kitesWithdrawn', withdrawn); park(e); }
+  }
   function die(e) {
     e.dead = true; e.deadT = 0; e.vy = 1.5; e.turned = 0; e.target = null;
     vfx.burst(FX.down, e.pos, { scale: 0.7 });
@@ -196,6 +207,7 @@ export function createDrones({ world, game, physics, plan, vfx, sfx, player, ass
       }
       const dx = player.feet[0] - p[0], dz = player.feet[2] - p[2], dist = Math.hypot(dx, dz), reach = 1 - 0.6 * env.dark(player.feet);
       if (!e.active) { if (dist < 24 * reach && !player.dead && sees(e)) e.active = true; else { e.o.position.y = p[1] + Math.sin(game.time * 1.3 + e.ang) * 0.06; continue; } }
+      if (e.kind === 'mender') { if (dist < 30 && sees(e)) e.seenT = game.time; straggle(e); if (e.dead) continue; }
       if (e.kind === 'mender') { mend(e, dt); e.o.position.set(p[0], p[1], p[2]); paint(e, 1 + 0.5 * Math.sin(game.time * 6)); continue; }
       // the place it wants: on a slow orbit round the player, above head height
       e.ang += dt * 0.35;
@@ -205,6 +217,9 @@ export function createDrones({ world, game, physics, plan, vfx, sfx, player, ass
       e.o.position.set(p[0], p[1], p[2]); e.o.rotation.set(Math.min(0.5, sp * 0.06), e.yaw, 0);
       // one bolt at a time, after the eye flares
       const can = !player.dead && dist < 22 * reach && sees(e);
+      if (can || (dist < 9 && sees(e))) e.seenT = game.time;
+      straggle(e);
+      if (e.dead) continue;
       if (e.tele > 0) {
         hot = 1;
         if ((e.tele -= dt) <= 0) {
@@ -226,7 +241,8 @@ export function createDrones({ world, game, physics, plan, vfx, sfx, player, ass
   }
   /** a fallen (or parked) kite in the air again at `at`, awake (the holdout's waves); hp: a factor over the difficulty's */
   function revive(e, at, hp = 1) {
-    Object.assign(e, { maxHp: HP[e.kind] * tune.hp * hp, hp: HP[e.kind] * tune.hp * hp, dead: false, deadT: 0, active: true, pos: at.slice(), vel: [0, 0, 0], vy: 0, tele: 0, next: 1.5 + R() * 2, ang: R() * 6.28, turned: 0, stun: 0, target: null, burnt: false });
+    Object.assign(e, { maxHp: HP[e.kind] * tune.hp * hp, hp: HP[e.kind] * tune.hp * hp, dead: false, deadT: 0, active: true, pos: at.slice(), vel: [0, 0, 0], vy: 0, tele: 0, next: 1.5 + R() * 2, ang: R() * 6.28, turned: 0, stun: 0, target: null, burnt: false,
+      revived: !e.drill, wokeT: game.time, seenT: -1e9, straggler: false });
     paint(e); e.o.visible = true; e.o.position.set(...at); e.o.rotation.set(0, 0, 0);
     return e;
   }
