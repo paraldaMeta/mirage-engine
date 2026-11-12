@@ -720,6 +720,23 @@ look). The rest of what the metric sees is the TAA's neighbourhood clip on geome
 The single file (`npm run package -w neon-district`): **3.53 MB (3,702,149 bytes)**, against the site's 5 MB budget. All of it is
 code (Rapier's WASM is 2.2 MB of it); there are no assets.
 
+## Buildings that flash (the flicker pass)
+
+`scripts/mcflicker.mjs` (re-implemented after Nizwa's `tools/mcflicker.mjs`, the owner's own tool: every odd frame
+predicted from its even neighbours by ffmpeg's motion-compensated interpolation, minterpolate mci / aobmc / bidir,
+the mean absolute residual over the frame less a 12 % border and the share of pixels off by more than 12 levels;
+here on frames read back from the page, 640 x 360 grey, ffmpeg reading raw video) at the six standard cameras, still
+and panning 1 degree a second, night / dusk / day, high, 48 stepped frames; `--out` writes the residual as a heat
+map beside the frame. `scripts/flickerzoom.mjs` then measures a hotspot's crop at full resolution (temporal sd).
+
+The hotspot: the plaza camera, 1.0 % of pixels over 12 by day (0.3 % at night, the other cameras 0.01-0.24 %), a
+band round RELAY·7 on the relay's south face. Cause: z-fighting. The relay's roof slab ran out to the walls' outer
+faces, coplanar with the fascia over the door, the north and the west wall from 3.6 to 6 m: concrete and roofing
+traded pixels every frame. Fix: the slab inside the walls (`modules/relay.js`). Crop sd 2.32 -> 0.42, p99 27.0 ->
+1.65 (high, day). Seen and left: specular sparkle on the alley's thin downpipes and brackets (crop sd 0.6, p99 4.6)
+and the cables across the street (sub-pixel lines under the TAA jitter); both are band-limiting work (a minimum
+width or a roughness floor for thin geometry), not z-fighting.
+
 ## The view model's flicker
 
 The owner saw the gun and the gloved hands flicker in play. Causes found in the code, and fixed at the cause:
@@ -960,12 +977,33 @@ numbers are scaled after the world writes them). `?rain=` / `?wet=` pin those tw
   volumetric cones take 35 % of their lamp's colour (lit rain, not coloured smoke).
 - **Dusk** (17:04, h 1.5): the rain has just stopped: wet streets drying in patches (the puddle films shrink with the
   wetness), the cloud breaking, signs and windows coming on. Grade +0.15 EV, warm highlights over cool shade.
-- **Day** (16:15, h 10.6, bearing 247: the Sun low in the west-south-west), dry: the street is in the south blocks'
-  shade with the light raking the north facades above it, the towers at the ends and the roofs; the shade is lit by
-  the open sky (the capture is taken between dark walls in the street, so the sky's fill is x12) and by the warm
-  bounce off the sunlit walls (`lighting.bounce`). Haze is distance only (x0.3, glow x0.22, and the haze is no
-  brighter than the sky: the old x1.3 was the white veil). Grade +0.7 EV (golden), warm highlights, cool shade, a firm
-  curve, saturation 1.04. Sign tubes go to a trace, screens stay on.
+- **Day: the golden hour, as Nizwa's** (10 September 17:44, h 5.6, bearing 272: the sun due west, straight down
+  Kestrel Street's axis). From the street's east end and the plaza's corner the sun stands low in the street's open
+  west end, backlighting the canyon: the floor lit along its south half, long shadows of every post and car down the
+  street, the facades in shade lit by the sky and the warm bounce, a cool blue-grey air away from the sun and a gold
+  glow toward it. Plan changes for it: the west cap (one 30 m tower across the street's end) is two towers either side
+  of the street's line with a 2.6 m deck between them; the far skyline ring leaves out the towers in the sun's line
+  and the one megatower due west stands 17 degrees aside; a low block has no first-floor string course (the deck's
+  floated at 4.2 m in the sun's line). The light, after Nizwa (`src/core/daynight.js`, `fog.js`, `env.js`, read and
+  re-implemented, values ported): sunlight at 5.6 degrees (Mirage's transmittance gives (7.8, 5.5, 3.2), ratio 0.71 /
+  0.41: Nizwa's film sun is (7.0, 4.9, 3.0), 0.70 / 0.43; the hour was chosen for that hue); the grade at 3-8 degrees
+  as Nizwa's (white balance neutral, the warmth is the light's; saturation 1.12, AgX share 0.3, S-curve 0.22, shadows
+  [0.95, 1, 1.08], highlights [1.03, 1, 0.96], no tint, exposure 0 EV: the grey card in the sunlit street reads 118 of
+  255 in luma); the haze by day Nizwa's hue (its fogHue at 6.8 degrees, [0.32, 0.35, 0.44], at the world's haze
+  brightness) and its glow toward the sun (the sunlight x [1, 0.886, 0.7], not the red of the low sky's lean); light2's
+  dust toward a low sun x1.3 (was x5: the white wall round the sun), broken cloud (cover 0.45 at 8 degrees). Night
+  and dusk are unchanged (dusk takes a little of the haze hue below 4 degrees). A clock time (the slider) is a time of
+  10 September.
+- **The pink cast.** Measured on the old day (16:15) with an 18 % grey card at five cameras: the card's (R + B) / 2 - G
+  is -1.7 to -4.7 (slightly yellow), the frames' -1.8 to -3.5, the pixels of magenta hue 0.5-1.7 % (`scripts/castmap.py`).
+  There is no magenta cast in the grade or the sky: the grade off, the dusk sky off, the bloom, lens dirt, streaks,
+  flare and god rays off each moved the card by under 0.6. What reads pink is the saturated magenta by day (the LED
+  walls' pink halves, the pink facade screens at max(lamp gain, 0.1), the pink edge tubes of s1 / w) seen through a
+  bright, flat, lavender-white veil: the haze was the low sky's colour, the volumetric dust x5 toward a low sun, and
+  the golden grade +0.7 EV with a +0.06 tint. The veil is gone (Nizwa's haze hue, the dust x1.3, 0 EV) and the tint is 0.
+- The strip reserved for the water channel (`plan.waterStrip`): the carriageway's south gutter, x 1.5..17.5, z
+  7.85..8.35, y 0; in full sun at the golden hour (`scripts/strip-check.mjs`: 33 of 33 rays to the sun clear on three
+  lines along it, nothing standing on it; signs and cables are not colliders: see `out/nizwa-light/day-d/strip-day.png`).
 
 Measured (1280 x 720, high, linear luminance of the frame, the HUD hidden): mean 0.06-0.15 by night, 0.06-0.15 at dusk,
 0.08-0.25 by day; no clipped white anywhere (under 0.3 % of pixels above 0.95). Pixels under 2 % luminance by night:
@@ -1058,9 +1096,23 @@ lamps), a canopy and two red lanterns outside. The room is the world's GI box an
 0.28 m, 2.5 m wide, a half landing at 3 m, a spine wall between the flights, a 1.1 m guard at the top landing) and
 the roof at 6 m (parapet 1.1 m; plant from `plan.roofUnits`, a mast with a proxy, two dishes, the uplink console).
 The stairwell's door to the room and its door to the roof are one above the other (`relay.stair.door`).
-Ambient volumes: the room and the stairwell, factor 0.22. The stairwell is cast concrete throughout (the landings
-were brushed steel, which streaked); caged bulkheads (4000 K) light the foot, each flight and each landing, and the
-top landing's guard is hazard-striped painted steel.
+Ambient volumes: the room 0.3 (was 0.22), the stairwell 0.42; untinted (a tint moves every lit material to the grid
+path: one more texture unit, and on high there is none left: VALIDATE_STATUS false). The stairwell is cast concrete
+throughout (the landings were brushed steel, which streaked); caged bulkheads (4000 K) light the foot, each flight
+and each landing, and the top landing's guard is hazard-striped painted steel.
+
+Interior light (the shafts pass): the room is lit by three industrial pendants (enamelled steel shades, 2700 K bulbs)
+and one cool tube over the desk (it was three cyan tubes: blue-black by day); a row of high windows in the south wall
+(`relay.clerestory`, 1.6 x 1.2 m, sill 2.2 m: over every head, the route and the colliders unchanged) and a high
+window in the stairwell's south wall (`relay.stairWindow`, 6.7-7.9 m) let in the plaza's lamps by night and the sun or
+the moon when it reaches them; the roof door lets the afternoon sun onto the top landing. `modules/shafts.js` (after
+Nizwa's `src/maps/bursa-fx.js`: an analytic prism swept by each opening along the light, the wall's depth trimming
+it, six dust taps, drifting motes) draws them; each is there only when a physics ray from the opening reaches the
+light. At the golden-hour preset no sun reaches any of the three rooms (block c, 20 m, shades the plaza and the relay
+from a 5.6-degree sun; the bar faces south, away from it): what shows by day is the warm practicals and the plaza's
+light through the door; by night the street lamps' spill through the bar's windows and door and the plaza lamps'
+through the relay's high windows. The wall's depth keeps a high summer sun out of the 0.5 m deep clerestories except
+a sliver around noon, and the stairwell window (1.3 m deep) gets the sun only when it is low in the south.
 
 | key | pos is | extra | count |
 |---|---|---|---|

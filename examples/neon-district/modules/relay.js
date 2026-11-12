@@ -110,7 +110,7 @@ export default {
     const shade = ctx.mat.std({ color: new THREE.Color(0.05, 0.055, 0.05), roughness: 0.45, metalness: 0.7, side: THREE.DoubleSide });
     const bulb = ctx.mat.std({ color: new THREE.Color(1, 0.9, 0.8), roughness: 0.3, metalness: 0, emissive: new THREE.Color(1, 0.62, 0.3), emissiveIntensity: 9 });
     const shadeGeo = geom.lathe([[0.02, 0.24], [0.05, 0.2], [0.15, 0.1], [0.27, 0]], 20);
-    for (const [x, z, sh] of [[x0 + 3.6, -23.4, true], [x0 + 8.4, -26.3, false], [x0 + 12.4, -23.4, true]]) {
+    for (const [x, z, sh] of [[x0 + 3.6, -23.4, true], [x0 + 8.4, -26.3, false], [x0 + 12.4, -23.4, false]]) {   // (one shadow tile, as the tubes had)
       const y = H - 1.05;
       fx.cylinder(M.blackMetal, 0.006, 0.006, H - y - 0.24, [x, (H + y + 0.24) / 2, z], [0, 0, 0], 4);
       fx.add(shadeGeo, shade, geom.compose([x, y, z]));

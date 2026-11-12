@@ -25,6 +25,7 @@
 
 const VS_DECL = 'varying vec4 mgVmD;\n';
 const vsTail = (near) => /* glsl */ `
+	#ifdef MG_VIEWMODEL
 	{   // viewModelDepth: this program's own near plane (viewmodel.js)
 		float mgP10 = projectionMatrix[ 2 ][ 2 ], mgP14 = projectionMatrix[ 3 ][ 2 ];
 		bool mgPersp = projectionMatrix[ 2 ][ 3 ] < - 0.5;
@@ -34,9 +35,12 @@ const vsTail = (near) => /* glsl */ `
 			gl_Position.z = ( mgF + mgN2 ) / ( mgF - mgN2 ) * gl_Position.w - 2.0 * mgF * mgN2 / ( mgF - mgN2 );
 		}
 	}
+	#endif
 `;
 const FS_HEAD = /* glsl */ `
+	#ifdef MG_VIEWMODEL
 	gl_FragDepth = mgVmD.w > 0.5 ? clamp( 0.5 - 0.5 * mgVmD.y + 0.5 * mgVmD.z / mgVmD.x, 0.0, 1.0 ) : gl_FragCoord.z;
+	#endif
 `;
 
 /** The vertex / fragment edits on their own (for a ShaderMaterial of your own, or the checks). */
@@ -56,16 +60,20 @@ const done = new WeakMap();   // material -> near it was patched with
 /**
  * Draw every mesh under `root` with its own near plane, in the camera's depth range (see the top of this file).
  * Call it before the meshes are first drawn (the lighting's injector wraps a material's hook when it first sees it;
- * a hook replaced after that is wrapped again), and again after adding meshes (materials already patched are skipped). Returns the number of materials patched
- * by this call. Opt-in: without it nothing changes.
+ * a hook replaced after that is wrapped again), and again after adding meshes (materials already patched are skipped).
+ * Opt-in: without it nothing changes.
+ * The edits sit behind a define (MG_VIEWMODEL): `active(false)` compiles the materials without them (both programs
+ * are cached after the first switch), so a host can pay for gl_FragDepth (the view model's own pixels lose early
+ * depth rejection) only while the view model comes near the eye (aiming, a kick, the tuck at a wall).
  * @param {import('three').Object3D} root
- * @param {{ near?: number }} [options]  near: the view model's near plane in metres (0.01)
+ * @param {{ near?: number, active?: boolean }} [options]  near: the view model's near plane in metres (0.01)
+ * @returns {{ count: number, materials: import('three').Material[], active: (on?: boolean) => boolean }}
  */
-export function viewModelDepth(root, { near = 0.01 } = {}) {
-  let n = 0;
+export function viewModelDepth(root, { near = 0.01, active = true } = {}) {
+  const mats = [];
   root.traverse((o) => {
     if (!o.isMesh) return;
-    o.userData.mgViewModelNear = near;
+    o.userData.mgViewModelNear = active ? near : 0;
     for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
       if (!m || done.has(m)) continue;
       if (m.isRawShaderMaterial) continue;   // a raw shader has no projectionMatrix declared by three: patch it yourself (viewModelShaders)
@@ -79,9 +87,22 @@ export function viewModelDepth(root, { near = 0.01 } = {}) {
       // the inner key asked through a view of the material that still has the inner hook (three's default key is the
       // hook's source), so two view-model materials with different inner hooks do not share a program
       m.customProgramCacheKey = function () { return innerKey.call(Object.create(this, { onBeforeCompile: { value: inner } })) + '|mgVM' + near; };
+      m.defines = { ...(m.defines || {}) };
+      if (active) m.defines.MG_VIEWMODEL = ''; else delete m.defines.MG_VIEWMODEL;
       m.needsUpdate = true;
-      n++;
+      mats.push(m);
     }
   });
-  return n;
+  let on = !!active;
+  return {
+    count: mats.length, materials: mats,
+    /** switch the own near plane on or off (no argument: ask); returns the state */
+    active(v) {
+      if (v === undefined || !!v === on) return on;
+      on = !!v;
+      for (const m of mats) { if (on) m.defines.MG_VIEWMODEL = ''; else delete m.defines.MG_VIEWMODEL; m.needsUpdate = true; }
+      root.traverse((o) => { if (o.isMesh) o.userData.mgViewModelNear = on ? near : 0; });
+      return on;
+    },
+  };
 }

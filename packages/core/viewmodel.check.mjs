@@ -34,12 +34,18 @@ import { viewModelDepth, viewModelShaders } from './src/viewmodel.js';
 {
   const a = new THREE.MeshStandardMaterial(), b = new THREE.MeshStandardMaterial(), keyB = b.customProgramCacheKey();
   const g = new THREE.Group(); g.add(new THREE.Mesh(new THREE.BoxGeometry(), a)); g.add(new THREE.Mesh(new THREE.BoxGeometry(), [a]));
-  assert.equal(viewModelDepth(g), 1, 'one material patched (shared by two meshes)');
-  assert.equal(viewModelDepth(g), 0, 'again: nothing to do');
+  const vm = viewModelDepth(g);
+  assert.equal(vm.count, 1, 'one material patched (shared by two meshes)');
+  assert.equal(viewModelDepth(g).count, 0, 'again: nothing to do');
+  assert.ok('MG_VIEWMODEL' in a.defines && vm.active() === true, 'active: the define is set');
+  vm.active(false);
+  assert.ok(!('MG_VIEWMODEL' in a.defines) && g.children[0].userData.mgViewModelNear === 0, 'off: no define, the velocity pass clips as the camera');
+  vm.active(true);
   assert.ok(a.customProgramCacheKey().endsWith('|mgVM0.01') && b.customProgramCacheKey() === keyB, 'only the patched material has the key');
   assert.equal(g.children[0].userData.mgViewModelNear, 0.01, 'the velocity pass reads the near plane from the mesh');
   const sh = { vertexShader: THREE.ShaderChunk.meshphysical_vert, fragmentShader: THREE.ShaderChunk.meshphysical_frag, uniforms: {} };
   a.onBeforeCompile(sh, null);
   assert.ok(sh.vertexShader.includes('mgVmD') && sh.fragmentShader.includes('gl_FragDepth'), 'three\'s standard shaders take the edits');
+  assert.ok(/#ifdef MG_VIEWMODEL\s*gl_FragDepth/.test(sh.fragmentShader), 'gl_FragDepth only under the define (early depth rejection kept when off)');
 }
 console.log('viewmodel check: ok');

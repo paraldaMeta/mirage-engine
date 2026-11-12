@@ -90,7 +90,7 @@ export function shafts(ctx) {
       uCMin: { value: v3(ap.clip.slice(0, 3)) }, uCMax: { value: v3(ap.clip.slice(3, 6)) },
     };
     const mat = new THREE.ShaderMaterial({ uniforms: U, vertexShader: VS, fragmentShader: FS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.BackSide, fog: false });
-    const mesh = new THREE.Mesh(geo, mat); mesh.frustumCulled = false; mesh.renderOrder = 25; mesh.name = 'shaft'; mesh.visible = false;
+    const mesh = new THREE.Mesh(geo, mat); mesh.frustumCulled = true;   // (its bounding sphere follows the prism) mesh.renderOrder = 25; mesh.name = 'shaft'; mesh.visible = false;
     mesh.castShadow = mesh.receiveShadow = false; mesh.userData.occlude = false;
     group.add(mesh);
     let motes = null;
@@ -102,7 +102,7 @@ export function shafts(ctx) {
       g.setAttribute('aQ', new THREE.BufferAttribute(aq, 4));
       const MU = { uO: U.uO, uE1: { value: E1.clone() }, uE2: { value: E2.clone() }, uL: U.uL, uTMax: U.uTMax, uTime: G.uTime, uPx: { value: 900 }, uCol: { value: new THREE.Vector3() } };
       const mm = new THREE.ShaderMaterial({ uniforms: MU, vertexShader: MOTE_VS, fragmentShader: MOTE_FS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false });
-      motes = new THREE.Points(g, mm); motes.frustumCulled = false; motes.renderOrder = 26; motes.name = 'shaft-motes'; motes.visible = false;
+      motes = new THREE.Points(g, mm); motes.frustumCulled = true; g.boundingSphere = new THREE.Sphere();   // the prism's sphere, set each frame motes.renderOrder = 26; motes.name = 'shaft-motes'; motes.visible = false;
       motes.onBeforeRender = (renderer) => { const rt = renderer.getRenderTarget(); MU.uPx.value = (rt ? rt.height : renderer.domElement.height) * 1.4; };
       group.add(motes);
     }
@@ -145,7 +145,8 @@ export function shafts(ctx) {
         else { O = it.O.clone().addScaledVector(it.E1, u0).addScaledVector(it.E2, v0); E1 = it.E1.clone().multiplyScalar(u1 - u0); E2 = it.E2.clone().multiplyScalar(v1 - v0); }
       }
       const lum = 0.2126 * col.x + 0.7152 * col.y + 0.0722 * col.z, on = k * it.vis * pass * Math.min(1, lum * 20);
-      it.mesh.visible = on > 0.04;
+      // beyond 45 m a shaft is a few pixels of haze: not drawn
+      it.mesh.visible = on > 0.04 && cam.distanceTo(centre) < 45;
       if (it.motes) it.motes.visible = it.mesh.visible;
       if (!it.mesh.visible) continue;
       // the shaft runs down to the floor (or the clip box's end), along -L
@@ -161,6 +162,7 @@ export function shafts(ctx) {
         P.setXYZ(i, O.x + E1.x * a + E2.x * b - L.x * tm * c, O.y + E1.y * a + E2.y * b - L.y * tm * c, O.z + E1.z * a + E2.z * b - L.z * tm * c);
       }
       P.needsUpdate = true; it.geo.computeBoundingSphere();
+      if (it.motes) it.motes.geometry.boundingSphere.copy(it.geo.boundingSphere);
       // from inside the prism: its back faces (a wall behind bounds it); from outside: its front faces
       q.copy(cam).sub(O).applyMatrix3(Minv);
       const inside = q.x > -0.05 && q.x < 1.05 && q.y > -0.05 && q.y < 1.05 && q.z > -0.2 && q.z < tm + 0.2;
