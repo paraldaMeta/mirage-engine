@@ -309,11 +309,16 @@ void main() { gl_FragDepth = clamp( textureLod( tCube, mgOctDec( vUv ), 0.0 ).r 
   }
   function drawShadows(list) {
     const saved = renderer.getRenderTarget(), auto = renderer.autoClear, xr = renderer.xr.enabled, a = renderer.getClearAlpha(), cc = renderer.getClearColor(new THREE.Color());
-    const om = scene.overrideMaterial, bg = scene.background, sm = renderer.shadowMap.enabled;
+    const om = scene.overrideMaterial, bg = scene.background, sm = renderer.shadowMap.enabled, mau = scene.matrixWorldAutoUpdate;
+    // the world matrices once for the batch: each cube face is a render() of the scene, and every render() walked the
+    // whole scene graph again for matrices nothing in the batch changes (six or twelve walks a redraw)
+    if (mau) { scene.updateMatrixWorld(); scene.matrixWorldAutoUpdate = false; }
     // only shadow casters are drawn: everything else is hidden for the batch (visibility, so children are kept: a
     // non-casting parent with casting children is rare; such children do not cast here)
-    const hidden = [];
-    scene.traverse((o) => { if ((o.isMesh || o.isPoints || o.isLine || o.isSprite) && !o.castShadow && o.visible) { o.visible = false; hidden.push(o); } });
+    // (split, with every static tile still good: only the movers are drawn, so only their subtrees are walked)
+    const hidden = [], hide = (o) => { if ((o.isMesh || o.isPoints || o.isLine || o.isSprite) && !o.castShadow && o.visible) { o.visible = false; hidden.push(o); } };
+    if (!cfg.split || list.some((L) => !L.stat)) scene.traverse(hide);
+    else for (const [o, d] of dyn) if (o.parent === scene && o.visible && d.casts) o.traverse(hide);
     renderer.xr.enabled = false; renderer.autoClear = true; renderer.shadowMap.enabled = false;
     scene.overrideMaterial = dist; scene.background = null;
     renderer.setClearColor(new THREE.Color(1e4, 0, 0), 1);
@@ -354,7 +359,7 @@ void main() { gl_FragDepth = clamp( textureLod( tCube, mgOctDec( vUv ), 0.0 ).r 
       for (const o of off) o.visible = true;
     }
     for (const o of hidden) o.visible = true;
-    scene.overrideMaterial = om; scene.background = bg; renderer.shadowMap.enabled = sm;
+    scene.overrideMaterial = om; scene.background = bg; renderer.shadowMap.enabled = sm; scene.matrixWorldAutoUpdate = mau;
     renderer.setClearColor(cc, a); renderer.setRenderTarget(saved); renderer.autoClear = auto; renderer.xr.enabled = xr;
   }
   // moving objects: a top-level object with userData.mgDynamic whose matrix changed dirties the lights it is near
