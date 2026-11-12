@@ -303,7 +303,7 @@ Round 1 → round 2 (the scans' value first where there is one):
 | (none) | `corrugated` | `stencil` (a sprayed seven-segment code, upright along the fall) and `dents`; the district's sheet now falls down u | | close |
 | iron_rusty | `paintedMetal` | blooms gated per fixing, a small head and a long run hanging across the seam (were round) | | close |
 | flagstone | `paving:flags` (new) | crazy paving: Voronoi flags of their own tone and lean, flaked layers, chipped arrises, soil and moss joints | albedo dist 0.006 (setts) → 0.022, slope p50 0.123 / 0.065 → 0.109, lum. octaves 0.191 → 0.21 | close (was not there): the scan's flags vary more in size, with small fill stones |
-| gravel | `roofing:gravel` | stones of three sizes scattered in a sandy matrix with compacted patches | albedo dist 0.075 → 0.044, lum. octaves 0.346 → 0.104 | close |
+| gravel | `roofing:gravel` | stones of three sizes scattered in a sandy matrix with compacted patches | albedo dist 0.075 → 0.070, lum. octaves 0.346 → 0.152 | close in look; darker than the scan since its stone tones were kept inside the reference range (p99 ≤ 0.4) |
 | terracotta | `tile:floor` | hand-made: trowel swirls and arcs, patchy wax, dished faces | lum. octaves 0.258 → 0.305, slope p50 0.02 / 0.006 → 0.017 | close in look; the scan is a jointless burnished floor |
 | brass_aged | `metal:worn` | hand-polished: a faint fine tarnish haze, wipes and dried spots in the roughness | albedo dist 0.222 → 0.03, roughness 0.09 / 0.097 | close |
 | (none) | tile, bamboo, carbonFibre, ceramic, paper, castIron | wave in glazes, grout grime; culm stripes, scars, splits; wandering tows, resin pools; glaze pools, specks; cockle, folds, tide lines; sand pits, rust rims | | from knowledge |
