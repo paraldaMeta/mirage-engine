@@ -176,6 +176,9 @@ Model import, `@miragekit/core/assets` (opt-in subpath, [import.md](import.md)):
 | `gltfExtensions(buffer)` | experimental | the `extensionsUsed` of a .glb or .gltf buffer, without loading it |
 | `decoders` | experimental | from `@miragekit/core/assets-decoders`: three's Draco and Basis decoder files as Vite `?url` imports (a single-file build inlines them); pass to `createAssets` |
 
+| `viewModelDepth(root, { near, active })` | experimental | a first-person view model drawn with its own near plane (default 1 cm) while writing the camera's true depth, so parts that come toward the eye are not clipped; `active(on)` switches it per frame; returns `{ count, materials, active }` |
+| `viewModelShaders(vertexShader, fragmentShader, near)` | experimental | the shader rewrite `viewModelDepth` applies, for a custom material; `null` when the shaders cannot be patched |
+
 ## @miragekit/world
 
 | export | stability | what it is |
