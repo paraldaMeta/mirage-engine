@@ -352,7 +352,9 @@ MsS ms_render(vec2 u){
   // stains: soft dark clouds (damp, dirt), a few paler bleached ones; the coat's own blotchy tone
   float stain = smoothstep(0.1, 0.7, msFbm(msWarp(u + 9.0, 3.0, 0.05), 1.3, 5) + 0.25 * age);
   float bleach = smoothstep(0.35, 0.8, msFbm(u + 3.0, 2.2, 4));
-  vec3 col = msA.rgb * (0.94 + 0.26 * m1 + 0.16 * m2 + 0.07 * m3 + 0.05 * fine) * (1.0 - (0.22 + 0.15 * age) * stain) * (1.0 + 0.14 * bleach);
+  // (the mottle sits at the coat's own scales: broad clouds over the wall and a fine 2..6 mm sand speckle; little between)
+  float speck = msFbm(u + 7.0, 260.0, 2);
+  vec3 col = msA.rgb * (0.94 + 0.42 * m1 + 0.08 * m2 + 0.03 * m3 + 0.06 * fine + 0.07 * speck) * (1.0 - (0.22 + 0.15 * age) * stain) * (1.0 + 0.14 * bleach);
   // trowel: overlapping arcs of the float, faint ridges where strokes meet, each stroke a slightly other sheen
   vec4 tc = msCell2(u + 0.25 * vec2(m2, m1), vec2(2.4, 3.2), 1.0);
   float stroke = smoothstep(0.0, 0.2, tc.y - tc.x);
@@ -360,7 +362,7 @@ MsS ms_render(vec2 u){
   vec2 pit = msSpeck(u + 1.0, 14.0, 0.025 + 0.03 * age, 0.12, 0.0), pit2 = msSpeck(u + 4.0, 45.0, 0.012, 0.2, 5.0);
   float pits = max(pit.x, pit2.x * 0.8), rim = msSpeck(u + 1.0, 14.0, 0.025 + 0.03 * age, 0.2, 0.0).x - pit.x;
   float h = 0.5 + 0.34 * m2 + 0.2 * m3 + 0.05 * fine + 0.04 * stroke - 0.3 * pits + 0.04 * rim;
-  col *= (1.0 - 0.55 * pits) * (1.0 + 0.04 * rim) * (0.97 + 0.06 * tc.z);
+  col *= (1.0 - 0.3 * pits) * (1.0 + 0.04 * rim) * (0.97 + 0.06 * tc.z);
   float sheen = msFbm(u + 8.0, 1.1, 3);
   float r = msA.a + 0.06 * sheen + 0.03 * fine - 0.04 * (1.0 - stroke) + 0.1 * pits;
   float ao = 1.0 - 0.5 * pits;
