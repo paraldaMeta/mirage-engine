@@ -49,6 +49,8 @@ export interface Play<W extends WalkerLike = GridWalker> {
   readonly lastTurn: { source: string; dx: number; dy: number; at: number; dropped: number };
   /** Merged into each step's input (WebXR controllers, @miragekit/play/xr); null for none. */
   xrInput: ((input: MotionInput, dt: number) => MotionInput) | null;
+  /** Opt-in host camera (a cinematic): called each step after the mode placed the camera; it may move it, change its lens or shift it off axis, and may return where the sun's shadow is fitted. null gives the view back. */
+  director: ((camera: THREE.PerspectiveCamera, dt: number) => { shadow?: { center: [number, number, number]; radius: number } } | void) | null;
   readonly mode: ViewMode; readonly still: number; readonly clock: number; readonly refine: [number, number];
   readonly maxFps: number; readonly idleFor: number;
   state(): { mode: ViewMode; pos: [number, number, number]; eye: [number, number, number]; onGround: boolean; blocked: boolean; yaw: number; still: number };

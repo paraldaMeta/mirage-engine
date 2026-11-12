@@ -56,7 +56,7 @@ count of stable and experimental exports, and how a name is promoted: [STABILITY
 | `installSoftShadows(settings)` | experimental | patch three's sun-shadow lookup for contact-hardening soft shadows (page-global, idempotent; tap counts compiled in by the first call; the world renderer calls it) |
 | `createLighting(world, option)` | experimental | the realtime lighting features behind `createWorldRenderer({ lighting })` (the world renderer calls it; `world.lighting` is its result): `csm`, `gi`, `probes`, `lights`, `screen`, `planar`, `addLight(light, { shadow })`, `removeLight`, `invalidate()`, `busy`. Shader parts go into the world's own lit materials, not three's chunks (`docs/lighting.md`) |
 | `CSM_DEFAULTS` | experimental | cascaded sun shadows' settings (`cascades` 2-4, `distance`, `lambda`, `blend`, `tile`, `taps`, `stagger`, ...); `lighting: { csm: true }` |
-| `GI_DEFAULTS` | experimental | the irradiance probe volume's settings (`spacing`, `bounces`, `cube`, `perFrame`, `intensity`, `fade`, `bias`, `specular`); `lighting: { gi: { min, max } }` |
+| `GI_DEFAULTS` | experimental | the irradiance probe volume's settings (`spacing`, `bounces`, `cube`, `perFrame`, `budget`, `lazy`, `intensity`, `fade`, `bias`, `specular`); `lighting: { gi: { min, max } }` |
 | `BOUNCE_DEFAULTS` | experimental | the height-field bounce light's settings (`spacing`, `layers`, `curve`, `texel`, `margin`, `hmax`, `strength`, `multi`, `edge`, `lo`, `hi`, `bands`, `ease`, `maxProbes`, `maxMap`); `lighting: { bounce: true \| { min, max } }` |
 | `LIGHTS_DEFAULTS` | experimental | clustered local lights and their shadow atlas (`max`, `cluster`, `perCell`, `atlas`, `tileMax`, `tileMin`, `perFrame`, `bias`); `lighting: { lights: true }` |
 | `SCREEN_DEFAULTS` | experimental | the screen-space passes' buffers (`scale`, `refScale`, `layer`); `lighting: { screen: true }` (`docs/lighting.md`) |
@@ -220,7 +220,7 @@ Gaussian splats, `@miragekit/world/kits/splat` (opt-in subpath, world README "Ga
 
 | export | stability | what it is |
 |---|---|---|
-| `createPlay(world, opts)` | stable | walk / fly / game view / orbit, input, still refinement; returns `play` (fields in the play README); experimental: the `reducedMotion` option and field (follows `prefers-reduced-motion`), `render({ transparent: true })` |
+| `createPlay(world, opts)` | stable | walk / fly / game view / orbit, input, still refinement; returns `play` (fields in the play README); experimental: the `reducedMotion` option and field (follows `prefers-reduced-motion`), `render({ transparent: true })`, `director` (opt-in host camera for cinematics: `(camera, dt) => ({ shadow })?` after each step; lens-shifted frusta bin the clustered lamps correctly) |
 | `createCharacter(world, { palette })` | experimental | the procedural traveller of the game view (rig, palette, locomotion); hosts can add its `root` to their own scene |
 | `mountWorld(opts)` | stable | build a world into a host page's own renderer (the embed API) |
 | `bakeWalkGrid(world, opts)` | stable | the walk grid baked from the geometry; `{ region, into }` (experimental) re-bakes only a region of an earlier grid in place |

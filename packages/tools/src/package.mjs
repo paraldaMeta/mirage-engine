@@ -4,13 +4,18 @@
 // embedded as Blob URLs started as classic workers (a page opened from file:// cannot start a module worker
 // from a Blob), and the bundle goes inline into the page.
 //
-// usage: mirage-package <example dir> [--out file.html] [--keep-three-decoders]
+// usage: mirage-package <example dir> [--out file.html] [--keep-three-decoders] [--no-gzip]
+//
+// The bundle is gzipped and carried as base64 in a data block; a small classic script unpacks it with DecompressionStream
+// and runs it as a module script (about half the size of the plain file; every browser since 2023 has the stream).
+// --no-gzip writes the plain inline module script.
 //
 // three's DRACOLoader and KTX2Loader name their default decoder files with new URL(..., import.meta.url) at module
 // top level, so any page that can reach them (the editor runtime's model import does, lazily) would carry ~2 MB of
 // Draco and Basis decoders inlined. Mirage's createAssets always sets its own decoder paths, so those defaults are
 // dropped here; --keep-three-decoders keeps them for a page that calls the loaders without setting a path.
 import { build, parseAst } from 'vite';
+import zlib from 'node:zlib';
 import { embedWorkers, htmlSafe, scriptCloses } from './embed-workers.mjs';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -19,7 +24,7 @@ import { parseArgs } from 'node:util';
 
 let opts;
 try {
-  opts = parseArgs({ args: process.argv.slice(2), allowPositionals: true, options: { out: { type: 'string' }, 'keep-three-decoders': { type: 'boolean' } } });
+  opts = parseArgs({ args: process.argv.slice(2), allowPositionals: true, options: { out: { type: 'string' }, 'keep-three-decoders': { type: 'boolean' }, 'no-gzip': { type: 'boolean' } } });
   if (opts.positionals.length > 1) throw new Error(`one example folder, got ${opts.positionals.join(' ')}`);
 } catch (e) { console.error(`[package] ${e.message}\nusage: mirage-package <example dir> [--out file.html]`); process.exit(2); }
 const root = path.resolve(opts.positionals[0] || '.');
@@ -72,7 +77,12 @@ const dangling = [...page.matchAll(/(?:src|href)="(?:\.?\/)?(assets\/[^"]+)"/g)]
 if (dangling.length) throw new Error('index.html references files that cannot be inlined: ' + dangling.join(', '));
 const body = pre + htmlSafe(js, parseAst);
 if (!scriptCloses(body)) throw new Error('the bundle holds `<!--` and `<script` in code the packager cannot escape: the inlined script would never close');
-const script = `<script type="module">\n${body}\n</script>`;
+const GUNZIP = "(async()=>{try{const b=atob(document.getElementById('z').textContent.trim()),u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);"
+  + "const t=await new Response(new Blob([u]).stream().pipeThrough(new DecompressionStream('gzip'))).text(),s=document.createElement('script');s.type='module';s.textContent=t;document.head.append(s)}"
+  + "catch(e){document.body.textContent='This browser cannot unpack the page ('+e+'). Use a current Chrome, Edge, Firefox or Safari.'}})()";
+// base64 holds no `<`, so the data block cannot close early; the unpacker is a classic script and runs where the module did
+const script = opts.values['no-gzip'] ? `<script type="module">\n${body}\n</script>`
+  : `<script type="application/octet-stream" id="z">${zlib.gzipSync(body, { level: 9 }).toString('base64')}</script>\n<script>${GUNZIP}</script>`;
 const html = page.replace(/<script type="module"[^>]*src="[^"]*"[^>]*><\/script>/, () => script).replace(/<link rel="modulepreload"[^>]*>/g, '');
 fs.mkdirSync(path.dirname(outFile), { recursive: true });
 fs.writeFileSync(outFile, html);

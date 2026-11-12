@@ -283,7 +283,7 @@ function mountPlay(world, opts, life) {
       up: (k('KeyE') || (mode === 'fly' && k('Space'))) - k('KeyQ', 'KeyC'), run: k('ShiftLeft', 'ShiftRight') || pad.run, jump: k('Space'),
     };
   }
-  let changed = false, acting = false, turned = false, xrInput = null;
+  let changed = false, acting = false, turned = false, xrInput = null, director = null, directed = null;
   function step(dt) {
     if (life.disposed) return;
     // opts.input(): { x (right), z (forward), up, run, jump } from a game's action map; default: the keys above
@@ -340,10 +340,15 @@ function mountPlay(world, opts, life) {
     else { const f = forward(); camera.lookAt(camera.position.x + f.x, camera.position.y + f.y, camera.position.z + f.z); }
     Object.assign(camera, mode === 'orbit' ? orbitLens : { fov, near: 0.08, far: 3000 });
     camera.aspect = world.pipeline.w / world.pipeline.h; camera.updateProjectionMatrix(); camera.updateMatrixWorld();
+    // play.director (opt-in): a host's camera (a cinematic) takes the view after the mode placed it: (camera, dt) ->
+    // optional { shadow: { center, radius } } (where the sun's shadow is fitted while it drives)
+    directed = director && mode !== 'game' ? director(camera, dt) || null : null;
+    if (director) camera.updateMatrixWorld();
     if (opts.onStep && opts.onStep(dt)) changed = true;   // a game's tick; truthy = something in the scene moved
   }
   function view() {
     if (mode === 'game') return { cam: gameCam, shadow: shadowAround(gameTarget, Math.max(14, viewSize * 1.9)) };
+    if (directed && directed.shadow) return { cam: camera, shadow: shadowAround(_vc.fromArray(directed.shadow.center), directed.shadow.radius) };
     if (mode === 'orbit') return { cam: camera, shadow: null };
     const f = _vf.set(Math.cos(yaw), 0, Math.sin(yaw));
     const c = _vc.copy(camera.position).addScaledVector(f, shadowR * 0.45); c.y = walker.pos[1];
@@ -401,7 +406,7 @@ function mountPlay(world, opts, life) {
     if (life.disposed || !running) return;
     const { cam } = view();
     cam.updateMatrixWorld();
-    const key = cam.matrixWorld.elements.map((v) => v.toFixed(5)).join(',') + (cam.isOrthographicCamera ? cam.top.toFixed(4) : cam.fov) +
+    const key = cam.matrixWorld.elements.map((v) => v.toFixed(5)).join(',') + (cam.isOrthographicCamera ? cam.top.toFixed(4) : cam.fov) + (director ? ',' + cam.projectionMatrix.elements[9] : '') +
       `@${world.pipeline.w}x${world.pipeline.h}`;   // a resize clears the canvas: draw again even when still
     const viewMoved = key !== lastKey || orbiting;
     if (viewMoved || acting) wake();
@@ -508,6 +513,9 @@ function mountPlay(world, opts, life) {
     get mode() { return mode; }, get still() { return still; },
     /** [xr] (input, dt) -> input: merged into each step's input by packages/play/src/xr.js (null: none) */
     get xrInput() { return xrInput; }, set xrInput(fn) { xrInput = fn || null; },
+    /** a host camera, opt-in: (camera, dt) -> optional { shadow: { center, radius } }, called each step after the mode
+     *  placed the camera (it may move it, change its lens, shift it off axis); null gives the view back to the mode */
+    get director() { return director; }, set director(fn) { director = typeof fn === 'function' ? fn : null; directed = null; },
     /** the scene clock in seconds (see the top of this file) */
     get clock() { return clock; },
     /** [sub-frames of the first still frame, of the final one] */

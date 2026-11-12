@@ -20,12 +20,14 @@ import { applyBigWorld } from '@miragekit/core/bigworld';
 import { buildWorld } from '@miragekit/world';
 import { addRain } from '@miragekit/world/kits/rain';
 import { createPlay } from '@miragekit/play';
-import { startGame } from '@miragekit/game';
+import { startGame, loadRapier } from '@miragekit/game';
 import plan from './plan.js';
 import modules from './modules/index.js';
 import { setupGame, objective, summary, VERSION, T } from './game/index.js';
 import { mirrorLayer, distanceCull, MIRROR_LAYER } from './perf.js';
 
+performance.mark('nd:eval');
+if (!location.search.includes('world=')) loadRapier().catch(() => {});   // the wasm compiles while the world builds (createPhysics shares this promise)
 const Q = new URLSearchParams(location.search);
 const W = +Q.get('w') || innerWidth, H = +Q.get('h') || innerHeight;
 const canvas = document.querySelector('canvas');
@@ -71,6 +73,46 @@ const lut = makeLut(([r, g, b]) => {
 const TIMES = { night: { day: '2026-10-26', time: '23:10' }, dawn: { day: '2026-10-26', time: '06:20' }, day: { day: '2026-09-10', time: '17:44' }, dusk: { day: '2026-10-26', time: '17:04' } };
 const timeOf = (t) => TIMES[t] || (/^\d{1,2}:\d{2}$/.test(t || '') ? { day: '2026-09-10', time: t } : null);
 const bar = plan.bar.rect, room = plan.relay.room;
+// the first bake used to run before the world's first frame, with the storm sky not yet eased in (uStorm 0): the lazy one,
+// run in frames, holds that state, so the light in the bar is what it was
+let stormU0 = null;
+const culled = [];   // what distanceCull hides far from the eye (below): the first bake sees it all, as it did before the first frame
+// the lights and the glowing materials as they were before the first frame (the signs and lanterns flicker with the clock):
+// the first bake is drawn from that state, whenever its steps run
+const boot = [];
+const grabBoot = () => {
+  const seen = new Set();
+  world.scene.traverse((o) => {
+    if (o.isLight) boot.push({ o, k: 'intensity', c: 'color', i: o.intensity, col: o.color.clone(), i1: 0, col1: new THREE.Color() });
+    for (const m of [].concat(o.material || [])) if (m.emissive && !seen.has(m)) { seen.add(m); boot.push({ o: m, k: 'emissiveIntensity', c: 'emissive', i: m.emissiveIntensity, col: m.emissive.clone(), i1: 0, col1: new THREE.Color() }); }
+  });
+};
+const bootU = [];   // the world's shared uniforms (the lamp gain, the sky's light...) as they were
+const grabU = () => { for (const k of Object.keys(world.G)) { const v = world.G[k]?.value; if (v === undefined || v === null) continue; bootU.push({ u: world.G[k], v: typeof v === 'object' ? (v.clone ? v.clone() : null) : v, now: null }); } };
+// (and the clustered lamps' data texture is written by the first frame: before it the lamps gave the captures no light, so the first bake draws with an empty one)
+let noLamps = null;
+const bakeScope = (fn, first) => {
+  if (!first || !boot.length) return fn();
+  const u = stormU0, x = u ? u.value.x : 0, vis = culled.map((m) => m.visible);
+  if (u) u.value.x = 0;
+  for (const m of culled) m.visible = true;
+  for (const b of boot) { b.i1 = b.o[b.k]; b.col1.copy(b.o[b.c]); b.o[b.k] = b.i; b.o[b.c].copy(b.col); }
+  const lu = world.lighting?.lights?.uniforms?.mgLT, lamps = lu && lu.value, rp = world.lighting?.probes?.uniforms?.mgRpH?.value, rpw = rp ? rp.map((v) => v.w) : [];
+  if (rp) for (const v of rp) v.w = 0;   // (and the reflection probes were not captured yet)
+  if (lu) {
+    if (!noLamps) { noLamps = new THREE.DataTexture(new Float32Array(lamps.image.data.length), lamps.image.width, lamps.image.height, lamps.format, lamps.type); noLamps.minFilter = lamps.minFilter; noLamps.magFilter = lamps.magFilter; noLamps.needsUpdate = true; }
+    lu.value = noLamps;
+  }
+  for (const b of bootU) { if (b.v === null) continue; if (typeof b.v === 'object') { b.now = (b.now || b.v.clone()).copy(b.u.value); b.u.value.copy(b.v); } else { b.now = b.u.value; b.u.value = b.v; } }
+  try { fn(); } finally {
+    for (const b of bootU) { if (b.v === null) continue; if (typeof b.v === 'object') b.u.value.copy(b.now); else b.u.value = b.now; }
+    if (lu) lu.value = lamps;
+    if (rp) rp.forEach((v, i) => { v.w = rpw[i]; });
+    if (u) u.value.x = x;
+    culled.forEach((m, i) => { m.visible = vis[i]; });
+    for (const b of boot) { b.o[b.k] = b.i1; b.o[b.c].copy(b.col1); }
+  }
+};
 const lighting = {
   bounce: on('bounce') && { spacing: 2 },                                                          // by day: light off the sunlit side of the street into the shade
   lights: { perCell: 0, perFrame: 1 },                                                            // clustered lamps, exact lists; one shadow tile redrawn a frame (sentinels walking past lamps)
@@ -79,7 +121,9 @@ const lighting = {
   // (it draws one layer: everything but the view model and the close-up props, perf.js)
   planar: on('planar') && { y: 0, scale: 0.5, roughMax: 0.4, every: Math.max(1, Math.round(F('planar'))), ...(Q.get('mirrorall') === '1' ? {} : { layers: [MIRROR_LAYER] }) },
   csm: on('csm') && { cascades: 3, stagger: true },
-  gi: on('gi') && { min: [bar[0], 0, bar[1]], max: [bar[2], plan.bar.height, bar[3]], spacing: 1.3, fade: 0.5 },
+  gi: on('gi') && { min: [bar[0], 0, bar[1]], max: [bar[2], plan.bar.height, bar[3]], spacing: 1.3, fade: 0.5,
+    // the probes bake in frames, not before the first one (about 13 s of the start): 60 ms a frame behind the title, 20 once a player starts
+    ...(Q.get('lazybake') === '0' ? {} : { budget: 60, lazy: true, scope: bakeScope }) },   // ?lazybake=0: bake in prepare(), as before
   probes: on('probes') && [
     { min: [bar[0], 0, bar[1]], max: [bar[2], plan.bar.height, bar[3]], fade: 0.5 },
     { min: [room[0], 0, room[1]], max: [room[2], plan.relay.height, room[3]], fade: 0.5 },
@@ -165,10 +209,12 @@ const world = createWorldRenderer({
   },
 });
 
+performance.mark('nd:renderer');
 // detail: how much optional dressing the modules build (crowds, traffic, balcony life, the far skyline): phones stay light
 const shared = { quality: on('shadows') ? quality : 'low', tier: quality, gi: !!lighting.gi, detail: Q.has('detail') ? +Q.get('detail') : { low: 0.4, medium: 0.8, high: 1 }[quality] ?? 1 };
 const skip = (Q.get('skip') || '').split(',');                                                     // ?skip=aerial,grime: build without those modules (A/B timing)
 const built = await buildWorld(world, { plan, modules: modules.filter((m) => !skip.includes(m.name)), shared });
+performance.mark('nd:built');
 for (let i = 0, n = +Q.get('lamps') || 0; i < n; i++) {                                           // ?lamps=N: the clustered-light test
   const l = new THREE.PointLight(new THREE.Color().setHSL((i * 0.618) % 1, 0.8, 0.55), 6 * world.G.uLampGain.value, 7, 2);
   l.position.set(-32 + ((i * 7.3) % 64), 1.2 + (i % 5) * 0.7, 2.5 + ((i * 3.1) % 7)); world.scene.add(l); world.lighting.addLight(l);
@@ -192,6 +238,7 @@ const setHour = (t) => { const v = timeOf(t); if (!v) return hour; hour = t; wor
 // recaptures the image-based light), the rain and the cloud cover are uniforms
 const wxNow = { ...wx0 };
 const cloudU = world.sky.material.uniforms.uCloudCover, stormU = world.sky.material.uniforms.uStorm;
+stormU0 = stormU || null;
 world.ctx.onUpdate(() => {
   const h = world.state ? world.state.sun.elevation : -60, want = weatherAt(h);
   for (const k in want) wxNow[k] += (want[k] - wxNow[k]) * 0.08;
@@ -234,6 +281,7 @@ let play, g = null, game = null;
 if (Q.has('world')) {   // the district alone: walk, fly, orbit (stills, the world check)
   await world.prepare();
   play = createPlay(world, { plan: built.plan, canvas, mode: Q.get('mode') || 'walk', spp, ui: Q.get('ui') !== '0', shadowRadius: 34, fit: !Q.get('w'), quality, hud });
+  grabBoot(); grabU();
 } else {
   g = await startGame(world, {
     built, canvas, id: plan.name, version: VERSION, title: T.title, subtitle: T.subtitle,
@@ -242,10 +290,15 @@ if (Q.has('world')) {   // the district alone: walk, fly, orbit (stills, the wor
     objective, summary,
   });
   play = g.play;
+  grabBoot(); grabU();
   // the rooms' shafts of light (modules/shafts.js) shine only when the sun, the moon or the lamp outside really reaches
   // the opening: a ray through the physics world toward it
   shared.shafts?.setSee((from, dir, max) => !!g.physics.ray(from, dir, max));
   game.start(g);
+  const gi = world.lighting?.gi;
+  if (gi && !Q.has('start')) g.game.on('start', () => { gi.cfg.budget = 0; gi.cfg.pace = 2; });   // a player's first bake takes what the frame can spare; ?start=1 (automation) keeps the fast one
+  performance.mark('nd:title');
+  document.getElementById('boot')?.remove();
   if (Q.has('start')) g.ui.begin();
 }
 // the frame budget (perf.js, NOTES.md "Frame budget"): the close-up props (modelled for a look from a metre: cans,
@@ -254,17 +307,25 @@ if (Q.has('world')) {   // the district alone: walk, fly, orbit (stills, the wor
 // left out of the mirror too (a puddle shows the shell's silhouette and the lit visor, not a 4 cm hub)
 const NO_MIRROR = /^(viewmodel|vending-(can|bottle|cup|box|pack|cap|spirals)|bar-props|relay-props|stall-goods|grime-props|clutter-props|shop-props|robot-m|robot-gun|shaft|shaft-motes)$/;
 { const far = new Map(); world.scene.traverse((o) => { if (o.userData.ndFar) { if (!far.has(o.userData.ndFar)) far.set(o.userData.ndFar, []); far.get(o.userData.ndFar).push(o); } });
-  for (const [d, list] of far) { const cull = distanceCull(list, d); world.ctx.onUpdate((t) => cull(camera, t)); } }
+  for (const [d, list] of far) { culled.push(...list); const cull = distanceCull(list, d); world.ctx.onUpdate((t) => cull(camera, t)); } }
 // the pickups (ammunition and med kits: small boxes that spin and bob all over the district) are drawn within 45 m:
 // each was four draws a frame wherever it was (the scene, the velocity buffer as it spins, the mirror, the moon's map)
 if (g) {
   const near = [];
   for (const p of plan.pickups) g.game.entities.get(p.id)?.object?.traverse((m) => { if (m.isMesh) near.push(m); });
-  if (near.length) { const cull = distanceCull(near, 45); world.ctx.onUpdate((t) => cull(camera, t)); }
+  if (near.length) { culled.push(...near); const cull = distanceCull(near, 45); world.ctx.onUpdate((t) => cull(camera, t)); }
 }
 if (lighting.planar && Q.get('mirrorall') !== '1') mirrorLayer(world.scene, (o) => o.userData.mgClustered || NO_MIRROR.test(o.name));
 const v = plan.viewpoints.find((p) => p.name === Q.get('view'));
 if (v) play.place(v.eye, v.look, v.mode || (Q.has('world') ? Q.get('mode') || 'walk' : 'walk'));
 if (Q.has('world')) world.ctx.onUpdate(relight);
 window.__mirage = { world, built, play, g, game, vfx, rain, big, shared, setHour, relight, weather: { WX, WX_H, now: wxNow, at: weatherAt }, features: Object.fromEntries(Object.keys(TIER).map((k) => [k, F(k)])) };
+document.getElementById('boot')?.remove();
+// ready = the light is baked too (the stills and the checks wait for it); the title and the game are up before that
+while (world.lighting?.busy) await new Promise((r) => setTimeout(r, 50));
+// the reflection probes were captured before the volume was baked, from a world without its light: capture them again,
+// from the state the first bake had (they were captured after it)
+if (world.lighting?.probes && boot.length) bakeScope(() => { const p = world.lighting.probes; p.targets.forEach((t) => t && t.dispose()); p.targets.fill(null); p.envCaptured(); }, true);
+if (world.lighting?.gi) { world.lighting.gi.cfg.budget = 0; world.lighting.gi.cfg.pace = 2; }   // later re-bakes (the hour) take what the frame can spare
+performance.mark('nd:ready');
 window.__READY = true;
