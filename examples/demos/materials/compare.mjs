@@ -38,7 +38,7 @@ export const PAIRS = [
   { ref: 'plaster_weathered', s: 'render:smooth', opts: { color: [0.18, 0.105, 0.045], roughness: 0.9, cracks: 0.35 } },
   // proxy: no scan of concrete in the set; a grey trowelled cement plaster has the same laitance, pits and relief scale
   { ref: 'plaster_smooth', s: 'concrete:cast', key: 'concrete-proxy', opts: { color: [0.13, 0.1, 0.068], roughness: 0.6 } },
-  { ref: 'brass_aged', s: 'metal:worn', opts: { metal: 'brass', roughness: 0.12 } },
+  { ref: 'brass_aged', s: 'metal:worn', opts: { metal: 'brass', color: [0.99, 0.78, 0.36], roughness: 0.06, tarnish: 0.15 } },
   { ref: 'terracotta', s: 'tile:floor', opts: { color: [0.2, 0.115, 0.047], altColor: [0.19, 0.11, 0.045], roughness: 0.69, cell: [0.3, 0.3] } },
 ];
 

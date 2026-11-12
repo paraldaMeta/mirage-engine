@@ -615,7 +615,7 @@ MsS ms_paintedMetal(vec2 u){
   // the paint over it: lifts and flakes in islands with crisp ragged edges (paint -> lifted rim -> primer -> bare),
   // more round the rust and the fixings
   float wn = msFbm(msWarp(u, 18.0, 0.008) + 11.0, 5.0, 5) * 0.42 + msFbm(u + 3.0, 32.0, 3) * 0.12 + 0.5 + 0.3 * near + 0.12 * halo;
-  float amt = msB.a * (V > 1.5 ? 0.35 : 1.0);
+  float amt = msB.a * (V > 1.5 ? 0.2 : 1.0);
   float L = msLayers(wn, amt);
   float lip = clamp(L, 0.0, 1.0) * (1.0 - clamp(L - 1.0, 0.0, 1.0));
   float primer = clamp(L - 1.0, 0.0, 1.0) * (1.0 - clamp(L - 2.0, 0.0, 1.0));
@@ -838,8 +838,16 @@ MsS ms_metal(vec2 u){
   vec3 col = msA.rgb; float r = msA.a, h = 0.5;
   if (V < 0.5) { float lathe = msFbm2(u, vec2(0.5, 700.0), 2) * msLod(0.0015); h += 0.25 * lathe; r *= 0.85 + 0.3 * (lathe * 0.5 + 0.5); }
   else if (V < 1.5) { h += 0.3 * fine; r += 0.12 + 0.05 * fine; }
-  else { r += 0.08 * m1; h += 0.1 * fine; }
-  float tn = smoothstep(0.55 - 0.45 * msB.a, 0.75 - 0.45 * msB.a, msFbm(u + 5.0, 4.0, 3) * 0.5 + 0.5);
+  else {
+    // worn (handled brass, a rail): polished by hands, a fine haze of tarnish in the low spots, hairline wipes and
+    // a few dark spots where water dried; the tone barely moves, the roughness does
+    float wipe = msFbm2(u + 2.0, vec2(3.0, 160.0), 2) * msLod(0.002);
+    r += 0.04 * m1 + 0.05 * (wipe * 0.5 + 0.5); h += 0.1 * fine + 0.05 * wipe;
+    vec4 sp = msCell(u + 4.0, 25.0, 1.0);
+    float spot = (1.0 - smoothstep(0.1, 0.3, sp.x)) * step(0.85, sp.z) * msLod(0.006);
+    col *= 1.0 - 0.12 * spot; r += 0.15 * spot;
+  }
+  float tn = smoothstep(0.55 - 0.45 * msB.a, 0.75 - 0.45 * msB.a, msFbm(u + 5.0, V > 1.5 ? 14.0 : 4.0, 3) * 0.5 + 0.5) * (V > 1.5 ? 0.2 : 1.0);
   col = mix(col, col * msB.rgb, tn); r = mix(r, r + 0.2, tn);
   return MsS(col, clamp(r, 0.03, 1.0), clamp(h, 0.0, 1.0), 1.0, 1.0);
 }`,
