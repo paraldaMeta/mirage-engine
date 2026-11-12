@@ -1,7 +1,7 @@
 {
   "name": "@miragekit/assets",
   "version": "1.0.0",
-  "description": "Mirage asset library: the content made in code that plugs into the engine's systems. Surface recipes (35 kinds of physically plausible materials, weathering decals), the cyber kit (a dense neon city's street props, parked cars, civilian robots and the robot parts kit), a sound library (125 sounds) and the destructibles' material classes. Business Source License 1.1.",
+  "description": "Mirage asset library: the content made in code that plugs into the engine's systems. Surface recipes (35 kinds of physically plausible materials, weathering decals), the cyber kit (a dense neon city's street props, parked cars, civilian robots and the robot parts kit), a sound library (125 sounds), the destructibles' material classes, a modular building kit, home and office props, and 55 particle effect recipes. Business Source License 1.1.",
   "license": "BUSL-1.1",
   "repository": {
     "type": "git",
@@ -14,11 +14,38 @@
   },
   "type": "module",
   "exports": {
-    "./destruct": { "types": "./src/destruct/index.d.ts", "default": "./src/destruct/index.js" },
-    "./kits/cyber": { "types": "./src/kits/cyber.d.ts", "default": "./src/kits/cyber.js" },
-    "./sounds": { "types": "./src/sounds/index.d.ts", "default": "./src/sounds/index.js" },
-    "./presets": { "types": "./src/presets/index.d.ts", "default": "./src/presets/index.js" },
-    "./surfaces": { "types": "./src/surfaces/index.d.ts", "default": "./src/surfaces/index.js" },
+    "./building": {
+      "types": "./src/building/index.d.ts",
+      "default": "./src/building/index.js"
+    },
+    "./destruct": {
+      "types": "./src/destruct/index.d.ts",
+      "default": "./src/destruct/index.js"
+    },
+    "./kits/cyber": {
+      "types": "./src/kits/cyber.d.ts",
+      "default": "./src/kits/cyber.js"
+    },
+    "./sounds": {
+      "types": "./src/sounds/index.d.ts",
+      "default": "./src/sounds/index.js"
+    },
+    "./presets": {
+      "types": "./src/presets/index.d.ts",
+      "default": "./src/presets/index.js"
+    },
+    "./props-home": {
+      "types": "./src/props-home/index.d.ts",
+      "default": "./src/props-home/index.js"
+    },
+    "./surfaces": {
+      "types": "./src/surfaces/index.d.ts",
+      "default": "./src/surfaces/index.js"
+    },
+    "./vfx": {
+      "types": "./src/vfx/index.d.ts",
+      "default": "./src/vfx/index.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -39,7 +66,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "node surfaces.check.mjs && node cyber.check.mjs && node sounds.check.mjs && node destruct.check.mjs"
+    "test": "node surfaces.check.mjs && node cyber.check.mjs && node sounds.check.mjs && node destruct.check.mjs && node building.check.mjs && node props-home.check.mjs && node vfx.check.mjs"
   },
   "author": "灰叔 Racso"
 }

@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { createWorldRenderer, placeDate, createVfx } from '@miragekit/core';
 import { buildWorld, definePlan } from '@miragekit/world';
 import { createPlay } from '@miragekit/play';
-import { VFX_RECIPES, VFX_CATEGORIES, vfxNames } from '../../../packages/assets/src/vfx/index.js';   // @miragekit/assets/vfx once the package exists
+import { VFX_RECIPES, VFX_CATEGORIES, vfxNames } from '@miragekit/assets/vfx';
 
 const Q = new URLSearchParams(location.search);
 const W = +Q.get('w') || innerWidth, H = +Q.get('h') || innerHeight, EVERY = +Q.get('every') || 3;

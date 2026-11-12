@@ -6,8 +6,8 @@ import * as THREE from 'three';
 import { createWorldRenderer, placeDate } from '@miragekit/core';
 import { buildWorld, definePlan } from '@miragekit/world';
 import { createPlay } from '@miragekit/play';
-import * as H from '../../../packages/assets/src/props-home/index.js';        // @miragekit/assets/props-home once the package exists
-import { buildingMaterials } from '../../../packages/assets/src/building/index.js';
+import * as H from '@miragekit/assets/props-home';
+import { buildingMaterials } from '@miragekit/assets/building';
 
 const Q = new URLSearchParams(location.search);
 const W = +Q.get('w') || innerWidth, Hh = +Q.get('h') || innerHeight, seed = +Q.get('seed') || 2;

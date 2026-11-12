@@ -32,6 +32,9 @@ here on.
 | `@miragekit/assets/sounds` | 125 sounds made in code (weapons, interface, footsteps, ambience loops, machines, vehicles, nature): `SOUNDS`, `SOUND_CATEGORIES`, `SOUND_SPACES`, `GUNS`, `soundNames`, `renderSound`, `soundBuffers`, `addSounds`, the gun renderers |
 | `@miragekit/assets/destruct` | the destructibles' material classes (stages, debris, particle effects, synthesised break sounds): `DESTRUCT_MATERIALS`, `DESTRUCT_EFFECTS`, `DESTRUCT_SOUNDS`, `addDestructSounds`, `registerDestruct()` |
 | `@miragekit/assets/presets` | reserved (empty) |
+| `@miragekit/assets/building` | the modular building kit: 29 parts (walls with doors and windows, floors, columns, beams, an archway, straight and spiral stairs, railings, a ramp, steps, a ladder, gable / hip / flat roofs, dormers, chimneys, gutters, balconies, awnings, fences, a gate, mouldings), five material styles and `house()`, a seeded house ([docs/building-kit.md](../../docs/building-kit.md)) |
+| `@miragekit/assets/props-home` | 48 home and office props to real sizes (living room, kitchen and dining, bedroom, bathroom, office), `homeMaterials`, and `room()`, which furnishes five kinds of room with the building kit's walls ([docs/home-props.md](../../docs/home-props.md)) |
+| `@miragekit/assets/vfx` | 55 particle effect recipes in core's effect format for `createVfx` (combat, weather, fire and smoke, water, magic, celebration, ambience): `VFX_RECIPES`, `VFX_CATEGORIES`, `vfxNames` ([docs/vfx-recipes.md](../../docs/vfx-recipes.md)) |
 
 The systems these plug into stay in the MIT packages: core's surface framework (`createSurfaces`, baking, mappings,
 LOD, the runtime layer, `registerSurfaceKinds`), the world protocol, game's synthesis kit (`@miragekit/game/sounds`:
