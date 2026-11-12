@@ -273,17 +273,17 @@ MsS ms_brick(vec2 u){
   float mw = msB.z * 0.5;
   // every brick its own box inside its cell: each side set back by its own amount (joints 0.5x..1.7x the nominal),
   // its own corner radius, its outline bitten by erosion (deepest at the corners) and a few broken-off corners
-  vec4 ins = mw * (0.5 + (0.35 + 0.85 * ero) * vec4(b.x, b.y, b2.x, b2.y));
+  vec4 ins = mw * (0.3 + (0.25 + 0.55 * ero) * vec4(b.x, b.y, b2.x, b2.y));
   vec2 lo = ins.xz, hi = s - ins.yw, c = 0.5 * (lo + hi), hs = 0.5 * (hi - lo);
   vec2 lp = q - c;
   float rad = min(hs.y * 0.8, 0.002 + 0.01 * b3.x * ero);
   vec2 ed = hs - abs(lp);                                          // distance to the two nearest sides
   float corner = exp(-(ed.x + ed.y) / 0.02);
-  float bite = (msFbm(u + 13.0, 7.0, 4) * 0.5 + 0.5) * 0.01 + (msFbm(u + 2.0, 40.0, 3) * 0.5 + 0.5) * 0.003;
+  float bite = (msFbm(u + 13.0, 7.0, 4) * 0.5 + 0.5) * 0.012 + (msFbm(u + 2.0, 40.0, 3) * 0.5 + 0.5) * 0.004;
   vec4 ch = msCell(u + 7.7, 9.0, 1.0);
   float chip = (1.0 - smoothstep(0.25, 0.5, ch.x)) * step(1.0 - 0.45 * ero, ch.z) * 0.012;
   float sd = msBox(lp, hs, rad) + ero * (bite * (0.6 + 1.6 * corner)) + chip * (0.4 + corner);
-  float face = smoothstep(-0.001, 0.006 + 0.01 * ero, -sd);          // the arris rolls off over 0.5..1.5 cm
+  float face = smoothstep(-0.003, 0.016 + 0.016 * ero, -sd);         // the arris rolls off over 1.5..3 cm (worn round)
   face = face * (2.0 - face);
   float body = 1.0 - smoothstep(-0.5 * msFP, 0.5 * msFP, sd);
   // the fired clay: a palette per brick (buff, pink, ochre, pale, over-burnt), a mottle at 1..5 cm, flashing to one end
@@ -296,17 +296,22 @@ MsS ms_brick(vec2 u){
   vec3 col = msA.rgb * pal * mix(vec3(1.0), mott, 0.55) * (0.82 + 0.3 * b3.y) * (1.0 + 0.12 * m2) * (1.0 - 0.18 * flash);
   // the face: tilted (laid out of plane), spalled (flakes off in sheets, a crisp step, the fresh clay paler and rougher),
   // a torn, crinkled sanded texture (the mould's sand), pits; the relief darkens its own hollows
-  float tilt = dot(lp, (b3.yz - 0.5) * 2.0) * 0.9;
+  float tilt = dot(lp, (b3.yz - 0.5) * 2.0) * 0.25;
   vec4 sp = msCell(msWarp(u, 20.0, 0.004) + b.xy, 11.0, 1.0);
   float spall = msCut(1.0 - sp.x + 0.12 * msFbm(u, 60.0, 2), 0.62, 0.015) * step(1.0 - 0.5 * ero, sp.z);
-  float cn = msFbm2(msWarp(u, 24.0, 0.004) + b.zy * 4.0, vec2(16.0, 42.0), 4);
-  float crink = 1.0 - abs(cn), crev = (1.0 - smoothstep(0.0, 0.1, abs(cn))) * msLod(0.004);
-  float tex = msFbm(u + b.xz * 6.0, 40.0, 4), sand = msFbm(u + 2.0, 220.0, 2);
+  // crumpled like torn paper: two ridged layers (folds 2..4 cm and 5..10 mm), the folds' valleys dark crevices
+  // (the folds as facets: the fold field read twice a few mm apart along the light, so each facet takes its own tone,
+  // a crisp change at the crease: what the eye reads as crumpled)
+  vec2 uc = msWarp(u, 18.0, 0.006) + b.zy * 4.0;
+  float cn = msFbm2(uc, vec2(11.0, 20.0), 4), cnL = msFbm2(uc + vec2(0.003, -0.004), vec2(11.0, 20.0), 4);
+  float fac = clamp((abs(cnL) - abs(cn)) * 9.0, -1.0, 1.0) * msLod(0.004);
+  float crink = 1.0 - abs(cn), crev = (1.0 - smoothstep(0.0, 0.05, abs(cn))) * msLod(0.004);
+  float tex = msFbm(u + b.xz * 6.0, 40.0, 3), sand = msFbm(u + 2.0, 220.0, 2);
   vec2 pit = msSpeck(u, 140.0, 0.1 + 0.15 * ero, 0.3, 3.1);
   float cr = smoothstep(0.35, 1.0, crink);
-  float rel = ero * (0.05 * tex + 0.05 * cr - 0.03 - 0.04 * crev) + 0.004 * sand - 0.12 * spall - 0.03 * pit.x;
+  float rel = ero * (0.005 * tex + 0.007 * crink - 0.005 - 0.003 * crev) + 0.0006 * sand - 0.04 * spall - 0.008 * pit.x;
   float hf = 0.8 + 0.05 * (b2.y - 0.5) + tilt + rel;
-  col *= (1.0 + ero * (0.5 * cr - 0.3 + 0.25 * tex)) * (1.0 - 0.4 * ero * crev) * (1.0 + 0.08 * sand) * (1.0 - 0.15 * pit.x);
+  col *= (1.0 + ero * (0.32 * fac + 0.3 * cr - 0.15 + 0.22 * tex)) * (1.0 - 0.3 * ero * crev) * (1.0 + 0.08 * sand) * (1.0 - 0.15 * pit.x);
   col = mix(col, col * vec3(1.12, 1.06, 1.0), spall * 0.7);
   float h = mix(0.32, hf, face);
   col = mix(col * vec3(1.08, 1.06, 1.02), col, face);                 // the worn arris: paler, rougher
@@ -317,8 +322,9 @@ MsS ms_brick(vec2 u){
   float mort = max(1.0 - body, smear * body);
   vec2 sg = msSpeck(u + 9.0, 300.0, 0.6, 0.55, 0.0);
   float mrel = msFbm(u + 3.0, 50.0, 3), mtone = msFbm(u + 6.0, 25.0, 3);
-  vec3 mc = msC.rgb * (0.92 + 0.22 * mtone) * mix(1.0, 0.75 + 0.6 * sg.y, sg.x);
-  float hm = 1.0 - msB.w + 0.03 * mrel + 0.015 * sg.x;
+  // dirty: darker at the brick (shadowed, the grime washed into the corner), blotched, sand grains
+  vec3 mc = msC.rgb * (0.92 + 0.22 * mtone) * mix(1.0, 0.75 + 0.6 * sg.y, sg.x) * (0.62 + 0.38 * smoothstep(0.0, 0.007, sd)) * (0.8 + 0.3 * (msFbm(u + 1.0, 9.0, 3) * 0.5 + 0.5));
+  float hm = 1.0 - 0.6 * msB.w + 0.02 * mrel + 0.015 * sg.x - 0.06 * (1.0 - smoothstep(0.0, 0.006, sd));
   col = mix(col, mc, mort); r = mix(r, 0.92, mort);
   h = mix(h, max(hm, h * smear), mort);
   ao *= 1.0 - 0.12 * mort * (1.0 - sg.x) * (1.0 - smoothstep(0.0, 0.01, sd));
@@ -333,7 +339,8 @@ MsS ms_brick(vec2 u){
     r = mix(0.72, r, bare);
   }
   if (V > 0.5 && V < 1.5) r -= 0.12;   // engineering brick: dense, a little glossy
-  return MsS(col, clamp(r, 0.04, 1.0), clamp(h, 0.0, 1.0), 0.0, ao);
+  ao *= 1.0 - 0.3 * crev * (1.0 - mort);
+  return MsS(col, clamp(r, 0.04, 1.0), clamp(0.5 + 0.7 * (h - 0.5), 0.0, 1.0), 0.0, ao);
 }`,
 
   // A: render rgb, roughness   B: spall (broken-off top coat), crack amount, patch amount, -   C: patch rgb, -

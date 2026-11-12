@@ -27,7 +27,7 @@ const manifest = JSON.parse(fs.readFileSync(path.join(refDir, 'manifest.json'), 
 export const PAIRS = [
   { ref: 'plaster_smooth', s: 'render:smooth', opts: { color: [0.13, 0.1, 0.068], roughness: 0.6, cracks: 0.15 } },
   { ref: 'plaster_broken', s: 'render:smooth', opts: { color: [0.36, 0.235, 0.11], roughness: 0.85, spall: 0.5, cracks: 0.3, age: 0.8 } },
-  { ref: 'brick_buff', s: 'brick:common', opts: { color: [0.46, 0.25, 0.11], roughness: 0.7, mortarColor: [0.46, 0.36, 0.24], brick: [0.2, 0.11], mortar: 0.022, recess: 0.01, age: 1, burnt: 0.05 } },
+  { ref: 'brick_buff', s: 'brick:common', opts: { color: [0.46, 0.25, 0.11], roughness: 0.7, mortarColor: [0.46, 0.36, 0.24], brick: [0.2, 0.11], mortar: 0.016, recess: 0.01, age: 1, burnt: 0.05 } },
   { ref: 'paving_hex', s: 'paving:hex', opts: { color: [0.51, 0.42, 0.3], roughness: 0.9, cell: [0.229, 0.229], joint: 0.01 } },
   { ref: 'flagstone', s: 'paving:setts', opts: { color: [0.13, 0.09, 0.062], roughness: 0.83, cell: [0.45, 0.3] } },
   { ref: 'wood_old', s: 'wood:planks', opts: { color: [0.12, 0.09, 0.062], roughness: 0.68, board: [0.285, 2.0], along: 'v', latewood: [0.7, 0.66, 0.62], age: 0.8 } },
