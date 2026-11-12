@@ -17,6 +17,7 @@ const CSS = `
 .nt-top{position:absolute;left:var(--pad);right:max(28px,env(safe-area-inset-right));top:max(20px,env(safe-area-inset-top));display:flex;justify-content:space-between;align-items:center;font-size:10px;letter-spacing:.24em;color:#7af0ffb0}
 .nt-top i{display:inline-block;width:7px;height:7px;margin-right:9px;border-radius:50%;background:var(--mg);box-shadow:0 0 8px var(--mg);animation:nt-blink 1.6s steps(2) infinite;vertical-align:1px}
 .nt-top span:last-child{color:#d8f6ff80}
+.nt-replay{all:unset;pointer-events:auto;cursor:pointer;margin-right:18px;padding:4px 10px;border:1px solid #19d8ff50;color:#d8f6ffd0;letter-spacing:.24em;font-size:10px}.nt-replay:hover,.nt-replay:focus-visible{border-color:#19d8ff;color:#fff}
 @keyframes nt-blink{50%{opacity:.15}}
 .nt-main{position:absolute;left:var(--pad);top:50%;transform:translateY(-52%);width:min(430px,calc(100vw - 2 * var(--pad)))}
 .nt-kicker{font-size:10px;letter-spacing:.32em;color:var(--mg);margin:0 0 10px;text-shadow:0 0 12px #ff3fd280}
@@ -94,7 +95,7 @@ const SPEED = 2.6;   // metres a second along the eye's path
  * @param o.T the language's table; o.values { mode, difficulty, hour }; o.choices { mode: [], difficulty: [], hour: [] }
  * @param o.onChange (key, value)   o.onDeploy (event-like | undefined)   o.onOptions ()   o.optionsOpen () => bool
  */
-export function createTitle({ T, plan, world, values, choices, names = {}, best, onChange, onDeploy, onOptions, optionsOpen, onFrame, onDispose, ng = null }) {
+export function createTitle({ T, plan, world, values, choices, names = {}, best, onChange, onDeploy, onIntro, onOptions, optionsOpen, onFrame, onDispose, ng = null }) {
   const F = T.front;   // a live branch: a language switch changes its strings in place (text.js)
   const root = document.createElement('div');
   root.className = 'nt'; root.hidden = true;
@@ -110,7 +111,7 @@ export function createTitle({ T, plan, world, values, choices, names = {}, best,
     ...(ng ? [{ id: 'ngreset', solo: true, label: () => T.melee.front.reset }] : []),
   ];
   root.innerHTML = `<style>${CSS}</style><div class="nt-shade"></div><div class="nt-scan"></div>
-    <div class="nt-top"><span><i></i><span class="nt-feed"></span></span><span class="nt-clock"></span></div>
+    <div class="nt-top"><span><i></i><span class="nt-feed"></span></span><span>${onIntro ? '<button class="nt-replay" data-a="intro"></button>' : ''}<span class="nt-clock"></span></span></div>
     <div class="nt-main">
       <p class="nt-kicker"></p>
       <h1 class="nt-h"></h1>
@@ -137,6 +138,7 @@ export function createTitle({ T, plan, world, values, choices, names = {}, best,
     h.className = 'nt-h' + (cjk ? ' cjk' : '');
     h.innerHTML = cjk ? `<span>${esc(T.title)}</span>` : T.title.split(' ').map((w) => `<span>${esc(w)}</span>`).join('');
     root.querySelector('.nt-p').textContent = F.premise;
+    const rp = root.querySelector('.nt-replay'); if (rp) rp.textContent = `▶ ${T.intro.replay} · I`;
     rows.forEach((r, i) => {
       const el = els[i];
       el.querySelector('.k').textContent = r.label();
@@ -187,6 +189,13 @@ export function createTitle({ T, plan, world, values, choices, names = {}, best,
     hide();
     onDeploy(ev);
   }
+  /** the intro again, then the run (intro.js) */
+  function replay(ev) {
+    if (!shown || !onIntro) return;
+    hide();
+    onIntro(ev);
+  }
+  root.querySelector('.nt-replay')?.addEventListener('click', (e) => { if (!optionsOpen()) replay(e.detail === 0 ? { type: 'click', code: 'Enter' } : e); });
   // pointer and touch: a row is chosen under the pointer; its arrows and its value change it
   els.forEach((el, i) => {
     el.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse' && sel !== i) select(i, false); });
@@ -214,6 +223,7 @@ export function createTitle({ T, plan, world, values, choices, names = {}, best,
     else if (c === 'ArrowRight' || c === 'KeyD') change(sel, 1);
     else if ((c === 'Enter' || c === 'NumpadEnter' || c === 'Space') && !e.repeat) activate(sel, { type: 'click', code: c });
     else if (c === 'KeyO' && !e.repeat) onOptions();
+    else if (c === 'KeyI' && !e.repeat) replay({ type: 'click', code: c });
     else used = false;
     if (used) e.preventDefault();
     hint('keys');
@@ -240,7 +250,7 @@ export function createTitle({ T, plan, world, values, choices, names = {}, best,
     let act = false;
     if (dir !== stickDir) { stickDir = dir; stickT = 0.4; act = !!dir; } else if (dir && (stickT -= dt) <= 0) { stickT = 0.16; act = true; }
     if (act) { if (dir === 1) select(sel - 1); if (dir === 2) select(sel + 1); if (dir === 3) change(sel, -1); if (dir === 4) change(sel, 1); hint('pad'); }
-    if (p(0)) activate(sel); else if (p(9)) deploy();
+    if (p(0)) activate(sel); else if (p(9)) deploy(); else if (p(8) || p(3)) replay();
   }
   // the options panel over the title, by pad: up / down move through it, left / right step a slider, A presses, B closes
   function panelPad(p, P) {

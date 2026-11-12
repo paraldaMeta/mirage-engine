@@ -57,12 +57,13 @@ export function lightsConfig(c) { return c ? { ...LIGHTS_DEFAULTS, ...(c === tru
 export const clusterSlice = (d, near, far) => Math.max(0, Math.min(CLUSTER.z - 1, Math.floor((Math.log(Math.max(d, near) / near) / Math.log(far / near)) * CLUSTER.z)));
 /** the ndc interval [lo, hi] (clamped to -1..1) a sphere covers on one axis: c = centre coordinate on that axis, z = its
  *  depth (> 0 in front), r = radius, p = the projection's scale on the axis (1 / tan of the half angle) */
-export function sphereSpan(c, z, r, p) {
+export function sphereSpan(c, z, r, p, s = 0) {
   const l2 = c * c + z * z;
   if (l2 <= r * r) return [-1, 1];
   const th = Math.atan2(c, z), ph = Math.asin(Math.min(1, r / Math.sqrt(l2)));
   const a = th - ph, b = th + ph, H = Math.PI / 2 - 1e-3;
-  return [a <= -H ? -1 : Math.max(-1, Math.min(1, Math.tan(a) * p)), b >= H ? 1 : Math.max(-1, Math.min(1, Math.tan(b) * p))];
+  // s: the frustum's off-axis shift in NDC (a lens shift: -projectionMatrix.elements[8] or [9]; 0 for a centred lens)
+  return [a <= -H ? -1 : Math.max(-1, Math.min(1, Math.tan(a) * p + s)), b >= H ? 1 : Math.max(-1, Math.min(1, Math.tan(b) * p + s))];
 }
 /** buddy allocator of square power-of-two tiles in a size x size atlas: alloc(s) -> [x, y] or null, free(s, xy) */
 export function tileAllocator(size) {
@@ -273,7 +274,7 @@ void main() { gl_FragDepth = clamp( textureLod( tCube, mgOctDec( vUv ), 0.0 ).r 
       _t.copy(L.pos).applyMatrix4(cam.matrixWorldInverse);
       const z = -_t.z, r = L.range * 1.02 + 0.02;
       if (L.last[4] + L.last[5] + L.last[6] <= 0 || z + r < near) { spans.push(null); continue; }   // past `far` it lands in the last slice, as its pixels do
-      const sx = sphereSpan(_t.x, z, r, px), sy = sphereSpan(_t.y, z, r, py);
+      const sx = sphereSpan(_t.x, z, r, px, -e[8]), sy = sphereSpan(_t.y, z, r, py, -e[9]);
       const s = [Math.floor((sx[0] * 0.5 + 0.5) * CLUSTER.x * 0.99999), Math.floor((sx[1] * 0.5 + 0.5) * CLUSTER.x * 0.99999), Math.floor((sy[0] * 0.5 + 0.5) * CLUSTER.y * 0.99999), Math.floor((sy[1] * 0.5 + 0.5) * CLUSTER.y * 0.99999), clusterSlice(z - r, near, far), clusterSlice(z + r, near, far)];
       spans.push(s);
       for (let cz = s[4]; cz <= s[5]; cz++) for (let cy = s[2]; cy <= s[3]; cy++) for (let cx = s[0]; cx <= s[1]; cx++) counts[cx + CLUSTER.x * (cy + CLUSTER.y * cz)]++;
@@ -445,7 +446,7 @@ void main() { gl_FragDepth = clamp( textureLod( tCube, mgOctDec( vUv ), 0.0 ).r 
       if (dirtyTex) writeRecords();   // a tile was (re)assigned above
       if (cfg.cluster && cam.isPerspectiveCamera) {
         const e = cam.matrixWorld.elements, p = cam.projectionMatrix.elements;
-        let k = p[0] + ',' + p[5] + ',' + cam.near + ',' + cam.far;
+        let k = p[0] + ',' + p[5] + ',' + p[8] + ',' + p[9] + ',' + cam.near + ',' + cam.far;
         for (let i = 0; i < 16; i++) k += ',' + e[i];
         if (k !== camKey) { camKey = k; bin(cam); dirtyTex = true; }
       }

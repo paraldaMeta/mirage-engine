@@ -92,13 +92,13 @@ export function realShare(i, c, power, rgb) {
 /** per cell the lamps (indices into `pos`) whose sphere reaches it: { offsets: Uint32Array(CELLS), counts, index,
  *  clipped }. pos: [{ x, y, z, range }] in view space is computed from `view` (Matrix4: world -> view); proj: the
  *  projection's x / y scale; near / far of the split. Kept lamps per cell: at most perCell, the nearest to the eye. */
-export function binLamps(list, view, px, py, near, far, perCell) {
+export function binLamps(list, view, px, py, near, far, perCell, ox = 0, oy = 0) {
   const counts = new Uint32Array(CELLS), spans = [], v = new THREE.Vector3();
   for (const q of list) {
     v.set(q.x, q.y, q.z).applyMatrix4(view);
     const z = -v.z, r = q.range * 1.02 + 0.02;
     if (z + r < near) { spans.push(null); continue; }
-    const sx = sphereSpan(v.x, z, r, px), sy = sphereSpan(v.y, z, r, py);
+    const sx = sphereSpan(v.x, z, r, px, ox), sy = sphereSpan(v.y, z, r, py, oy);
     const s = [Math.floor((sx[0] * 0.5 + 0.5) * CLUSTER.x * 0.99999), Math.floor((sx[1] * 0.5 + 0.5) * CLUSTER.x * 0.99999), Math.floor((sy[0] * 0.5 + 0.5) * CLUSTER.y * 0.99999), Math.floor((sy[1] * 0.5 + 0.5) * CLUSTER.y * 0.99999), clusterSlice(z - r, near, far), clusterSlice(z + r, near, far), z];
     spans.push(s);
     for (let cz = s[4]; cz <= s[5]; cz++) for (let cy = s[2]; cy <= s[3]; cy++) for (let cx = s[0]; cx <= s[1]; cx++) counts[cx + CLUSTER.x * (cy + CLUSTER.y * cz)]++;
@@ -291,12 +291,12 @@ export function createLampPool(w, cfg) {
     const clustered = cam.isPerspectiveCamera && !cam.isArrayCamera;
     if (clustered) {
       const e = cam.matrixWorld.elements, p = cam.projectionMatrix.elements;
-      let k = p[0] + ',' + p[5] + ',' + cam.near + ',' + cam.far;
+      let k = p[0] + ',' + p[5] + ',' + p[8] + ',' + p[9] + ',' + cam.near + ',' + cam.far;
       for (let i = 0; i < 16; i++) k += ',' + e[i];
       if (k !== binKey || ak !== activeKey) {
         const t0 = performance.now();
         const near = Math.max(cam.near, 0.05), far = Math.min(cam.far, 400);
-        const b = binLamps(act.map((i) => lamps[i]), cam.matrixWorldInverse, p[0], p[5], near, far, cfg.perCell);
+        const b = binLamps(act.map((i) => lamps[i]), cam.matrixWorldInverse, p[0], p[5], near, far, cfg.perCell, -p[8], -p[9]);
         if (b.index.length > IDX_CAP) grow(b.index.length);
         const base = rows.cells * TW * 4, ib = rows.index * TW * 4;
         for (let c = 0; c < CELLS; c++) { data[base + c * 4] = b.offsets[c]; data[base + c * 4 + 1] = b.counts[c]; }

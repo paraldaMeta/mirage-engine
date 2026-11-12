@@ -24,7 +24,10 @@ digits), `onStep(dt)` (runs after each step; truthy = the scene moved, so the fr
 
 `play`: `place(eye, look, mode)`, `viewpoint(i)`, `setMode(m)`, `state()`, `render({ moving, spp, frameIndex })`,
 `step(dt)`, `stop()`, `start()`, `dispose()` (see below), `turn(dx, dy, k)`, `lookAt(p)`, `yaw` / `pitch`, `keys` (a Set of held `KeyboardEvent.code`s), `grid`, `walker`, `stats`,
-`xrInput` (`(input, dt) => input`, merged into each step's input; set by `createXR`).
+`xrInput` (`(input, dt) => input`, merged into each step's input; set by `createXR`),
+`director` (opt-in, default `null`: a host camera for a cinematic, `(camera, dt) => ({ shadow: { center, radius } })?`, called each
+step after the mode placed the camera; it may move the camera, change its lens or shift it off axis through
+`projectionMatrix.elements[8]` / `[9]`, which the clustered lamps bin with; `null` gives the view back).
 Moving frames: one jittered sub-frame resolved by the core's temporal AA. When the view stops: the core's still
 path at `refine[0]` sub-frames, later `refine[1]`, then nothing until something moves. Each still frame fades in
 over 10 frames from the image before it, so stopping does not pop the image sharp; the last fade frame is the still
