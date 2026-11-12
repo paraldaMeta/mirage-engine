@@ -4,11 +4,9 @@
 // for a shop's pavement display. Each adds to a MeshBatch through the props kit, at a matrix `m` (its foot at y 0).
 import * as THREE from 'three';
 import { bowlGeo, glassGeo, jarGeo, boxGeo } from './shapes.js';
-import { uvByHeight } from './kit.js';
+import { uvByHeight, lathe, C } from './kit.js';
 
-const lathe = (pts, seg) => { const g = new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(Math.max(r, 1e-4), y)), seg); g.computeVertexNormals(); return g; };
 const cache = new Map(), once = (k, f) => { if (!cache.has(k)) cache.set(k, f()); return cache.get(k); };
-const C = (m, geom, p, r = [0, 0, 0], s = 1) => m.clone().multiply(geom.compose(p, r, s));
 
 /** a spirits bottle: glass (tinted), the liquid to `fill` (0..1), a label band printed from the bar family, a cap */
 export function spiritBottle(P, bt, geom, m, { r = 0.04, h = 0.3, glass = [0.5, 0.6, 0.45], liquid = [0.5, 0.25, 0.05], fill = 0.6, label = 0, cap = [0.1, 0.05, 0.02], square = false } = {}) {

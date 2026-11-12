@@ -7,25 +7,16 @@
 //   const world = createWorldRenderer({ lampPool: true });
 //   world.lampPool.set(lanterns.map((p) => ({ pos: p, range: 6, power: 1.2, normal: wallNormal, back: 0.42 })));
 //
-// What a pool lamp is: a point light shaded inside the lit materials (three's own falloff, getDistanceAttenuation,
-// through the material's own BRDF, RE_Direct: albedo, roughness, normal maps and specular all as for a PointLight)
-// but held as data: one float texture (3 texels a lamp), so a lamp costs no program, no uniform and nothing in
-// three's light loop. The view frustum is cut into lights.js's 16 x 9 x 24 cells; per cell the CPU lists the lamps
-// whose sphere reaches it, and a pixel loops over its cell's list only. Hundreds of lamps cost what the lamps near
-// each pixel cost (a lamp of range 6 m reaches few cells), plus a CPU re-binning when the camera moves (info.binMs).
-//
+// What a pool lamp is: a point light shaded inside the lit materials (three's own falloff and the material's BRDF) but held as data
+// (one float texture, 3 texels a lamp). The view frustum is cut into lights.js's 16 x 9 x 24 cells; a pixel loops over its cell's lamps only.
 // Why this and not a deferred light volume per lamp (a box drawn after the opaque pass that adds light from the depth
 // buffer): Mirage keeps no G-buffer, so a volume knows neither albedo nor roughness nor the normal map; a dark door
 // would glow like plaster, the light would not bend with relief, and it would have to be fitted between the opaque
 // and transparent halves of the one scene render. In the materials it is the real light, so a lamp handed from the
 // pool to a PointLight (or back) changes nothing but its shadow.
 //
-// Real lights and the pool together: a visible scene PointLight within 3 cm of a pool lamp is that lamp's real light,
-// and the pool adds only what it lacks (1 - its intensity / the lamp's, per lamp, every render). A module that hands
-// its few PointLights to the lamps nearest the eye with a smooth weight (Nizwa's props.js, the probe's lamps) thus
-// gets a seamless hand-off: real + pool = the whole lamp at every weight, and nothing pops while walking.
-// The pool's power follows the world's lamp level (G.uLampGain, as the examples' lanterns do): 0 by day, so by day
-// the loop is skipped altogether.
+// Real lights and the pool: a visible scene PointLight within 3 cm of a pool lamp is that lamp's real light and the pool adds only what it lacks
+// (1 - its intensity / the lamp's), so handing a lamp between pool and PointLight with a smooth weight never pops. Power follows G.uLampGain: 0 by day, loop skipped.
 //
 // light2 (lamp shadows): pool lamps are offered to light2 as lamp-shadow candidates (addLampSource) at full power, and
 // a PointLight on a pool lamp is folded into that lamp, so the shadow slots go to the most important lamps whether or

@@ -5,9 +5,8 @@
 // pillow snack pack, a capsule, a spiral feeder. Sizes in metres, standing on y = 0.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { uvByHeight, uvRect } from './kit.js';
+import { uvByHeight, uvRect, lathe } from './kit.js';
 
-const lathe = (pts, seg) => { const g = new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(Math.max(r, 1e-4), y)), seg); g.computeVertexNormals(); return g; };
 const fit = (g, r) => uvRect(g, r);
 
 /** a 350 ml can: r 0.033, h 0.122 */

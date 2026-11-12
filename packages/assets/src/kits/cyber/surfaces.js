@@ -8,8 +8,7 @@
 //   const shop = interiorMaterial(ctx, { W: 2.6, H: 2.3, D: 3.2 }); // on a plane W x H behind the glass
 //   const A = textAtlas([{ text: '拉麵', style: 'neon', color: '#ff2a80', w: 256, h: 128 }]);  // A.texture, A.rect(0)
 import * as THREE from 'three';
-
-const FONT = '"PingFang TC", "Hiragino Sans", "Noto Sans TC", "Noto Sans JP", "Microsoft JhengHei", system-ui, sans-serif';
+import { FONT } from './kit.js';
 
 // ---------------------------------------------------------------------------------------------------------------
 /** A corrugated sheet, w (x) by h (y), facing +z, its back at z = 0. `ribs: 'h'` horizontal slats (a roller shutter,
