@@ -5,9 +5,8 @@
 // window.__strip({ base, ual, view }) draws 8 frames of a cycle, baseline over borrowed, and returns a PNG data URL.
 import * as THREE from 'three';
 import { createRigModel, RIG } from '../../../packages/play/src/rig-model.js';
-import { decodeClips, fromB64 } from './walk/clip-codec.js';
+import { motionClips } from '../../../packages/assets/src/kits/cyber/motion-clips.js';
 import { gaitMetrics } from './walk/gait-metrics.js';
-import data from './walk/ual-clips.js';
 
 const Q = new URLSearchParams(location.search);
 const W = +Q.get('w') || innerWidth, H = +Q.get('h') || innerHeight;
@@ -27,7 +26,7 @@ const robot = { skin: 0x8f969e, shirt: 0x3d6f8f, trousers: 0x4a5059, boots: 0x22
 const make = () => { const r = createRigModel({ colors: robot }); scene.add(r.root); return r; };
 const A = make(), B = make();
 const rest = {}; A.root.traverse((o) => { if (o.isBone) rest[o.name] = o.position.toArray(); });
-const ual = Object.fromEntries(decodeClips({ meta: data.meta, bytes: fromB64(data.b64) }, rest).map((c) => [c.name, c]));
+const ual = Object.fromEntries(motionClips().clips.map((c) => [c.name, c]));
 const base = Object.fromEntries(A.clips.map((c) => [c.name, c]));
 const speedOf = (c) => { const t = c?.tracks.find((x) => x.name === 'Root.position'); return t ? (t.values[t.values.length - 1] - t.values[2]) / c.duration : 0; };
 const atRate = (c, rate) => { const k = c.clone(); k.duration = c.duration / rate; for (const t of k.tracks) t.times = t.times.map((x) => x / rate); return k; };
@@ -46,7 +45,7 @@ A.root.position.x = -0.6; B.root.position.x = 0.6;
 const camera = new THREE.PerspectiveCamera(35, W / H, 0.05, 200);
 const mA = gaitMetrics(A.root, live.b), mB = gaitMetrics(B.root, live.u);
 const line = (m) => `slide ${m.slideMean} cm/s mean (median ${m.slideMedian}, p95 ${m.slideP95})  knee ${m.kneeL.join('-')} deg  bob ${m.bobCm} cm  ground ${m.groundCm} cm`;
-hud.textContent = `${clipName}${Q.get('game') === '1' ? ' at game speed' : ''}\nleft  today's clip   ${line(mA)}\nright borrowed      ${line(mB)}\n${data.b64.length} base64 chars for ${data.meta.length} clips`;
+hud.textContent = `${clipName}${Q.get('game') === '1' ? ' at game speed' : ''}\nleft  today's clip   ${line(mA)}\nright borrowed      ${line(mB)}`;
 let last = performance.now();
 const travelOf = (root) => root.getObjectByName('Root').position.z;
 function frame(dt) {
@@ -93,5 +92,5 @@ window.__strip = ({ base: bn = 'walk', ual: un = bn, view = 'side', frames = 8, 
   g.beginPath(); g.moveTo(0, th + 0.5); g.lineTo(cw, th + 0.5); g.stroke();
   return c2.toDataURL('image/png');
 };
-window.__metrics = () => ({ clip: clipName, base: mA, ual: mB, bytes: data.b64.length });
+window.__metrics = () => ({ clip: clipName, base: mA, ual: mB, clips: motionClips().clips.length });
 window.__READY = true;

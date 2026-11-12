@@ -392,7 +392,7 @@ export function setupDestruct({ ctx, shared, vfx, sfx, player, weapon, enemies, 
   game.system(() => { for (let i = wrecks.length - 1; i >= 0; i--) if (performance.now() > wrecks[i].until) { wrecks[i].h.stop(); wrecks.splice(i, 1); } });
 
   // ---- civilians: the street's robots as actors ------------------------------------------------------------------
-  const machines = world.scene.getObjectByName('machines'), B = machines?.userData.batches;
+  const machines = world.scene.getObjectByName('machines'), B = machines?.userData.batches, gait = machines?.userData.gait;
   const civ = [];
   const HEIGHT = { pedestrian: 1.45, walker: 1.45, courier: 0.7, vendor: 1.0, sweeper: 1.1 };
   const _m = new THREE.Matrix4(), _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _c = new THREE.Matrix4(), _r = new THREE.Matrix4(), _t = new THREE.Matrix4();
@@ -404,14 +404,20 @@ export function setupDestruct({ ctx, shared, vfx, sfx, player, weapon, enemies, 
     for (const [mesh, ids] of [[B.shell, u.shell], [B.lights, u.lights], [B.decals, u.decals]]) for (const id of ids) if (mesh && id != null) c.ids.push([mesh, id]);
     if (B.canopy && u.canopy[0] != null) { c.ids.push([B.canopy, u.canopy[0]]); if (u.canopy[1] != null) c.ids.push([B.shell, u.canopy[1]]); if (u.canopy[2] != null) c.ids.push([B.lights, u.canopy[2]]); }
     c.item = d.actor({ id: 'civ-' + u.id, pos: c.pos, height: HEIGHT[u.kind], radius: u.kind === 'courier' ? 0.4 : 0.3, health: 45, value: CIVILIAN.value, tags: ['civilian', u.kind], panicRadius: 11,
-      collapse: (it, k, dir) => { c.k = k; c.dir = dir; }, onPanic: () => { if (!c.item.broken) { c.cower = Math.max(c.cower, 0.01); c.cowerT = 7 + (civ.length % 3); } } });
-    c.item.civ = c; civ.push(c); count('civilian');
+      collapse: (it, k, dir) => { c.k = k; c.dir = dir; }, onPanic: () => { if (!c.item.broken) { if (u.kind !== 'walker') c.cower = Math.max(c.cower, 0.01); c.cowerT = 7 + (civ.length % 3); } } });
+    c.item.civ = c; c.hp0 = c.item.health; c.gait = 'walk'; civ.push(c); count('civilian');
   }
   // after the machines have posed every unit this frame: a fallen one folds over its feet where it fell, a scared
   // one crouches (written onto the instances the kit's robots wrote; a matrix it did not write again is left alone)
   const post = (dt) => {
     for (const c of civ) {
       const fallen = c.k > 0, cower = c.cower > 0;
+      // a walker that was scared runs on (the kit's jog) instead of crouching; one hit but still up limps on
+      if (c.u.kind === 'walker' && gait) {
+        c.cowerT = Math.max(0, c.cowerT - dt);
+        const g = fallen || c.item.broken ? 'walk' : c.cowerT > 0 ? 'jog' : c.item.health < c.hp0 ? 'broken' : 'walk';
+        if (g !== c.gait) { c.gait = g; gait(c.u.id, g); }
+      }
       if (c.moving && !fallen) { c.u.frame.copy(B.shell.getMatrixAt(c.u.shell[0], _m)); _p.setFromMatrixPosition(_m); c.pos[0] = _p.x; c.pos[2] = _p.z; d.place(c.item, c.pos); }
       if (!fallen && !cower) { if (c.last.size) c.last.clear(); continue; }
       if (cower) { c.cowerT -= dt; c.cower = c.cowerT > 0 ? Math.min(1, c.cower + dt * 4) : Math.max(0, c.cower - dt * 1.5); }

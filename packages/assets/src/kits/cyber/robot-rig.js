@@ -5,7 +5,8 @@
 //                   and toe-off, bent knees, the hip as low as the stance leg reaches, sway and arm swing); the clips
 //                   carry their travel (root motion), so playback can be scaled to the ground covered
 //   createHound     a robot dog on its own skeleton (a body, four legs of two links, a turret's yaw), skinned the same
-//                   way; posed in code each frame: a trot from the distance travelled, a crouch, a leap, a fall
+//                   way; posed in code each frame: a trot on the ground covered (stance feet held: each leg strides the
+//                   ground under its own hip, so a turn steps round), the body riding the stance legs, a crouch, a leap, a fall
 import * as THREE from 'three';
 import { humanoid, humanoidRig, quadruped, quadrupedDims, mergeParts, moved, bipedLegs, trotLegs, legIK, GAITS, LEN } from './robot-kit.js';
 
@@ -123,7 +124,7 @@ const LEGS = [['FL', 1, 1], ['FR', -1, 1], ['HL', 1, -1], ['HR', -1, -1]];
 /**
  * A robot dog: { root, model, bones, meshes: [[s, m] per lod], tip, D, pose(state, dt) }. style 'scout' | 'hauler'.
  * mats: { shell (with robot-kit's glow: it draws the lights too), metal }.
- * pose: { speed (m/s), dist (m travelled, drives the trot), crouch 0..1, leap 0..1 (in the air), dead (s since), aim
+ * pose: { speed (m/s; the trot runs on the ground covered), turn (yaw rate, rad/s: stepped round), crouch 0..1, leap 0..1 (in the air), dead (s since), aim
  * (the turret's yaw offset) }
  */
 export function createHound({ style, mats }) {
@@ -152,16 +153,24 @@ export function createHound({ style, mats }) {
   const tip = new THREE.Object3D(); (style === 'hauler' ? bones.turret : bones.body).add(tip);
   tip.position.set(0, style === 'hauler' ? D.H / 2 + 0.12 : 0, style === 'hauler' ? 0.46 : D.L / 2 + 0.03);
   const L = [[0, 0], [0, 0], [0, 0], [0, 0]], G = { v: style === 'hauler' ? 1.15 : 0.9, T: 1, duty: 0.42, lift: style === 'hauler' ? 0.09 : 0.07 };
-  let lod = 0, smooth = 0;
+  let lod = 0, smooth = 0, phase = 0;
+  const strides = [0, 0, 0, 0];
   function setLod(l) { if (l === lod) return; lod = l; meshes.forEach((set, i) => set.forEach((m) => { m.visible = i === l; })); }
   function pose(s, dt) {
-    const B = bones, sp = Math.min(1, s.speed / 1.2);
+    const B = bones, turn = s.dead ? 0 : s.turn || 0;
+    // the pace the legs keep: the ground speed, or a turn on the spot (each hip swings round at turn x its offset)
+    const q = Math.max(s.speed, Math.abs(turn) * 0.3), sp = Math.min(1, q / 1.2);
     smooth += (sp - smooth) * Math.min(1, dt * 6);
     const crouch = (s.crouch || 0) * D.stand * 0.28 + (s.dead ? Math.min(1, s.dead / 0.5) * (D.stand - D.H / 2 - 0.02) : 0);
-    // the trot: phase from the distance covered; standing, the feet come under the hips
-    const g = { ...G, lift: G.lift * smooth, v: G.v };
-    trotLegs(s.dist / G.v, D, g, crouch, L);
-    if (smooth < 0.05 && !s.dead) for (const l of L) { const [u, b] = legIK(0, D.foot - (D.stand - crouch), D.thigh, D.calf, -1); l[0] = u; l[1] = b; }
+    // the trot: the phase runs on the ground covered, so a stance foot stays where it landed; each leg's stride is
+    // the ground under its own hip (a turn: the outer legs reach further, on the spot the two sides step opposite ways)
+    phase += (q * dt) / G.v;
+    LEGS.forEach(([, sx], i) => { strides[i] = q > 1e-3 ? ((s.speed - turn * sx * (D.W / 2 + 0.035)) * G.duty * G.v) / q : 0; });
+    // the body rides the stance legs: lowest mid-stance, up again as the pair changes (twice a cycle)
+    const a = ((phase % 1) + 1) % 1 % 0.5, bob = -0.018 * smooth * (a < G.duty ? Math.sin(Math.PI * a / G.duty) : 0);
+    const g = { ...G, lift: G.lift * smooth };
+    trotLegs(phase, D, g, crouch - bob, L, strides);
+    if (smooth < 0.05 && !s.dead) for (const l of L) { const [a, b] = legIK(0, D.foot - (D.stand - crouch), D.thigh, D.calf, -1); l[0] = a; l[1] = b; }
     const leap = s.leap || 0;
     LEGS.forEach(([n, sx, sz], i) => {
       let up = L[i][0], bend = L[i][1];
@@ -170,7 +179,7 @@ export function createHound({ style, mats }) {
       B[n + 'U'].quaternion.copy(qx(-up)).premultiply(qz(sx * (s.dead ? -0.5 * Math.min(1, s.dead / 0.6) : 0.04)));
       B[n + 'L'].quaternion.copy(qx(-bend));
     });
-    const bob = smooth * 0.012 * Math.cos(TAU * 2 * s.dist / G.v), hop = leap > 0 ? Math.sin(Math.PI * leap) * 0.45 : 0;
+    const hop = leap > 0 ? Math.sin(Math.PI * leap) * 0.45 : 0;
     B.body.position.set(0, D.stand - crouch + bob + hop, 0);
     B.body.quaternion.copy(qx((s.crouch || 0) * 0.12 - (leap > 0 ? 0.25 * Math.cos(Math.PI * leap) : 0) + smooth * 0.04)).premultiply(qz(s.dead ? Math.min(1, s.dead / 0.7) * 1.15 : 0));
     B.turret.position.copy(B.body.position); B.turret.quaternion.copy(B.body.quaternion).multiply(qy(s.aim || 0));

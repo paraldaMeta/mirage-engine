@@ -193,6 +193,15 @@ export function humanoidMeshes(look: string, lod: number, kit: object, boneNames
 export function robotClips(): Record<string, THREE.AnimationClip>;
 /** per clip: [ground speed (m/s), cycle (s)] */
 export const CLIP_SPEED: Record<'idle' | 'walk' | 'run', [number, number]>;
+/** A decoded borrowed clip: frames hold per MOTION_BONES a quaternion, then the hips' position, per key (30 Hz). */
+export interface MotionClip { clip: THREE.AnimationClip; frames: Float32Array; keys: number; duration: number; speed: number; loop: boolean }
+/** The rotation tracks' bone order of the borrowed clips (the hips' position follows them). */
+export const MOTION_BONES: readonly string[];
+/** Borrowed motion capture (Quaternius' Universal Animation Library, CC0) retargeted onto the rig: idle, walk, run,
+ *  crouchWalk, brokenWalk, hitChest, hitHead, hitKnockback, die. Root.position is rebuilt from each clip's speed. */
+export function motionClips(): { clips: THREE.AnimationClip[]; byName: Record<string, MotionClip> };
+/** The pose of a borrowed clip at t seconds (looped when the clip loops) into out (MOTION_BONES.length * 4 + 3 floats). */
+export function samplePose(clip: MotionClip, t: number, out: Float32Array): Float32Array;
 /** A robot dog on its own skeleton, posed in code. */
 export function createHound(options: { style: string; mats: Record<string, THREE.Material> }): any;
 

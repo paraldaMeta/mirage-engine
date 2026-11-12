@@ -34,6 +34,9 @@
 //                  robot materials, gaits and leg IK (the neon district's enemies are built from it too)
 //   robot-rig.js   the robot kit's bodies skinned to @miragekit/play's rig (humanoidMeshes), walk / run / idle clips
 //                  from its gait (robotClips, CLIP_SPEED), a robot dog on its own skeleton (createHound)
+//   motion-clips.js borrowed motion capture for the rig (motionClips, samplePose: idle, walk, jog, crouch walk, a
+//                  broken walk, hits, a death, a knockdown; Quaternius' Universal Animation Library, CC0, retargeted;
+//                  motion-data.js says where from): the only data in the kit that was not made in code
 //   surfaces.js    corrugated sheet, canopies, worn painted metal, shop interiors behind glass, text atlases
 //
 // All brands, names and plates are invented. Text is English, Traditional Chinese and Japanese (the fonts of the
@@ -51,4 +54,5 @@ export { buildMachines, machineUnits } from './cyber/robots.js';
 export { tf, decalTexture, decalUV, surfaceLib as robotSurfaces, robotMaterials, COL, part, mergeParts, moved, ext, drum, link, cover, cable, decal,
   JOINTS, LEN, humanoid, humanoidRig, quadrupedDims, quadruped, legIK, bipedLegs, GAITS, trotLegs } from './cyber/robot-kit.js';
 export { humanoidMeshes, robotClips, CLIP_SPEED, createHound } from './cyber/robot-rig.js';
+export { motionClips, samplePose, MOTION_BONES } from './cyber/motion-clips.js';
 export { corrugated, canopy, WORN_DECL, worn, interiorMaterial, textAtlas, atlasQuad } from './cyber/surfaces.js';

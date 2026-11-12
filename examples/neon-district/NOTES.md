@@ -1277,8 +1277,8 @@ invented (KORVID SYSTEMS, MIRU HOME, QUADRA, KESTREL MOTOR WORKS). `node scripts
 - gait: `bipedLegs(phase, gait)`: the stance foot is fixed on the ground and moves back under the hip at exactly the
   gait's speed, rolled over the heel at strike and over the toe at push-off; the hip is as high as the stance leg's
   reach allows (a compass bob), the knees stay bent (robots walk crouched); two-bone IK (`legIK`) for the angles.
-  `robotClips()` bakes idle (weight shifts), walk and run for the rig; the enemies' blend plays at a rate that makes
-  the clips' travel equal to the ground covered (`speedParam`), so the feet do not slide. `trotLegs` for the dogs
+  `robotClips()` bakes idle (weight shifts), walk and run for the rig (no longer played: the enemies use borrowed motion
+  capture, "Robot motion" below). `trotLegs` for the dogs
   (diagonal pairs, knees back), driven by the distance travelled.
 
 **Enemies** keep every behaviour, hit volume and API: two skinned meshes per robot at each of three levels (the shell,
@@ -1351,6 +1351,85 @@ The pass costs 0.7-1.2 ms at medium and 1-2 ms at high, +30 draws and +270 k (me
 at street west: the near robots (6 k each, three passes), the civilians' near and middle levels (2.6-3.9 k each, no
 shadows) and the cars' wheels (48-segment tyres, no LOD). Won back, and more, by the frame budget pass ("Frame
 budget", "After the realism pass").
+
+## Robot motion (borrowed motion capture)
+
+**Source.** Quaternius' Universal Animation Library 1 and 2 [Standard], from OpenGameArt
+(`universal_animation_librarystandard.zip`, `universal_animation_library_2standard.zip`), downloaded 2026-11-12. The
+`License.txt` in each archive says "CC0 1.0 Universal (CC0 1.0) Public Domain Dedication". The author's site now
+publishes a later licence. That licence says it does not apply to assets obtained under an earlier one. The owner
+approved using the packs.
+
+**Data.** The packs hold no strafes, no turn-in-place, no side or back hits and only one death. Nine clips are retargeted
+onto the rig (`examples/demos/experiments/walk/bake-ual.mjs`, the engine's `retargetClip`):
+- idle, walk, jog, crouch walk, zombie walk;
+- hit chest, hit head, knockback;
+- death.
+
+They live in `packages/assets/src/kits/cyber/motion-data.js`, 52,117 B of JS (30.6 KB gzipped):
+- 37,884 B of keys at 30 Hz: int16 rotations, constant tracks stored once, travel stored as one speed;
+- one metadata row per clip, on a fixed bone order.
+
+`motion-clips.js` decodes them (`motionClips`) and samples a pose for bodies posed in code (`samplePose`). The worst
+angle error against the float bake is 0.15°. The game's code-made `robotClips` is no longer used by the game.
+
+**Enemies** (`game/enemies.js`):
+- **Locomotion.** A speed blend: idle; walk from 1.13 to 1.9 m/s; the jog placed at 4.4 m/s. The jog's own 5.8 m/s
+  stride is a sprinter's: blending it with the walk at the robots' 2.3-3 m/s keeps the cadence near 100 steps/min.
+  The playback rate is the ground speed over the blend's own travel.
+- **Cross-fades and side-steps.** Cross-fades between states take 0.1-0.35 s. A side-step turns the hips the way the
+  robot moves while the spine and chest turn back onto the aim. Going backwards plays the walk reversed. The shield
+  sentinel crouch-walks while it advances in a fight.
+- **Layers kept.** The hand-written aim layer (chest mask), the head look-at and the post scan are unchanged.
+- **Feet.** Within the middle level of detail (30 m) each foot's lowest sole point is held where it landed. A roll from
+  heel to toe hands the hold to the next point. `createFootIK` then sets each sole on the walk grid's ground (kerbs,
+  steps, slabs) and drops the pelvis. Standing while the body turns, a foot left 20 cm behind takes a procedural step:
+  lifted 9 cm and set down under the clip's foot, one foot at a time. This replaces a turn-in-place clip, which the
+  packs do not have. The far level poses every third step, without feet.
+- **Hits.**
+  - From the front, the borrowed chest or head flinch plays as an additive on the upper body.
+  - On top of it, an offset by body part: the head snaps along the round's travel; the trunk tips with it and the
+    shoulders twist by the hit's lever arm; a leg hit drops and rolls the pelvis onto that leg, and the foot solver
+    bends the knees. The offsets follow a damped spring (a push, a small rebound, gone in 0.8 s).
+  - Rocket splash, the stock, or a shotgun's pellets landing in one step (40 damage or more) cause a 0.7 s stagger:
+    the full-body chest hit, with the agent stopped and the burst dropped.
+- **Deaths.** The fall depends on the hit:
+  - shot from the front: the borrowed death (the knees buckle, then a fall backwards);
+  - heavy blow: the knockdown (thrown flat);
+  - shot from behind: an authored forward fold.
+
+  The fall is turned up to 35° toward the round's push. During the fall, the body is lifted or lowered so its lowest
+  shell rests on the ground under each joint. The hips, chest, head and knees spark where they strike. Once the clip
+  ends, the body is left alone.
+
+**Civilians** (`robots.js`). Walkers play the walk on the distance walked: the same positions as before for the same
+clock. A scared walker jogs (half walk, half jog, 2.8 m/s) instead of crouching. A hit walker that is still up limps on
+in the zombie walk at 0.55 m/s. `destruct.js` drives this through `group.userData.gait(id, gait)`; the felled fold is
+unchanged.
+
+**Hounds** (`robot-rig.js`). The procedural trot remains. The phase runs on the ground covered, and each leg's stride
+is the ground under its own hip, so a turn steps round (on the spot, the two sides step opposite ways). The body sits
+lowest at mid-stance, from the leg phase, twice a cycle.
+
+**Numbers** (`node scripts/anim-check.mjs [dist] --tag before|after`). Each type is alone on the plaza: walked at
+1.3 m/s, run at its fight speed, turned 150° on the spot. Soles are sampled every 1/60 s against the walk grid's ground.
+"Slide" is the speed of the lowest sole point while it is within 2 cm of the ground. Columns: slide median / mean / p90
+(cm/s), locked share, knee range (°), the deepest point under the ground (cm). Before is 835a7a6.
+
+| type, gait | before | after |
+|---|---|---|
+| sentinel walk | 5.6 / 52 / 229, 66 %, 8-65°, -2.1 | 0 / 11 / 53, 78 %, 5-88°, 0 |
+| sentinel run 3.0 | 23 / 88 / 275, 27 %, 5-75°, -3.1 | 0 / 16 / 72, 77 %, 5-90°, -1.9 |
+| warden walk | 15 / 61 / 239, 17 % | 0 / 10 / 34, 80 % |
+| warden run 2.3 | 34 / 99 / 360, 2 % | 0 / 16 / 54, 74 % |
+| shield run 2.5 | 33 / 103 / 401, 24 % | 0 / 21 / 62, 78 % |
+| marksman run 2.4 | 38 / 105 / 382, 30 % | 0 / 36 / 101, 64 % |
+| turn on the spot (all four) | 0.7 / 21 / 73, 76 %, sink -0.2 | 0 / 1.3 / 0, 97 %, sink 0 |
+| civilian walker | 9.5 / 80 / 323, 57 %, 4-62°, -4.3 | 5.8 / 20 / 74, 73 %, 10-88°, 0 |
+| lowest joint at rest after a death | -6.5 to -7.3 (under the floor) | +4.4 to +4.9 |
+
+The hips' bob at a walk is 5.4-6 cm (it was 4.9-5.4). Strips go to `out/anim/` (gitignored): walk, run, turn, hit in
+the front, death per type, the civilian walker, the hound's trot and turn.
 
 ## Destructibles (things break when shot)
 

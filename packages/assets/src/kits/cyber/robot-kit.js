@@ -562,11 +562,12 @@ export const GAITS = {
 };
 
 /** a dog's legs at phase p for a trot (diagonal pairs) or a stand: { v, T, duty, lift }; D: quadrupedDims.
+ *  strides: per leg the ground its stance foot covers (default v T duty for all; a turn asks less of the inner legs).
  *  Returns per leg (FL, FR, HL, HR) [upper angle, bend] for knees that point back, and the body's height */
-export function trotLegs(p, D, G, crouch = 0, out = [[0, 0], [0, 0], [0, 0], [0, 0]]) {
-  const stride = G.v * G.T * G.duty, h = D.stand - crouch;
+export function trotLegs(p, D, G, crouch = 0, out = [[0, 0], [0, 0], [0, 0], [0, 0]], strides = null) {
+  const h = D.stand - crouch;
   [[0, 0], [1, 0.5], [2, 0.5], [3, 0]].forEach(([i, off]) => {
-    const ph = ((p + off) % 1 + 1) % 1;
+    const ph = ((p + off) % 1 + 1) % 1, stride = strides ? strides[i] : G.v * G.T * G.duty;
     let z, y;
     if (ph < G.duty) { const u = ph / G.duty; z = stride * (0.5 - u); y = 0; }
     else { const u = (ph - G.duty) / (1 - G.duty), s = sstep(u); z = -stride / 2 + stride * s; y = G.lift * Math.sin(Math.PI * u); }
