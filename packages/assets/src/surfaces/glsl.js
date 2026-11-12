@@ -1352,11 +1352,22 @@ MsS ms_roofing(vec2 u){
     col = msA.rgb * (0.94 + 0.08 * m1 + 0.04 * m2); r = msA.a + 0.04 * m2; h = 0.5 + 0.05 * m2 + 0.15 * bead;
     col *= 1.0 + 0.15 * bead;
   } else {
-    vec4 pb = msCell(u, 40.0, 1.0);
-    float dome = sqrt(max(1.0 - pb.x * pb.x * 2.6, 0.0)), k = msLod(0.03);
-    col = msA.rgb * mix(0.6, 1.5, pb.z) * mix(vec3(1.0), vec3(0.75, 0.68, 0.6), step(0.8, pb.w)) * (0.9 + 0.2 * msFbm(u + pb.zw * 9.0, 60.0, 2));
-    col = mix(msA.rgb, col, k);
-    h = mix(0.5, 0.1 + 0.85 * dome, k); r = 0.82 - 0.1 * dome * k; ao = mix(1.0, 0.5 + 0.5 * dome, k);
+    // gravel: stones of three sizes (5..60 mm) scattered in a sandy matrix of fines, not a packed carpet of beads;
+    // each stone its own rock (grey, ochre, pale quartz, dark), the matrix compacted smooth in patches, darker there
+    float fines = msFbm(u + 1.0, 180.0, 2), pack = smoothstep(0.2, 0.7, msFbm(u + 6.0, 1.5, 3) * 0.5 + 0.5);
+    vec2 sd = msSpeck(u + 2.0, 260.0, 0.5, 0.45, 1.0);
+    col = msA.rgb * (0.85 + 0.12 * fines + 0.1 * msFbm(u + 3.0, 6.0, 3)) * mix(1.0, 0.7 + 0.7 * sd.y, sd.x * 0.6) * (1.0 - 0.15 * pack);
+    h = 0.3 + 0.04 * fines + 0.04 * sd.x - 0.05 * pack + 0.1 * msFbm(u + 4.0, 45.0, 3) * (1.0 - 0.6 * pack); r = 0.9 - 0.06 * pack;
+    for (int i = 0; i < 3; i++) {
+      float f = i == 0 ? 16.0 : i == 1 ? 38.0 : 90.0, share = (i == 0 ? 0.12 : i == 1 ? 0.3 : 0.45) * (1.0 - 0.5 * pack);
+      vec4 pb = msCell(msWarp(u + float(i) * 3.1, f * 0.5, 0.15 / f), f, 1.0);
+      float on = step(1.0 - share, pb.z) * msLod(1.0 / f);
+      float st = (1.0 - smoothstep(0.3 + 0.1 * pb.w, 0.42 + 0.1 * pb.w, pb.x)) * on, dome = sqrt(max(1.0 - pb.x * pb.x * 5.0, 0.0));
+      vec3 rk = pb.w < 0.45 ? vec3(0.95, 0.92, 0.88) : pb.w < 0.7 ? vec3(1.25, 0.95, 0.65) : pb.w < 0.85 ? vec3(1.7, 1.6, 1.5) : vec3(0.45);
+      col = mix(col, msA.rgb * rk * (0.8 + 0.3 * fract(pb.z * 13.0)) * (0.85 + 0.3 * dome), st);
+      h = mix(h, 0.35 + 0.6 * dome * (1.0 - 0.3 * float(i)), st); r = mix(r, 0.7 + 0.15 * fract(pb.w * 7.0), st);
+      ao *= 1.0 - 0.3 * on * (1.0 - smoothstep(0.42, 0.6, pb.x)) * (1.0 - st);   // the shadowed rim round each stone
+    }
   }
   col *= 1.0 - 0.4 * lap; h -= 0.2 * lap;
   return MsS(col, clamp(r, 0.04, 1.0), clamp(h, 0.0, 1.0), 0.0, ao);
