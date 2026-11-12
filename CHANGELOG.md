@@ -121,7 +121,7 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
   in code (walls with doors and windows, floors, columns, beams, an archway, straight and spiral stairs, four
   railings, a ramp, steps, a ladder, gable / hip / flat roofs, dormers, chimneys, gutters, balconies, awnings, three
   fences, a gate, mouldings), five material styles from core's procedural surfaces, and `house()`, a whole house
-  from a seed (a 3 x 2 bay, two-storey house is about 12,500 triangles). Demo `examples/demos/building`; checked by
+  from a seed (a 3 x 2 bay, two-storey house is 13,000 to 16,000 triangles). Demo `examples/demos/building`; checked by
   `packages/assets/building.check.mjs`.
 - @miragekit/game: destructibles (`createDestructibles`, also `@miragekit/game/destruct`; experimental, opt-in,
   `docs/destructibles.md`). Props register over what is already drawn (a mesh, one instance of an `InstancedMesh` or

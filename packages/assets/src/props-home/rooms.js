@@ -4,12 +4,12 @@
 // size. The same seed furnishes it the same way.
 //   const MH = homeMaterials(ctx), MB = buildingMaterials(ctx, 'stucco');
 //   room(b, MH, MB, geom.compose([0, 0, 0]), { kind: 'office', size: [5, 4], seed: 2 });
-import * as THREE from 'three';
+import { rng } from '@miragekit/core/rng';
+import { at as T } from '../building/parts.js';
 import * as P from './props.js';
 import { wallPanel, wallDoor, wallWindow, floorSlab } from '../building/parts.js';
 
-const T = (m, p = [0, 0, 0], r = [0, 0, 0]) => { const o = new THREE.Matrix4().compose(new THREE.Vector3(...p), new THREE.Quaternion().setFromEuler(new THREE.Euler(r[0], r[1], r[2], 'YXZ')), new THREE.Vector3(1, 1, 1)); return m ? m.clone().multiply(o) : o; };
-const rnd = (seed) => { let s = (seed * 2654435761 >>> 0) || 1; return () => ((s ^= s << 13, s ^= s >>> 17, s ^= s << 5) >>> 0) / 4294967296; };
+const rnd = (seed) => rng(seed).next;
 export const ROOM_KINDS = ['living', 'kitchen', 'bedroom', 'bathroom', 'office'];
 
 /** A furnished room `size` [w, d] (inside), its floor at y 0, centred; `kind` one of ROOM_KINDS. Returns { width, depth }. */

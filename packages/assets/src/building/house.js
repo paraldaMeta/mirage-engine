@@ -5,7 +5,8 @@
 // (some with shutters, a balcony or two upstairs), floor slabs, corner pilasters, a roof (gable | hip | flat), a
 // chimney, gutters, entrance steps. The same seed gives the same house. Returns { width, depth, height, doors }
 // (door centres in the house's frame, for a walk-through's anchors).
-import { wallPanel, wallOpenings, corner, floorSlab, roofGable, roofHip, roofFlat, chimney, gutter, stoop, balcony, shutters, moulding } from './parts.js';
+import { wallPanel, wallOpenings, corner, floorSlab, roofGable, roofHip, roofFlat, chimney, gutter, stoop, balcony, shutters, moulding, at } from './parts.js';
+import { rng } from '@miragekit/core/rng';
 import * as THREE from 'three';
 
 /** Linear-albedo bases (GLSL) of each style: wall, trim, stone, roof. */
@@ -37,12 +38,10 @@ export function buildingMaterials(ctx, style = 'stucco') {
   return M;
 }
 
-const rnd = (seed) => { let s = (seed >>> 0) || 1; return () => ((s = Math.imul(s ^ (s >>> 15), 2246822507) ^ Math.imul(s ^ (s >>> 13), 3266489909)) >>> 0) / 4294967296; };
-
 /** A house of `bays` [across, deep] 3 m bays and `storeys` 3 m storeys, its front (with the door) toward +z, centred. */
 export function house(b, M, m, { bays = [3, 2], storeys = 2, roof = 'gable', seed = 1, bay = 3, storey = 3, thick = 0.25, plinth = 0.5 } = {}) {
-  const R = rnd(seed), W = bays[0] * bay, D = bays[1] * bay, H = storeys * storey;
-  const T = (p, r = [0, 0, 0]) => { const o = new THREE.Matrix4().compose(new THREE.Vector3(...p), new THREE.Quaternion().setFromEuler(new THREE.Euler(r[0], r[1], r[2], 'YXZ')), new THREE.Vector3(1, 1, 1)); return m ? m.clone().multiply(o) : o; };
+  const R = rng(seed).next, W = bays[0] * bay, D = bays[1] * bay, H = storeys * storey;
+  const T = (p, r) => at(m, p, r);
   const doors = [], frontDoor = Math.floor(bays[0] / 2);
   // the four sides: [count of bays, centre, yaw]
   const sides = [[bays[0], [0, D / 2 - thick / 2], 0, true], [bays[0], [0, -D / 2 + thick / 2], Math.PI, false], [bays[1], [W / 2 - thick / 2, 0], Math.PI / 2, false], [bays[1], [-W / 2 + thick / 2, 0], -Math.PI / 2, false]];

@@ -8,20 +8,18 @@
 // Sizes follow common furniture: seats at 0.42-0.46 m, tables at 0.74 m, counters at 0.9 m, a bed's top at 0.55 m.
 // Options name colours as [r, g, b] (linear); `seed` varies what a prop has on it (books, plates, papers).
 import * as THREE from 'three';
+import { rng } from '@miragekit/core/rng';
+import { at as T } from '../building/parts.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
 // ---------------------------------------------------------------------------------------------------------------
-const T = (m, p = [0, 0, 0], r = [0, 0, 0], s = 1) => {
-  const o = new THREE.Matrix4().compose(new THREE.Vector3(...p), new THREE.Quaternion().setFromEuler(new THREE.Euler(r[0], r[1], r[2], 'YXZ')), new THREE.Vector3(...(typeof s === 'number' ? [s, s, s] : s)));
-  return m ? m.clone().multiply(o) : o;
-};
 /** a vertex colour over the whole geometry */
 function tinted(g, c) { const n = g.attributes.position.count, a = new Float32Array(n * 3); for (let i = 0; i < n; i++) a.set(c, i * 3); g.setAttribute('color', new THREE.BufferAttribute(a, 3)); return g; }
 const put = (b, g, mat, m, c = WHITE) => b.add(tinted(g.index ? g.toNonIndexed() : g, c), mat, m);
 const box = (b, mat, m, size, pos, c, rot = [0, 0, 0], r = 0) => put(b, r ? new RoundedBoxGeometry(size[0], size[1], size[2], 2, Math.min(r, 0.45 * Math.min(...size))) : new THREE.BoxGeometry(...size), mat, T(m, pos, rot), c);
 const cyl = (b, mat, m, r0, r1, h, pos, c, rot = [0, 0, 0], seg = 18) => put(b, new THREE.CylinderGeometry(r0, r1, h, seg), mat, T(m, pos, rot), c);
 const lathe = (b, mat, m, pts, pos, c, seg = 24) => put(b, new THREE.LatheGeometry(pts.map(([x, y]) => new THREE.Vector2(x, y)), seg), mat, T(m, pos), c);
-const rnd = (seed) => { let s = (seed * 2654435761 >>> 0) || 1; return () => ((s ^= s << 13, s ^= s >>> 17, s ^= s << 5) >>> 0) / 4294967296; };
+const rnd = (seed) => rng(seed).next;
 const WHITE = [1, 1, 1], OAK = [0.75, 0.6, 0.45], WALNUT = [0.42, 0.3, 0.22], STEEL = [0.62, 0.63, 0.65], DARK = [0.05, 0.05, 0.055], BLACK = [0.02, 0.02, 0.022];
 const legs4 = (b, M, m, w, d, h, r, inset, c, mat = M.wood) => { for (const sx of [-1, 1]) for (const sz of [-1, 1]) cyl(b, mat, m, r, r * 0.8, h, [sx * (w / 2 - inset), h / 2, sz * (d / 2 - inset)], c, [0, 0, 0], 10); };
 

@@ -14,13 +14,11 @@
 // it should open (the kit merges it with the rest: build doors you want to swing with doorLeaf() into a batch of
 // their own).
 import * as THREE from 'three';
-import { softBox, wall as wallGeo, archPath } from '@miragekit/core/geom';
+import { softBox, wall as wallGeo, archPath, compose } from '@miragekit/core/geom';
 
 const DEG = Math.PI / 180;
-const at = (m, p = [0, 0, 0], r = [0, 0, 0], s = 1) => {
-  const o = new THREE.Matrix4().compose(new THREE.Vector3(...p), new THREE.Quaternion().setFromEuler(new THREE.Euler(r[0], r[1], r[2], 'YXZ')), new THREE.Vector3(...(typeof s === 'number' ? [s, s, s] : s)));
-  return m ? m.clone().multiply(o) : o;
-};
+/** a local transform (core's compose: position, YXZ rotation, scale) under a parent matrix (or none) */
+export const at = (m, p, r, s) => (m ? m.clone().multiply(compose(p, r, s)) : compose(p, r, s));
 const box = (b, mat, m, size, pos, rot = [0, 0, 0], r = 0) => b.add(r ? softBox(size[0], size[1], size[2], r) : new THREE.BoxGeometry(size[0], size[1], size[2]), mat, at(m, pos, rot));
 const cyl = (b, mat, m, r0, r1, h, pos, rot = [0, 0, 0], seg = 16) => b.add(new THREE.CylinderGeometry(r0, r1, h, seg), mat, at(m, pos, rot));
 

@@ -37,8 +37,8 @@ Conventions: metres, +y up; a part stands on y = 0 at its matrix, front toward +
 `house(batch, M, matrix, { bays: [across, deep], storeys, roof: 'gable' | 'hip' | 'flat', seed })` lays out 3 m bays:
 a door in the front's middle bay, windows elsewhere (round or flat heads, shutters, balconies upstairs), floors,
 mouldings between storeys, a plinth, corner pilasters, entrance steps, the roof, a chimney, gutters. The same seed
-gives the same house. It returns `{ width, depth, height, doors }`. A two-storey 3 x 2 bay house is about 12,500
-triangles.
+gives the same house. It returns `{ width, depth, height, doors }`. A two-storey 3 x 2 bay house is 13,000 to
+16,000 triangles (ten seeds).
 
 Styles (`BUILDING_STYLES`): `stucco`, `stone`, `brick`, `timber`, `concrete`.
 
