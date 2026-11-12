@@ -120,7 +120,7 @@ metallic paint at range). `npm test` (`packages/assets/surfaces.check.mjs`) hold
 |---|---|---|---|---|---|---|---|---|---|
 | `concrete` | masonry | cast, boardFormed, painted, precast | 2.4 | 6 | 0.8 | 0.18–0.42 | 0.75–0.95 | 0 | Portland cement concrete 0.20-0.40 (fresh grey ~0.35, weathered 0.20-0.30) |
 | `asphalt` | ground | fresh, worn, patched | 1.2 | 5 | 0.35 | 0.03–0.16 | 0.3–0.95 | 0 | binder 0.03-0.06; aggregate 0.10-0.30; worn surface overall 0.08-0.14; crack sealant (tar) glossy 0.3-0.4 |
-| `paving` | ground | slabs, setts, polished, hex | 2.4 | 12 | 0.5 | 0.08–0.42 | 0.1–0.95 | 0 | concrete flags 0.25-0.35, granite setts 0.10-0.30, polished granite 0.08-0.40 (roughness 0.10-0.30) |
+| `paving` | ground | slabs, setts, polished, hex, flags | 2.4 | 12 | 0.5 | 0.08–0.42 | 0.1–0.95 | 0 | concrete flags 0.25-0.35, granite setts 0.10-0.30, polished granite 0.08-0.40 (roughness 0.10-0.30) |
 | `brick` | masonry | common, engineering, painted, stock | 2.25 | 20 | 0.7 | 0.06–0.45 | 0.5–0.95 | 0 | red clay brick R 0.20-0.40; engineering blue 0.05-0.10 (dense, roughness ~0.6); London stock ~(0.40, 0.30, 0.17); lime mortar 0.35-0.55 |
 | `render` | masonry | smooth, pebbledash, roughcast | 2 | 8 | 0.75 | 0.3–0.8 | 0.75–0.95 | 0 | cement / lime render 0.40-0.75; painted white ~0.75 |
 | `tile` | ceramic | subway, square, mosaic, floor | 1.2 | 4 | 0.1 | 0.03–0.85 | 0.04–0.95 | 0 | white glaze 0.70-0.85 (roughness 0.05-0.15); grout 0.30-0.60 (per pixel under auto) |

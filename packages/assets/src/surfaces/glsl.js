@@ -479,8 +479,9 @@ MsS ms_tile(vec2 u){
     float craze = msLine((cz.y - cz.x) * msT / msP(30.0) * 0.5, 0.00025) * msD.a * msLod(0.01);
     glaze *= 1.0 - 0.25 * craze; r += 0.15 * craze;
   }
+  if (V < 2.5) h += 0.04 * msFbm(u + t.yz * 4.0, 9.0, 3);           // the glaze is never a mirror: a slow wave in it
   float grout = 1.0 - smoothstep(gw - 0.4 * msFP, gw + msFP, de);
-  vec3 gc = msC.rgb * (0.85 + 0.25 * (msFbm(u + 3.0, 80.0, 2) * 0.5 + 0.5));
+  vec3 gc = msC.rgb * (0.85 + 0.25 * (msFbm(u + 3.0, 80.0, 2) * 0.5 + 0.5)) * (1.0 - 0.35 * smoothstep(0.3, 0.8, msFbm(u + 5.0, 3.0, 3) * 0.5 + 0.5));   // grime in the grout, patchy
   vec3 col = mix(glaze, gc, grout);
   r = mix(r, 0.92, grout); h = mix(h, 0.12, grout);
   float ao = 1.0 - 0.45 * grout - 0.15 * (1.0 - edge) * (1.0 - grout);
@@ -801,15 +802,17 @@ MsS ms_castIron(vec2 u){
     raised = 0.85 + 0.15 * m1;
   }
   recess = 1.0 - raised;
-  float rust = clamp(msB.a * (smoothstep(0.2, 0.7, recess + 0.3 * m2) + 0.25 * (m1 * 0.5 + 0.5)), 0.0, 1.0);
+  vec2 pits = msSpeck(u + 3.0, 160.0, 0.25, 0.35, 2.0);            // the casting's sand pits
+  float rust = clamp(msB.a * (smoothstep(0.2, 0.7, recess + 0.3 * m2 + 0.3 * pits.x) + 0.25 * (m1 * 0.5 + 0.5)), 0.0, 1.0);
   vec3 bare = msA.rgb * (0.85 + 0.15 * sand);
   vec3 dirt = mix(vec3(0.04, 0.035, 0.03), msB.rgb, rust);
   float wornTop = smoothstep(0.6, 0.95, raised);
   vec3 col = mix(dirt * (0.8 + 0.3 * sand), bare, wornTop * (1.0 - 0.6 * rust * (1.0 - wornTop)));
   float met = wornTop * (1.0 - 0.7 * rust * (1.0 - wornTop));
   float r = mix(0.88 + 0.05 * sand, msA.a + 0.08 * sand, wornTop);
-  float h = 0.25 + 0.6 * raised + 0.04 * sand;
-  float ao = 1.0 - 0.5 * recess;
+  float h = 0.25 + 0.6 * raised + 0.04 * sand - 0.08 * pits.x;
+  col = mix(col, msB.rgb * 1.3, smoothstep(0.55, 0.75, raised) * (1.0 - wornTop) * msB.a * 0.6);   // the orange rim at a top's edge
+  float ao = 1.0 - 0.5 * recess - 0.2 * pits.x;
   col = mix(col, vec3(0.006), clamp(hole, 0.0, 1.0)); h = mix(h, 0.0, clamp(hole, 0.0, 1.0)); ao *= 1.0 - 0.9 * clamp(hole, 0.0, 1.0); met *= 1.0 - clamp(hole, 0.0, 1.0);
   return MsS(col, clamp(r, 0.04, 1.0), clamp(h, 0.0, 1.0), met, ao);
 }`,
@@ -1139,6 +1142,13 @@ MsS ms_paper(vec2 u){
   float fib = msFbm(u, 400.0, 2) * msLod(0.0015);
   vec3 col = msA.rgb * (0.95 + 0.06 * m1 + 0.05 * fib) * (1.0 + 0.2 * (fb.w - 0.5) * strand);
   float r = msA.a + 0.03 * fib, h = 0.5 + 0.15 * fib + 0.1 * strand, ao = 1.0;
+  // handled: the sheet cockles (damp), a fold or two pressed in, scuffed pale where rubbed, a water stain's tide line
+  vec4 fo = msCell(msWarp(u, 3.0, 0.02) + 4.0, 2.0, 1.0);
+  float fold = msLine((fo.y - fo.x) * msT / msP(2.0) * 0.5, 0.0008) * step(0.6, fo.z);
+  float cockle = msFbm(u + 1.0, 9.0, 3), scuff = smoothstep(0.65, 0.85, msFbm(u + 7.0, 6.0, 3) * 0.5 + 0.5);
+  float wm = msFbm(msWarp(u + 3.0, 4.0, 0.03), 2.0, 3), tide = msLine(wm - 0.35, 0.004), stain = step(0.35, wm);
+  col *= (1.0 - 0.12 * fold) * (1.0 + 0.1 * scuff) * (1.0 - 0.1 * stain) * (1.0 - 0.25 * tide);
+  h += 0.15 * cockle - 0.15 * fold; r += 0.04 * scuff; ao *= 1.0 - 0.2 * fold;
   if (V < 0.5) {
     // kraft board: the flutes under the liner show as soft ridges along u
     float fl = 0.5 + 0.5 * cos(2.0 * MS_PI * u.y / msSnap(msB.x));
@@ -1279,8 +1289,15 @@ MsS ms_bamboo(vec2 u){
   float fibre = msFbm2(u + b.yz * 3.0, vec2(3.0, 500.0), 2) * msLod(0.0015);
   vec3 col = msA.rgb * (0.85 + 0.3 * b.y) * (0.94 + 0.06 * fibre) * mix(vec3(1.0), vec3(0.8, 0.82, 0.7), node * 0.8);
   col *= 1.0 - 0.25 * smoothstep(0.3, 0.8, msFbm2(u + b.zx, vec2(2.0, 10.0), 2)) * msW.x;   // dark mottle with age
-  float h = 0.15 + 0.75 * prof + 0.08 * ridge + 0.03 * fibre;
-  float r = msA.a + 0.06 * fibre + 0.1 * node;
+  // the skin: faint long stripes along the culm, a dark scar ring under each node (the sheath's), splits along the
+  // grain, the wax worn off in patches (duller, paler)
+  float stripe = msFbm2(u + b.xy * 5.0, vec2(1.0, 120.0), 2);
+  float scar = msLine((nx - 0.5) * ns + 0.012, 0.004);
+  float split = msLine(msFbm2(u + b.zx * 7.0, vec2(1.5, 1.0 / w), 2) * w * 0.3, 0.0004) * step(0.6, b.z) * msLod(0.003);
+  float dull = smoothstep(0.5, 0.8, msFbm(u + b.yx * 3.0, 4.0, 3) * 0.5 + 0.5);
+  col *= (1.0 + 0.08 * stripe) * (1.0 - 0.35 * scar) * (1.0 - 0.6 * split) * (1.0 + 0.1 * dull);
+  float h = 0.15 + 0.75 * prof + 0.08 * ridge + 0.03 * fibre + 0.03 * stripe - 0.2 * split;
+  float r = msA.a + 0.06 * fibre + 0.1 * node + 0.2 * dull + 0.1 * scar;
   float ao = 0.5 + 0.5 * smoothstep(0.0, 0.25, prof);
   return MsS(col, clamp(r, 0.04, 1.0), clamp(h, 0.0, 1.0), 0.0, ao);
 }`,
@@ -1328,7 +1345,8 @@ MsS ms_leather(vec2 u){
   carbonFibre: /* glsl */ `
 MsS ms_carbonFibre(vec2 u){
   float w = msSnap(msB.x);
-  vec2 q = u / w, c = floor(q), f = fract(q);
+  // tows never lie quite straight (a slow wander of the weave), resin pools a hair glossier and darker
+  vec2 q = (u + 0.25 * w * vec2(msFbm(u, 6.0, 2), msFbm(u + 3.0, 6.0, 2))) / w, c = floor(q), f = fract(q);
   // 2x2 twill: a tow goes over two and under two, shifted one per row
   float over = step(mod(c.x - c.y, 4.0), 1.5);
   float k = msLod(w);
@@ -1340,7 +1358,9 @@ MsS ms_carbonFibre(vec2 u){
   vec3 col = msA.rgb * mix(1.0, 0.8 + 0.4 * crown + 0.15 * (over - 0.5), k);
   vec3 tw = mgHash3(vec3(mod(c, vec2(msT / w)), msSeed));             // each tow a little apart (resin, tension)
   col *= 0.94 + 0.12 * tw.x;
-  float r = msA.a + mix(0.0, 0.15 * (1.0 - crown), k) + 0.04 * (tw.y - 0.5);
+  float pool = smoothstep(0.6, 0.9, msFbm(u + 5.0, 9.0, 3) * 0.5 + 0.5);
+  col *= 1.0 - 0.2 * pool;
+  float r = msA.a + mix(0.0, 0.15 * (1.0 - crown), k) + 0.04 * (tw.y - 0.5) - 0.08 * pool;
   return MsS(col, clamp(r, 0.04, 1.0), clamp(h, 0.0, 1.0), 0.0, 1.0);
 }`,
 
@@ -1349,8 +1369,11 @@ MsS ms_carbonFibre(vec2 u){
 MsS ms_ceramic(vec2 u){
   float V = msX.z;
   float m1 = msFbm(u, 4.0, 3), fine = msFbm(u + 2.0, 250.0, 2) * msLod(0.003);
-  vec3 col = msA.rgb * (0.96 + 0.06 * m1);
-  float r = msA.a, h = 0.5 + 0.06 * m1;
+  // the glaze runs and pools (thicker: deeper tone), iron specks from the clay come through, the surface waves
+  float pool = smoothstep(0.2, 0.8, msFbm2(u + 2.0, vec2(6.0, 2.0), 3) * 0.5 + 0.5);
+  vec2 sp = msSpeck(u + 6.0, 90.0, 0.06, 0.25, 1.0);
+  vec3 col = msA.rgb * (0.96 + 0.06 * m1) * mix(vec3(1.0), vec3(0.85, 0.82, 0.8), pool * 0.6) * (1.0 - 0.5 * sp.x);
+  float r = msA.a, h = 0.5 + 0.06 * m1 + 0.12 * msFbm(u + 4.0, 5.0, 3);
   if (V > 0.5 && V < 1.5) { h += 0.3 * fine; r = max(r, 0.7) + 0.05 * fine; col *= 0.95 + 0.08 * fine; }
   // glaze: thicker in hollows (a darker pool), crazing network
   vec4 cz = msCell(u, 40.0, 1.0);
