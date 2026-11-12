@@ -28,7 +28,9 @@ export default {
     slab(b, M.relayFloor, [x0 + T, z0 + T, part, z1 - T], -0.2, F);                       // the room's floor
     slab(b, M.relayFloor, [P.door.x - P.door.width / 2, z1 - T, P.door.x + P.door.width / 2, z1], -0.2, F);   // threshold
     slab(b, M.plastic, [x0 + T, z0 + T, part, z1 - T], H - 0.1, H);                       // ceiling panels
-    slab(b, M.roofing, [x0, z0, part, z1], H, RF);                                        // the roof slab (plant floor inside it)
+    // the roof slab (plant floor inside it), inside the walls: flush with their outer faces it z-fought with the
+    // fascia, the north and the west wall from 3.6 to 6 m (the band round RELAY·7 flashed)
+    slab(b, M.roofing, [x0 + T, z0 + T, part, z1 - T], H, RF);
     // the stairwell's box: walls up to TOP, a lid, and the partition toward the room with a door at each level
     slab(b, M.concreteDry, [part, z0, x1, t0], 0, TOP);
     slab(b, M.concreteDry, [s1, t0, x1, t1], 0, TOP);
