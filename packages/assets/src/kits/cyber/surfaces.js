@@ -140,7 +140,7 @@ vec3 ndGoods(vec2 p, float rowH, float seed, out float has){
         if (conv) {
           float has; vec3 g = ndGoods(hp.xy, 0.36, seed, has);
           float fr = step(W * 0.6, hp.x);                  // the fridge wall: lit glass doors, bottles behind
-          col = mix(vec3(0.5), g, has * step(0.25, hp.y) * step(hp.y, 1.9));
+          col = mix(vec3(0.22), g, has * step(0.25, hp.y) * step(hp.y, 1.9));
           col = mix(col, vec3(0.06), smoothstep(0.03, 0.0, fract(hp.y / 0.36)) * step(0.25, hp.y) * step(hp.y, 1.95));
           float door = step(0.03, fract((hp.x - W * 0.6) / 0.6)) * step(0.15, hp.y) * step(hp.y, 2.0);
           vec3 bott = mix(vec3(0.3, 0.6, 0.25), vec3(0.8, 0.3, 0.2), mgHash(vec2(floor(hp.x / 0.07), floor(hp.y / 0.3)))) * step(0.3, fract(hp.x / 0.07)) * step(fract(hp.y / 0.3), 0.75);
@@ -148,7 +148,7 @@ vec3 ndGoods(vec2 p, float rowH, float seed, out float has){
           emit = fr * door * 0.8;
         } else if (noodle) {
           vec2 tg = abs(fract(hp.xy / vec2(0.15, 0.075)) - 0.5);
-          col = vec3(0.82, 0.8, 0.75) * (1.0 - 0.35 * step(0.44, max(tg.x, tg.y)));     // white tiles, grey grout
+          col = vec3(0.6, 0.58, 0.54) * (1.0 - 0.35 * step(0.44, max(tg.x, tg.y)));     // white tiles, grey grout
           vec2 mb = abs(hp.xy - vec2(W * 0.5, 1.95)) - vec2(W * 0.38, 0.22);
           float board = step(max(mb.x, mb.y), 0.0);       // the menu board: lit, rows of dishes and prices
           float line = step(0.5, fract(hp.y / 0.07)) * step(0.3, mgHash(vec2(floor(hp.x / 0.05), floor(hp.y / 0.07) + seed)));
@@ -174,7 +174,7 @@ vec3 ndGoods(vec2 p, float rowH, float seed, out float has){
           col = mix(col, sc * (0.7 + 0.3 * step(0.5, fract(hp.y * 60.0 + uTime * 0.5))), scr);
           emit = scr * 2.0 + cab * step(abs(hp.y - 1.72), 0.025) * 2.0;                   // screens and marquee strips
         } else {
-          col = vec3(0.86, 0.88, 0.88);
+          col = vec3(0.62, 0.64, 0.64);
           float cabs = step(hp.x, W * 0.45) * step(hp.y, 0.95);
           col = mix(col, vec3(0.75, 0.78, 0.8) * (1.0 - 0.4 * step(0.97, fract(hp.x / 0.3)) - 0.4 * step(0.95, fract(hp.y / 0.3))), cabs);
           float scr = step(abs(hp.x - W * 0.72), 0.32) * step(abs(hp.y - 1.55), 0.2);
@@ -192,14 +192,14 @@ vec3 ndGoods(vec2 p, float rowH, float seed, out float has){
           float chk = mod(floor(g.x) + floor(g.y), 2.0);
           col = arc ? vec3(0.08, 0.03, 0.1) * (0.6 + 0.8 * step(0.8, mgHash(floor(hp.xz / 0.06))))           // carpet
               : pawn ? vec3(0.22, 0.15, 0.09) * (0.8 + 0.2 * sin(hp.x * 40.0 + mgHash(vec2(floor(hp.z / 0.15), 3.0)) * 9.0))   // boards
-              : mix(vec3(0.3), vec3(0.42), chk) * (ty > 3.5 ? 1.6 : 1.0);
+              : mix(vec3(0.16), vec3(0.26), chk) * (ty > 3.5 ? 1.6 : 1.0);
         }
       } else {                                             // the side walls
-        if (conv) { float has; vec3 g = ndGoods(hp.zy, 0.36, seed + 1.0, has); col = mix(vec3(0.45), g, has * step(0.25, hp.y) * step(hp.y, 1.9)); }
-        else if (noodle) { vec2 tg = abs(fract(hp.zy / vec2(0.15, 0.075)) - 0.5); col = vec3(0.8, 0.78, 0.72) * (1.0 - 0.35 * step(0.44, max(tg.x, tg.y))); }
+        if (conv) { float has; vec3 g = ndGoods(hp.zy, 0.36, seed + 1.0, has); col = mix(vec3(0.2), g, has * step(0.25, hp.y) * step(hp.y, 1.9)); }
+        else if (noodle) { vec2 tg = abs(fract(hp.zy / vec2(0.15, 0.075)) - 0.5); col = vec3(0.58, 0.56, 0.52) * (1.0 - 0.35 * step(0.44, max(tg.x, tg.y))); }
         else if (pawn) { vec3 ih = mgHash3(vec3(floor(hp.zy / vec2(0.3, 0.35)), seed)); col = mix(vec3(0.3, 0.22, 0.15), vec3(0.6, 0.5, 0.3) * ih.y, step(0.5, ih.x) * step(length(fract(hp.zy / vec2(0.3, 0.35)) - 0.5), 0.3)); }
         else if (arc) { col = vec3(0.05, 0.02, 0.07); float pst = step(abs(fract(hp.z / 1.1) - 0.5), 0.25) * step(abs(hp.y - 1.5), 0.35); col = mix(col, 0.5 + 0.5 * cos(6.2832 * (fract(hp.z * 0.3 + seed) + vec3(0.0, 0.33, 0.67))), pst); emit = pst * 0.6; }
-        else col = vec3(0.86, 0.88, 0.88);
+        else col = vec3(0.62, 0.64, 0.64);
       }
       // what stands in the room: a counter (a glass case in the pawn shop, a row of cabinets in the arcade), the
       // convenience store's gondola, the noodle bar's stools
@@ -272,7 +272,7 @@ vec3 ndGoods(vec2 p, float rowH, float seed, out float has){
       #ifdef ND_CLINIC
         col = mix(col, vec3(0.7, 0.85, 0.88) * (0.45 + 0.1 * sin(o.x * 3.0)), step(0.9, o.y) * step(o.y, 1.75) * 0.85);
       #endif
-      outgoingLight = col * (0.42 * max(uLampGain, 0.35));   // (a lit room, not a light box: its walls stay below the street's signs)
+      outgoingLight = col * (0.32 * max(uLampGain, 0.35));   // (a lit room, not a light box: its walls stay below the street's signs)
     }`,
   });
 }
