@@ -177,6 +177,17 @@ async function measure(label, root, query) {
   const srv = await serve(root), b = await launch({ w: W, h: H, args: ['--autoplay-policy=no-user-gesture-required'] });
   const { page, errors } = await open(b, srv, query);
   const a = analyse(await run(page));
+  // the lightning at this comfort: a strike now, its flash level sampled every frame for 1.6 s; pulses = rises over 0.1
+  // after a fall of 0.1 (flashes below 1: one smooth pulse at most, never above the setting)
+  a.flash = await page.evaluate(async () => {
+    const w = window.__mirage.g.game.weather; if (!w) return null;
+    for (let i = 0; i < 200 && w.flash > 0.01; i++) await new Promise((r) => requestAnimationFrame(r));   // a strike of the weather's own still fading
+    w.strike(); const lv = [];
+    const t0 = performance.now(); while (performance.now() - t0 < 1600) { lv.push(w.flash); await new Promise((r) => requestAnimationFrame(r)); }
+    let pulses = 0, lo = 0, hi = 0, up = false;
+    for (const v of lv) { if (!up && v > lo + 0.1) { up = true; pulses++; hi = v; } else if (up) { hi = Math.max(hi, v); if (v < hi - 0.1) { up = false; lo = v; } } else lo = Math.min(lo, v); }
+    return { peak: Math.max(...lv), pulses, lv: lv.map((v) => +v.toFixed(2)).join(" ") };
+  });
   await page.close();
   const j = {};
   for (const hz of [50, 60, 120]) for (const sens of [1, 2.5]) j[`${hz}/${sens}`] = await turnJitter(b, srv, hz, sens, query);
@@ -192,7 +203,7 @@ const rowsOut = [
   ['offsets\' angular velocity, peak (deg/s)', (c) => c.a.peakOffVel], ['offsets\' angular velocity, RMS (deg/s)', (c) => c.a.rmsOffVel],
   ['shake + flinch offset, peak (deg)', (c) => c.a.offPeak], ['shake + flinch offset, RMS (deg)', (c) => c.a.offRms],
   ['roll outside the lean, peak (deg)', (c) => c.a.rollPeak], ['field-of-view punch, peak (deg)', (c) => c.a.punch],
-  ['recoil climb in a burst, peak (deg)', (c) => c.a.climb], ['offsets > 0.1 deg after the cause (ms)', (c) => c.a.tail],
+  ['recoil climb in a burst, peak (deg)', (c) => c.a.climb], ['lightning: flash peak (0..1)', (c) => c.a.flash?.peak], ['lightning: pulses in a strike', (c) => c.a.flash?.pulses], ['offsets > 0.1 deg after the cause (ms)', (c) => c.a.tail],
   ['head bob walking, peak-to-peak (cm)', (c) => c.a.walk.pp], ['head bob walking (Hz)', (c) => c.a.walk.hz],
   ['head bob sprinting, peak-to-peak (cm)', (c) => c.a.sprint.pp], ['head bob sprinting (Hz)', (c) => c.a.sprint.hz],
   ...['50/1', '60/1', '120/1', '50/2.5', '60/2.5', '120/2.5'].map((k) => [`look vs mouse, ${k.replace('/', ' Hz, sens ')}: largest error (deg)`, (c) => c.j[k].errMax]),
@@ -202,6 +213,7 @@ console.log(`| measure | ${cols.map((c) => c.label).join(' | ')} |\n|---|${cols.
 for (const [name, fn] of rowsOut) console.log(`| ${name} | ${cols.map((c) => f1(fn(c))).join(' | ')} |`);
 let failed = 0;
 const gate = (ok, what) => { console.log(`${ok ? 'pass' : 'FAIL'}  ${what}`); if (!ok) failed++; };
+if (process.env.VERBOSE) for (const x of cols) console.log(x.label, x.a.flash?.lv);
 const c = cols.find((x) => x.label === 'comfort');
 if (c) {
   gate(c.a.offPeak <= 1.5, `comfort: shake + flinch offset peak ${f1(c.a.offPeak)} deg <= 1.5`);
@@ -212,6 +224,7 @@ if (c) {
   const worst = Math.max(...Object.values(c.j).map((x) => x.errMax));
   gate(worst <= 0.3, `comfort: the camera follows the mouse on the frame (largest error at 50 / 60 / 120 Hz, sens 1 / 2.5: ${f1(worst)} deg <= 0.3)`);
 }
+for (const x of cols.filter((y) => y.label === 'comfort' || y.label === 'standard')) if (x.a.flash) gate(x.a.flash.pulses <= 1 && x.a.flash.peak <= ({ comfort: 0.6, standard: 0.8 })[x.label] + 0.01, `${x.label}: lightning one smooth pulse (${x.a.flash.pulses}) at most the comfort's flashes (peak ${f1(x.a.flash.peak)})`);
 for (const x of cols) gate(x.errors.length === 0, `${x.label}: no console errors ${x.errors[0] || ''}`);
 console.log(`\nmotion-check: ${failed ? failed + ' FAILED' : 'all gates passed'}`);
 process.exit(failed ? 1 : 0);

@@ -39,12 +39,12 @@ export const KINDS = {
     edge: () => ({ rgb: [1.25, 1.25, 1.25], rough: 0.9, metal: 0, mode: 1, chip: 0.03 }),
   },
   paving: {
-    micro: [0.003, 0.06, 0.2, 0.05], family: 'ground', variants: ['slabs', 'setts', 'polished', 'hex'], tile: 2.4, depth: 0.012, size: 1024, porosity: 0.5,
+    micro: [0.003, 0.06, 0.2, 0.05], family: 'ground', variants: ['slabs', 'setts', 'polished', 'hex', 'flags'], tile: 2.4, depth: 0.012, size: 1024, porosity: 0.5,
     refs: { albedo: [0.08, 0.42], rough: [0.1, 0.95], metal: 0, note: 'concrete flags 0.25-0.35, granite setts 0.10-0.30, polished granite 0.08-0.40 (roughness 0.10-0.30)' },
     defaults: { color: [0.3, 0.29, 0.27], roughness: 0.82, cell: [0.6, 0.6], joint: 0.008, shift: 0, jointColor: [0.1, 0.085, 0.07], tilt: 0.25, chips: 0.5, speckle: 1 },
-    variantDefaults: { setts: { cell: [0.2, 0.1], joint: 0.012, shift: 0.5, color: [0.2, 0.19, 0.18], roughness: 0.78 }, polished: { color: [0.16, 0.16, 0.17], roughness: 0.2, cell: [0.6, 0.6], joint: 0.003 }, hex: { cell: [0.27, 0.27], joint: 0.008 } },
+    variantDefaults: { setts: { cell: [0.2, 0.1], joint: 0.012, shift: 0.5, color: [0.2, 0.19, 0.18], roughness: 0.78 }, polished: { color: [0.16, 0.16, 0.17], roughness: 0.2, cell: [0.6, 0.6], joint: 0.003 }, hex: { cell: [0.27, 0.27], joint: 0.008 }, flags: { cell: [0.4, 0.4], joint: 0.014, color: [0.14, 0.1, 0.07], jointColor: [0.07, 0.055, 0.04], roughness: 0.84 } },
     pack: (o) => ({ A: [...o.color, o.roughness], B: [o.cell[0], o.cell[1], o.joint, o.shift], C: [...o.jointColor, o.tilt], D: [o.chips, o.speckle, 0, 0] }),
-    quantum: (o, T, v) => (v === 3 ? [snap(T, o.cell[0]), 2 * T / Math.max(2, 2 * Math.round(T / (o.cell[0] * 0.866) / 2))] : [snap(T, o.cell[0]), snap(T, o.cell[1]) * (o.shift ? 2 : 1)]),
+    quantum: (o, T, v) => (v === 4 ? [0, 0] : v === 3 ? [snap(T, o.cell[0]), 2 * T / Math.max(2, 2 * Math.round(T / (o.cell[0] * 0.866) / 2))] : [snap(T, o.cell[0]), snap(T, o.cell[1]) * (o.shift ? 2 : 1)]),
     edge: () => ({ rgb: [1.15, 1.15, 1.12], rough: 0.95, metal: 0, mode: 1, chip: 0.02 }),
   },
   brick: {
@@ -76,8 +76,8 @@ export const KINDS = {
   corrugated: {
     micro: [0.002, 0.04, 0.04, 0.05], family: 'metal', variants: ['galvanised', 'painted', 'rusted'], tile: 1.52, depth: 0.018, size: 1024, porosity: 0.1,
     refs: { albedo: [0.05, 0.7], rough: [0.25, 0.95], metal: 'zinc 1 / paint 0 / rust 0', note: 'zinc F0 ~(0.62, 0.64, 0.66); rust 0.10-0.35 (R)' },
-    defaults: { color: [0.17, 0.24, 0.27], roughness: 0.6, pitch: 0.076, sheet: 0.76, fixings: 0.38, profile: 'sine', rust: 0.3, chips: 0.2, whiteRust: 0.3, gravity: [0, -1] },
-    pack: (o) => ({ A: [...o.color, o.roughness], B: [o.pitch, o.sheet, o.fixings, o.profile === 'box' ? 1 : 0], C: [o.rust, o.chips, o.whiteRust, 0], D: [...fall(o.gravity), 0, 0] }),
+    defaults: { color: [0.17, 0.24, 0.27], roughness: 0.6, pitch: 0.076, sheet: 0.76, fixings: 0.38, profile: 'sine', rust: 0.3, chips: 0.2, whiteRust: 0.3, gravity: [0, -1], stencil: 0, dents: 0 },
+    pack: (o) => ({ A: [...o.color, o.roughness], B: [o.pitch, o.sheet, o.fixings, o.profile === 'box' ? 1 : 0], C: [o.rust, o.chips, o.whiteRust, 0], D: [...fall(o.gravity), o.stencil, o.dents] }),
     quantum: (o, T) => [snap(T, o.sheet), snap(T, o.fixings)],
     edge: (o, v) => (v === 1 ? { rgb: [0.6, 0.62, 0.64], rough: 0.45, metal: 1, mode: 0, chip: 0.012 } : { rgb: [0.2, 0.08, 0.03], rough: 0.9, metal: 0, mode: 0, chip: 0.015 }),
   },

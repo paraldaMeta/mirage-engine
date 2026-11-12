@@ -8,6 +8,7 @@ import { materials } from './materials.js';
 import { lamp, slab, decor } from './lib.js';
 import { propKit, recorder, track, beacon, tubeFixture, floodlight, bulkhead, crate } from '@miragekit/assets/kits/cyber';
 import { detail } from './kit.js';
+import { shafts } from './shafts.js';
 
 export default {
   name: 'relay',
@@ -22,17 +23,25 @@ export default {
     // ---- the shell
     slab(b, M.concrete, [x0, z0, part, z0 + T], 0, PT);                                   // north wall (room part)
     slab(b, M.concrete, [x0, z0 + T, x0 + T, z1 - T], 0, PT);                             // west wall
-    b.add(geom.wall({ length: x1 - x0, height: H, thickness: T, openings: [{ x: P.door.x - (x0 + x1) / 2, width: P.door.width, height: P.door.height, arch: 'flat' }] }),
-      M.concrete, geom.compose([(x0 + x1) / 2, 0, z1 - T / 2]));                          // south wall with the plaza door
+    // the south wall with the plaza door and a row of high windows (clerestory vents, 2.2 to 3.4 m: above any head,
+    // the route and the colliders are the wall's as before): the plaza's light and the sun or moon come in through them
+    b.add(geom.wall({ length: x1 - x0, height: H, thickness: T, openings: [{ x: P.door.x - (x0 + x1) / 2, width: P.door.width, height: P.door.height, arch: 'flat' },
+      ...P.clerestory.map(({ x }) => ({ x: x - (x0 + x1) / 2, width: 1.6, height: 3.4, sill: 2.2, arch: 'flat' }))] }),
+      M.concrete, geom.compose([(x0 + x1) / 2, 0, z1 - T / 2]));
     slab(b, M.concrete, [x0, z1 - T, part, z1], H, PT);                                   // over it: fascia and parapet
     slab(b, M.relayFloor, [x0 + T, z0 + T, part, z1 - T], -0.2, F);                       // the room's floor
     slab(b, M.relayFloor, [P.door.x - P.door.width / 2, z1 - T, P.door.x + P.door.width / 2, z1], -0.2, F);   // threshold
     slab(b, M.plastic, [x0 + T, z0 + T, part, z1 - T], H - 0.1, H);                       // ceiling panels
-    slab(b, M.roofing, [x0, z0, part, z1], H, RF);                                        // the roof slab (plant floor inside it)
+    // the roof slab (plant floor inside it), inside the walls: flush with their outer faces it z-fought with the
+    // fascia, the north and the west wall from 3.6 to 6 m (the band round RELAY·7 flashed)
+    slab(b, M.roofing, [x0 + T, z0 + T, part, z1 - T], H, RF);
     // the stairwell's box: walls up to TOP, a lid, and the partition toward the room with a door at each level
     slab(b, M.concreteDry, [part, z0, x1, t0], 0, TOP);
     slab(b, M.concreteDry, [s1, t0, x1, t1], 0, TOP);
-    slab(b, M.concreteDry, [part, t1, x1, z1], H, TOP);
+    // (over the way in: the stairwell's south wall, with a high window over the top flight, 6.7 to 7.9 m)
+    const { x0: wa, x1: wb, y0: wy0, y1: wy1 } = P.stairWindow;
+    slab(b, M.concreteDry, [part, t1, wa, z1], H, TOP); slab(b, M.concreteDry, [wb, t1, x1, z1], H, TOP);
+    slab(b, M.concreteDry, [wa, t1, wb, z1], H, wy0); slab(b, M.concreteDry, [wa, t1, wb, z1], wy1, TOP);
     slab(b, M.roofing, [part, z0, x1, z1], TOP, TOP + 0.3);
     const dz0 = S.door.z - S.door.width / 2, dz1 = S.door.z + S.door.width / 2;
     slab(b, M.concreteDry, [part, t0, s0, dz0], 0, TOP);
@@ -95,10 +104,21 @@ export default {
     const strobe = lamp(ctx, { indoor: true, live: true, pos: [P.door.x, H - 0.45, z1 - T - 0.5], color: 0xff1808, intensity: 3, range: 7 });
     beacon(PK, pb, geom, [P.door.x, H - 0.4, z1 - T - 0.2], [1, 0.08, 0.04], 4, 0.07);
     PK.put(pb, new THREE.BoxGeometry(0.04, 0.3, 0.04), PK.mats.metal, at([P.door.x, H - 0.25, z1 - T - 0.2]), [0.1, 0.1, 0.11]);
-    for (const [x, z, sh] of [[x0 + 4, -23.6, true], [x0 + 10, -26.2, false], [part - 3, -23.4, false]]) {
-      tubeFixture(PK, pb, geom, at([x, H - 0.3, z]), 1.6, M.NEON.cyan, 4, 0.18);
-      lamp(ctx, { indoor: true, pos: [x, H - 0.5, z], color: 0x8fdcff, intensity: 3.2, range: 8, shadow: sh });
+    // the room's own light: industrial pendants over the aisles (enamelled steel shades, 2700 K bulbs: the warm
+    // practicals a server room's night shift hangs) and one cool tube over the desk; the room was lit by three cyan
+    // tubes and read blue-black by day
+    const shade = ctx.mat.std({ color: new THREE.Color(0.05, 0.055, 0.05), roughness: 0.45, metalness: 0.7, side: THREE.DoubleSide });
+    const bulb = ctx.mat.std({ color: new THREE.Color(1, 0.9, 0.8), roughness: 0.3, metalness: 0, emissive: new THREE.Color(1, 0.62, 0.3), emissiveIntensity: 9 });
+    const shadeGeo = geom.lathe([[0.02, 0.24], [0.05, 0.2], [0.15, 0.1], [0.27, 0]], 20);
+    for (const [x, z, sh] of [[x0 + 3.6, -23.4, true], [x0 + 8.4, -26.3, false], [x0 + 12.4, -23.4, false]]) {   // (one shadow tile, as the tubes had)
+      const y = H - 1.05;
+      fx.cylinder(M.blackMetal, 0.006, 0.006, H - y - 0.24, [x, (H + y + 0.24) / 2, z], [0, 0, 0], 4);
+      fx.add(shadeGeo, shade, geom.compose([x, y, z]));
+      fx.add(new THREE.SphereGeometry(0.055, 12, 8), bulb, geom.compose([x, y + 0.03, z]));
+      lamp(ctx, { indoor: true, pos: [x, y - 0.05, z], color: 0xffb46a, intensity: 4.2, range: 9, shadow: sh });
     }
+    tubeFixture(PK, pb, geom, at([part - 2.6, H - 0.3, -27.4]), 1.2, M.NEON.white, 4, 0.18);
+    lamp(ctx, { indoor: true, pos: [part - 2.6, H - 0.5, -27.4], color: 0xe6f0ff, intensity: 2.2, range: 6 });
 
     // ---- stairwell lights: one over each landing
     tubeFixture(PK, pb, geom, at([(s0 + s1) / 2, mid + 2.58, t0 + 0.3]), 0.9, M.NEON.white, 5);
@@ -147,6 +167,18 @@ export default {
       floodlight(PK, pb, geom, at([x, RF + 2.3, z], [0, Math.atan2(18 - x, -24 - z), 0]), [1.0, 0.62, 0.25], 6, 0.5);
       lamp(ctx, { pos: [x, RF + 2.1, z], color: 0xffa040, intensity: 6, range: 12, shadow: x < 15, vol: true });
     }
+    // ---- light in the air: through the high windows (the sun or the moon, and the plaza's lamps by night), the roof
+    // door (onto the top landing) and the stairwell's high window; dust drifting in the shafts (shafts.js)
+    const SH = shafts(ctx), room = [x0 + T, 0, z0 + T, part, H, z1], well = [part, 0, t0, x1 - 0.3, TOP, z1];
+    const plazaLamps = ctx.plan.lamps.filter(([, z]) => z < -10).map(([x, z, side]) => [x, plan.levels.kerb + 4.9, z + side * 1.45]);
+    for (const { x } of P.clerestory) {
+      const ap = { o: [x - 0.8, 2.2, z1], e1: [1.6, 0, 0], e2: [0, 1.2, 0], out: [0, 0, 1], depth: T, floorY: F, clip: room, motes: 160 };
+      SH.add({ ...ap, kind: 'key', dens: 0.05 });
+      const src = plazaLamps.reduce((a, l) => (Math.hypot(l[0] - x, l[2] - z1) < Math.hypot(a[0] - x, a[2] - z1) ? l : a));
+      SH.add({ ...ap, kind: 'spill', src, color: [1, 0.89, 0.81], power: 1.5, dens: 0.05, motes: 0 });
+    }
+    SH.add({ o: [part, RF, dz1], e1: [0, 0, dz0 - dz1], e2: [0, S.door.height, 0], out: [-1, 0, 0], depth: s0 - part, floorY: RF - 0.2, clip: well, kind: 'key', dens: 0.06, motes: 120 });
+    SH.add({ o: [wa, wy0, z1], e1: [wb - wa, 0, 0], e2: [0, wy1 - wy0, 0], out: [0, 0, 1], depth: z1 - t1, floorY: RF - 0.2, clip: well, kind: 'key', dens: 0.05, motes: 160 });
     root.add(b.finish({ name: 'relay' }));
     if (leds.length) {   // rack LEDs: one instanced mesh, each blinking on its own rhythm (the scene clock)
       const ledMat = ctx.mat.patch(new THREE.MeshBasicMaterial({ color: 0xffffff }), {
@@ -176,6 +208,8 @@ export default {
   },
   ambientVolumes: (ctx) => {
     const P = ctx.plan.relay, [x0, z0, x1, z1] = P.rect;
-    return [{ min: [x0, 0, z0], max: [P.room[2], P.height, z1], factor: 0.22, soft: 0.6 }, { min: [P.room[2], 0, z0], max: [x1, P.stair.top, z1], factor: 0.4, soft: 0.5 }];
+    // (the image-based light in the room: 30 % of the sky's (was 22 %); untinted: a tint moves every lit material to the
+    // grid path, one more texture unit, and the high tier has none left)
+    return [{ min: [x0, 0, z0], max: [P.room[2], P.height, z1], factor: 0.3, soft: 0.6 }, { min: [P.room[2], 0, z0], max: [x1, P.stair.top, z1], factor: 0.42, soft: 0.5 }];
   },
 };

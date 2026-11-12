@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Frame time of neon-district on this machine, per quality level and per feature.
 //   node scripts/measure.mjs [dist] [--w 1440 --h 900] [--rounds 6] [--frames 40] [--ab] [--out out/measure.json]
-//   [--vs other-dist] [--only game]: the same variants of another build too, in the same rounds (before / after on a
+//   [--query time=day] (added to every variant's URL)  [--vs other-dist] [--only game]: the same variants of another build too, in the same rounds (before / after on a
 //   machine that is not quiet: both see the same load), its rows marked `vs`; --only keeps the variants whose name
 //   starts with that (several: 'game, medium;world, medium')
 // Every variant is its own page in one Chrome; the rounds go round-robin over the pages (A/B interleaved), so a
@@ -34,7 +34,7 @@ if (vs) variants.splice(0, variants.length, ...variants.flatMap((v) => [{ ...v, 
 const srv = await serve(dist), srv2 = vs ? await serve(vs) : null, browser = await launch({ w: W, h: H, args: ['--autoplay-policy=no-user-gesture-required'] });
 const pages = [];
 for (const v of variants) {
-  const { page, errors, loadMs } = await open(browser, `${(v.vs ? srv2 : srv).url}?w=${W}&h=${H}&grain=0&hud=0&${v.query}`);
+  const { page, errors, loadMs } = await open(browser, `${(v.vs ? srv2 : srv).url}?w=${W}&h=${H}&grain=0&hud=0&${v.query}${flag('query') ? '&' + flag('query') : ''}`);
   // stop the page's own loop, then draw until the probe volume and the reflection probes have settled
   await page.evaluate(() => { const { play, world } = window.__mirage; play.stop(); for (let i = 0; i < 900 && (i < 20 || world.lighting?.busy); i++) { play.step(1 / 60); play.render({ moving: true }); } });
   pages.push({ ...v, page, errors, loadMs, rounds: Object.fromEntries(VIEWS.map((n) => [n, []])) });

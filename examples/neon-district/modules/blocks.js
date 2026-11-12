@@ -19,7 +19,7 @@ export default {
       slab(b, M.facade[k.style], k.rect, y0, k.h);
       if (!y0) {   // the ground storey: a dark plinth, a string course at the first floor, on some a line of light under it
         slab(b, M.concrete, [x0 - 0.05, z0 - 0.05, x1 + 0.05, z1 + 0.05], 0, 0.75);
-        slab(b, M.darkMetal, [x0 - 0.1, z0 - 0.1, x1 + 0.1, z1 + 0.1], 4.16, 4.38);
+        if (k.h > 4.6) slab(b, M.darkMetal, [x0 - 0.1, z0 - 0.1, x1 + 0.1, z1 + 0.1], 4.16, 4.38);   // (a low deck has no first floor)
         const tint = { s1: 'pink', c: 'cyan', e: 'violet', sw: 'amber', s3: 'cyan', w: 'pink' }[k.name];
         if (tint) {
           for (const [a2, c2, d2, e2] of [[x0 - 0.12, z0 - 0.13, x1 + 0.12, z0 - 0.1], [x0 - 0.12, z1 + 0.1, x1 + 0.12, z1 + 0.13], [x0 - 0.13, z0 - 0.1, x0 - 0.1, z1 + 0.1], [x1 + 0.1, z0 - 0.1, x1 + 0.13, z1 + 0.1]]) slab(roofs, M.neon[tint], [a2, c2, d2, e2], 4.08, 4.13);
@@ -35,7 +35,7 @@ export default {
       slab(roofs, M.roofing, [x0 + 0.3, z0 + 0.3, x1 - 0.3, z1 - 0.3], k.h, k.h + 0.06);
       for (const [a, c, d, e] of [[x0, z0, x1, z0 + 0.3], [x0, z1 - 0.3, x1, z1], [x0, z0 + 0.3, x0 + 0.3, z1 - 0.3], [x1 - 0.3, z0 + 0.3, x1, z1 - 0.3]]) slab(roofs, M.concrete, [a, c, d, e], k.h, k.h + 0.9);
       const w = x1 - x0, d = z1 - z0, Q = R.fork ? R.fork(k.name) : R;
-      const n = w * d > 150 ? 3 : 1;
+      const n = k.bare ? 0 : w * d > 150 ? 3 : 1;   // bare: nothing on the roof but its parapet (plan.js westdeck)
       for (let i = 0; i < n; i++) {
         const bw = Q.range(2, Math.min(5, w * 0.4)), bd = Q.range(2, Math.min(5, d * 0.4)), bh = Q.range(1.4, 3.2);
         const cx = Q.range(x0 + 1 + bw / 2, x1 - 1 - bw / 2), cz = Q.range(z0 + 1 + bd / 2, z1 - 1 - bd / 2);
@@ -46,7 +46,7 @@ export default {
         roofs.cylinder(M.darkMetal, 0.06, 0.12, mh, [mx, k.h + mh / 2, mz], [0, 0, 0], 8);
         for (const t of [0.35, 0.6, 0.85]) roofs.box(M.darkMetal, [1.2 * (1 - t) + 0.3, 0.05, 0.05], [mx, k.h + mh * t, mz], [0, Q.range(0, 3), 0]);
         beacons.push({ pos: [mx, k.h + mh + 0.12, mz], rotY: 0 });
-      } else roofs.cylinder(M.sheet, 1.1, 1.1, 2.2, [Q.range(x0 + 2, x1 - 2), k.h + 1.6, Q.range(z0 + 2, z1 - 2)], [0, 0, 0], 16);
+      } else if (!k.bare) roofs.cylinder(M.sheet, 1.1, 1.1, 2.2, [Q.range(x0 + 2, x1 - 2), k.h + 1.6, Q.range(z0 + 2, z1 - 2)], [0, 0, 0], 16);
     }
     root.add(b.finish({ name: 'blocks' }));
     const roofMesh = roofs.finish({ name: 'roofs' });

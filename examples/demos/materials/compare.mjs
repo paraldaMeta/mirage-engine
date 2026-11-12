@@ -27,9 +27,9 @@ const manifest = JSON.parse(fs.readFileSync(path.join(refDir, 'manifest.json'), 
 export const PAIRS = [
   { ref: 'plaster_smooth', s: 'render:smooth', opts: { color: [0.13, 0.1, 0.068], roughness: 0.6, cracks: 0.15 } },
   { ref: 'plaster_broken', s: 'render:smooth', opts: { color: [0.36, 0.235, 0.11], roughness: 0.85, spall: 0.5, cracks: 0.3, age: 0.8 } },
-  { ref: 'brick_buff', s: 'brick:common', opts: { color: [0.46, 0.25, 0.11], roughness: 0.7, mortarColor: [0.46, 0.36, 0.24], brick: [0.2, 0.11], mortar: 0.022, recess: 0.01, age: 1, burnt: 0.05 } },
+  { ref: 'brick_buff', s: 'brick:common', opts: { color: [0.46, 0.25, 0.11], roughness: 0.7, mortarColor: [0.46, 0.36, 0.24], brick: [0.2, 0.11], mortar: 0.016, recess: 0.01, age: 1, burnt: 0.05 } },
   { ref: 'paving_hex', s: 'paving:hex', opts: { color: [0.51, 0.42, 0.3], roughness: 0.9, cell: [0.229, 0.229], joint: 0.01 } },
-  { ref: 'flagstone', s: 'paving:setts', opts: { color: [0.13, 0.09, 0.062], roughness: 0.83, cell: [0.45, 0.3] } },
+  { ref: 'flagstone', s: 'paving:flags', opts: { color: [0.13, 0.09, 0.062], roughness: 0.83 } },
   { ref: 'wood_old', s: 'wood:planks', opts: { color: [0.12, 0.09, 0.062], roughness: 0.68, board: [0.285, 2.0], along: 'v', latewood: [0.7, 0.66, 0.62], age: 0.8 } },
   { ref: 'wood_teak', s: 'wood:varnished', opts: { color: [0.09, 0.03, 0.008], roughness: 0.7 } },
   { ref: 'iron_rusty', s: 'paintedMetal:sheet', opts: { color: [0.52, 0.52, 0.5], roughness: 0.5, chips: 0.5, rust: 0.85, streaks: 1 } },
@@ -38,8 +38,8 @@ export const PAIRS = [
   { ref: 'plaster_weathered', s: 'render:smooth', opts: { color: [0.18, 0.105, 0.045], roughness: 0.9, cracks: 0.35 } },
   // proxy: no scan of concrete in the set; a grey trowelled cement plaster has the same laitance, pits and relief scale
   { ref: 'plaster_smooth', s: 'concrete:cast', key: 'concrete-proxy', opts: { color: [0.13, 0.1, 0.068], roughness: 0.6 } },
-  { ref: 'brass_aged', s: 'metal:worn', opts: { metal: 'brass', roughness: 0.12 } },
-  { ref: 'terracotta', s: 'tile:floor', opts: { color: [0.2, 0.115, 0.047], altColor: [0.19, 0.11, 0.045], roughness: 0.69, cell: [0.3, 0.3] } },
+  { ref: 'brass_aged', s: 'metal:worn', opts: { metal: 'brass', color: [0.99, 0.78, 0.36], roughness: 0.06, tarnish: 0.15 } },
+  { ref: 'terracotta', s: 'tile:floor', opts: { color: [0.2, 0.115, 0.047], altColor: [0.19, 0.11, 0.045], groutColor: [0.15, 0.09, 0.04], grout: 0.0015, roughness: 0.75, cell: [0.5, 0.5] } },
 ];
 
 // ---- numbers -------------------------------------------------------------------------------------------------------

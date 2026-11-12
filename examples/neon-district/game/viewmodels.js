@@ -22,7 +22,9 @@ export function createModels({ world, M }) {
   const mats = {
     body: L(SURFACES.powderCoat({ variant: 'cerakote', color: [0.075, 0.08, 0.09], edgeWear: 0.5 })),
     dark: L(SURFACES.powderCoat({ variant: 'powder', color: [0.04, 0.042, 0.048] })),
-    steel: M.steel,
+    // the gun's own steel, in its own space (the world's brushed stainless, M.steel, runs its grain in world space:
+    // on a gun that moves with the eye the grain slid across the parts every frame and shimmered)
+    steel: L(SURFACES.stainless({ variant: 'brushed' }), { mapping: 'grain', grain: [0, 0, 1] }),
     poly: L(SURFACES.plastic({ variant: 'textured', color: [0.1, 0.104, 0.112] })),
     glove: L(SURFACES.leather({ variant: 'leather', color: [0.032, 0.029, 0.027], roughness: 0.55, grain: 0.0012 })),
     sleeve: L(SURFACES.fabric({ variant: 'cotton', color: [0.04, 0.045, 0.055], roughness: 0.94 }), { sheen: 0 }),   // (a full sheen read as a pale sleeve under the gun's fill light)
@@ -31,6 +33,9 @@ export function createModels({ world, M }) {
     hullRed: L(SURFACES.plastic({ variant: 'abs', color: [0.3, 0.03, 0.03] })),
     warhead: L(SURFACES.powderCoat({ variant: 'cerakote', color: [0.14, 0.15, 0.1] })),
   };
+  // the neon strips and dots: the gun's own (the world's M.neon materials are shared with every sign; the view model's
+  // materials are patched for their own near plane, weapon.js, and that is not for the signs)
+  const NEONVM = {}, neon = (k) => (NEONVM[k] ||= mat.glow(M.NEON[k], 3));
   const glass = mat.std({ color: C(0.35, 0.75, 0.9), roughness: 0.05, metalness: 0, transparent: true, opacity: 0.14, depthWrite: false });
   const geo = {
     ext(pts, w, b = 0.003, holes = []) {
@@ -156,7 +161,7 @@ export function createModels({ world, M }) {
     put('poly', side([[-0.172, -0.024], [-0.172, 0.04], [-0.5, 0.04], [-0.5, 0.01], [-0.468, -0.024]], 0.044, 0.008, [0, 1, 2, 3, 4].map((i) => slot(-0.216 - i * 0.056, 0.019, 0.042, 0.011))));
     for (let i = 0; i < 20; i++) put('dark', new THREE.BoxGeometry(0.048, 0.011, 0.0055), [0, -0.0125, -0.2 - i * 0.0135]);
     put('dark', sect([[-0.024, -0.02], [-0.024, 0.034], [-0.017, 0.043], [0.017, 0.043], [0.024, 0.034], [0.024, -0.02], [0.017, -0.027], [-0.017, -0.027]], 0.012, 0.002), [0, 0, -0.178]);
-    for (const s of [-1, 1]) part(RB(0.003, 0.006, 0.25, 0), M.neon.cyan, [s * 0.0212, 0.001, -0.32], [0, 0, 0], gun);
+    for (const s of [-1, 1]) part(RB(0.003, 0.006, 0.25, 0), neon('cyan'), [s * 0.0212, 0.001, -0.32], [0, 0, 0], gun);
     put('steel', cylZ(0.009, 0.46), [0, 0.008, -0.395]);
     put('steel', cylZ(0.0038, 0.34, 6), [0, 0.0255, -0.345]);
     put('dark', cylZ(0.0145, 0.03, 8), [0, 0.008, -0.53]); put('dark', new THREE.BoxGeometry(0.012, 0.016, 0.022), [0, 0.022, -0.526]);
@@ -211,7 +216,7 @@ export function createModels({ world, M }) {
     sk.fuse(slideG);
     part(new THREE.BoxGeometry(0.018, 0.012, 0.001), glass, [0, 0.044, -0.02], [0, 0, 0], slideG);
     const dot = part(new THREE.SphereGeometry(0.0012, 8, 6), glowDot(), [0, 0.0445, -0.004], [0, 0, 0], slideG);
-    for (const s of [-1, 1]) part(RB(0.0016, 0.0035, 0.07, 0), M.neon.cyan, [s * 0.0133, 0.006, -0.07], [0, 0, 0], slideG);
+    for (const s of [-1, 1]) part(RB(0.0016, 0.0035, 0.07, 0), neon('cyan'), [s * 0.0133, 0.006, -0.07], [0, 0, 0], slideG);
     put('steel', cylZ(0.0062, 0.03, 10), [0, 0.016, -0.128]);
     put('dark', lathe([[0.0048, -0.145], [0.0068, -0.142], [0.0068, -0.128]], 10), [0, 0.016, 0]);
     // the frame: a dust cover with a rail, the trigger guard, the grip raked back with a texture and a beavertail
@@ -247,7 +252,7 @@ export function createModels({ world, M }) {
     put('body', cylZ(0.0108, 0.42, 12), [0, -0.017, -0.35]);
     put('dark', lathe([[0.0, -0.565], [0.009, -0.563], [0.0118, -0.556], [0.0118, -0.545]], 12), [0, -0.017, 0]);
     put('dark', sect([[-0.016, -0.03], [0.016, -0.03], [0.018, 0.0], [0.016, 0.026], [-0.016, 0.026], [-0.018, 0.0]], 0.02, 0.003), [0, 0, -0.53]);
-    part(new THREE.SphereGeometry(0.0028, 8, 6), M.neon.amber, [0, 0.026, -0.64], [0, 0, 0], gun);
+    part(new THREE.SphereGeometry(0.0028, 8, 6), neon('amber'), [0, 0.026, -0.64], [0, 0, 0], gun);
     // the side saddle: four shells on the left of the receiver (red hulls, brass heads)
     const shellGeo = lathe([[0.0, 0.0], [0.0105, 0.0], [0.0105, 0.012], [0.0098, 0.013], [0.0098, 0.068], [0.0, 0.068]], 10);
     put('dark', side([[0.03, -0.034], [0.03, 0.0], [-0.07, 0.0], [-0.07, -0.034]], 0.01, 0.003), [-0.025, 0, 0]);
@@ -259,7 +264,7 @@ export function createModels({ world, M }) {
     put('dark', side([[-0.0, -0.036], [0.07, -0.036], [0.078, -0.064], [0.066, -0.072], [0.006, -0.072], [-0.002, -0.064]], 0.012, 0.0015, [[[0.007, -0.04], [0.066, -0.04], [0.071, -0.062], [0.063, -0.067], [0.01, -0.067], [0.004, -0.06]]]));
     put('steel', side([[0.03, -0.036], [0.038, -0.036], [0.034, -0.05], [0.026, -0.06], [0.022, -0.058], [0.029, -0.049]], 0.006, 0.001));
     for (const s of [-1, 1]) for (const z of [-0.1, 0.06]) put('steel', hex(0.003, 0.002), [s * 0.0214, -0.02, z]);
-    for (const s of [-1, 1]) part(RB(0.002, 0.004, 0.16, 0), M.neon.amber, [s * 0.0215, 0.022, -0.02], [0, 0, 0], gun);
+    for (const s of [-1, 1]) part(RB(0.002, 0.004, 0.16, 0), neon('amber'), [s * 0.0215, 0.022, -0.02], [0, 0, 0], gun);
     fuse(gun);
     // the pump: a ribbed lathe round the tube; it slides back and forward with the left hand
     const pump = new THREE.Group(); pump.position.set(0, -0.017, -0.3); gun.add(pump);
@@ -285,7 +290,7 @@ export function createModels({ world, M }) {
     put('dark', side([[0.1, 0.05], [0.1, 0.07], [0.06, 0.07], [0.06, 0.05]], 0.01, 0.002), [-0.04, 0, 0]);
     put('dark', new THREE.TorusGeometry(0.013, 0.0022, 6, 18), [-0.04, 0.083, 0.08]);
     put('dark', side([[-0.1, 0.05], [-0.1, 0.075], [-0.115, 0.083], [-0.13, 0.075], [-0.13, 0.05]], 0.008, 0.002), [-0.04, 0, 0]);
-    const dot = part(new THREE.SphereGeometry(0.0018, 8, 6), M.neon.amber, [-0.04, 0.083, -0.115], [0, 0, 0], gun);
+    const dot = part(new THREE.SphereGeometry(0.0018, 8, 6), neon('amber'), [-0.04, 0.083, -0.115], [0, 0, 0], gun);
     // the fire-control box under the tube, two grips, the trigger, a status lamp
     put('body', side([[0.12, -0.05], [0.12, -0.078], [0.1, -0.088], [-0.12, -0.088], [-0.13, -0.074], [-0.13, -0.05]], 0.05, 0.006));
     put('poly', side([[0.06, -0.086], [0.098, -0.086], [0.108, -0.1], [0.122, -0.18], [0.084, -0.186], [0.064, -0.11]], 0.032, 0.007));
@@ -295,7 +300,7 @@ export function createModels({ world, M }) {
     for (const s of [-1, 1]) for (const z of [-0.1, 0.0, 0.1]) put('steel', hex(0.003, 0.002), [s * 0.026, -0.068, z]);
     for (const z of [0.2, -0.25]) put('dark', lathe([[0.0565, z - 0.02], [0.06, z - 0.016], [0.06, z + 0.016], [0.0565, z + 0.02]], 20));   // the straps' clamps
     fuse(gun);
-    const lamp = part(RB(0.012, 0.004, 0.03, 0.001), M.neon.amber, [0.026, -0.064, -0.06], [0, 0, 0], gun);
+    const lamp = part(RB(0.012, 0.004, 0.03, 0.001), neon('amber'), [0.026, -0.064, -0.06], [0, 0, 0], gun);
     // the round, its warhead out of the mouth: a cone with a red band and a fuse tip
     const round = new THREE.Group(); round.position.set(0, 0, -0.47); gun.add(round);
     const rk = kit();
@@ -338,7 +343,7 @@ export function createModels({ world, M }) {
     put('steel', side([[0.15, -0.03], [0.158, -0.03], [0.155, -0.045], [0.148, -0.055], [0.144, -0.052], [0.15, -0.044]], 0.006, 0.001));
     for (const s of [-1, 1]) for (const z of [0.0, 0.1]) put('steel', hex(0.004, 0.003), [s * 0.057, 0, z]);
     fuse(gun);
-    const glowRing = part(new THREE.TorusGeometry(0.058, 0.002, 4, 24), M.neon.cyan, [0, 0, -0.016], [0, 0, 0], gun);
+    const glowRing = part(new THREE.TorusGeometry(0.058, 0.002, 4, 24), neon('cyan'), [0, 0, -0.016], [0, 0, 0], gun);
     const h = hands(gun, { grip: [0.0, -0.086, 0.2], gripRot: [0.15, 0, 0], support: [0, -0.07, -0.055], supportRot: [0, 0, 0.2], open: [0, 0.18] });
     return { group: gun, scale: 0.92, spin, heat, glowRing, left: h.left, muzzle: [0, 0, -0.64], port: [0.04, -0.03, 0.06], hip: [0.15, -0.165, -0.27], ads: [0.0, -0.1, -0.22], dot: null };
   }

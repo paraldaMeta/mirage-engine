@@ -90,7 +90,10 @@ export default {
     const n = Math.round(150 * Math.max(0.35, D));
     for (let i = 0; i < n; i++) {
       const a = Q.range(0, Math.PI * 2), r = Q.range(260, 480), w = Q.range(18, 46), d = Q.range(18, 46), h = Q.range(50, 280) * (Q.chance(0.15) ? 1.4 : 1);
-      towers.push(geom.compose([Math.cos(a) * r, h / 2, Math.sin(a) * r], [0, Q.range(0, 1.5), 0], [w, h, d]));
+      const ry = Q.range(0, 1.5);
+      // the sun's gap: none in the street's line to the west (the golden hour's sun sets down Kestrel Street, main.js)
+      if (Math.cos(a) < 0 && Math.abs(Math.sin(a) * r - 6) < Math.max(w, d) * 0.75 + r * 0.09) continue;
+      towers.push(geom.compose([Math.cos(a) * r, h / 2, Math.sin(a) * r], [0, ry, 0], [w, h, d]));
     }
     const farMat = mat.std({ color: new THREE.Color(0.05, 0.055, 0.07), roughness: 0.9 }, {
       fragmentDecl: 'vec3 ndW;',

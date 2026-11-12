@@ -60,7 +60,8 @@ export default {
     });
     // ---- megatowers beyond: fewer, taller, stepped, most of them dark; they are the silhouettes over the roofs
     for (let i = 0; i < 16; i++) {
-      const Q = R.fork('mega' + i), a = (i / 16) * Math.PI * 2 + Q.range(-0.15, 0.15), r = Q.range(120, 210), x = Math.cos(a) * r, z = Math.sin(a) * r;
+      // (the one due west stands aside: the golden hour's sun sets down the street's line, main.js)
+      const Q = R.fork('mega' + i), a0 = (i / 16) * Math.PI * 2 + Q.range(-0.15, 0.15), a = Math.abs(a0 - Math.PI) < 0.3 ? Math.PI + (a0 >= Math.PI ? 0.3 : -0.3) : a0, r = Q.range(120, 210), x = Math.cos(a) * r, z = Math.sin(a) * r;
       let w = Q.range(26, 48), d = Q.range(26, 48), y = 0, h = Q.range(90, 150);
       for (let s = 0; s < 3; s++) { slab(far, M.facade[styles[(i + s) % 3]], [x - w / 2, z - d / 2, x + w / 2, z + d / 2], y, y + h); y += h; w *= Q.range(0.55, 0.78); d *= Q.range(0.55, 0.78); h *= Q.range(0.35, 0.6); }
       fx.box(M.neon[['red', 'cyan', 'pink', 'amber'][i % 4]], [w * 1.4, 1.2, d * 1.4], [x, y - 0.6, z]);                 // a crown

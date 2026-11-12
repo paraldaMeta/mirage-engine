@@ -28,7 +28,7 @@ export function shopFronts(ctx, fx, shops) {
   // (surfaces from the engine's library: painted steel shutters and frames, chipped to primer and steel, rust run down
   // from the slats; striped canvas awnings; dirty shop glass, docs/surfaces.md)
   const { painted, surf, lib, SURFACES } = surfaceLib(ctx);
-  const shutterMats = [[0.36, 0.37, 0.39], [0.42, 0.1, 0.07], [0.08, 0.3, 0.3], [0.5, 0.36, 0.08], [0.24, 0.27, 0.33]].map((c) => painted(c, { side: THREE.DoubleSide }));
+  const shutterMats = [[0.36, 0.37, 0.39], [0.3, 0.1, 0.08], [0.08, 0.3, 0.3], [0.5, 0.36, 0.08], [0.24, 0.27, 0.33]].map((c) => painted(c, { side: THREE.DoubleSide }));
   const frameMat = painted([0.11, 0.115, 0.12], { variant: 'panels', size: 'small' });
   const awnings = [[[0.5, 0.06, 0.05], [0.6, 0.58, 0.5]], [[0.05, 0.25, 0.22], [0.55, 0.52, 0.45]], [[0.55, 0.38, 0.04], [0.06, 0.06, 0.06]], [[0.12, 0.16, 0.35], [0.5, 0.5, 0.48]]]
     .map(([a, c]) => surf(SURFACES.fabric({ variant: 'canvas', color: a, stripe: c, stripeWidth: 0.25, age: 0.6 }), { size: 'small', mapping: 'grain', grain: [1, 0, 0], params: { side: THREE.DoubleSide } }));

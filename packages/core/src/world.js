@@ -2,7 +2,8 @@
 import * as THREE from 'three';
 import { createEnv, writeAmbientVolumes, disposeAmbient } from './env.js';
 import { installFog, FOG, retainChunks, releaseChunks } from './fog.js';
-import { createSky, createSkyUniforms, createSkyLut, skyDuskConfig } from './sky.js';
+import { createSky, createSkyUniforms, createSkyLut, skyDuskConfig, skyStormConfig } from './sky.js';
+import { flashConfig, createFlash } from './weather.js';
 import { createStars } from './stars.js';
 import { skyState, lightAt, gradeConfig, gradeAt } from './daynight.js';
 import { Pipeline, DEFAULT_POST } from './post.js';
@@ -109,7 +110,8 @@ export function createWorldRenderer(config = {}) {
   scene.fog = new THREE.FogExp2(0x8899aa, fogCfg.density);   // FogExp2 switches on Mirage's aerial perspective
   const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 2000);
   const dusk = skyDuskConfig(config.sky);   // the dusk sky (opt-in, sky.js): twilight, night, haze, altocumulus
-  const skyU = createSkyUniforms(dusk ? { dusk } : undefined);
+  const storm = skyStormConfig(config.sky);   // the storm sky (opt-in, sky.js): a torn deck lit from below and by the flash
+  const skyU = createSkyUniforms(dusk || storm ? { dusk, storm } : undefined);
   const skyLut = createSkyLut(renderer, skyU);   // the sky's air, baked per setTime instead of marched per pixel
   skyU.uCloudCover.value = dusk && config.clouds === undefined ? dusk.cover : clouds;
   const sky = createSky(skyU);
@@ -126,6 +128,10 @@ export function createWorldRenderer(config = {}) {
   // the lamp pool (opt-in, lamppool.js): every lamp lights its surroundings, beyond the few real PointLights
   const lpcfg = lampPoolConfig(config.lampPool);
   const lampPool = lpcfg ? createLampPool({ renderer, scene, G, injector: lighting && lighting.injector, light2: l2cfg }, lpcfg) : null;
+
+  // lightning (opt-in, weather.js): world.flash lights the wet and flash-ready materials, the storm sky and a bolt
+  const fcfg = flashConfig(config.flash);
+  const flash = fcfg ? createFlash({ scene, gain: () => (light ? Math.pow(look ? exposure * look.exposure : exposure, -0.9) : 1) }, fcfg) : null;
 
   const pipeline = new Pipeline(renderer, { width: width * pixelRatio, height: height * pixelRatio, msaa: device.msaa, aoSamples: Q.aoSamples });
   if (l2cfg) pipeline.useLight2(l2cfg, { sun, G });
@@ -583,6 +589,7 @@ export function createWorldRenderer(config = {}) {
     if (disposed) return;
     disposed = true;
     updates = [];   // a disposed world holds no callback (and what they close over) alive
+    if (flash) flash.dispose();
     if (lampPool) lampPool.dispose();   // before lighting: both chain scene.onBeforeRender
     pipeline.dispose(); envLight.dispose(); skyLut.dispose(); if (lighting) lighting.dispose();
     disposeAmbient(G);
@@ -610,7 +617,7 @@ export function createWorldRenderer(config = {}) {
     return () => { if (on) { on = false; const i = updates.lastIndexOf(fn); if (i >= 0) updates = updates.filter((_, k) => k !== i); } };
   } };
   return {
-    renderer, scene, camera, sun, sky, stars, pipeline, ctx, G, keyDir, mat, geom, rng, post, device, light2: l2cfg, grade, dynamicRes: dynRes, softShadows: sscfg, lighting, lampPool,
+    renderer, scene, camera, sun, sky, stars, pipeline, ctx, G, keyDir, mat, geom, rng, post, device, light2: l2cfg, grade, dynamicRes: dynRes, softShadows: sscfg, lighting, lampPool, flash,
     /** the moving frames' render scale (1 = the canvas; below 1 only with `dynamicRes`) */
     get resolutionScale() { return resScale; },
     /** forget the adapted exposure (auto exposure): the next frame is metered on its own, e.g. after a teleport */

@@ -141,12 +141,12 @@ export function materials(ctx) {
   // the dark structural metal: black powder coat (a dielectric with a satin sheen, steel at worn edges), not a black
   // mirror; blackMetal is the same set a shade darker (a tint: no second bake)
   const POWDER = SURFACES.powderCoat({ variant: 'powder', color: [0.045, 0.047, 0.052] });
-  const SHEET = (color) => SURFACES.corrugated({ variant: 'painted', color, pitch: 0.22, profile: 'box', rust: 0.35, chips: 0.3 });
+  const SHEET = (color) => SURFACES.corrugated({ variant: 'painted', color, pitch: 0.22, profile: 'box', rust: 0.35, chips: 0.3, gravity: [-1, 0], stencil: 1, dents: 0.5 });   // (grain 'y': u up, the fall down u)
   const CONCRETE = SURFACES.concrete({ variant: 'cast', panel: [2.4, 1.2], tieSpacing: 0.6, age: 0.6 });
   const SHEET_DECALS = { rills: { top: 2.6, length: 1.1, density: 0.5 }, leaks: { spacing: 1.52 } };
   const M = {
     NEON,
-    asphalt: surf(SURFACES.asphalt({ variant: 'worn', cracks: 0.5, oil: 0.25 }),
+    asphalt: surf(SURFACES.asphalt({ variant: 'worn', color: [0.062, 0.06, 0.058], stone: [0.24, 0.235, 0.225], cracks: 0.5, oil: 0.25 }),   // (a worn road averages ~0.1: lighter binder and stone than fresh, so it is not a black hole where no lamp reaches)
       { mapping: 'ground', size: 'big', paint: 'ndLines(msPW.xz)', paintColor: [0.5, 0.48, 0.4], paintWear: 0.55, wet: { puddles: 1.5, ripples: 1.3, specAA: 2.5, wear: RUTS } }, { decl: LINES_DECL }),
     pavement: surf(SURFACES.paving({ variant: 'slabs', cell: [0.6, 0.6], color: [0.27, 0.27, 0.275] }), { mapping: 'ground', wet: { puddles: 0.9, specAA: 2.5 } }),
     plaza: surf(SURFACES.paving({ variant: 'polished', color: [0.12, 0.125, 0.14], cell: [0.9, 0.9] }), { mapping: 'ground', wet: { puddles: 1.1, ripples: 1.3, specAA: 2.5 } }),
@@ -154,7 +154,7 @@ export function materials(ctx) {
     concrete: surf(CONCRETE, { mapping: 'wall', size: 'big', wet: { puddles: 0, band: 0.5 }, decals: { damp: 0.55, rills: { top: 3.2, length: 1.4, density: 0.55 }, stains: 0.35, cracks: 0.25, soot: 0.15 } }),
     concreteDry: surf(CONCRETE, { mapping: 'wall', size: 'big', decals: { cracks: 0.2, stains: 0.2 } }),                                    // indoors
     sheet: surf(SHEET([0.32, 0.34, 0.38]), { mapping: 'wall', grain: 'y', wet: { puddles: 0 }, decals: SHEET_DECALS }),
-    sheetRed: surf(SHEET([0.42, 0.1, 0.08]), { mapping: 'wall', grain: 'y', wet: { puddles: 0 }, decals: SHEET_DECALS }),
+    sheetRed: surf(SHEET([0.34, 0.1, 0.08]), { mapping: 'wall', grain: 'y', wet: { puddles: 0 }, decals: SHEET_DECALS }),
     facade: { concrete: mat.std({ roughness: 0.9, metalness: 0 }, facade('concrete')), panel: mat.std({ roughness: 0.55, metalness: 0 }, facade('panel')), glass: mat.std({ roughness: 0.4, metalness: 0 }, facade('glass')) },
     roofing: surf(SURFACES.roofing({ variant: 'felt' }), { mapping: 'ground', wet: { puddles: 1.6 } }),
     // brushed stainless, its grain up the part (posts, hoods, rails)

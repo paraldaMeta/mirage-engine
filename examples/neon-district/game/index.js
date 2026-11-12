@@ -24,6 +24,7 @@ import { setupKit } from './kit.js';
 import { setupDestruct, shotTap } from './destruct.js';
 import { T, lang, setLang, nextLang, pickLang, onLang, LANG_ORDER, LANG_NAMES, TABLES } from './text.js';
 import { createAudioEngine, zonesFromPlan, PAD } from '@miragekit/game';
+import { WET, flashEnvelope } from '@miragekit/core';
 
 export const VERSION = 1;
 const UPLINK_S = 40;
@@ -319,7 +320,8 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
   const emit = (fx, o) => { const l = { fx, o, h: vfx.spawn(fx, o) }; loops.push(l); return l; };
   let rewound = 0;
   game.on('place', () => { rewound = 3; });
-  (anchors.steam || []).forEach((a, i) => emit(FX.steam(tints[i % tints.length]), { position: a.pos }));
+  // (the steam is modules/steam.js: lit volumetric plumes; the particle puffs only without it)
+  if (!shared.plumes) (anchors.steam || []).forEach((a, i) => emit(FX.steam(tints[i % tints.length]), { position: a.pos }));
   for (const h of (anchors.holos || []).filter((a) => a.kind === 'figure')) emit(FX.motes, { position: h.pos });
   const sparkLight = new THREE.PointLight(0xffd090, 0, 8, 2); root.add(sparkLight); world.lighting?.addLight(sparkLight);
   const feet = new THREE.Object3D(); root.add(feet);
@@ -331,9 +333,21 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
   for (const s of (anchors.signs || []).filter((s) => s.w * s.h > 5).slice(0, 5)) sfx.loop('nd_hum', { at: s.pos, gain: 0.5, ref: 3 });
 
   // ---- weather and sound: a lamp high over the block for the lightning, the audio engine for the rooms' reverb
-  const sky = new THREE.PointLight(0xcfe0ff, 0, 600, 2); root.add(sky); world.lighting?.addLight(sky);
-  const skyGain = 26000, said = { spotted: false, hurtT: -99 };
+  // with world.flash (main.js, core weather.js) the flash is a uniform every wet surface and the storm sky read, and a
+  // bolt drawn in the sky; without it a clustered lamp high over the block
+  const flash = world.flash, sky = flash ? null : new THREE.PointLight(0xcfe0ff, 0, 600, 2);
+  if (sky) { root.add(sky); world.lighting?.addLight(sky); }
+  const skyGain = 26000, said = { spotted: false, hurtT: -99 }, bolt = { t: 99, dir: [0, 1, 0] };
   let boltT = 9, thunderT = 0, reverb = null;
+  /** a strike now (stills, checks): a bolt r m away at bearing a (radians) */
+  const strike = (a = R() * 6.28, r = 260 + R() * 200) => {
+    const c = world.camera.position, bx = c.x + Math.cos(a) * r, bz = c.z + Math.sin(a) * r;
+    if (flash) flash.strike([bx + (R() - 0.5) * 60, 330, bz + (R() - 0.5) * 60], [bx, 25, bz], R() * 1000, c.toArray());
+    bolt.dir = [bx - c.x, 160, bz - c.z]; bolt.t = 0; boltT = Math.max(boltT, 16);
+    if (sky) { sky.position.set(c.x + (bx - c.x) * 0.4, 110, c.z + (bz - c.z) * 0.4); sky.userData.t = 0.38; }
+    thunderT = 0.15 + Math.hypot(r, 200) / 343;   // sound at 343 m/s from the bolt's middle
+  };
+  game.weather = { strike, get flash() { return flash ? flash.level : sky ? sky.intensity : 0; } };
   try { reverb = createAudioEngine({ audio, voices: 24, zones: zonesFromPlan(plan), zoneOptions: { ambient: { reverb: 'outdoor', wet: 0.16 } } }); onDispose(() => reverb.dispose()); } catch { reverb = null; }
   game.on('start', () => hud.radio(H.on ? T.radio.holdStart : T.radio.start));
 
@@ -409,18 +423,14 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
     reverb?.update(dt, world.camera);
     if (!said.spotted && enemies.list.some((e) => e.state === 'fight')) { said.spotted = true; hud.radio(T.radio.spotted); }
     if (player.hp < 35 && !player.dead && game.time - said.hurtT > 40) { said.hurtT = game.time; hud.radio(T.radio.hurt); }
-    // weather: now and then a bolt beyond the roofs, a moment of white light over the block, thunder a second later
-    if ((boltT -= dt) <= 0) {
-      boltT = 16 + R() * 22;
-      const a = R() * 6.28, r = 150 + R() * 80, bx = Math.cos(a) * r, bz = Math.sin(a) * r;
-      vfx.beam({ from: [bx + (R() - 0.5) * 30, 150, bz + (R() - 0.5) * 30], to: [bx, 38 + R() * 20, bz], width: 1.6, color: '#cfe0ff', intensity: 7, jitter: 16, branches: 3, life: 0.4 });
-      sky.position.set(bx * 0.4, 110, bz * 0.4); sky.userData.t = 0.38; thunderT = 0.7 + r / 340;
-    }
-    // the flash: raw (flashes 1) a random level every tick, a 60 Hz flicker; below 1 two smooth pulses (about 5 Hz,
-    // under the three-flashes-a-second line for the brighter one) at the flashes' strength
-    const fl = Math.max(0.2, Math.min(1, +opts.flashes || 0.6)), st = sky.userData.t = (sky.userData.t || 0) - dt;
-    sky.intensity = st <= 0 ? 0 : fl >= 1 ? skyGain * gains.room * (0.35 + 0.65 * R()) * Math.min(1, st * 6)
-      : skyGain * gains.room * fl * Math.min(1, st * 6) * (st > 0.2 ? 1 : 0.35 + 0.3 * Math.cos((0.2 - st) * 31));
+    // weather: while it rains, now and then a bolt beyond the roofs, the block lit cold for a moment, thunder by distance
+    if ((boltT -= dt) <= 0) { boltT = 16 + R() * 22; if (WET.uRain.value > 0.2) strike(); }
+    // the flash: at flashes 1 a leader, the return stroke and a re-strike (three pulses in 0.4 s, Nizwa's shape); below
+    // 1 one smooth pulse at the flashes' strength (no flicker; reduced motion caps it at 0.3, feel.js)
+    const fl = Math.max(0.2, Math.min(1, +opts.flashes || 0.6));
+    bolt.t += dt;
+    if (flash) flash.set(flash.envelope(bolt.t, fl), bolt.dir);
+    else { const st = sky.userData.t = (sky.userData.t || 0) - dt; sky.intensity = st <= 0 ? 0 : skyGain * gains.room * flashEnvelope(0.38 - st, fl); }
     if (thunderT > 0 && (thunderT -= dt) <= 0) sfx.play('nd_thunder', { bus: 'ambience', gain: 0.9 });
     // health: a little of it comes back out of a fight
     if (!player.dead && assist) player.hp = Math.min(100, player.hp + dt * 6);
