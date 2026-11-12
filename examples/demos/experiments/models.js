@@ -9,7 +9,9 @@ import { createTruck, stats } from './truck.js';
 import { createRobot, standPose } from './robot.js';
 import { createRigModel } from '../../../packages/play/src/rig-model.js';
 import * as geom from '../../../packages/core/src/geom.js';
-import { parkedCars } from '../../neon-district/modules/cars.js';
+// the cars now live in the cyber kit (@miragekit/assets, BUSL-1.1); rebuilt on the surface library, they need the
+// engine's createSurfaces and a renderer, which this shim page does not give them (the comparison is of the old cars)
+import { parkedCars } from '../../../packages/assets/src/kits/cyber/cars.js';
 import { decodeClips, fromB64 } from './walk/clip-codec.js';
 import ual from './walk/ual-clips.js';
 

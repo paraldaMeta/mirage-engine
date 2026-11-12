@@ -5,6 +5,17 @@ the plaza, the relay (a server room and a stairwell) and its roof. About five mi
 It is the engine's showcase, so this file first says which engine feature each part shows and where the code is,
 then holds the modules' own sections (the convention of `docs/world-protocol.md`).
 
+**Licence: Business Source License 1.1, not MIT** ([LICENSE](LICENSE), the same as `@miragekit/assets`): free for
+non-production use; in production free for an individual using it for themselves, for non-commercial use and for
+organisations of up to three people; never to offer a competing engine, asset library or content tool; Apache-2.0
+four years after each version's first public release. Commercial licence: an issue titled "Commercial license" at
+https://github.com/paraldaMeta/mirage-engine or flytoheptameron@outlook.com. (Versions published earlier on `main`
+under MIT stay MIT.) Its props, cars, robots, the robot kit and rig, its surfaces' recipes, gun sounds and the
+destructibles' classes are the library's: `@miragekit/assets` (`kits/cyber`, `surfaces`, `sounds`, `destruct`); the
+older sections below name them by the files they were in here (`props-kit.js`, `cars.js`, `machines.js`,
+`robot-kit.js`, `game/robot-rig.js`), now `packages/assets/src/kits/cyber/` (`kit.js`, `cars.js`, `robots.js`,
+`robot-kit.js`, `robot-rig.js`).
+
 ```
 npm run dev -w neon-district            # http://localhost:5194
 npm run build -w neon-district && npm run playtest -w neon-district     # the whole route, headless
