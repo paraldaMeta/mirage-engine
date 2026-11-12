@@ -14,6 +14,7 @@
 //      ?time=night | dusk | day | dawn | HH:MM (in the game: T steps through them, the options panel has a slider)
 //      ?detail=0..1 (how much optional dressing: low 0.4, medium 0.8, high 1)   ?skip=module,module (leave modules out)
 //      ?wet=0..1 ?rain=0..1   ?big=chunk,occ,lod (docs/big-worlds.md)   ?lamps=N (N extra lamps: the cluster test)
+import './game/pwa.js';   // the service worker and the install offer, hosted build only (first: the offer can come early)
 import * as THREE from 'three';
 import { createWorldRenderer, pickQuality, setWetness, setRain, addLampSource, makeLut, lutTexture, createVfx, skyState, FOG, WET } from '@miragekit/core';
 import { applyBigWorld } from '@miragekit/core/bigworld';

@@ -7,12 +7,13 @@
   <title>Mirage · neon-district</title>
   <style>html, body { margin: 0; height: 100%; background: #000; overflow: hidden; overscroll-behavior: none; -webkit-text-size-adjust: 100%; } canvas { display: block; }
     #boot { position: fixed; inset: 0; display: grid; place-items: center; text-align: center; color: #e8eef4; font: 15px/1.5 system-ui, sans-serif; background: #000; z-index: 5 }
-    #boot h1 { font-weight: 600; letter-spacing: .06em; margin: 0 0 6px; font-size: 28px } #boot p { margin: 0; opacity: .6 }</style>
+    #boot h1 { font-weight: 600; letter-spacing: .06em; margin: 0 0 6px; font-size: 28px } #boot p { margin: 0; opacity: .6 }
+    #boot svg { display: block; width: 88px; height: 88px; margin: 0 auto 12px }</style>
 </head>
 <body>
   <canvas></canvas>
   <!-- shown at once, while the code and the world load; main.js removes it when the title is up -->
-  <div id="boot"><div><h1>NEON DISTRICT</h1><p>loading</p></div></div>
+  <div id="boot"><div><!--logo--><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Neon District"><defs><filter id="ndb-h" filterUnits="userSpaceOnUse" x="-2000" y="-2000" width="6000" height="6000"><feGaussianBlur stdDeviation="16"/></filter><radialGradient id="ndb-bg" cx=".5" cy=".42" r=".75"><stop offset="0" stop-color="#101a46"/><stop offset="1" stop-color="#060a1c"/></radialGradient></defs><g transform="translate(0 0) scale(1)" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M262 140H330L392 202V310L330 372H262" stroke="#000" stroke-opacity=".45" stroke-width="43.699999999999996" transform="translate(8.36 12.16)"/><path d="M128 372V140L262 372V140" stroke="#000" stroke-opacity=".45" stroke-width="43.699999999999996" transform="translate(8.36 12.16)"/><path d="M262 140H330L392 202V310L330 372H262" stroke="#ff3fd2" stroke-width="72.2" opacity=".55" filter="url(#ndb-h)"/><path d="M128 372V140L262 372V140" stroke="#19d8ff" stroke-width="72.2" opacity=".55" filter="url(#ndb-h)"/><path d="M262 140H330L392 202V310L330 372H262" stroke="#ff3fd2" stroke-width="38"/><path d="M128 372V140L262 372V140" stroke="#19d8ff" stroke-width="38"/><path d="M262 140H330L392 202V310L330 372H262" stroke="#ffe2f6" stroke-width="13.68" opacity=".9"/><path d="M128 372V140L262 372V140" stroke="#dcfbff" stroke-width="13.68" opacity=".9"/></g></svg><!--/logo--><h1>NEON DISTRICT</h1><p>loading</p></div></div>
   <script>if (/^(zh|ja)/.test(new URLSearchParams(location.search).get('lang') || navigator.language)) { const z = /^zh/.test(new URLSearchParams(location.search).get('lang') || navigator.language); document.querySelector('#boot h1').textContent = z ? '霓虹街區' : 'ネオン街区'; document.querySelector('#boot p').textContent = '…'; }</script>
   <script type="module" src="./main.js"></script>
 </body>
