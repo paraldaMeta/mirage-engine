@@ -21,7 +21,7 @@ const BUSL = new Set(['assets']);
 // a marker of each part of the library: a surface recipe, the decal masks, the cyber kit, the robot kit, the sound
 // tables, the destructibles' classes, an import of the library
 const CONTENT = [/MsS ms_concrete\(/, /float msDecalScatter\(/, /export function parkedCars\(/, /export function humanoid\(/, /export const WEAPON_SOUNDS\b/,
-  /export const UI_SOUNDS\b/, /export const DESTRUCT_MATERIALS\b/, /from ['"]@miragekit\/assets/];
+  /export const UI_SOUNDS\b/, /export const DESTRUCT_MATERIALS\b/, /^\s*(import|export)\b[^\n]*from ['"]@miragekit\/assets/m, /\bimport\(\s*['"]@miragekit\/assets/];
 const read = (f) => JSON.parse(fs.readFileSync(path.join(ROOT, f), 'utf8'));
 const root = read('package.json');
 const three = read('node_modules/three/package.json').version;
