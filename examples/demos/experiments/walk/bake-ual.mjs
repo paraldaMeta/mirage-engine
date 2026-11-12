@@ -1,6 +1,6 @@
-// Experiment: retarget Quaternius' Universal Animation Library (CC0) clips onto createRigModel's skeleton and
-// re-encode them small. Reads the downloaded GLBs (never shipped in the repo), writes walk/ual-clips.js and
-// out/bake-report.json.
+// Bake: retarget Quaternius' Universal Animation Library (CC0) clips onto createRigModel's skeleton and re-encode them
+// small for the cyber kit. Reads the downloaded GLBs (never shipped in the repo), writes
+// packages/assets/src/kits/cyber/motion-data.js and out/bake-report.json.
 //   node examples/demos/experiments/walk/bake-ual.mjs <UAL1 .glb> <UAL2 .glb>
 import fs from 'node:fs';
 import path from 'node:path';
@@ -10,10 +10,12 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { createRigModel } from '../../../../packages/play/src/rig-model.js';
 import { retargetClip } from '../../../../packages/play/src/retarget.js';
-import { encodeClips, decodeClips, toB64 } from './clip-codec.js';
+import { decodeMotion } from '../../../../packages/assets/src/kits/cyber/motion-clips.js';
+import { encodeClips, toB64 } from './clip-codec.js';
 import { gaitMetrics } from './gait-metrics.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url)), outDir = path.join(here, '..', 'out');
+const dataFile = path.join(here, '../../../../packages/assets/src/kits/cyber/motion-data.js');
 fs.mkdirSync(outDir, { recursive: true });
 const [ual1, ual2] = process.argv.slice(2);
 if (!ual1 || !ual2) { console.error('usage: bake-ual.mjs <UAL1.glb> <UAL2.glb>'); process.exit(2); }
@@ -45,12 +47,11 @@ for (const [s, t] of [['l', 'Left'], ['r', 'Right']]) Object.assign(MAP2, { [`th
 const clean = (m) => Object.fromEntries(Object.entries(m).map(([k, v]) => [THREE.PropertyBinding.sanitizeNodeName(k), v]));
 A.map = clean(MAP1); B.map = clean(MAP2);
 
-// [source, out name, travels?, loop?]
+// [source, clip, out name, travels?, loop?]  (no strafe, turn-in-place or second death in the free packs)
 const WANT = [
-  [A, 'Idle_Loop', 'idle', false, true], [A, 'Walk_Loop', 'walk', true, true], [A, 'Jog_Fwd_Loop', 'run', true, true], [A, 'Sprint_Loop', 'sprint', true, true],
+  [A, 'Idle_Loop', 'idle', false, true], [A, 'Walk_Loop', 'walk', true, true], [A, 'Jog_Fwd_Loop', 'run', true, true],
   [A, 'Crouch_Fwd_Loop', 'crouchWalk', true, true], [B, 'Zombie_Walk_Fwd_Loop', 'brokenWalk', true, true],
-  [A, 'Pistol_Aim_Neutral', 'aimPistol', false, true], [A, 'Hit_Chest', 'hitChest', false, false], [A, 'Hit_Head', 'hitHead', false, false],
-  [B, 'Hit_Knockback', 'hitKnockback', false, false], [A, 'Death01', 'die', false, false],
+  [A, 'Hit_Chest', 'hitChest', false, false], [A, 'Hit_Head', 'hitHead', false, false], [B, 'Hit_Knockback', 'hitKnockback', false, false], [A, 'Death01', 'die', false, false],
 ];
 
 const rig = createRigModel(), target = rig.root;
@@ -65,50 +66,35 @@ let groundFix = 0;
 for (const [src, name, out, travel, loop] of WANT) {
   const clip0 = src.clips.find((c) => c.name === name);
   if (!clip0) { console.log('missing', name); continue; }
-  let clip = retargetClip(strip(clip0), src.scene, target, { map: src.map, fps: 60, name: out });
+  const clip = retargetClip(strip(clip0), src.scene, target, { map: src.map, fps: 60, name: out });
   // the source's root never travels in these (in-place) clips: drop its track
   clip.tracks = clip.tracks.filter((t) => t.name !== 'Root.position' && t.name !== 'Root.quaternion');
   // feet on the ground: one hips-height correction for the whole set, measured on idle (scale by hip height
   // brings the legs within a few mm; this takes out the rest)
-  const hipsT = () => clip.tracks.find((t) => t.name === 'Hips.position');
   if (out === 'idle') groundFix = -gaitMetrics(target, clip, { travel: false }).groundCm / 100;
-  const ht = hipsT(); if (ht) for (let i = 1; i < ht.values.length; i += 3) ht.values[i] += groundFix;
-  let speed = 0, m0 = null;
+  const ht = clip.tracks.find((t) => t.name === 'Hips.position');
+  if (ht) for (let i = 1; i < ht.values.length; i += 3) ht.values[i] += groundFix;
+  let speed = 0;
   if (travel) {
     // root motion from the feet: the speed at which the planted foot stands still
-    m0 = gaitMetrics(target, clip, { travel: false });
-    speed = -m0.plantedVzMedian;
+    speed = -gaitMetrics(target, clip, { travel: false }).plantedVzMedian;
     for (let it = 0; it < 3; it++) {
       const withRoot = new THREE.AnimationClip(out, clip.duration, [...clip.tracks, new THREE.VectorKeyframeTrack('Root.position', [0, clip.duration], [0, 0, 0, 0, 0, speed * clip.duration])]);
       speed -= gaitMetrics(target, withRoot).plantedVzMedian;
     }
   }
-  const events = travel ? (m0 || gaitMetrics(target, clip, { travel: false })).downs : [];
-  baked.push({ clip, speed, loop, events, src: name, file: src === A ? 'UAL1' : 'UAL2', raw: src.rawBytes[name] });
+  baked.push({ clip, speed, loop, src: name, file: src === A ? 'UAL1' : 'UAL2', raw: src.rawBytes[name] });
 }
 
-// encode at three rates; the 30 Hz one ships
-const sizes = {};
-for (const fps of [15, 20, 30]) {
-  const enc = encodeClips(baked, { fps, rest });
-  sizes[fps] = enc;
-}
-const ship = sizes[30];
-const decoded = decodeClips(ship, rest);
-// per clip: bytes and quality
+const ship = encodeClips(baked, { hipsRest: rest.Hips });
+const b64 = toB64(ship.bytes);
+const decoded = decodeMotion({ meta: ship.meta, b64 }).clips;
 let offset = 0;
 for (const [i, b] of baked.entries()) {
-  const per = {};
-  for (const fps of [15, 20, 30]) {
-    const m = sizes[fps].meta[i];
-    const n = m.tracks.reduce((t, tr) => t + (tr.c ? 1 : m.keys) * 3 * 2, 0), metaBytes = JSON.stringify(m).length;
-    per[fps] = { keys: n, meta: metaBytes, total: n + metaBytes };
-  }
-  const m = ship.meta[i], n = per[30].keys;
+  const m = ship.meta[i], dec = decoded[i];
+  const n = dec.tracks.reduce((t, tr) => t + (tr.name === 'Root.position' ? 0 : tr.times.length * 3 * 2), 0);
   const bin = ship.bytes.subarray(offset, offset + n); offset += n;
-  const floatKept = b.clip.tracks.reduce((t, tr) => t + (tr.times.length / 2) * 4 + (tr.values.length / 2) * 4, 0);   // the kept tracks at 30 Hz as float32 (the 60 Hz bake halved)
   // decode error: worst bone angle between the float bake and the decoded clip
-  const dec = decoded[i];
   let worst = 0;
   for (const tr of dec.tracks) {
     if (!tr.name.endsWith('.quaternion')) continue;
@@ -117,27 +103,26 @@ for (const [i, b] of baked.entries()) {
     for (let k = 0; k <= 60; k++) { const t = (k / 60) * dec.duration, qa = new THREE.Quaternion().fromArray(ia.evaluate(t)).normalize(), qb = new THREE.Quaternion().fromArray(ib.evaluate(t)).normalize(); worst = Math.max(worst, THREE.MathUtils.radToDeg(qa.angleTo(qb))); }
   }
   const metrics = b.speed ? gaitMetrics(target, dec) : null;
-  const row = {
-    name: m.name, from: `${b.file}:${b.src}`, duration: m.duration, speed: m.speed, loop: m.loop,
-    tracks: { animated: m.tracks.filter((t) => !t.c).length, constant: m.tracks.filter((t) => t.c).length },
-    bytes: { glbAllTracks: b.raw, float32Kept30Hz: Math.round(floatKept), enc15: per[15].total, enc20: per[20].total, enc30: per[30].total, enc30Gzip: zlib.gzipSync(bin, { level: 9 }).length + per[30].meta },
-    worstAngleDeg30Hz: +worst.toFixed(2), events: m.events.length, metrics,
-  };
+  const row = { name: m[0], from: `${b.file}:${b.src}`, duration: m[1], speed: m[2], loop: !!m[3], bytes: { glbAllTracks: b.raw, keys: n, gzip: zlib.gzipSync(bin, { level: 9 }).length }, worstAngleDeg: +worst.toFixed(2), metrics };
   report.clips.push(row);
-  console.log(row.name.padEnd(13), String(row.duration).padStart(6), 's', 'speed', String(row.speed).padStart(6), 'tracks', row.tracks, 'bytes', row.bytes, 'err', row.worstAngleDeg30Hz, metrics ? `slide ${metrics.slideMean}/${metrics.slideP95}/${metrics.slidePeak} cm/s knee ${metrics.kneeL} bob ${metrics.bobCm}` : '');
+  console.log(row.name.padEnd(13), String(row.duration).padStart(6), 's', 'speed', String(row.speed).padStart(6), 'bytes', row.bytes, 'err', row.worstAngleDeg, metrics ? `slide ${metrics.slideMean}/${metrics.slideMedian}/${metrics.slideP95} cm/s knee ${metrics.kneeL} bob ${metrics.bobCm}` : '');
 }
-const b64 = toB64(ship.bytes), metaJson = JSON.stringify(ship.meta);
-report.total = {
-  clips: baked.length, keys: ship.bytes.length, meta: metaJson.length, base64: b64.length, jsModule: 0,
-  gzipKeys: zlib.gzipSync(ship.bytes, { level: 9 }).length, gzipModule: 0, groundFixCm: +(groundFix * 100).toFixed(2),
-  glbBoth: A.fileBytes + B.fileBytes, glbRawSelected: baked.reduce((t, b) => t + b.raw, 0),
-};
-const mod = `// Generated by bake-ual.mjs from Quaternius' Universal Animation Library 1 and 2 [Standard] (CC0 1.0,
-// https://creativecommons.org/publicdomain/zero/1.0/), retargeted onto createRigModel's skeleton and re-encoded
-// (clip-codec.js): ${baked.length} clips, ${ship.bytes.length} bytes of keys at 30 Hz. Experiment data, not engine code.
-export default { meta: ${metaJson}, b64: '${b64}' };
+const metaJson = JSON.stringify(ship.meta);
+const mod = `// Generated by examples/demos/experiments/walk/bake-ual.mjs; decoded by motion-clips.js. Data, not code to edit.
+//
+// Source: Quaternius, "Universal Animation Library" [Standard] and "Universal Animation Library 2" [Standard], from
+// OpenGameArt, where the author uploaded them: https://opengameart.org/sites/default/files/universal_animation_librarystandard.zip
+// (${A.fileBytes.toLocaleString('en')} B GLB used: AnimationLibrary_Godot_Standard.glb) and
+// https://opengameart.org/sites/default/files/universal_animation_library_2standard.zip (UAL2_Standard.glb), downloaded
+// 2026-11-12 (archive contents dated 2025-03-19 and 2026-01-23).
+// Licence, as the License.txt in each archive reads: "CC0 1.0 Universal (CC0 1.0) Public Domain Dedication
+// https://creativecommons.org/publicdomain/zero/1.0/ ... Models by @Quaternius". (The author's site now publishes a
+// later licence that says it does not apply to assets obtained under an earlier one.)
+// Clips (source name -> ours): ${baked.map((b) => `${b.src} -> ${b.clip.name}`).join(', ')}.
+// Retargeted onto createRigModel's skeleton (@miragekit/play retargetClip), 30 Hz, int16 rotations; ${ship.bytes.length} bytes of keys.
+export const MOTION = { meta: ${metaJson}, b64: '${b64}' };
 `;
-fs.writeFileSync(path.join(here, 'ual-clips.js'), mod);
-report.total.jsModule = Buffer.byteLength(mod); report.total.gzipModule = zlib.gzipSync(mod, { level: 9 }).length;
+fs.writeFileSync(dataFile, mod);
+report.total = { clips: baked.length, keys: ship.bytes.length, meta: metaJson.length, base64: b64.length, jsModule: Buffer.byteLength(mod), gzipModule: zlib.gzipSync(mod, { level: 9 }).length, groundFixCm: +(groundFix * 100).toFixed(2) };
 fs.writeFileSync(path.join(outDir, 'bake-report.json'), JSON.stringify(report, null, 1));
 console.log('total', report.total);

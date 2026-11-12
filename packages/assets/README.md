@@ -92,7 +92,7 @@ English, Traditional Chinese and Japanese (system fonts).
   call `update(t)` each frame; `machineUnits(group)` lists each unit's instances.
 - **The robot kit**: `humanoid(style, lod)` / `quadruped(style, lod)` bodies as parts per bone at three levels of
   detail, `part`, `mergeParts`, `cover`, `drum`, `decal`, `robotMaterials(world)`, gaits (`GAITS`, `bipedLegs`,
-  `trotLegs`, `legIK`); the rig (`humanoidMeshes` skinned to @miragekit/play's bones, `robotClips`, `createHound`).
+  `trotLegs`, `legIK`); the rig (`humanoidMeshes` skinned to @miragekit/play's bones, `robotClips`, `createHound`); borrowed motion capture for it (`motionClips`, `samplePose`: Quaternius, CC0).
 - **Destructibles' recording**: `recorder(ctx)`, `track(batch, fn)`, `trackLamps(ctx, fn)`: the vertex ranges and
   lamps each prop adds, for @miragekit/game's destructibles.
 - **Surfaces**: `surfaceLib(ctx)` (the surface library per world, bake sizes by quality), `corrugated` sheet as geometry, `canopy`, `worn(base)` hooks for chipped, rusting painted metal,

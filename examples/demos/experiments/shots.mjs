@@ -18,7 +18,7 @@ const save = (name, dataUrl) => { fs.writeFileSync(path.join(out, name), Buffer.
 try {
   if (what === 'walk') {
     const { page, errors } = await open(b, `${srv.url}${rel}/walk.html?w=1280&h=720&still=1`);
-    for (const [bn, un, view, game] of [['walk', 'walk', 'side'], ['walk', 'walk', 'three'], ['run', 'run', 'side'], ['run', 'run', 'three'], ['walk', 'walk', 'side', true], ['run', 'run', 'side', true], ['idle', 'die', 'side'], ['idle', 'brokenWalk', 'side']]) {
+    for (const [bn, un, view, game] of [['walk', 'walk', 'side'], ['walk', 'walk', 'three'], ['run', 'run', 'side'], ['run', 'run', 'three'], ['walk', 'walk', 'side', true], ['run', 'run', 'side', true], ['idle', 'die', 'side'], ['idle', 'die', 'three'], ['idle', 'brokenWalk', 'side'], ['idle', 'hitKnockback', 'side'], ['idle', 'hitChest', 'side'], ['idle', 'hitHead', 'side'], ['idle', 'crouchWalk', 'side']]) {
       save(`strip-${un}-${view}${game ? '-game' : ''}.png`, await page.evaluate((o) => window.__strip(o), { base: bn, ual: un, view, game }));
     }
     console.log(JSON.stringify(await page.evaluate(() => window.__metrics())));

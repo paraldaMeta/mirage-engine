@@ -1,12 +1,14 @@
 # Experiments: borrowed walk data, and the img2threejs method by hand
 
-These are feasibility tests, not engine code. Nothing here is imported by `examples/neon-district`.
+These are feasibility tests, not engine code. Nothing here is imported by `examples/neon-district`. The borrowed walk
+went into the cyber kit: `walk/bake-ual.mjs` now writes `packages/assets/src/kits/cyber/motion-data.js` (decoded by
+`motion-clips.js` there; `walk/ual-clips.js` is gone) and the pages here read it from there.
 The pages import three from the repository's `node_modules`, so serve the repository root (`shots.mjs` does).
 Pictures and JSON go to `out/`, which git ignores.
 
 ```
-node examples/demos/experiments/walk/bake-ual.mjs <UAL1 .glb> <UAL2 .glb>   # downloaded data -> walk/ual-clips.js
-node examples/demos/experiments/walk/measure.mjs                            # gait numbers -> out/gait.json
+node examples/demos/experiments/walk/bake-ual.mjs <UAL1 .glb> <UAL2 .glb>   # downloaded data -> the kit's motion-data.js
+node examples/demos/experiments/walk/measure.mjs                            # gait numbers (robotClips vs borrowed) -> out/gait.json
 node examples/demos/experiments/shots.mjs walk                              # strips -> out/strip-*.png
 node examples/demos/experiments/shots.mjs models [set=truck|robot|compare|walk]
 node packages/tools/src/package.mjs examples/neon-district --out examples/demos/experiments/out/neon.html
