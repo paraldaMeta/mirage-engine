@@ -49,12 +49,16 @@ Hosts using `createPhysics` directly can still drive `character.update(dt, input
 | `input.js` | `createInput()` | actions `forward back left right run jump interact inventory menu`; `poll()`, `down(a)`, `pressed(a)`, `move()`, `look(dt)`, `source`, `glyph(a)`, `rebind(a, code)`, `capture()`; gamepad = standard mapping; touch via `stick / hold / tap / addLook` |
 | `audio.js` | `createAudio()` | buses `master → music, sfx, ambience`; `unlock()` (a user gesture), `play(name, { at })`, `loop(name, { at })`, `add(name, sound)` (an `AudioBuffer`, a list of variants, or a factory `(ctx) => buffer or list`: your own sounds; a factory added before the first gesture runs at `unlock()`), `footstep(surface)`, `listen(camera)`, `volume(bus, v)` |
 | `ui.js` | `createUI(...)` | HUD, prompt, toasts, start screen, pause menu (save slots, load, export / import, controls with rebinding, volumes, restart), inventory panel, message dialog (`await ui.message(title, body, button)`: the promise resolves when it closes), touch controls |
-| `destruct.js` | `createDestructibles(g, opts)` | props that break when shot ([docs/destructibles.md](../../docs/destructibles.md)): `add({ draw, material, health, lamps, broken, behave, mover })` over a mesh, an instance, a batched id or a merged range; `hit({ ray, kind, damage })` with penetration, `blast({ point, radius, damage, occlusion })`, `actor()`, `on('break' \| 'casualty' \| 'panic' \| 'noise' \| 'blast')`, `tally`, `snapshot / restore / reset`; steps with the game and saves as its entity |
+| `destruct.js` | `createDestructibles(g, opts)` | props that break when shot ([docs/destructibles.md](../../docs/destructibles.md)): `add({ draw, material, health, lamps, broken, behave, mover })` over a mesh, an instance, a batched id or a merged range; `hit({ ray, kind, damage })` with penetration, `blast({ point, radius, damage, occlusion })`, `actor()`, `on('break' \| 'casualty' \| 'panic' \| 'noise' \| 'blast')`, `tally`, `snapshot / restore / reset`; steps with the game and saves as its entity; the material classes are registered (`registerDestructData`; `@miragekit/assets/destruct`, BUSL-1.1, has the library's), a plain `generic` class without |
 | `ui.js` | `createUI(...)` | HUD, prompt, toasts, start screen, pause menu (save slots, load, export / import, controls with rebinding, volumes, restart), inventory panel, message dialog (`await ui.message(title, body, button)`: the promise resolves when it closes), touch controls. Its text is a table, English by default (`UI_STRINGS`, the keys): `startGame(world, { ui: { strings } })` or `createUI({ ..., strings })` replace some or all of it, `ui.setStrings(table)` switches at run time (labels and an open menu follow; `docs/ui.md`) |
 
 Surfaces for footsteps: `userData.surface` on a mesh or its material (`stone`, `gravel`, `grass`, `wood`).
 Sounds (all generated in code at `unlock`, ~0.3 s): `step_stone|gravel|grass|wood` (4 variants each), `pickup`,
 `locked`, `door`, `ignite`, `done`, loops `wind` (with birds), `water`, `pad`.
+
+`@miragekit/game/sounds` is the synthesis kit for sounds made in code (layers, rooms, a limiter, `one` / `fold`) and a
+table-free API for definitions (`renderSoundDef`, `soundBuffers`, `addSoundDefs`); the library of 125 ready sounds is
+`@miragekit/assets/sounds` (Business Source License 1.1, [docs/sounds.md](../../docs/sounds.md)).
 
 ## Saves
 

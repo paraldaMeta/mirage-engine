@@ -1,13 +1,18 @@
 # Sound library
 
-`@miragekit/game/sounds`: 125 sounds in seven categories (243 variants, 22 loops), all made in code. There are no
+**Licence:** the 125 sounds are `@miragekit/assets/sounds`, under the Business Source License 1.1
+([packages/assets](../packages/assets/README.md)); the synthesis kit they are made with (layers, rooms, the limiter,
+`one` / `fold`) and the table-free API (`renderSoundDef`, `soundBuffers(ctx, def)`, `addSoundDefs`) are
+`@miragekit/game/sounds`, MIT: sounds of your own need only that.
+
+`@miragekit/assets/sounds`: 125 sounds in seven categories (243 variants, 22 loops), all made in code. There are no
 audio files: each sound is a function that renders mono samples at any sample rate, in a page, a worker or Node, and
 gives the same samples on every machine (each is seeded by its name and variant). Load the ones a world uses; they
 are made when the mixer unlocks, at the device's rate.
 
 ```js
 import { createAudio } from '@miragekit/game/audio';
-import { addSounds, soundNames, renderSound } from '@miragekit/game/sounds';
+import { addSounds, soundNames, renderSound } from '@miragekit/assets/sounds';
 
 const audio = createAudio();
 addSounds(audio, [...soundNames('ui'), 'step_metal', 'step_wet', 'amb_rain', 'door_slide']);
@@ -54,7 +59,7 @@ minified (14 KB gzip) for the whole library.
 
 ## Checked
 
-`packages/game/sounds.check.mjs` (in `npm test`) renders every variant in Node and measures it: finite, peak 0.3 to
+`packages/assets/sounds.check.mjs` (in `npm test`) renders every variant in Node and measures it: finite, peak 0.3 to
 0.93, deterministic, variants different; loops step no more at the seam than inside and hold their level across it;
 hits (clicks, keys, impacts, steps, shots) reach 90 % of their peak within 8 ms of their onset and swells take over
 30 ms; thunder, falls, the heartbeat and explosions carry most of their first 100 ms under 200 Hz and clicks,
@@ -68,7 +73,7 @@ of listening, which the demo page is for.
 
 ## The sounds
 
-Measured by the check (`node packages/game/sounds.check.mjs --table`): length, attack (onset to 90 % of peak) and
+Measured by the check (`node packages/assets/sounds.check.mjs --table`): length, attack (onset to 90 % of peak) and
 the share of the first 100 ms under 200 Hz.
 
 | name | category | variants | seconds | attack ms | under 200 Hz |

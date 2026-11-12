@@ -4,6 +4,32 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
 
 ## Unreleased
 
+**Licences: a new package, @miragekit/assets, under the Business Source License 1.1**
+- The engine stays MIT: core, world, play, game, net, editor, tools (systems, APIs, frameworks, tools). The library's
+  content moves to `@miragekit/assets` (`packages/assets`, BUSL-1.1, its LICENSE and README), and
+  `examples/neon-district` is under the same licence. Production use is free for an individual using it for
+  themselves, for non-commercial use and for organisations of up to three people; never to offer a competing engine,
+  asset library or content tool; each version becomes Apache-2.0 four years after its first public release (1.0.0:
+  2030-11-12); a commercial licence: an issue titled "Commercial license" or flytoheptameron@outlook.com. Root README
+  "Licences" and NOTICE say which directory is which. Versions already published on `main` under MIT (the first neon
+  district, its early props, cars, robots and gun sounds) stay MIT for those versions.
+- `@miragekit/assets/surfaces`: the 35 surface kinds (their tables, reference ranges, GLSL recipes), `METALS`, the
+  weathering decals; `SURFACES`, `SURFACE_KINDS`, `createSurfaces`, `registerSurfaces`. @miragekit/core keeps the
+  framework and gains a registry: `registerSurfaceKinds`, `registerSurfaceDecals`, `surfaceKinds()`,
+  `surfaceSpec()`; it no longer exports `SURFACES`, `SURFACE_KINDS` or `METALS` (import them from the library).
+- `@miragekit/assets/kits/cyber`: the cyber kit (was the world kit `kits/cyber`, gone from world) and the robot
+  rig (`humanoidMeshes`, `robotClips`, `CLIP_SPEED`, `createHound`, from the example).
+- `@miragekit/assets/sounds`: the 125 sounds (`SOUNDS`, `soundNames`, `renderSound`, `addSounds`, the gun renderers).
+  `@miragekit/game/sounds` is now the synthesis kit with `renderSoundDef`, `soundBuffers(ctx, def)`, `addSoundDefs`.
+- `@miragekit/assets/destruct`: the destructibles' classes, effects and break sounds (`DESTRUCT_MATERIALS`,
+  `DESTRUCT_EFFECTS`, `DESTRUCT_SOUNDS`, `addDestructSounds`), registered on import. @miragekit/game's
+  `createDestructibles` takes its table by `registerDestructData` and works alone with a plain `generic` class.
+- `@miragekit/assets/presets`: reserved. The pack check (`npm run test:pack`) checks eight packages: BUSL-1.1 with
+  its licence text for assets, MIT and none of the library's content in the others; the import check refuses an
+  import of the library from an MIT package's source. Checks moved with their data:
+  `packages/assets/{surfaces,cyber,sounds,destruct}.check.mjs`; core and game keep checks of the framework alone.
+  The neon district's scene (meshes, triangles, stills) and its sounds are unchanged.
+
 **Faster**
 - @miragekit/core: the WebGL commands are flushed to the GPU every 128 draws (`createWorldRenderer({ flushEvery })`,
   0 = off) and before and after the scene pass. The browser otherwise sends a task's commands at its end, so the GPU

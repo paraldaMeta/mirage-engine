@@ -15,9 +15,11 @@ listed is internal and cannot be imported from an installed package. `npm test` 
 that is not listed (`scripts/check-imports.mjs`, over source, examples and docs) and on a `.d.ts` that declares
 other value names than its module exports (`scripts/check-types.mjs`). The subpaths a world normally needs:
 
-- the sound library `@miragekit/game/sounds` ([sounds.md](sounds.md));
-- the world kits `@miragekit/world/kits/vegetation`, `/kits/terrain`, `/kits/water`, `/kits/rain`, `/kits/splat`,
-  `/kits/fur` and `/kits/cyber` (experimental), documented in the world README;
+- the synthesis kit `@miragekit/game/sounds` ([sounds.md](sounds.md));
+- the world kits `@miragekit/world/kits/vegetation`, `/kits/terrain`, `/kits/water`, `/kits/rain`, `/kits/splat` and
+  `/kits/fur`, documented in the world README;
+- the library's content, `@miragekit/assets/surfaces`, `/kits/cyber`, `/sounds`, `/destruct` (Business Source License
+  1.1, not MIT: the last section below);
 - `@miragekit/core/rng`, `@miragekit/core/geom`, `@miragekit/world/plan`;
 - `@miragekit/core/export` (`exportWorld`, experimental: [export.md](export.md)), `@miragekit/core/assets`
   ([import.md](import.md)) and `@miragekit/core/ktx2` (`createKTX2Loader(renderer, { transcoderPath, workers })`,
@@ -73,7 +75,8 @@ count of stable and experimental exports, and how a name is promoted: [STABILITY
 | `renderHeight(name, und, swipe)` | experimental | GLSL declaring a hand-applied render's height (m), faded with distance |
 | `renderShade(name)` | experimental | `output` hook snippet: shade the render's hollows |
 | `withWet(hooks, options)` | experimental | wet surfaces on a hooks object: damp → soaked → standing water (puddles), run-off streaks, a damp band at the ground, rain rings; options `porosity`, `ground`, `band`, `puddles`, `height`, `heightMid`, `heightScale`, `wear`, `wearDepth`, `shelter`, `rim`, `ripples`, `specAA` |
-| `SURFACES.<kind>(options)`, `SURFACE_KINDS`, `METALS` | experimental | the surface library ([surfaces.md](surfaces.md)): 35 kinds (27 bakeable, 8 per pixel: emissive and liquid), each a GLSL recipe plus numbers in measured ranges |
+| `registerSurfaceKinds({ kinds, glsl, liveGlsl })`, `registerSurfaceDecals({ glsl, fragment, uniforms })` | experimental | the surface framework's registry ([surfaces.md](surfaces.md)): a kind is a table entry (numbers, packing, reference ranges, optional program pieces) and a GLSL recipe; the library's 35 are `@miragekit/assets/surfaces` |
+| `surfaceKinds()`, `surfaceSpec(kind, options)` | experimental | the registered kinds' facts; a spec of a registered kind |
 | `createSurfaces(world, { mode, size, anisotropy })` | experimental | `{ material(spec, options), hooks, bake, stats, dispose }`: `mode` `'auto'` (default) \| `'baked'` \| `'procedural'`; mappings `tri` / `wall` / `ground` / `grain` / `uv`, `space: 'object'`, `wet`, `decals`, asphalt `paint` |
 | `surfaceHooks(spec, options)`, `bakeSurface(renderer, spec, options)`, `bakeDecalAtlas(renderer)`, `noiseTexture()` | experimental | the parts: hooks without a library, a set baked by hand, the weathering decal atlas, the runtime layer's noise |
 | `setWetness(level)` | experimental | wetness 0 (off: the wet code not compiled; crossing 0 recompiles the opted-in materials) .. 1 (full puddles); page-global |
@@ -327,23 +330,17 @@ Gaussian splats, `@miragekit/world/kits/splat` (opt-in subpath, world README "Ga
 | `createCanvasUI({ description })` | experimental | a widget panel drawn into a texture, for screens in the world and XR |
 | `createKitUI(opts)` | experimental | `createUI`'s overlay rebuilt on the toolkit: pass as `startGame`'s `ui` |
 | `createDestructibles(target, options)` | experimental | destructibles (docs/destructibles.md): props over meshes, instances, batched ids or merged ranges that crack, dent, shatter, spill, burn, fall and explode; `hit` (rays with penetration), `blast` (falloff, cover), staged material classes, pooled debris and marks, lamps out, behaviours, movers, actors, tally, snapshot / restore; opt-in, nothing made until something breaks |
-| `DESTRUCT_MATERIALS` | experimental | the material classes as data: health, armour per damage kind, pierce, stages, debris, effects, sound, value |
-| `DESTRUCT_EFFECTS` | experimental | the particle effects (vfx JSON) the destructibles use: glitter, dust, sparks, a short circuit, spray, splash, blast, steam, water, fire |
+| `registerDestructData({ materials, effects, fallback, addSounds })`, `destructData()` | experimental | the class table registries are made from (`@miragekit/assets/destruct` registers the library's on import; without it: a `generic` class and an `actor`, no effects, no sounds) |
 | `DAMAGE_KINDS` | experimental | `bullet`, `pellet`, `blast`, `melee`, `emp`, `fire` |
-| `DESTRUCT_SOUNDS` | experimental | the break sound sets (`dx_break_<name>`), made in code |
-| `addDestructSounds(audio)` | experimental | add the destructibles' procedural sounds to a `createAudio` mixer |
 | `BROKEN_STATES` | experimental | broken-state geometry in a unit box: a shattered pane rim, a split crate, a dented panel, a flat tyre |
 
-The sound library, `@miragekit/game/sounds` (opt-in subpath, [sounds.md](sounds.md)): 125 sounds made in code. Every
-export is experimental.
+The synthesis kit, `@miragekit/game/sounds` (opt-in subpath, [sounds.md](sounds.md)): sounds made in code from
+definitions `{ n, loop?, render(sampleRate, v) }`. Every export is experimental.
 
 | export | stability | what it is |
 |---|---|---|
-| `SOUNDS`, `SOUND_CATEGORIES`, `SOUND_SPACES`, `GUNS` | experimental | the sounds by name (`{ cat, n, loop, desc, render(sampleRate, v) }`), the seven categories, the three spaces a gun is heard in, the guns |
-| `soundNames(cat)`, `renderSound(name, sampleRate, variant)` | experimental | the names of a category (or all); one variant as a Float32Array |
-| `soundBuffers(ctx, name)`, `addSounds(audio, names, { prefix })` | experimental | every variant as AudioBuffers; give sounds to `createAudio` (made at unlock) |
-| `makeRng`, `hash`, `biquad`, `chain`, `env`, `noiseLayer`, `thumpLayer`, `modesLayer`, `toneLayer`, `ROOMS`, `room`, `master`, `one`, `fold`, `click`, `scrape` | experimental | the synthesis kit, for sounds of your own |
-| `renderShot`, `renderGatlingLoop`, `renderGatlingTail`, `renderRocketLaunch`, `renderExplosion` | experimental | the weapons' renderers with their arguments (gun, space, variant) |
+| `renderSoundDef(def, sampleRate, variant)`, `soundBuffers(ctx, def)`, `addSoundDefs(audio, { name: def }, { prefix })` | experimental | one variant as a Float32Array; every variant as AudioBuffers; give definitions to `createAudio` (made at unlock) |
+| `makeRng`, `hash`, `biquad`, `chain`, `env`, `noiseLayer`, `thumpLayer`, `modesLayer`, `toneLayer`, `ROOMS`, `room`, `master`, `one`, `fold`, `click`, `scrape`, `TAU` | experimental | the synthesis kit, for sounds of your own |
 
 ## @miragekit/net
 
@@ -416,7 +413,39 @@ need Chrome: `$CHROME`, or the usual install place on macOS, Linux and Windows.
 ## @miragekit/assets
 
 **Business Source License 1.1, not MIT** ([packages/assets/LICENSE](../packages/assets/LICENSE)): the library's
-content, which plugs into the MIT systems above. Sub-paths only (no root entry).
+content, which plugs into the MIT systems above. Sub-paths only (no root entry); `/presets` is reserved (empty).
+
+### The surface recipes: `@miragekit/assets/surfaces`
+
+Registered with core's framework on import ([surfaces.md](surfaces.md)). Every export is experimental.
+
+| export | stability | what it is |
+|---|---|---|
+| `SURFACES.<kind>(options)`, `SURFACE_KINDS`, `METALS` | experimental | 35 kinds (27 bakeable, 8 per pixel: emissive and liquid), each a GLSL recipe plus numbers in measured ranges; the F0 of common metals |
+| `createSurfaces(world, options)` | experimental | core's `createSurfaces` with these recipes registered |
+| `registerSurfaces(framework)`, `KIND_GLSL`, `LIVE_GLSL` | experimental | register the kinds and the weathering decals with a framework (done on import); the recipes' GLSL |
+
+### The sound library: `@miragekit/assets/sounds`
+
+125 sounds made in code on game's synthesis kit ([sounds.md](sounds.md)). Every export is experimental.
+
+| export | stability | what it is |
+|---|---|---|
+| `SOUNDS`, `SOUND_CATEGORIES`, `SOUND_SPACES`, `GUNS` | experimental | the sounds by name (`{ cat, n, loop, desc, render(sampleRate, v) }`), the seven categories, the three spaces a gun is heard in, the guns |
+| `soundNames(cat)`, `renderSound(name, sampleRate, variant)` | experimental | the names of a category (or all); one variant as a Float32Array |
+| `soundBuffers(ctx, name)`, `addSounds(audio, names, { prefix })` | experimental | every variant as AudioBuffers; give sounds to `createAudio` (made at unlock) |
+| `renderShot`, `renderGatlingLoop`, `renderGatlingTail`, `renderRocketLaunch`, `renderExplosion` | experimental | the weapons' renderers with their arguments (gun, space, variant) |
+
+### The destructibles' classes: `@miragekit/assets/destruct`
+
+Registered with game's destructibles on import ([destructibles.md](destructibles.md)). Every export is experimental.
+
+| export | stability | what it is |
+|---|---|---|
+| `DESTRUCT_MATERIALS` | experimental | the material classes as data: health, armour per damage kind, pierce, stages, debris, effects, sound, value |
+| `DESTRUCT_EFFECTS` | experimental | the particle effects (vfx JSON) the destructibles use: glitter, dust, sparks, a short circuit, spray, splash, blast, steam, water, fire |
+| `DESTRUCT_SOUNDS`, `destructSoundFactories()`, `addDestructSounds(audio)` | experimental | the break sound sets (`dx_break_<name>`), made in code; add them to a `createAudio` mixer |
+| `registerDestruct(register)` | experimental | register the table with the system (done on import) |
 
 ### The cyber kit: `@miragekit/assets/kits/cyber`
 

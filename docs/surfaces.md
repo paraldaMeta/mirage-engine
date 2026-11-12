@@ -1,13 +1,15 @@
 # Surfaces: a material library made in code
 
-`@miragekit/core` ships a library of physically plausible surfaces: concrete, asphalt, paving, brick, render,
+**Licence:** the recipes (the 35 kinds, their reference ranges, the decals) are `@miragekit/assets/surfaces`, under the Business Source License 1.1 ([packages/assets](../packages/assets/README.md)); the framework they run on (`createSurfaces`, baking, mappings, LOD, the runtime layer, `registerSurfaceKinds`) is `@miragekit/core`, MIT.
+
+`@miragekit/assets/surfaces` is a library of physically plausible surfaces: concrete, asphalt, paving, brick, render,
 ceramic tile, corrugated and painted steel, stainless, galvanised, cast iron, aluminium, chrome, raw metals, powder
 coat, car paint, glass, plastics, rubber, fabric, paper and board, wood, bamboo, leather, carbon fibre, glazed
 ceramic, roofing, and the emissive and liquid surfaces a night city needs (neon tube, fluorescent tube, LED panel,
 LCD, backlit acrylic, paper lantern, water, oil sheen). No image ships with it: every surface is a GLSL recipe.
 
 ```js
-import { SURFACES, createSurfaces } from '@miragekit/core';
+import { SURFACES, createSurfaces } from '@miragekit/assets/surfaces';
 const lib = createSurfaces(world);                                          // baked by default
 const wall = lib.material(SURFACES.concrete({ variant: 'cast', age: 0.5 }), { mapping: 'wall', wet: true });
 const road = lib.material(SURFACES.asphalt({ variant: 'worn', oil: 0.3 }), { mapping: 'ground', wet: { puddles: 1.5 }, paint: 'myLineMask' });
@@ -21,7 +23,8 @@ Pick a surface, a lighting (studio, golden hour, night with a white and a colour
 
 ## How it works
 
-A surface is a **recipe** (`MsS ms_<kind>(vec2 u)` in `packages/core/src/surface-glsl.js`) plus **numbers**
+A surface is a **recipe** (`MsS ms_<kind>(vec2 u)` in `packages/assets/src/surfaces/glsl.js`, registered with core's
+framework; the shared helpers are core's `MS_COMMON`) plus **numbers**
 (`SURFACES.<kind>(options)` packs them into eight `vec4` uniforms). The recipe returns, for a point `u` of the
 surface in metres: linear albedo (a metal's F0), roughness, height 0..1 (the kind's `depth` in metres), metalness
 and cavity occlusion. Three scales of variation are in every recipe: **macro** (stains, clouds, panel and board
@@ -108,7 +111,7 @@ runs under a fixing row at `rills.top`, every `spacing` metres). One define and 
 
 The defaults sit in measured real-world ranges (linear albedo; metals by F0). Metalness is 0 or 1; in-between values
 appear only where the kind mixes a metal with a film at sub-pixel scale (rust and dirt over metal, the platelets of a
-metallic paint at range). `npm test` (`packages/core/surfaces.check.mjs`) holds the defaults to these ranges;
+metallic paint at range). `npm test` (`packages/assets/surfaces.check.mjs`) holds the defaults to these ranges;
 `packages/tools/src/surfaces-check.mjs` reads a bake back and holds its texels to them.
 
 | kind | family | variants | tile m | depth mm | porosity | albedo / F0 (linear) | roughness | metalness | reference |
@@ -217,7 +220,9 @@ runtime micro layer, at 5 m nothing changes. Use it on phones.
 
 ## Checks
 
-- `node packages/core/surfaces.check.mjs` (in `npm test`): every kind and variant makes hooks for every mapping and
+- `node packages/core/surfaces.check.mjs` (in `npm test`): the framework alone: with nothing registered it loads and
+  makes an empty library; a kind of one's own gets specs, hooks and its program pieces; decals need registering.
+- `node packages/assets/surfaces.check.mjs` (in `npm test`): every kind and variant makes hooks for every mapping and
   both paths; defaults in the reference ranges; numbers are uniforms (two concretes with other numbers and variants
   share a program key; another mapping, path or kind does not); specs deterministic; option validation.
 - `node packages/tools/src/surfaces-check.mjs` (Chrome with a GPU): every kind and variant compiles, procedural and
@@ -284,17 +289,22 @@ Round 1 → round 2 (the scans' value first where there is one):
 
 ## Adding a surface
 
-1. Write `MsS ms_<kind>(vec2 u)` in `KIND_GLSL` (`surface-glsl.js`). Use the periodic helpers only: `msFbm(u, f,
+A kind of your own needs no change to either package: `registerSurfaceKinds({ kinds: { name: entry }, glsl: { name:
+recipe } })` from `@miragekit/core` (the entry as below; `liveGlsl` for a per-pixel-only kind writing `msEmit`;
+optional program pieces `body`, `hooks`, `prepare`, as glass uses), then `surfaceSpec(name, options)`. To add one to the
+library:
+
+1. Write `MsS ms_<kind>(vec2 u)` in `KIND_GLSL` (`packages/assets/src/surfaces/glsl.js`). Use the periodic helpers only: `msFbm(u, f,
    oct)` / `msFbm2(u, vec2 f, oct)` (fractal noise, octaves cut by `msLod`), `msCell(u, f, jitter)` (F1, F2, two
    hashes of the nearest cell), `msVal2`, `msGrid(u, cell, shift)` with `msEdgeD` (bricks, tiles, panels, snapped to
    the tile), `msSnap(spacing)`, `msLine(d, halfWidth)` (antialiased lines), `msLayers(n, amount)` (paint, lifted
    edge, primer, bare), `msRustCol(n)`. Never `mgFbm*` of the raw position: it is not periodic and the bake would
    seam. Fade every feature by `msLod(wavelength)` toward its mean.
-2. Add the kind to `KINDS` in `surfaces.js`: family, variants, tile, depth (m), size, porosity, the measured `refs`,
+2. Add the kind to `KINDS` in `packages/assets/src/surfaces/kinds.js`: family, variants, tile, depth (m), size, porosity, the measured `refs`,
    `defaults`, `pack(o)` (the numbers into `A`..`D`), `quantum` (the pattern's module, for the repetition breaker),
    `edge` (what a worn edge exposes), `material` (Physical parameters) if any, `cheap` if it costs no more than its
    taps.
-3. `node packages/core/surfaces.check.mjs`, `node packages/tools/src/surfaces-check.mjs --only=<kind>`, then shoot it
+3. `node packages/assets/surfaces.check.mjs`, `node packages/tools/src/surfaces-check.mjs --only=<kind>`, then shoot it
    (`shoot.mjs --only <kind>`) and look at every lighting, dry and wet, at 5 m and at 0.5 m.
 
 ## Switching a material over (neon-district, before / after)
@@ -314,7 +324,7 @@ sheet: mat.std({ roughness: 0.5, metalness: 0.75 }, wet(RIBBED('vec3(0.32, 0.34,
 concrete: mat.std({ roughness: 0.88 }, wet(CONCRETE, { porosity: 0.8, puddles: 0, band: 0.5 })),
 
 // after
-import { SURFACES, createSurfaces } from '@miragekit/core';
+import { SURFACES, createSurfaces } from '@miragekit/assets/surfaces';
 const lib = createSurfaces(ctx);
 const LINES = '...';   // the same centre / edge / zebra / stop masks as before, as one GLSL float expression
 asphalt: lib.material(SURFACES.asphalt({ variant: 'worn', cracks: 0.5, oil: 0.25 }),

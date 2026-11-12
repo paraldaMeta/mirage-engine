@@ -4,7 +4,15 @@ Props that crack, dent, shatter, spill, burn, fall and explode when they are sho
 `@miragekit/game` (also `@miragekit/game/destruct`). It works over what a scene already draws (a mesh, one instance of
 an `InstancedMesh` or a `BatchedMesh`, a vertex range of a merged mesh) and adds nothing to the scene until something
 breaks. Demo: `examples/demos/destruct` (a shooting range); checks: `packages/game/destruct.check.mjs` (Node, in
-`npm test`) and `examples/demos/destruct/destruct-check.mjs` (Chrome).
+`npm test`), `packages/assets/destruct.check.mjs` (the classes' data) and `examples/demos/destruct/destruct-check.mjs`
+(Chrome).
+
+**Licence and registration:** the system is `@miragekit/game`, MIT. The material classes below (their stages, debris,
+particle effects and break sounds) are `@miragekit/assets/destruct`, under the Business Source License 1.1
+([packages/assets](../packages/assets/README.md)): `import '@miragekit/assets/destruct'` registers them
+(`registerDestructData`) for every registry made after it. Without it the system works alone with one plain class,
+`generic` (and `actor`), no effects and no sounds; `registerDestructData({ materials, effects, fallback, addSounds })`
+takes a table of your own.
 
 ```js
 import { createDestructibles } from '@miragekit/game';
@@ -96,9 +104,9 @@ lost; each stage's mark is put where each later hit lands.
 | `fabric` | 20 | 0.9 / 0.9 / 1.5 / 0.8 / 0 | 0.9 | holes | flakes, fibres |
 | `actor` | 50 | 1 / 0.9 / 1.5 / 1 / 2 | 0 | sparks | a slump (no debris) |
 
-All of it is data (`DESTRUCT_MATERIALS`, `DESTRUCT_EFFECTS`): override a field per class with
-`options.materials.glass = { health: 25 }`, per prop with the spec, or add a class of your own (it starts from
-`plastic`). Sounds are made in code (`addDestructSounds(audio)`; `dx_break_<class sound>`, `dx_hit_tick|ping|zap|thud`,
+All of it is data (`DESTRUCT_MATERIALS`, `DESTRUCT_EFFECTS` from `@miragekit/assets/destruct`): override a field per
+class with `options.materials.glass = { health: 25 }`, per prop with the spec, or add a class of your own (it starts
+from the table's fallback: `plastic`). Sounds are made in code (`addDestructSounds(audio)`, added by a registry for you; `dx_break_<class sound>`, `dx_hit_tick|ping|zap|thud`,
 `dx_boom`, loops `dx_alarm`, `dx_hiss`, `dx_fire`).
 
 ## Behaviours
