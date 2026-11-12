@@ -289,6 +289,31 @@ Round 1 → round 2 (the scans' value first where there is one):
 | neon | no scan | a glass rim at the silhouette, dimmer on flat or large shapes, a soft per-hue cap; electrodes and supports on a uv-mapped tube | better; on a large emissive shape the scene's auto exposure still lifts it to pastel |
 | metals in the gallery | | the stage has a light rig (two windows behind the camera, a side window, three overhead strips) seen only by the image-based light | metals now differ by their micro-structure |
 
+### Round 3 (judged in the neon district)
+
+`compare.mjs --tag r3 --prev r2`, the scan's value first:
+
+| scan | recipe | changed | numbers r2 → r3 | verdict, remaining gap |
+|---|---|---|---|---|
+| brick_buff | `brick:common` | crumpled faces as facets (the fold field read twice along the light), narrower dirtier joints darker at the brick, the arris rolls down to the joint (no groove), the mortar's grains out of its relief | slope p50 0.056 / 0.148 → 0.051, p90 0.178 / 0.71 → 0.18, height octaves 0.056 → 0.06, lum. octaves 0.214 → 0.096 | close: the scan's faces are crumpled harder in tone; its colour spread is wider |
+| wood_old | `wood:planks` | grain in the relief instead of broad undulation, long scratches along and across, ragged dents with dirt, sharper worn arrises; varnish smooths the relief | slope p50 0.051 / 0.036 (r2 0.036, but now from grain, not swells) | close: the scan's V-grooved joints are deeper; dents fewer than the scan's |
+| plaster_smooth | `render:smooth` | the mottle at the coat's own scales (broad clouds, a 2..6 mm speckle), lighter pits | lum. octaves 0.296 → 0.148 | close; plaster_weathered's spectrum moved the other way (0.251 → 0.32): it mottles at 12..50 cm |
+| canvas | `fabric:canvas` | thread bundles that survive below a pixel (a woven grain at 1..2 cm), deeper crumple, rougher at range | slope p50 0.294 / 0.174 → 0.251, at 16 texels 0.073 / 0.017 → 0.040 | close |
+| (none) | `concrete:cast` | bug holes in nests where a slow field allows (no grid), grime streaks and stronger blotches with age | | close; honeycombing at panel joints still missing |
+| (none) | `corrugated` | `stencil` (a sprayed seven-segment code, upright along the fall) and `dents`; the district's sheet now falls down u | | close |
+| iron_rusty | `paintedMetal` | blooms gated per fixing, a small head and a long run hanging across the seam (were round) | | close |
+| flagstone | `paving:flags` (new) | crazy paving: Voronoi flags of their own tone and lean, flaked layers, chipped arrises, soil and moss joints | albedo dist 0.006 (setts) → 0.022, slope p50 0.123 / 0.065 → 0.109, lum. octaves 0.191 → 0.21 | close (was not there): the scan's flags vary more in size, with small fill stones |
+| gravel | `roofing:gravel` | stones of three sizes scattered in a sandy matrix with compacted patches | albedo dist 0.075 → 0.044, lum. octaves 0.346 → 0.104 | close |
+| terracotta | `tile:floor` | hand-made: trowel swirls and arcs, patchy wax, dished faces | lum. octaves 0.258 → 0.305, slope p50 0.02 / 0.006 → 0.017 | close in look; the scan is a jointless burnished floor |
+| brass_aged | `metal:worn` | hand-polished: a faint fine tarnish haze, wipes and dried spots in the roughness | albedo dist 0.222 → 0.03, roughness 0.09 / 0.097 | close |
+| (none) | tile, bamboo, carbonFibre, ceramic, paper, castIron | wave in glazes, grout grime; culm stripes, scars, splits; wandering tows, resin pools; glaze pools, specks; cockle, folds, tide lines; sand pits, rust rims | | from knowledge |
+
+In the district: painted steel tints only its paint (rust, primer and steel divided back out of the tint), the red shutter
+and red sheet less saturated, the road's binder and stone lighter (a worn road averages ~0.1), and the shop windows'
+interior mapping (`interiorMaterial`, kits/cyber): convenience store, noodle bar, pawn shop, arcade and clinic rooms
+with their own walls, floor, ceiling tubes, furniture planes and light colour, lit from the ceiling, blinds, posters
+and a privacy film on the glass, still one draw per material.
+
 ## Adding a surface
 
 A kind of your own needs no change to either package: `registerSurfaceKinds({ kinds: { name: entry }, glsl: { name:
