@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import { materials } from './materials.js';
 import { lamp, slab, decor } from './lib.js';
-import { propKit } from './props-kit.js';
+import { propKit, recorder, track } from './props-kit.js';
 import { beacon, tubeFixture, floodlight, bulkhead } from './props-lights.js';
 import { crate } from './props-street.js';
 import { detail } from './kit.js';
@@ -17,7 +17,7 @@ export default {
     const { geom, root, plan } = ctx, M = materials(ctx), P = plan.relay, F = plan.levels.floor;
     const [x0, z0, x1, z1] = P.rect, T = P.wall, H = P.height, RF = P.roof, PT = RF + P.parapet;
     const S = P.stair, [s0, t0, s1, t1] = S.rect, TOP = S.top, part = P.room[2];          // part: the partition's west face
-    const b = new geom.MeshBatch(), fx = new geom.MeshBatch(), PK = propKit(ctx), pb = new geom.MeshBatch(), D = detail(ctx);
+    const b = new geom.MeshBatch(), fx = new geom.MeshBatch(), PK = propKit(ctx), pb = new geom.MeshBatch(), D = detail(ctx), rec = recorder(ctx);   // rec: the crates (game/destruct.js)
     const at = (p, r = [0, 0, 0], s = 1) => geom.compose(p, r, s), leds = [];
     const box = (size, pos) => { const c = new THREE.Mesh(new THREE.BoxGeometry(...size)); c.position.set(...pos); ctx.collider(c); };
 
@@ -93,7 +93,7 @@ export default {
     for (let i = 0; i < 5; i++) { const a = i * 1.2566; PK.put(pb, new THREE.BoxGeometry(0.3, 0.03, 0.04), PK.mats.metal, at([part - 1.9 + Math.cos(a) * 0.15, F + 0.05, -27.9 + Math.sin(a) * 0.15], [0, -a, 0]), [0.2, 0.2, 0.22]); }
     // perforated tiles in the aisles (the raised floor's cold air)
     for (let x = x0 + T + 2.0; x < part - 4.5; x += 2.4) PK.put(pb, new THREE.PlaneGeometry(0.58, 0.58).rotateX(-Math.PI / 2), PK.mats.paint, at([x, F + 0.003, -26.1]), [0.6, 0.62, 0.66], PK.R.vent);
-    for (const [x, z, s] of [[x0 + 1.2, -21.4, 0.8], [x0 + 1.25, -22.3, 0.6], [part - 0.9, -24.2, 0.8]]) { crate(PK, pb, geom, at([x, F, z], [0, 0.2, 0], [1 / 1.2, 1, 1]), s, [0.1, 0.13, 0.11], 0); const c = new THREE.Mesh(new THREE.BoxGeometry(s, s, s)); c.applyMatrix4(at([x, F + s / 2, z], [0, 0.2, 0])); ctx.collider(c); }
+    for (const [x, z, s] of [[x0 + 1.2, -21.4, 0.8], [x0 + 1.25, -22.3, 0.6], [part - 0.9, -24.2, 0.8]]) { const rg = track(pb, () => crate(PK, pb, geom, at([x, F, z], [0, 0.2, 0], [1 / 1.2, 1, 1]), s, [0.1, 0.13, 0.11], 0)); const c = new THREE.Mesh(new THREE.BoxGeometry(s, s, s)); c.applyMatrix4(at([x, F + s / 2, z], [0, 0.2, 0])); ctx.collider(c); rec.add({ id: `relay-crate-${x}-${z}`, fam: 'crate', box: { center: [x, F + s / 2, z], half: [s / 2, s / 2, s / 2], yaw: 0.2 }, parts: [[pb, rg, 'draw']], proxies: [c] }); }
     const strobe = lamp(ctx, { indoor: true, live: true, pos: [P.door.x, H - 0.45, z1 - T - 0.5], color: 0xff1808, intensity: 3, range: 7 });
     beacon(PK, pb, geom, [P.door.x, H - 0.4, z1 - T - 0.2], [1, 0.08, 0.04], 4, 0.07);
     PK.put(pb, new THREE.BoxGeometry(0.04, 0.3, 0.04), PK.mats.metal, at([P.door.x, H - 0.25, z1 - T - 0.2]), [0.1, 0.1, 0.11]);
@@ -163,7 +163,7 @@ export default {
       const lm = geom.instances(new THREE.BoxGeometry(0.008, 0.008, 0.004), ledMat, leds, { castShadow: false, receiveShadow: false });
       lm.name = 'rack-leds'; root.add(decor(lm));
     }
-    root.add(decor(fx.finish({ name: 'relay-decor', castShadow: false })), decor(pb.finish({ name: 'relay-props', castShadow: false })));
+    root.add(decor(fx.finish({ name: 'relay-decor', castShadow: false })), decor(rec.finished(pb, pb.finish({ name: 'relay-props', castShadow: false }))));
     return { strobe, lampA, mast: [mast[0], RF + mh + 0.12, mast[1]], racks };
   },
   anchors: (ctx, built) => {

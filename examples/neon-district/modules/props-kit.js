@@ -274,3 +274,48 @@ export function propKit(ctx) {
   };
   return (ctx.shared.props = { R, mats, put, instanced, texture: map, names: { CAN, BOTTLE, BOX, PACK, CAPS, BAR_LABELS, LANTERN, GOODS } });
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// What a builder records for the game's destructibles (game/destruct.js, docs/destructibles-neon-district.md): per
+// prop its id, family, box, the vertex ranges it added to each merged batch (resolved to draw handles once the batch
+// is finished), its glowing ranges (dimmed, not hidden, when its light dies), its pool lamps and clustered lights, its
+// collider proxies. Nothing here costs a draw call: the ranges index the batches the module draws anyway.
+/** the shared list ({ list }), on ctx.shared.breakables */
+export const breakables = (ctx) => (ctx.shared.breakables ||= { list: [] });
+/** every material group's vertex count in a batch now */
+export function markBatch(batch) { const m = new Map(); for (const [k, e] of batch.groups) m.set(k, e.verts); return m; }
+/** the vertex ranges a batch gained since a mark: [[key, first, count]] */
+export function sinceMark(batch, m) { const out = []; for (const [k, e] of batch.groups) { const a = m.get(k) || 0; if (e.verts > a) out.push([k, a, e.verts - a]); } return out; }
+/** the ranges fn() adds to batch (the list; fn's own return value on .result) */
+export function track(batch, fn) { const m = markBatch(batch); const r = fn(); return Object.assign(sinceMark(batch, m), { result: r }); }
+/** a lamp several props share (a row of machines, a string of bulbs, a cart's lanterns): it goes out with the last */
+export const breakablesLamp = (ctx, group, lamps) => { (breakables(ctx).lampGroups ||= {})[group] = lamps; };
+/** the pool lamps (indices into ctx.shared.pool) and clustered lights fn() declares */
+export function trackLamps(ctx, fn) {
+  const p0 = (ctx.shared.pool || []).length, l0 = (ctx.shared.lamps || []).length;
+  const r = fn();
+  const pool = [], lights = [];
+  for (let i = p0; i < (ctx.shared.pool || []).length; i++) pool.push(i);
+  for (let i = l0; i < (ctx.shared.lamps || []).length; i++) lights.push(ctx.shared.lamps[i].light);
+  return { pool, lights, result: r };
+}
+/** a recorder for one module: rec.add(entry) with entry.parts [[batch, ranges, 'draw' | 'glow']]; rec.finished(batch,
+ *  group) after batch.finish() turns those ranges into { mesh, range } handles (entry.draw, entry.glow) */
+export function recorder(ctx) {
+  const B = breakables(ctx), open = B.list;   // (any module's entry: a builder may add to another module's batch)
+  return {
+    add(e) { e.draw ||= []; e.glow ||= []; e.parts ||= []; B.list.push(e); return e; },
+    finished(batch, group) {
+      const keys = [...batch.groups.keys()], meshes = new Map(), kids = [];
+      // finish() makes one mesh per material group in insertion order (a group over 2 M vertices would split: none does)
+      group.traverse((o) => { if (o.isMesh) kids.push(o); });
+      if (kids.length !== keys.length) { console.warn('destructibles: batch', group.name, 'was split; its props are not breakable'); return group; }
+      keys.forEach((k, i) => meshes.set(k, kids[i]));
+      for (const e of open) for (const [b, ranges, role] of e.parts) {
+        if (b !== batch) continue;
+        for (const [k, first, count] of ranges) if (meshes.has(k)) (e[role] ||= []).push({ mesh: meshes.get(k), range: [first, count] });
+      }
+      return group;
+    },
+  };
+}

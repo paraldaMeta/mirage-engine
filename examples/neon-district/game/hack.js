@@ -109,14 +109,17 @@ export function createHack({ world, game, plan, anchors, shared, lamps, enemies,
     let changed = false;
     for (let i = 0; i < pk.length; i++) if (lamps.scale[i] !== pk[i]) { lamps.scale[i] = pk[i]; changed = true; }
     if (changed) lamps.touch();
-    for (const c of clustered) c.light.userData.nd = c.nd * (ks.get(c) ?? 1);   // main.js relight() turns nd into the lamp's intensity
-    for (const f of faces) { const k = Math.min(fk.get(f) ?? 1, f.k); f.mesh.material.color.copy(f.c0).multiplyScalar(k); }
+    // (ndOff and f.off: what the destructibles set for a lamp or a sign face that was shot out, destruct.js; a hack's
+    // lights coming back leave those dark)
+    for (const c of clustered) c.light.userData.nd = c.nd * (ks.get(c) ?? 1) * (c.light.userData.ndOff ?? 1);   // main.js relight() turns nd into the lamp's intensity
+    for (const f of faces) { const k = Math.min(fk.get(f) ?? 1, f.k) * (f.off ?? 1); f.mesh.material.color.copy(f.c0).multiplyScalar(k); }
   }
-  /** 0..1: is this point in a dark zone */
-  function dark(p) { for (const t of targets) if (t.kind === 'lights' && t.dark > 0.7 && DARK_S - t.dark > 0.3 && inZone(t.zone, p)) return 1; return 0; }
+  /** 0..1: is this point in a dark zone (a hack's, or one whose lamps were shot out: api.extraDark, destruct.js) */
+  function dark(p) { for (const t of targets) if (t.kind === 'lights' && t.dark > 0.7 && DARK_S - t.dark > 0.3 && inZone(t.zone, p)) return 1; return api.extraDark ? api.extraDark(p) : 0; }
   const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3();
   /** does the segment from a sentinel's eye to the player cross a steam cloud */
   function blind(from, to) {
+    if (api.extraBlind && api.extraBlind(from, to)) return true;   // steam, spray or an extinguisher's cloud from a prop that was shot (destruct.js)
     if (!clouds.length) return false;
     _a.set(from[0], from[1] + 1.5, from[2]); _b.set(to[0], to[1] + 1.2, to[2]);
     const len = _a.distanceTo(_b), d = _b.sub(_a).divideScalar(len || 1);
@@ -242,7 +245,7 @@ export function createHack({ world, game, plan, anchors, shared, lamps, enemies,
   game.add({ id: 'hack', save: () => ({ n: S.count }), load: () => reset() });
 
   const api = {
-    S, targets, update, draw, reset, dark, blind,
+    S, targets, update, draw, reset, dark, blind, faces, clustered, inZone, applyLights, extraDark: null, extraBlind: null,
     /** touch / keys: start holding the hack; cancel() lets go */
     start() { S.held = true; S.spent = false; },
     cancel() { S.held = false; S.spent = false; S.cur = null; S.prog = 0; },

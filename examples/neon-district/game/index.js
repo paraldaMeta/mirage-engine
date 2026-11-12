@@ -21,6 +21,7 @@ import { createDrones } from './drones.js';
 import { createTitle } from './title.js';
 import { createTouch } from './touch.js';
 import { setupKit } from './kit.js';
+import { setupDestruct, shotTap } from './destruct.js';
 import { T, lang, setLang, nextLang, pickLang, onLang, LANG_ORDER, LANG_NAMES, TABLES } from './text.js';
 import { createAudioEngine, zonesFromPlan, PAD } from '@miragekit/game';
 
@@ -64,8 +65,10 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
   if (DIFFS.includes(Q.get('difficulty'))) run.difficulty = Q.get('difficulty');
   const saveRun = () => { game.settings.ndRun = { mode: run.mode, difficulty: run.difficulty, hour: run.hour }; game.saveSettings(); };
   const tune = { ...TUNE[run.difficulty] };
-  const enemies = createEnemies({ world, game, physics, plan, vfx, sfx, player, assist, onDispose, tune });
-  const drones = createDrones({ world, game, physics, plan, vfx, sfx, player, assist, onDispose, tune });
+  // (the robots draw their rounds through a tap: destruct.js puts each round through the props on its line)
+  const robotVfx = shotTap(vfx);
+  const enemies = createEnemies({ world, game, physics, plan, vfx: robotVfx, sfx, player, assist, onDispose, tune });
+  const drones = createDrones({ world, game, physics, plan, vfx: robotVfx, sfx, player, assist, onDispose, tune });
   // what a round can hit: the nearer of a sentinel and a kite; a hit knows whose it is (hit.owner.damage)
   const targets = { rayHit(o, d, max) { const a = enemies.rayHit(o, d, max), b = drones.rayHit(o, d, max); return a && b ? (a.t < b.t ? a : b) : a || b; }, noise: (p, r) => enemies.noise(p, r) };
   const wake = (zone) => { enemies.wake(zone, player.feet); drones.wake(zone); };
@@ -422,8 +425,8 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
       const left = enemies.byZone.wave.filter((e) => !e.dead).length + (drones.byZone.wave || []).filter((e) => !e.dead).length;
       if (uplinkT >= UPLINK_S && left === 0) {
         game.set('done', true); audio.play('done', { bus: 'sfx', gain: 0.9 });
-        const acc = stats.shots ? Math.round(100 * stats.hits / stats.shots) : 0, points = (stats.deaths === 0 ? 1 : 0) + (acc >= 35 ? 1 : 0) + (game.time < 420 ? 1 : 0);
-        game.ui.message(T.doneTitle, T.doneBody({ diff: T.front.diffs[run.difficulty], rating: T.ratings[points], min: Math.floor(game.time / 60), sec: Math.round(game.time % 60), kills: stats.kills, acc, shots: stats.shots, heads: stats.heads, deaths: stats.deaths }), T.doneBtn);
+        const acc = stats.shots ? Math.round(100 * stats.hits / stats.shots) : 0, points = props.rate((stats.deaths === 0 ? 1 : 0) + (acc >= 35 ? 1 : 0) + (game.time < 420 ? 1 : 0));   // (casualties: never the top rating, destruct.js)
+        game.ui.message(T.doneTitle, T.doneBody({ diff: T.front.diffs[run.difficulty], rating: T.ratings[points], min: Math.floor(game.time / 60), sec: Math.round(game.time % 60), kills: stats.kills, acc, shots: stats.shots, heads: stats.heads, deaths: stats.deaths }) + cardLines(), T.doneBtn);
         hud.radio(T.radio.done); game.set('rating', points);
         checkpoint('done', true);
       } else if (Math.floor(uplinkT) !== Math.floor(uplinkT - dt) && uplinkT < UPLINK_S) sfx.play('nd_tick', { gain: 0.25 });
@@ -446,7 +449,7 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
     const S = weapon.S;
     hud.update(dt, { hp: player.hp, dead: player.dead, mag: S.mag, reserve: S.reserve, reloading: S.reloading > 0, ads: S.ads, pos: p, yaw: play.yaw,
       spread: weapon.spread(), arm: weapon.arm, gun: { id: weapon.id, to: weapon.switchingTo, heat: S.heat, vent: S.vent, spin: S.spin, owned: weapon.W },
-      tally: `${H.on ? T.waveN(Math.max(1, H.wave)) + ' · ' : ''}${stats.kills} ${T.down} · ${T.front.diffs[run.difficulty]}${assist ? ' · ' + T.assist : ''}`,
+      tally: `${H.on ? T.waveN(Math.max(1, H.wave)) + ' · ' : ''}${stats.kills} ${T.down} · ${T.front.diffs[run.difficulty]}${assist ? ' · ' + T.assist : ''}${stats.civilians ? ' · ' + T.dx.tally(stats.civilians, stats.penalty) : ''}`,
       ...(H.on ? waveBar() : { uplink: game.flags.uplink && !game.flags.done ? uplinkT / UPLINK_S : null, uplinkText: uplinkT >= UPLINK_S ? T.uplinkReady : `${T.uplink} ${Math.round(100 * uplinkT / UPLINK_S)} %` }), goal: goal(game) });
   });
 
@@ -507,7 +510,7 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
   };
   function holdoutOver() {
     const waves = game.flags.waves || 0, acc = stats.shots ? Math.round(100 * stats.hits / stats.shots) : 0;
-    game.ui.message(T.holdTitle, T.holdBody({ diff: T.front.diffs[run.difficulty], waves, kills: stats.kills, acc, shots: stats.shots, rating: T.ratings[Math.min(3, Math.floor(waves / 3))], best: Math.max(waves, bestOf()) }), T.holdBtn);
+    game.ui.message(T.holdTitle, T.holdBody({ diff: T.front.diffs[run.difficulty], waves, kills: stats.kills, acc, shots: stats.shots, rating: T.ratings[props.rate(Math.min(3, Math.floor(waves / 3)))], best: Math.max(waves, bestOf()) }) + cardLines(), T.holdBtn);
     game.set('over', true);
     const dlg = document.querySelector('.mg-msg');
     const back = () => { dlg.removeEventListener('close', back); const u = new URL(location.href); u.searchParams.delete('start'); location.href = u.href; };
@@ -568,8 +571,14 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
   // ---- the city as a weapon: hacks, abilities, ammunition that can be found, the story (kit.js)
   const kit = setupKit({ ctx, shared, vfx, Q, T, player, weapon, enemies, drones, hud, sfx, stats, opts, holdout: H, live });
 
+  // ---- the props that break (destruct.js): the weapon puts its rounds through them; the end cards' bill and casualties
+  const props = setupDestruct({ ctx, shared, vfx, sfx, player, weapon, enemies, drones, hud, stats, kit, T, holdout: H, tap: robotVfx, assist });
+  weapon.props = props; onDispose(() => props.dispose());
+  /** the end card's lines under the figures: property damage, civilian casualties, the remark on the bill */
+  const cardLines = () => { const c = props.card(); return `\n\n${T.dx.props(c.bill)}\n${T.dx.civ(c.civilians, c.points)}\n${T.dx.remarks[c.remark]}`; };
+
   return {
-    player, weapon, enemies, drones, stats, hud, sfx, leaves, opts, toggleOptions, run, tune, title, holdout: H, kit, switchLang, fullscreen: fs, text: T, get lang() { return lang; }, get touch() { return touch; },
+    player, weapon, enemies, drones, stats, hud, sfx, leaves, opts, toggleOptions, run, tune, title, holdout: H, kit, props, cardLines: () => cardLines(), switchLang, fullscreen: fs, text: T, get lang() { return lang; }, get touch() { return touch; },
     comfort, applyOpts: applyLook,
     /** once startGame has made the character and play */
     start(game_) {

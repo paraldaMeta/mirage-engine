@@ -24,6 +24,7 @@ import { withWet, SURFACES, WET } from '@miragekit/core';
 import { lamp } from './lib.js';
 import { rainBeads } from './rain-beads.js';
 import { surfaceLib } from './robot-kit.js';
+import { recorder, markBatch, sinceMark, trackLamps } from './props-kit.js';
 
 const HP = Math.PI / 2, TAU = Math.PI * 2;
 // ---------------------------------------------------------------------------------------------------------------
@@ -167,16 +168,25 @@ export function parkedCars(ctx, P, pb, list, proxyBox) {
   const cb = new geom.MeshBatch(), sb = new geom.MeshBatch();   // cb: the bodies (cast shadows); sb: small parts (none)
   const anchors = [];
   const col = (g, c) => { const n = g.attributes.position.count, a = new Float32Array(n * 3); for (let i = 0; i < n; i++) a.set(c, i * 3); g.setAttribute('color', new THREE.BufferAttribute(a, 3)); return g; };
+  // destructibles (game/destruct.js): each pane of glass, each tyre, the body; the car's ranges in all three batches
+  // (a flat tyre lowers that corner: destruct.js moves the car's vertices, glass apart)
+  const rec = recorder(ctx), glassKey = CM.glass.uuid + '+c', tyreKey = CM.tyre.uuid + '+c';
   list.forEach(([x, z, rot], ci) => {
     const Dz = DESIGNS[ci % DESIGNS.length], m = geom.compose([x, 0, z], [0, rot, 0]), at = (p, r = [0, 0, 0], s = 1) => m.clone().multiply(geom.compose(p, r, s));
     const body = Dz.name === 'slab' ? CM.steel : Dz.name === 'vane' ? CM.pearl : CM.amber, st = Dz.st, last = st.length - 1, W = Dz.wheel;
     const add = (b, g, mt, mm, c = [1, 1, 1]) => b.add(col(g, c), mt, mm);
     const glassOf = (i0, s0) => Dz.glass.some(([g0, g1, a, b]) => i0 >= g0 && i0 < g1 && s0 >= a && s0 < b);
+    const id = 'car-' + ci, all = [cb, sb, pb].map(markBatch), panes = new Map();
     // ---- the upper body: each facet band of the loft, steel / paint or glass; the steel's tone panel to panel
     const np = st[0].p.length;
     for (let i = 0; i < np - 1; i++) for (let s = 0; s < last; s++) {
       const gl = glassOf(i, s), tone = 0.95 + 0.08 * Math.abs(Math.sin(ci * 3.1 + i * 1.7 + s * 2.3));
-      for (const g of loft(st, i, i + 1, s, s + 1, !Dz.flat)) add(cb, g, gl ? CM.glass : body, m, Dz.name === 'slab' ? [tone, tone, tone] : [1, 1, 1]);
+      const band = gl ? Dz.glass.findIndex(([g0, g1, a, b]) => i >= g0 && i < g1 && s >= a && s < b) : -1;
+      loft(st, i, i + 1, s, s + 1, !Dz.flat).forEach((g, side) => {
+        const mk = gl ? markBatch(cb) : null;
+        add(cb, g, gl ? CM.glass : body, m, Dz.name === 'slab' ? [tone, tone, tone] : [1, 1, 1]);
+        if (gl) { const k = band + ':' + side; if (!panes.has(k)) panes.set(k, []); panes.get(k).push(...sinceMark(cb, mk)); }
+      });
     }
     for (const [s, d] of [[0, 1], [last, -1]]) add(cb, cap(st, s, d), body, m);
     // ---- the lower body: the side silhouette (the clearance up to each station's lowest ring point) extruded across
@@ -236,7 +246,12 @@ export function parkedCars(ctx, P, pb, list, proxyBox) {
       for (let i = g0; i < g1; i++) { seg(P3(a, i), P3(a, i + 1), P3(a + 1, i)); seg(P3(b, i), P3(b, i + 1), P3(b - 1, i)); }
     }
     // ---- wheels: tyre, rim / cover, the brake disc and caliper; centred in their arches, the fronts steered
-    for (const sx of [-1, 1]) for (const sz of [-1, 1]) wheel(CM, cb, sb, at([sx * ax, cy, sz * (Dz.hw - W.w / 2 - 0.035)], [0, (sz > 0 ? 0 : Math.PI) + (sx > 0 ? 0.11 : 0), 0]), W, ci, add);
+    const tyres = [];
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+      const mk = markBatch(cb), wz = sz * (Dz.hw - W.w / 2 - 0.035);
+      wheel(CM, cb, sb, at([sx * ax, cy, wz], [0, (sz > 0 ? 0 : Math.PI) + (sx > 0 ? 0.11 : 0), 0]), W, ci, add);
+      tyres.push({ corner: [sx, sz], tyre: sinceMark(cb, mk).filter(([k]) => k === tyreKey), center: new THREE.Vector3(sx * ax, cy, wz).applyMatrix4(m).toArray(), r: W.r, w: W.w, local: [sx * ax, cy, wz] });
+    }
     // ---- interior under the glass: the floor, a dash, the seats (cushion, reclined back, headrest), a wheel or screen
     interior(Dz, CM, sb, at, add);
     // ---- lights, trim and details by design
@@ -256,7 +271,7 @@ export function parkedCars(ctx, P, pb, list, proxyBox) {
     put(pb, new THREE.PlaneGeometry(0.42, 0.105).rotateY(-HP), mats.paint, at([Dz.tail - 0.004, plateY[1], 0]), [1, 1, 1], R['plate' + (ci % 3)]);
     // under-glow: a lit strip under each sill (night only), its light on the wet road
     for (const sz of [-1, 1]) add(sb, new THREE.BoxGeometry(2 * ax - 2 * ra - 0.3, 0.01, 0.02), CM.under, at([0, Dz.clear - 0.012, sz * (Dz.hw - 0.12)]), GLOW[ci].map((v) => v * 5));
-    lamp(ctx, { pos: new THREE.Vector3(0, 0.2, 0).applyMatrix4(m).toArray(), color: new THREE.Color().setRGB(...GLOW[ci]), intensity: 1.6, range: 3.6 });
+    const carLamps = trackLamps(ctx, () => lamp(ctx, { pos: new THREE.Vector3(0, 0.2, 0).applyMatrix4(m).toArray(), color: new THREE.Color().setRGB(...GLOW[ci]), intensity: 1.6, range: 3.6 }));
     // drops from the sills' and bumpers' lower edges (between the arches and at the ends), while it is wet
     let k = ci * 97;
     const hsh = () => { k = (k * 16807 + 11) % 2147483647; return k / 2147483647; };
@@ -266,12 +281,24 @@ export function parkedCars(ctx, P, pb, list, proxyBox) {
       add(sb, g, CM.drops, at([dx, Dz.clear - 0.006, dz]));
     }
     // ---- the old car's volume (the walk grid, the cover), the anchors and the tail lamp as before
-    proxyBox([4.68, 1.0, 1.9], at([0, 0.5, 0]), rot); proxyBox([2.9, 0.52, 1.64], at([-0.56, 1.14, 0]), rot);
+    const px = [proxyBox([4.68, 1.0, 1.9], at([0, 0.5, 0]), rot), proxyBox([2.9, 0.52, 1.64], at([-0.56, 1.14, 0]), rot)];
     anchors.push({ pos: new THREE.Vector3(0, 1.6, 0).applyMatrix4(m).toArray(), rotY: rot });
     // (the tail lamp's glow: low behind the bumper, on the road rather than washing the tailgate)
-    lamp(ctx, { pos: new THREE.Vector3(-2.75, 0.3, 0).applyMatrix4(m).toArray(), color: 0xff2010, intensity: 1.4, range: 4.5 });
+    const tail = trackLamps(ctx, () => lamp(ctx, { pos: new THREE.Vector3(-2.75, 0.3, 0).applyMatrix4(m).toArray(), color: 0xff2010, intensity: 1.4, range: 4.5 }));
+    // the record: the body under the belt line, the cabin above it (inside the glass), each pane by band and side,
+    // each tyre; every range the car added (for the corner that sinks when a tyre goes)
+    const belt = Math.min(...st.map((s0) => s0.p[np - 1][0])), roof = Math.max(...st.map((s0) => s0.p[0][0])), L = Dz.nose - Dz.tail;
+    const ranges = [cb, sb, pb].map((bt, k) => [bt, sinceMark(bt, all[k])]);
+    rec.add({ id, fam: 'car', design: Dz.name, matrix: m.toArray(), hw: Dz.hw, nose: Dz.nose, tail: Dz.tail, parts: ranges.map(([bt, r]) => [bt, bt === cb ? r.filter(([k]) => k !== glassKey) : r, 'car']),
+      box: { center: new THREE.Vector3((Dz.nose + Dz.tail) / 2, (Dz.clear + belt) / 2, 0).applyMatrix4(m).toArray(), half: [L / 2, (belt - Dz.clear) / 2, Dz.hw], yaw: rot },
+      cabin: { center: new THREE.Vector3(-0.3, (belt + roof) / 2, 0).applyMatrix4(m).toArray(), half: [L * 0.2, (roof - belt) / 2 - 0.06, Dz.hw - 0.12], yaw: rot },
+      lamps: { pool: [...carLamps.pool, ...tail.pool], lights: [...carLamps.lights, ...tail.lights] }, proxies: px });
+    for (const [k, r] of panes) rec.add({ id: `${id}-glass-${k.replace(':', '-')}`, fam: 'car-glass', of: id, parts: [[cb, r, 'pane']] });
+    tyres.forEach((t, i) => rec.add({ id: `${id}-tyre-${i}`, fam: 'tyre', of: id, corner: t.corner, local: t.local, parts: [[cb, t.tyre, 'tyre']],
+      // (its box reaches 8 cm past the body's side: a round at the wheel meets the tyre before the body)
+      box: { center: new THREE.Vector3(t.local[0], t.local[1], t.local[2] + t.corner[1] * 0.04).applyMatrix4(m).toArray(), half: [t.r, t.r, t.w / 2 + 0.075], yaw: rot } }));
   });
-  const g = cb.finish({ name: 'cars', castShadow: true }), s = sb.finish({ name: 'cars-parts', castShadow: false });
+  const g = rec.finished(cb, cb.finish({ name: 'cars', castShadow: true })), s = rec.finished(sb, sb.finish({ name: 'cars-parts', castShadow: false }));
   for (const o of [g, s]) o.traverse((x) => { x.userData.collide = false; });
   s.traverse((x) => { if (x.material === CM.drops) { x.frustumCulled = false; x.userData.occlude = false; } });
   root.add(g, s);

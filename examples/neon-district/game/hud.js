@@ -101,6 +101,11 @@ const CSS = `
 :lang(zh-Hant-TW) .mg-msg-p{word-break:keep-all;overflow-wrap:anywhere}   /* the end card's figures: break at its " · " */
 :lang(ja) :is(.nd-radio span,.ndx-card p,.nt-p,.nt-desc,.mg-msg-p,.mg-obj span,.nd-opt p,.ndx-say,.ndx-prompt,.ndx-hint,.mg-toast){word-break:auto-phrase}
 .mirage-hud{font-family:ui-monospace,monospace,var(--nd-cjk,"PingFang TC"),sans-serif!important}
+.mg-msg-p{white-space:pre-line}
+/* a civilian felled: a red line across the top of the view, the points it cost (destruct.js) */
+.nd-warn{position:absolute;left:50%;top:max(96px,calc(env(safe-area-inset-top) + 96px));transform:translateX(-50%) scale(1.06);padding:6px 16px;background:#3a0408e6;border:1px solid #ff3a4a;color:#ffd8dc;font:700 15px/1.2 ui-monospace,monospace,var(--nd-cjk,"PingFang TC");letter-spacing:.14em;text-shadow:0 0 6px #ff2030;box-shadow:0 0 18px #ff203066;opacity:0;transition:opacity .25s,transform .25s;white-space:nowrap}
+.nd-warn.on{opacity:1;transform:translateX(-50%) scale(1)}
+.nd.touch .nd-warn{top:max(84px,calc(env(safe-area-inset-top) + 84px));font-size:12px}
 `;
 
 import { LANG_NAMES, HTML_LANG, lang } from './text.js';
@@ -131,11 +136,11 @@ export function createHud({ camera, onDispose, T }) {
     <div class="nd-up" hidden><span>${T.uplink}</span><i><b style="width:0"></b></i></div>
     <div class="nd-mark" hidden></div><div class="nd-tally"></div>
     <div class="nd-comp" aria-hidden="true"><div></div></div><div class="nd-feed" aria-live="polite"></div>
-    <div class="nd-radio" role="status" aria-live="polite"><b></b><span></span></div>`;
+    <div class="nd-radio" role="status" aria-live="polite"><b></b><span></span></div><div class="nd-warn" role="alert"></div>`;
   document.body.appendChild(root);
   const $ = (s) => root.querySelector(s);
   const x = [...root.querySelectorAll('.nd-x i')], hitEl = $('.nd-hit'), hurtEl = $('.nd-hurt'), dirEl = $('.nd-dir'), vit = $('.nd-vit'), ammo = $('.nd-ammo'), up = $('.nd-up'), mark = $('.nd-mark');
-  let hitT = 0, hurtT = 0, dirT = 0, dirFrom = null, radioT = 0, opt = null, optArgs = null, avoid = null, hurtK = 1, hold = () => false;
+  let hitT = 0, hurtT = 0, dirT = 0, dirFrom = null, radioT = 0, opt = null, optArgs = null, avoid = null, hurtK = 1, hold = () => false, warnT = 0;
   const slotEls = Object.fromEntries([...root.querySelectorAll('.nd-slots b')].map((b) => [b.dataset.s, b])), heatEl = $('.nd-heat');
   /** is a screen point under a touch control (rects: [name, l, t, r, b]); returns the control's rect or null */
   const under = (x, y, pad = 14) => { for (const r of avoid ? avoid() : []) if (x > r[1] - pad && x < r[3] + pad && y > r[2] - pad && y < r[4] + pad) return r; return null; };
@@ -228,6 +233,9 @@ export function createHud({ camera, onDispose, T }) {
     hit(kind) { hitEl.className = 'nd-hit ' + kind; hitT = kind === 'kill' ? 0.4 : 0.2; },
     /** a line from control, shown under the crosshair for a few seconds; lines queue */
     radio(text) { radioQ.push(text); },
+    /** a red warning across the top for a few seconds (a civilian felled and what it cost) */
+    warn(text) { const w = $('.nd-warn'); w.textContent = text; w.classList.add('on'); clearTimeout(warnT); warnT = setTimeout(() => w.classList.remove('on'), 3200); },
+    get warning() { const w = $('.nd-warn'); return w.classList.contains('on') ? w.textContent : ''; },
     /** the radio waits while fn() is true (a story card is up: one thing in the middle of the screen at a time) */
     holdRadio(fn) { hold = fn; },
     /** a radio line is on screen */
