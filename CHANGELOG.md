@@ -5,6 +5,13 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
 ## Unreleased
 
 **Faster**
+- @miragekit/core: the WebGL commands are flushed to the GPU every 128 draws (`createWorldRenderer({ flushEvery })`,
+  0 = off) and before and after the scene pass. The browser otherwise sends a task's commands at its end, so the GPU
+  began a frame only once the CPU had built all of it and the two ran one after the other; flushed as it goes, the
+  GPU draws the first passes while the CPU builds the rest. The image is the same (a flush only sends). neon-district
+  at 1440 x 900, a frame to a 1-pixel read-back (scripts/measure.mjs): low 12.3-12.5 -> 9.8-9.9 ms, medium 16.4-17.3
+  -> 13.1-13.9, high 20.0-21.5 -> 17.5-18.4 in the alley, the street and on the roof (every 40 draws flushed too
+  often, every 400 too seldom). lighting-check counts the flushes.
 - @miragekit/core: post.taa2 / motionBlur's velocity pass culls a skinned mesh's stand-in by the mesh's own bounding
   sphere when the mesh culls itself (frustumCulled with a sphere, its own or one it was given); before, every skinned
   mesh was drawn into the velocity buffer wherever it stood. What the scene pass did not draw has no pixel there, so
