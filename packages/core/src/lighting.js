@@ -73,10 +73,10 @@ export function createLighting(w, config) {
     get materials() { return inj.materials.size; },
     fitSun(d, camera, center, radius, k) { if (csm) csm.fit(d, capturing ? null : camera, center, radius, k, moving && !capturing); },
     /** before a frame's sub-frames: camera = the view camera; still: a still frame (renderFrame without TAA) */
-    frame(camera, dt = 1 / 60, still = false) {
+    frame(camera, dt = 1 / 60, still = false, spent = 0) {
       moving = dt > 0;   // a moving frame (csm.js may keep far cascades); stills and direct renders pass 0
       if (frames++ % 30 === 0) api.adopt();
-      for (const h of hooks) if (h.frame) h.frame(camera, dt, still);
+      for (const h of hooks) if (h.frame) h.frame(camera, dt, still, spent);
     },
     /** the sun / sky changed and the image-based light was recaptured */
     envCaptured(instant) { ready = true; api.adopt(); for (const h of hooks) if (h.envCaptured) h.envCaptured(instant); },

@@ -193,7 +193,8 @@ export function createWorldRenderer(config = {}) {
     try { return fn(); } finally { w.z = z; }
   };
   const envLight = createEnvLight(renderer, { size: Q.envSize, fade: config.envFade ?? 1.5 });
-  // envState: 'instant' = recapture (two passes) before the next frame; 'fade' = one capture + cross-fade in tick()
+  // envState: 'instant' = recapture (two passes) before the next frame; 'fade' = one capture + cross-fade in tick();
+  // 'instant2' = the second pass is still to do (a moving frame does the two passes in two frames, so neither stalls)
   let envState = 'instant', light = null, state = null, frameCounter = 0, exposure = 1, expTarget = 1;
   const lastCap = { dir: new THREE.Vector3(), lamp: -1, sky: -1 };
   // temporal AA state (moving camera): history validity, previous view-projection, jitter index.
@@ -239,7 +240,7 @@ export function createWorldRenderer(config = {}) {
     expTarget = L.exposure;
     if (grade) look = gradeAt(L, state, grade, ease ? exposure : expTarget);
     if (!ease) { exposure = expTarget; envState = 'instant'; }
-    else if (envState !== 'instant') {
+    else if (envState !== 'instant' && envState !== 'instant2') {
       const moved = keyDir.angleTo(lastCap.dir) > 0.5 * Math.PI / 180;
       if (moved || Math.abs(L.lamp - lastCap.lamp) > 0.03 || Math.abs(Math.log((L.skyLight + 1e-4) / (lastCap.sky + 1e-4))) > 0.04) envState = 'fade';
     }
@@ -263,7 +264,7 @@ export function createWorldRenderer(config = {}) {
       setLampGain(); busy = true;
     }
     if (envState === 'fade' && !envLight.fading) captureEnv(false);
-    return envLight.tick(dt) || busy || envState === 'fade' || !!(lighting && lighting.busy);
+    return envLight.tick(dt) || busy || envState === 'fade' || envState === 'instant2' || !!(lighting && lighting.busy);
   }
 
   function writeFog() {
@@ -298,7 +299,7 @@ export function createWorldRenderer(config = {}) {
     if (lighting) lighting.fitSun(d, view, center, radius, k);
   }
 
-  function captureEnv(instant = true) {
+  function captureEnv(instant = true, from = 0, to = instant ? 2 : 1) {
     // image-based light: a PMREM of the sky AND the built world from the probe point (envlight.js). A snap
     // captures twice so the second pass already holds one bounce of the first; a fade captures once (the
     // scene still shows the previous light, which is the bounce).
@@ -312,7 +313,7 @@ export function createWorldRenderer(config = {}) {
     // bake fed back, and repeated setTime stills drifted)
     const bnBack = lighting && lighting.bounce ? lighting.bounce.suspend() : null;
     try {
-      for (let pass = 0; pass < (instant ? 2 : 1); pass++) {
+      for (let pass = from; pass < to; pass++) {
         envLight.capture(scene, envProbe, { instant });
         scene.environment = envLight.texture;
       }
@@ -320,6 +321,7 @@ export function createWorldRenderer(config = {}) {
     stars.visible = true; skyU.uCapture.value = 0;
     for (const o of hidden) o.visible = true;
     softShadowsIdle();
+    if (instant && to < 2) { envState = 'instant2'; return; }   // the second pass comes with the next moving frame
     lastCap.dir.copy(keyDir); lastCap.lamp = light.lamp; lastCap.sky = light.skyLight;
     if (lighting) lighting.envCaptured(instant);
     envState = null;
@@ -408,7 +410,10 @@ export function createWorldRenderer(config = {}) {
   // settings of the frame (with frameDt: the seconds since the last moving frame)
   function accumulate(T, opts) {
     if (!light) setTime(time);
-    if (envState === 'instant') captureEnv(true);
+    const te = performance.now();
+    if (envState === 'instant') captureEnv(true, 0, opts.taa ? 1 : 2);
+    else if (envState === 'instant2') captureEnv(true, 1, 2);
+    const envSpent = performance.now() - te;   // ms a recapture took in this frame (the budgeted bakes leave it out of theirs)
     let spp = opts.spp ?? config.spp ?? Q.spp;
     const taa = !!opts.taa;
     if (taa) spp = 1; else taaValid = false;
@@ -438,7 +443,7 @@ export function createWorldRenderer(config = {}) {
     // penumbra and AA footprint until the pattern fills in). Off (the default): nothing below runs.
     const on = opts.converge !== undefined && opts.converge !== null && opts.converge !== false;   // 0 = stop only when nothing moves
     const cv = !taa && spp >= 8 && on ? { tol: opts.converge === true ? 0.25 : +opts.converge, every: Math.floor(spp / 4), wsum: 0, diffs: [], used: spp } : null;
-    if (lighting) lighting.frame(opts.getCamera ? opts.getCamera(T) : opts.camera || camera, taa ? frameDt : 0, !taa);
+    if (lighting) lighting.frame(opts.getCamera ? opts.getCamera(T) : opts.camera || camera, taa ? frameDt : 0, !taa, envSpent);
     pipeline.begin();
     for (let k = 0; k < spp; k++) {
       const tk = T + (spp > 1 ? ((shutterSlot(k, spp) + 0.5) / spp - 0.5) * shutter * dt : 0);
@@ -532,7 +537,7 @@ export function createWorldRenderer(config = {}) {
   function renderDirect(T = 0, opts = {}) { calm(() => direct(T, opts)); }
   function direct(T, opts) {
     if (!light) setTime(time);
-    if (envState === 'instant') { const xe = renderer.xr.enabled; renderer.xr.enabled = false; try { captureEnv(true); } finally { renderer.xr.enabled = xe; } }
+    if (envState === 'instant' || envState === 'instant2') { const xe = renderer.xr.enabled; renderer.xr.enabled = false; try { captureEnv(true); } finally { renderer.xr.enabled = xe; } }
     writeFog();
     if (opts.fog !== undefined) scene.fog.density *= opts.fog;   // AR: a table model is seen through metres of air, not km
     G.uTime.value = T; G.uFrame.value = 0;
@@ -550,7 +555,7 @@ export function createWorldRenderer(config = {}) {
   function renderViews(T = 0, opts = {}) {
     calm(() => {
       if (!light) setTime(time);
-      if (envState === 'instant') { const xe = renderer.xr.enabled; renderer.xr.enabled = false; try { captureEnv(true); } finally { renderer.xr.enabled = xe; } }
+      if (envState === 'instant' || envState === 'instant2') { const xe = renderer.xr.enabled; renderer.xr.enabled = false; try { captureEnv(true); } finally { renderer.xr.enabled = xe; } }
       const P = framePost();
       writeFog();
       if (opts.fog !== undefined) scene.fog.density *= opts.fog;
