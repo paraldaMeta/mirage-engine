@@ -16,7 +16,7 @@ const NAMES = ['propKit', 'uvRect', 'tint', 'uvByHeight', 'hex', 'canGeo', 'bott
   'breakables', 'markBatch', 'sinceMark', 'track', 'breakablesLamp', 'trackLamps', 'recorder', 'surfaceLib', 'gasBottle', 'extinguisher',
   'tf', 'decalTexture', 'decalUV', 'robotSurfaces', 'robotMaterials', 'COL', 'part', 'mergeParts', 'moved', 'ext', 'drum', 'link', 'cover',
   'cable', 'decal', 'JOINTS', 'LEN', 'humanoid', 'humanoidRig', 'quadrupedDims', 'quadruped', 'legIK', 'bipedLegs', 'GAITS', 'trotLegs',
-  'humanoidMeshes', 'robotClips', 'CLIP_SPEED', 'createHound', 'motionClips', 'samplePose', 'MOTION_BONES', 'bladeParts', 'scabbardParts', 'roninParts', 'MOVES', 'samplePoseKeys', 'CUT_AXIS', 'corrugated', 'canopy', 'WORN_DECL', 'worn', 'interiorMaterial', 'textAtlas', 'atlasQuad'];
+  'humanoidMeshes', 'robotClips', 'CLIP_SPEED', 'createHound', 'motionClips', 'samplePose', 'MOTION_BONES', 'bladeParts', 'scabbardParts', 'roninParts', 'MOVES', 'samplePoseKeys', 'CUT_AXIS', 'corrugated', 'canopy', 'WORN_DECL', 'worn', 'interiorMaterial', 'textAtlas', 'atlasQuad', 'behaviourClips', 'civilianAct', 'CIV_ACTS', 'ACT_LEN'];
 for (const n of NAMES) ok(n in K, `exports ${n}`);
 ok(Object.keys(K).length === NAMES.length, `exports exactly the listed names (${Object.keys(K).length} vs ${NAMES.length})`);
 
@@ -58,5 +58,10 @@ for (const [n, m] of Object.entries(K.MOVES)) {
   ok(['rh', 'dir'].every((f) => f in p) && Object.values(p).every((v) => !(typeof v === 'number') || Number.isFinite(v)), `MOVES.${n}: a complete, finite pose`);
 }
 
+const bc = K.behaviourClips();
+ok(['repair', 'kneel', 'crawl', 'rise'].every((n) => bc.some((c) => c.name === n)), 'behaviourClips: repair, kneel, crawl, rise');
+ok(bc.every((c) => c.tracks.every((t) => Array.from(t.values).every(Number.isFinite))), 'behaviourClips are finite');
+{ const p = { head: [0, 0, 0], arms: [[0, 0, 0, 0.3], [0, 0, 0, 0.3]] }; for (const a of K.CIV_ACTS) for (const u of [0, 1, 2.5, 4.4]) K.civilianAct(a, u, u, 1.3, p); ok(p.arms.flat().every(Number.isFinite) && p.head.every(Number.isFinite), 'civilianAct keeps the pose finite'); }
 console.log(fails ? `cyber kit check: ${fails} failed` : 'cyber kit check: ok');
 process.exit(fails ? 1 : 0);
+

@@ -71,7 +71,7 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
   const enemies = createEnemies({ world, game, physics, plan, vfx: robotVfx, sfx, player, assist, onDispose, tune });
   const drones = createDrones({ world, game, physics, plan, vfx: robotVfx, sfx, player, assist, onDispose, tune });
   // what a round can hit: the nearer of a sentinel and a kite; a hit knows whose it is (hit.owner.damage)
-  const targets = { rayHit(o, d, max) { const a = enemies.rayHit(o, d, max), b = drones.rayHit(o, d, max); return a && b ? (a.t < b.t ? a : b) : a || b; }, noise: (p, r) => enemies.noise(p, r) };
+  const targets = { rayHit(o, d, max) { const a = enemies.rayHit(o, d, max), b = drones.rayHit(o, d, max); return a && b ? (a.t < b.t ? a : b) : a || b; }, noise: (p, r) => { enemies.noise(p, r); world.scene.getObjectByName('machines')?.userData.disturb?.(p, 8); } };   // the queue at the drink machine turns round to stare
   const wake = (zone) => { enemies.wake(zone, player.feet); drones.wake(zone); };
   // the player's own settings (kept with the key bindings and volumes, not in a save)
   // touch: its own look sensitivity, the buttons' opacity and size, the left FIRE, the sprint lock

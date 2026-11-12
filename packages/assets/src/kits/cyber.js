@@ -39,6 +39,8 @@
 //                  motion-data.js says where from): the only data in the kit that was not made in code
 //   melee-kit.js   close combat: blades, a scabbard, the swordsman's armour (bladeParts, scabbardParts, roninParts) and
 //                  the fist, sabre and sword moves as keyframed poses in body space (MOVES, samplePoseKeys, CUT_AXIS)
+//   robot-behaviours.js what makes a robot read as a machine: rig clips (a forearm repaired, a kneel, a crawl, a
+//                  wrong-way rise: behaviourClips) and the civilians' clumsy imitations of people (civilianAct)
 //   surfaces.js    corrugated sheet, canopies, worn painted metal, shop interiors behind glass, text atlases
 //
 // All brands, names and plates are invented. Text is English, Traditional Chinese and Japanese (the fonts of the
@@ -58,4 +60,5 @@ export { tf, decalTexture, decalUV, surfaceLib as robotSurfaces, robotMaterials,
 export { humanoidMeshes, robotClips, CLIP_SPEED, createHound } from './cyber/robot-rig.js';
 export { motionClips, samplePose, MOTION_BONES } from './cyber/motion-clips.js';
 export { bladeParts, scabbardParts, roninParts, MOVES, samplePoseKeys, CUT_AXIS } from './cyber/melee-kit.js';
+export { behaviourClips, civilianAct, CIV_ACTS, ACT_LEN } from './cyber/robot-behaviours.js';
 export { corrugated, canopy, WORN_DECL, worn, interiorMaterial, textAtlas, atlasQuad } from './cyber/surfaces.js';

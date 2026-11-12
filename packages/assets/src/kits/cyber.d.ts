@@ -216,6 +216,13 @@ export const MOVES: Record<string, MeleeMove>;
 export function samplePoseKeys(move: MeleeMove, t: number, out?: Record<string, any>): Record<string, any>;
 /** A swing's axis in body space by its name ('lr', 'rl', 'down', 'up'): the edge is dir x axis. */
 export const CUT_AXIS: Record<string, [number, number, number]>;
+/** Behaviour clips for the rig: 'repair' (upper body), 'kneel', 'crawl', 'rise' (up off its back the wrong way). */
+export function behaviourClips(): THREE.AnimationClip[];
+/** The civilians' acts (buildMachines' pose parameters) and their length in seconds. */
+export const CIV_ACTS: readonly string[];
+export const ACT_LEN: number;
+/** Write act `name`, u s in, over pose parameters p; returns the probe tip's brightness (0: none). */
+export function civilianAct(name: string, u: number, t: number, seed: number, p: object): number;
 /** A robot dog on its own skeleton, posed in code. */
 export function createHound(options: { style: string; mats: Record<string, THREE.Material> }): any;
 

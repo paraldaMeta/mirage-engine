@@ -18,7 +18,8 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import { createRigModel, createAnimator, createNavGrid, createNavAgent, createNavCrowd, createSenses, solveLookAt, solveTwoBone, createFootIK, blend1d } from '@miragekit/play';
 import { FX } from './fx.js';
 import { MELEE_KIND, createMelee } from './melee.js';
-import { robotMaterials, part, mergeParts, ext, tf, moved, COL, humanoidMeshes, motionClips, createHound } from '@miragekit/assets/kits/cyber';
+import { robotMaterials, part, mergeParts, ext, tf, moved, COL, humanoidMeshes, motionClips, createHound, behaviourClips } from '@miragekit/assets/kits/cyber';
+import * as BH from './behaviours.js';
 
 const q = (x, y, z) => new THREE.Quaternion().setFromEuler(new THREE.Euler(x, y, z)).toArray();
 const hold = (name, tracks, dur = 1) => new THREE.AnimationClip(name, dur, Object.entries(tracks).map(([bone, v]) => new THREE.QuaternionKeyframeTrack(bone + '.quaternion', [0, dur], [...v, ...v])));
@@ -75,6 +76,7 @@ const HIT = {
   biped: [[1.66, 0.17, true, 0], [1.25, 0.3, false, 0], [0.85, 0.3, false, 0], [0.4, 0.27, false, 0]],
   scout: [[0.37, 0.17, false, 0.12], [0.37, 0.16, false, -0.17], [0.39, 0.1, true, 0.33]],
   hauler: [[0.53, 0.24, false, 0.2], [0.53, 0.24, false, -0.24], [0.55, 0.12, true, 0.52], [0.72, 0.1, false, 0.05]],
+  crawl: BH.CRAWL_HIT,
 };
 const FOV = 130;
 // a fallen biped's joints and how far its shells reach round each (rig metres): none of it may end up under the ground
@@ -113,6 +115,8 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
   // 5.8 is a sprinter's stride: at the robots' 2.3-3 m/s it blends with the walk); playback scaled to the ground covered
   const extra = extraClips(), M = motionClips().byName, CLIPS = motionClips().clips, LOCO = [M.idle, M.walk, M.walk, M.run], BLEND = [0, M.walk.speed, 1.9, 4.4], bw = new Float32Array(4);
   const list = [], byZone = {}, hounds = [];
+  // the behaviours that make them machines (behaviours.js): hooked into build, think, damage and update below
+  const bh = BH.createBehaviours(world, { list, player, game, vfx, sfx, R: () => R(), alert: (...a) => alert(...a), nav: () => nav, crowd: () => crowd, shellOf, plain, glow: visorPlain, rim, onDispose });
   let nav = null, crowd = null, senses = null, walk = null, rnd = 0x9e3779b9;
   const R = () => ((rnd = (Math.imul(rnd ^ (rnd >>> 15), 0x2c1b3c6d) ^ (rnd << 7)) >>> 0) / 4294967296);
   const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3();
@@ -163,19 +167,20 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
     // the marksman's tell: a beam from the muzzle to the player that tightens before the shot
     if (sniper) { beam = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1).translate(0, 0, 0.5), beamMat.clone()); beam.visible = false; beam.frustumCulled = false; beam.userData.occlude = false; beam.userData.collide = false; world.scene.add(beam); onDispose(() => beam.removeFromParent()); }
     place(rig.root, def);
-    const anim = createAnimator(rig.root, [...CLIPS, ...extra], {
+    const anim = createAnimator(rig.root, [...CLIPS, ...extra, ...behaviourClips()], {
       parameters: { speed: 0, rate: 1, crouch: false, flinch: 'trigger', head: 'trigger' }, rootMotion: { bone: 'Root' },
       layers: [
         { name: 'base', start: 'move', states: { move: { blend1d: { param: 'speed', points: [[BLEND[0], 'idle'], [BLEND[1], 'walk'], [BLEND[2], 'walk'], [BLEND[3], 'run']] }, speedParam: 'rate' },
           crouch: { clip: 'crouchWalk', speedParam: 'rate' }, stagger: { clip: 'hitChest', loop: false, speed: 0.75 },
-          die: { clip: 'die', loop: false }, crumple: { clip: 'crumple', loop: false }, blown: { clip: 'hitKnockback', loop: false } },
+          die: { clip: 'die', loop: false }, crumple: { clip: 'crumple', loop: false }, blown: { clip: 'hitKnockback', loop: false }, ...BH.STATES },
         transitions: [{ from: 'move', to: 'crouch', when: ['crouch'], duration: 0.35 }, { from: 'crouch', to: 'move', when: ['!crouch'], duration: 0.35 },
-          { from: 'stagger', to: 'move', exitTime: 0.9, duration: 0.3 }] },
+          { from: 'stagger', to: 'move', exitTime: 0.9, duration: 0.3 }, ...BH.TRANSITIONS] },
         { name: 'aim', mask: ['Chest'], weight: 0, start: 'aim', states: { aim: { clip: 'aim' } } },
         // a hit from the front: the borrowed flinches on the upper body, as offsets (motion() adds the rest by direction)
         { name: 'hit', additive: true, mask: ['Spine'], start: 'none', states: { none: {}, chest: { clip: 'hitChest', loop: false }, head: { clip: 'hitHead', loop: false } },
           transitions: [{ from: '*', to: 'chest', when: ['flinch'], duration: 0.03 }, { from: '*', to: 'head', when: ['head'], duration: 0.03 }, { from: ['chest', 'head'], to: 'none', exitTime: 0.95, duration: 0.1 }] },
         { name: 'scan', additive: true, weight: 1, start: 'scan', states: { scan: { clip: 'scan' } } },
+        BH.LAYER,
       ],
     });
     const e = entity(def, K, { rig, anim, tip, shield, emitter, beam, sets });
@@ -192,6 +197,7 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
       motion(e, a.dt);
     });
     if (K.melee) melee.equip(e);
+    bh.attach(e);
     anim.update(0);
     return e;
   }
@@ -274,7 +280,7 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
     e.mo.hit = { t: 0, dx: lx, dz: lz, part, side: px > 0 ? 1 : -1, tw: clamp((pz * lx - px * lz) * 2.5, -0.6, 0.6), k: Math.min(1.6, 0.6 + e.hitSum / 40) };
     if (lz < 0.2 && part !== 'legs') e.anim.trigger(head ? 'head' : 'flinch');
     const heavy = !!(hit?.splash || hit?.melee || e.hitSum >= 40);
-    if (heavy && e.hp > 0 && !e.K.boss) { e.stagger = 0.7; e.anim.play('stagger', { duration: 0.08 }); e.agent?.stop(); }
+    if (heavy && e.hp > 0 && !e.K.boss && !e.legless) { e.stagger = 0.7; e.anim.play('stagger', { duration: 0.08 }); e.agent?.stop(); }
     return heavy;
   }
   /** down: backwards from a shot in front (the borrowed death), thrown flat by a heavy blow (the knockdown), folding
@@ -367,6 +373,7 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
   const calm = (e) => {
     e.stun = 0; e.jam = 0; e.shieldOff = 0; e.shieldHp = e.K.shieldHp || 0; e.charge = 0; e.lureT = 0; e.leapT = 0; e.cool = 0; e.stagger = 0; e.lift = 0; if (e.beam) e.beam.visible = false;
     if (e.mo) { e.mo.hit = null; e.mo.hipYaw = 0; for (const l of e.mo.legs) { l.w = 0; l.st = -1; l.rel = false; } e.feet.reset(); }
+    bh.calm(e);
   };
   function restore(e, s) {
     calm(e);
@@ -505,14 +512,16 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
     vfx.burst(FX.hit, point, { direction: [-dir[0], -dir[1] + 0.4, -dir[2]] });
     e.active = true; alert(e, hit?.friendly ? hit.from : player.feet);
     for (const o of byZone[e.def.zone] || []) if (o !== e) alert(o, player.feet, 0.3 + R() * 0.5);
+    bh.hit(e, head, point);
     if (e.hp <= 0) {
       e.dead = true; e.state = 'dead'; e.deadT = 0; e.anim.setLayerWeight('aim', 0); e.agent.stop(); crowd.remove(e.agent);
-      if (e.dog) e.anim.set('dead', true); else fall(e, dir, heavy);
+      if (e.dog) e.anim.set('dead', true); else if (!bh.fall(e)) fall(e, dir, heavy);
       e.charge = 0; e.tele = 0; e.stun = 0;
       vfx.burst(FX.down, [e.pos[0], e.pos[1] + 1.1, e.pos[2]]);
       sfx.play('nd_death', { at: [e.pos[0], e.pos[1] + 1, e.pos[2]], gain: 0.9, ref: 4 });
-      game.emit('kill', e);
-      return true;
+      const first = bh.killed(e);   // a rebooted one's second fall is not a second kill
+      if (first) game.emit('kill', e);
+      return first;
     }
     bark(e, 'hurt', 6);
     return false;
@@ -539,7 +548,7 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
         }
       }
       const dog = e.K.type === 'hound', k = dog ? 1 : s;
-      for (const [h0, r0, head, f] of HIT[dog ? e.K.style : 'biped']) {
+      for (const [h0, r0, head, f] of HIT[dog ? e.K.style : e.legless ? 'crawl' : 'biped']) {
         const h = h0 * k, r = r0 * k;
         _c.set(e.pos[0] + e.heading[0] * f, e.pos[1] + h, e.pos[2] + e.heading[1] * f).sub(_o);
         const tc = _c.dot(_d); if (tc < 0 || tc - r > max) continue;
@@ -686,12 +695,14 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
       return;
     }
     if (e.stagger > 0) { e.stagger -= dt; e.agent.stop(); e.burst = 0; e.tele = 0; e.aim += (0 - e.aim) * Math.min(1, dt * 7); return; }   // knocked off balance
+    if (bh.think(e, dt)) return;
     const sees = !player.dead && dist < e.K.range + 4 && seesPlayer(e);
     if (sees) { e.lastSeen = p.slice(); e.seenT = game.time; }
     let face = null, wantAim = 0;
     switch (e.state) {
       case 'post': {   // stand, or walk the patrol
-        if (sees) { alert(e, p); for (const o of byZone[e.def.zone] || []) if (o !== e) alert(o, p, 0.5 + R() * 0.6); break; }
+        if (sees) { if (bh.spot(e)) break; alert(e, p); for (const o of byZone[e.def.zone] || []) if (o !== e) alert(o, p, 0.5 + R() * 0.6); break; }
+        if (bh.idle(e, dt)) break;
         if (pressed(e) && e.t > 2) { e.state = 'search'; e.t = 0; hunt2(e); break; }   // (the marksman's post too: see straggle)
         const pts = e.def.patrol;
         if (pts && (e.agent.arrived || !e.agent.path)) { if ((e.wait -= dt) <= 0) { const [x, z] = pts[e.patrolI++ % pts.length]; e.agent.speed = e.agent.walker.body.walk = e.agent.walker.body.run = 1.3; e.agent.setGoal([x, e.pos[1], z]); e.wait = 1.5 + R() * 2; } }
@@ -757,7 +768,7 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
     if (face) want = Math.atan2(face[0] - e.pos[0], face[2] - e.pos[2]);
     else if (e.agent.moving) want = Math.atan2(hx, hz);
     let d = want - e.yaw; d = Math.atan2(Math.sin(d), Math.cos(d));
-    e.yaw += d * Math.min(1, dt * (face ? 9 : 6));
+    e.yaw += d * Math.min(1, dt * (face ? (e.state === 'alert' ? 2.5 : 9) : 6));   // noticing: the head first (behaviours.js), the body slowly after
     e.heading[0] = Math.sin(e.yaw); e.heading[1] = Math.cos(e.yaw);
     e.aim += (wantAim - e.aim) * Math.min(1, dt * 7);
   }
@@ -800,6 +811,7 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
       if (!rootObj.visible) continue;
       if (e.dead) {
         e.deadT += dt;
+        if (bh.dead(e, dt)) { moved = true; continue; }
         if (e.dog ? e.deadT < 1.2 : e.deadT < e.fallLen) { if (e.dog) e.anim.update(dt); else settle(e, dt); moved = true; }
         else if (e.deadT > 7) { const k = Math.max(0, 1 - (e.deadT - 7) / 1.2); rootObj.scale.setScalar(e.K.scale * (0.6 + 0.4 * k)); rootObj.position.y = e.pos[1] + (e.lift || 0) - (1 - k) * 0.5; if (k <= 0) rootObj.visible = false; moved = true; }
         continue;
@@ -845,6 +857,7 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
       }
       e.anim.setLayerWeight('aim', e.aim); e.anim.setLayerWeight('scan', e.state === 'post' ? 1 : 0);
       e.watch = e.state === 'fight' || e.state === 'alert' ? 1 : 0;
+      if (bh.pose(e)) continue;
       // far off (the third level of detail) the pose is worked out every third step, without the feet
       if (e.lod === 2 && !e.dog) { e.mo.acc += dt; if (++e.mo.n % 3 === 0) { e.anim.update(e.mo.acc); e.mo.acc = 0; } }
       else e.anim.update(dt);
@@ -865,9 +878,10 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
       visorPlain[k].color.copy(visorMat[k].color); glowU[k].value.copy(visorMat[k].color);
     }
     rim.value.set(0.05, 0.11, 0.14).multiplyScalar(1 + 5 * env.rim);
+    bh.update();
     return moved;
   }
-  const api = { melee, list, byZone, start, update, damage, breakShield, rayHit, noise, wake, alert, eyeOf, revive, park, retune, tune, env, on, stun, stunAt, jam, hackable, darken, lure, KIND,
+  const api = { melee, list, byZone, start, update, damage, behave: bh.force, breakShield, rayHit, noise, wake, alert, eyeOf, revive, park, retune, tune, env, on, stun, stunAt, jam, hackable, darken, lure, KIND,
     get alive() { return list.filter((e) => !e.dead && e.active).length; }, get nav() { return nav; } };
   return api;
 }
