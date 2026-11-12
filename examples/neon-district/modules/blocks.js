@@ -19,7 +19,7 @@ export default {
       slab(b, M.facade[k.style], k.rect, y0, k.h);
       if (!y0) {   // the ground storey: a dark plinth, a string course at the first floor, on some a line of light under it
         slab(b, M.concrete, [x0 - 0.05, z0 - 0.05, x1 + 0.05, z1 + 0.05], 0, 0.75);
-        slab(b, M.darkMetal, [x0 - 0.1, z0 - 0.1, x1 + 0.1, z1 + 0.1], 4.16, 4.38);
+        if (k.h > 4.6) slab(b, M.darkMetal, [x0 - 0.1, z0 - 0.1, x1 + 0.1, z1 + 0.1], 4.16, 4.38);   // (a low deck has no first floor)
         const tint = { s1: 'pink', c: 'cyan', e: 'violet', sw: 'amber', s3: 'cyan', w: 'pink' }[k.name];
         if (tint) {
           for (const [a2, c2, d2, e2] of [[x0 - 0.12, z0 - 0.13, x1 + 0.12, z0 - 0.1], [x0 - 0.12, z1 + 0.1, x1 + 0.12, z1 + 0.13], [x0 - 0.13, z0 - 0.1, x0 - 0.1, z1 + 0.1], [x1 + 0.1, z0 - 0.1, x1 + 0.13, z1 + 0.1]]) slab(roofs, M.neon[tint], [a2, c2, d2, e2], 4.08, 4.13);
