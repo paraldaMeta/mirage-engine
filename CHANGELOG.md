@@ -105,6 +105,12 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
   view" difference in `npm run test:determinism` went from 260 k to 18 k pixels at its street view (not yet zero).
 
 **New**
+- Asset library (`packages/assets`): home and office props, `src/props-home` (docs/home-props.md): 48 props made in
+  code to real sizes (sofas, tables, a bookcase with seeded books, lamps, plants, a kitchen run with a sink and a
+  hob, a fridge, a bed, a wardrobe, a bathroom suite, desks with what is on them, office chairs, cabinets, a
+  whiteboard...), eleven material slots tinted per part, and `room()`, which furnishes a living room, a kitchen-diner,
+  a bedroom, a bathroom or an office with the building kit's walls. Demo `examples/demos/home`; checked by
+  `packages/assets/props-home.check.mjs`.
 - Asset library (`packages/assets`, its licence to be set with the package): a building kit, `src/building.js`
   (docs/building-kit.md): 29 parts made in code (walls with doors and windows, floors, columns, beams, an archway,
   straight and spiral stairs, four railings, a ramp, steps, a ladder, gable / hip / flat roofs, dormers, chimneys,
