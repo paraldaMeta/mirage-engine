@@ -1119,3 +1119,84 @@ shadows) and the cars' wheels (48-segment tyres, no LOD). Not yet won back: medi
 steps would be a fourth, cheaper civilian level for the middle distance, LOD on the car wheels, and dropping the
 robots' metal mesh from the mirror pass.
 
+## Destructibles (things break when shot)
+
+The engine's registry (`createDestructibles`, `docs/destructibles.md`) over what the modules already draw, wired in
+`game/destruct.js` (the plan: `docs/destructibles-neon-district.md`). The modules record each prop as they build it
+(`modules/props-kit.js` `recorder`: its id, family, box, the vertex ranges it added to each merged batch, resolved to
+`{ mesh, range }` when the batch is finished, its glowing ranges, pool lamps and clustered lights, its collider proxies;
+`ctx.shared.breakables`). No prop costs a draw call up front: ranges collapse, glow ranges dim in their vertex colour,
+instances hide; the only new draws are the scooters' two materials (moved from the solid `clutter` batch into decor:
+a thrown scooter leaves no collider behind) and, once a tube is broken, one instanced mesh of dead tubes.
+
+What is registered (727 at medium): vending machines 9 (their glass 9, their goods 239: cans roll and never break;
+bottles, cups, boxes, packs and capsules are knocked and break), shop windows 9, shop light boxes 14, shutters 9, AC
+units 11, neon strips 19 (shop doors, kiosks, benches, planters, the bar's counter), tube fixtures 2, street lamps 10,
+bulbs 54 (5 strings: they pop one after another, the string's lamp goes with the last), paper lanterns 18 (bar, door,
+cart, stall), signs 29 boards and 8 blades (a blade cut loose falls and crushes what is under it), LED walls 2, bar
+windows 2, bottles 80, glasses 6, bowl stacks 6, jars 4, crates 11, cardboard 25, bags 60, bins 6, jersey barriers 3
+(chip, hold, block blasts), barricades 5 (hold) with their beacons 5, scooters 2, cars 3 (panes 12, tyres 12, the body,
+a cabin box that passes its hits to the body), the stall's flap, gas bottle and extinguisher (the last two new props,
+`props-goods.js`), steam pipes 6 (alley), water pipes 3 (grime's drip pipes), civilians 21.
+Protected (never break; a round shows its impact, nothing else): the owner's five wall signs (anchors whose text
+contains 视频号 or 他抄由他抄, tag `owner`; `signs.js` `ownerSign`), the pass on the counter, the uplink terminal. The
+relay door, the stairs and everything else on the route are not registered.
+
+- **Rounds** (`weapon.js` `cast`): the world's distance from a ray that steps over the props' proxies and the
+  characters (`props.worldRay`), then the props up to the robot or the wall (`props.shoot`): thin ones let a round
+  through with less (glass 85 %, a bag 35 %, a crate 15 %), the robot behind takes what is left; a civilian, a machine
+  or a car stops it. The impact sound by what was hit. The gatling's rounds count 1.6 x on props, the shotgun's 1.2 x;
+  the rocket's blast is 1.25 x as wide and 1.15 x as hard on props as on robots (it throws scooters, folds the stall's
+  flap, dents shutters with a scorch); the stock hits a prop when no robot is in reach. The robots' rounds: every
+  tracer they draw goes through the props on its line (`shotTap` on the vfx index.js hands them).
+- **Lights**: a prop's light is a channel (pool lamps through `lamps.off`, a factor kept apart from the hack's
+  `scale`; clustered lights through `userData.ndOff`, which `hack.js` multiplies in; glow ranges; sign faces through
+  `face.off`; a neon strip's range hidden and a dead tube shown). A hurt light flickers, a broken one goes out. A street
+  lamp shot out makes its light hack's zone dark for good; other lights darken their place once under 45 % of the light
+  there (weighted by distance) is left. `hack.dark` reads `extraDark`, so robots see a third as far and those fighting
+  there lose the player, as in a hacked zone; steam, spray and the extinguisher's cloud block their sight (`extraBlind`).
+- **The fight**: crates, boxes and bags wear out and are gone; machines burst (sparks, the lit parts dark, cans thrown
+  out of the front, a spill; ammunition or a med can 55 % of the time, the parts machine always ammunition); the gas
+  bottle burns 2.6 s and goes off (5.5 m, 230: robots and the player in reach, behind cover less, behind a wall
+  nothing); a car: its glass crumbles, a flat tyre sinks that corner 7.5 cm, its alarm lures (35 m) the robots that are
+  awake, past 55 % it burns 5 s and goes off (7 m, 300), the wreck charred and burning for 14 s.
+- **Civilians** (`machines.js` units as `d.actor`): a felled one folds over its feet where it fell (the fold is written
+  over the instance matrices machines.js wrote that frame); those within 11 m cower for about 7 s. Charged to the
+  player: his rounds, his blasts and props he set off (the blame follows `lastHit.source` back). Each: a red warning
+  `CIVILIAN DOWN −500`, a radio line (six, deadpan), the HUD tally `civ n −points`. The robots' rounds fell them too,
+  charged to nobody.
+- **Score** (`index.js` end cards, mission and holdout): `Property damage: N credits` (what the player broke: vending
+  1,500, a shop window 400, a car 18,000, a street lamp 900, a blade sign 1,200, an LED wall 2,500, a bottle 18, a
+  civilian 25,000 ... `PRICE`), `Civilian casualties: n (−500 points each)`, a remark by the bill (from 0, 2,000,
+  20,000, 100,000 credits). The rating as before, then: with any casualty never the top, one step down for every two more.
+- **Saves**: the registry is the game's `destructibles` entity, `destructScore` keeps whose casualties were whose; a
+  load brings back the broken set, the lamps out, the sunk corners, the charred cars, the folded flap, the thrown
+  scooters (lying beside where they stood) and the dark zones.
+
+Budgets: debris 160 / 380 / 600 and marks 32 / 64 / 96 (low / medium / high), emitters 4 / 8, movers 24 / 48, detail
+from `shared.detail`; debris and marks stay out of the shadow, mirror and probe passes (the engine's). The programs of
+what breaking shows are made while the game loads (a few hidden instances for 20 frames): no hitch at the first pane,
+crate or tube.
+
+Measured (M4 Pro, 1440 x 900, other agents' jobs on the machine). Idle, nothing broken: 0.5 µs a fixed step and 0.3 µs
+a frame for the civilians (`props.idleCost()`); `measure.mjs --vs` the build before, game, medium: street west 20.1 vs
+19.9 ms, alley 18.9 vs 18.4 (the spread inside a round is ±2 ms), +3 calls (the scooters' materials). Under load
+(`node scripts/destruct-measure.mjs`, ms a frame, median / p95 / worst):
+
+| quality | idle (street west) | gatling sweep, 3 s | rocket into the stall, 2 s | debris, marks at most (cap) |
+|---|---|---|---|---|
+| low | 11.3 / 12.3 / 18.0 | 11.6 / 12.5 / 31.5 | 10.3 / 11.2 / 39.5 | 64 (160), 13 (32) |
+| medium | 15.8 / 22.6 / 24.8 | 16.2 / 22.8 / 24.1 | 14.0 / 19.4 / 42.1 | 304 (380), 50 (64) |
+| high | 21.4 / 27.2 / 29.3 | 21.8 / 27.6 / 29.6 | 19.4 / 23.2 / 49.3 | 553 (600), 50 (96) |
+
+Check: `node scripts/destruct-check.mjs [--shots]` (60 checks in the built game; pictures in out/destruct).
+
+Still rough: a felled walker keeps its walk cycle while it lies there and cowering is a crouch in place, not a flight
+along the pavement (machines.js has no hook to stop or steer a unit: asked for); the robots' rounds reach the props
+through the tracer they draw (a hook in enemies.js and drones.js would be cleaner); shop glass is so clear that a
+shattered window reads mostly by its glints and the shards on the pavement; a blade sign falls as its two faces, its
+box hidden on the wall; the stall's lanterns stay where they hung when its flap folds (they die with it); a car's sunk
+corner moves its vertices, not its proxies; bottles, bowls and jars in the merged batches break where they stand (only
+the vending goods are movers); the first frame of a rocket into a crowded place still costs 30-50 ms (twenty breaks'
+debris at once).
+
