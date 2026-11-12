@@ -212,7 +212,7 @@ add('iceBurst', 'magic', 'a burst of ice: shards flying out, frost mist, glints 
 add('lightningStrike', 'magic', 'lightning striking the ground: a bolt of streaks, a flash, a scorch ring and sparks (one go)', { emitters: [
   { name: 'bolt', ...once(70), life: [0.08, 0.16], shape: { type: 'edge', a: [0, 0, 0], b: [0, 14, 0] }, velocity: { random: [1, 3] }, turbulence: { strength: 8, scale: 0.6, speed: 3 }, size: [0.06, 0.14], color: '#eef6ff', alpha: [[0, 1], [1, 0]], emissive: 14,
     render: { blend: 'add', type: 'stretched', sprite: 'spark', stretch: 0.05 } },
-  { name: 'flash', ...once(1), life: [0.2, 0.2], shape: { type: 'point', offset: [0, 1, 0] }, size: [6, 6], color: '#dfe8ff', alpha: [[0, 1], [1, 0]], emissive: 10, render: { blend: 'add', sprite: 'soft' } },
+  { name: 'flash', ...once(1), life: [0.15, 0.15], shape: { type: 'point', offset: [0, 1, 0] }, size: [3, 3], color: '#dfe8ff', alpha: [[0, 0.8], [1, 0]], emissive: 5, render: { blend: 'add', sprite: 'soft' } },   // smaller and dimmer: at 6 m and 10 it washed out the whole view
   sparkBurst({ name: 'sparks', ...once(40), velocity: { speed: [3, 8], spread: 70 } }),
   { name: 'scorch', ...once(1), life: [2.5, 2.5], shape: { type: 'point', offset: [0, 0.02, 0] }, size: [1.4, 1.4], color: '#1a1410', alpha: [[0, 0.8], [0.7, 0.6], [1, 0]], render: { type: 'horizontal', sprite: 'soft' } },
 ] });

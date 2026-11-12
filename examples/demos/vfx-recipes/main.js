@@ -60,8 +60,8 @@ for (const p of pads) {
 }
 let wi = Math.max(0, WEATHER.indexOf(Q.get('weather') || 'rainHeavy')), weather = Q.get('weather') === 'none' ? null : vfx.spawn(VFX_RECIPES[WEATHER[wi]].effect, { position: [0, 0, -12] });
 addEventListener('keydown', (e) => { if (e.code !== 'KeyW' || !e.shiftKey) return; weather?.stop(); wi = (wi + 1) % WEATHER.length; weather = vfx.spawn(VFX_RECIPES[WEATHER[wi]].effect, { position: [0, 0, -12] }); });
-const play = createPlay(world, { plan: built.plan, canvas, mode: 'walk', spp: 4, ui: Q.get('ui') !== '0', fit: !Q.get('w'),
-  onStep: (dt) => { for (const s of shots) { s.next -= dt; if (s.next <= 0) { vfx.burst(s.r.effect, s.at.position, s.at); s.next = EVERY; } } } });
+const play = createPlay(world, { plan: built.plan, canvas, mode: 'walk', spp: 4, ui: Q.get('ui') !== '0', fit: !Q.get('w'), hud: false, animate: true,   // the clock runs: particles move
+  onStep: (dt) => { for (const s of shots) { s.next -= dt; if (s.next <= 0) { vfx.burst(s.r.effect, s.at.position, s.at); s.next = EVERY; } } return true; } });   // true: always live, never the still path
 const v = plan.viewpoints.find((p) => p.name === Q.get('view'));
 if (v) play.place(v.eye, v.look, 'walk');
 window.__mirage = { world, built, play, vfx, recipes: VFX_RECIPES, render: (o = {}) => world.renderFrame(o.T ?? 0, { spp: 4, frameIndex: 1, ...o }) };

@@ -41,4 +41,6 @@ Shift+W cycles the weather; `?view=combat | fire | water | magic | celebration |
 spawn point, says truly whether it loops; the fountain's height, the tracer's reach and the rain's fall are checked
 against their descriptions).
 
-Limits: `butterflies` and `petals` are tumbling shards (core has no wing mesh); the lightning is particles along a line, not a branching bolt.
+Looked at in motion once (headless Chrome, the demo's seven viewpoints): fire, smoke, steam, sparks, rings and rain
+render; the lightning's flash was too big and was cut down after, not re-shot. Limits: `butterflies` and `petals` are
+tumbling shards (core has no wing mesh); the lightning is particles along a line, not a branching bolt.
