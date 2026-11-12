@@ -28,8 +28,8 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
   const flash = new THREE.PointLight(0xffb060, 0, 11, 2); root.add(flash);
   world.lighting?.addLight(flash);
   // a fill light that travels with the gun so its form reads on a dark street, and a cooler rim from below-left
-  const fill = new THREE.PointLight(0xb8e2ff, 0, 2.4, 2); root.add(fill);
-  const rim = new THREE.PointLight(0xff6ac8, 0, 1.6, 2); root.add(rim);
+  const fill = new THREE.PointLight(0xdde6ee, 0, 2.4, 2); root.add(fill);
+  const rim = new THREE.PointLight(0xffe6d2, 0, 1.6, 2); root.add(rim);
   world.lighting?.addLight(fill); world.lighting?.addLight(rim);
 
   // ---- per-gun rounds; S is the state of the gun in hand (S.mag / S.reserve read and write the current gun's)
@@ -479,7 +479,7 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
     const rk = lampRoom();
     fill.position.copy(holder.position).addScaledVector(fwd.set(-0.16, 0.18, 0.04).applyQuaternion(holder.quaternion), 1);
     rim.position.copy(holder.position).addScaledVector(fwd.set(0.3, -0.25, -0.25).applyQuaternion(holder.quaternion), 1);
-    fill.intensity = 1.1 * rk; rim.intensity = 0.35 * rk;
+    fill.intensity = 0.5 * rk; rim.intensity = 0.18 * rk;
     flash.position.copy(mz);
     flash.intensity = S.flashT > 0 ? A.flash.gain * rk * (0.7 + 0.3 * R()) * (1 - 0.5 * S.ads) : 0;
   }
