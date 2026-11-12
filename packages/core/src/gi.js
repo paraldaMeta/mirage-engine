@@ -36,6 +36,7 @@ export const GI_DEFAULTS = {
   perFrame: 2,      // probes re-baked per frame after the time of day changed
   budget: 0,        // ms of probe work per frame instead of perFrame (0: perFrame probes); a probe is drawn a face at a time, so no frame stalls
   scope: null,      // (fn, first) => void: wraps each step of the bake; `first` is true for the first bake (a lazy one runs in frames: the caller can hold the state the world had before its first frame)
+  pace: 0,          // ms of frame time a re-bake may add (0: off; with it `budget` is ignored): a step or two a frame while the frame stays within that of the frames without one, else the next frames are left alone
   lazy: false,      // the first bake runs in frames (with `budget`) instead of inside prepare(): the world shows at once, `busy` until it is done
   intensity: 1,     // scale of the probe light
   fade: 0.75,       // m at the box faces over which it blends to the image-based light
@@ -272,10 +273,20 @@ void main() {
     info.pending = queue.length;
   }
   // frame(), with a budget: draw probes' steps until cfg.budget ms have gone (at least one step)
+  let lastCall = 0, calm = 0, did = false;   // pace: the frame interval seen, the interval of frames without bake work, whether the last frame had some
   function slice(spent) {
     if (!queue.length && !cur) return;
-    const t0 = performance.now(), budget = Math.max(cfg.budget - spent, 0);
-    if (budget <= 0 && spent > 0) return;   // the frame already paid for a recapture
+    const t0 = performance.now(), interval = lastCall ? t0 - lastCall : 0;
+    lastCall = t0;
+    let budget = Math.max(cfg.budget - spent, 0);
+    if (cfg.pace) {
+      if (!did && interval) calm = calm ? calm * 0.9 + interval * 0.1 : interval;
+      const over = did && interval > calm + cfg.pace + 1;   // the last frame's bake work showed in the frame time: leave this one alone
+      did = false;
+      if (over || spent > 0) return;
+      budget = Math.max(cfg.pace, 3);
+    } else if (budget <= 0 && spent > 0) return;   // the frame already paid for a recapture
+    if (cfg.pace) did = true;
     w.capture(() => {
       do {
         if (!cur) {
@@ -310,7 +321,7 @@ void main() {
     get busy() { return queue.length > 0 || !!cur; },
     /** per frame: re-bake a few probes while a re-bake is queued */
     frame(camera, dt, still, spent = 0) {
-      if (cfg.budget) return slice(spent);
+      if (cfg.budget || cfg.pace) return slice(spent);
       if (!queue.length) return;
       const list = queue.splice(0, cfg.perFrame).map((e) => e.i);
       cursor = (list[list.length - 1] + 1) % g.probes;

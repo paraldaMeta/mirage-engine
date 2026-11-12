@@ -62,7 +62,29 @@ const bar = plan.bar.rect, room = plan.relay.room;
 // the first bake used to run before the world's first frame, with the storm sky not yet eased in (uStorm 0): the lazy one,
 // run in frames, holds that state, so the light in the bar is what it was
 let stormU0 = null;
-const bakeScope = (fn, first) => { const u = first && stormU0; if (!u) return fn(); const x = u.value.x; u.value.x = 0; try { fn(); } finally { u.value.x = x; } };
+const culled = [];   // what distanceCull hides far from the eye (below): the first bake sees it all, as it did before the first frame
+// the lights and the glowing materials as they were before the first frame (the signs and lanterns flicker with the clock):
+// the first bake is drawn from that state, whenever its steps run
+const boot = [];
+const grabBoot = () => {
+  const seen = new Set();
+  world.scene.traverse((o) => {
+    if (o.isLight) boot.push({ o, k: 'intensity', c: 'color', i: o.intensity, col: o.color.clone(), i1: 0, col1: new THREE.Color() });
+    for (const m of [].concat(o.material || [])) if (m.emissive && !seen.has(m)) { seen.add(m); boot.push({ o: m, k: 'emissiveIntensity', c: 'emissive', i: m.emissiveIntensity, col: m.emissive.clone(), i1: 0, col1: new THREE.Color() }); }
+  });
+};
+const bakeScope = (fn, first) => {
+  if (!first || !boot.length) return fn();
+  const u = stormU0, x = u ? u.value.x : 0, vis = culled.map((m) => m.visible);
+  if (u) u.value.x = 0;
+  for (const m of culled) m.visible = true;
+  for (const b of boot) { b.i1 = b.o[b.k]; b.col1.copy(b.o[b.c]); b.o[b.k] = b.i; b.o[b.c].copy(b.col); }
+  try { fn(); } finally {
+    if (u) u.value.x = x;
+    culled.forEach((m, i) => { m.visible = vis[i]; });
+    for (const b of boot) { b.o[b.k] = b.i1; b.o[b.c].copy(b.col1); }
+  }
+};
 const lighting = {
   bounce: on('bounce') && { spacing: 2 },                                                          // by day: light off the sunlit side of the street into the shade
   lights: { perCell: 0, perFrame: 1 },                                                            // clustered lamps, exact lists; one shadow tile redrawn a frame (sentinels walking past lamps)
@@ -230,6 +252,7 @@ let play, g = null, game = null;
 if (Q.has('world')) {   // the district alone: walk, fly, orbit (stills, the world check)
   await world.prepare();
   play = createPlay(world, { plan: built.plan, canvas, mode: Q.get('mode') || 'walk', spp, ui: Q.get('ui') !== '0', shadowRadius: 34, fit: !Q.get('w'), quality, hud });
+  grabBoot();
 } else {
   g = await startGame(world, {
     built, canvas, id: plan.name, version: VERSION, title: T.title, subtitle: T.subtitle,
@@ -238,12 +261,13 @@ if (Q.has('world')) {   // the district alone: walk, fly, orbit (stills, the wor
     objective, summary,
   });
   play = g.play;
+  grabBoot();
   // the rooms' shafts of light (modules/shafts.js) shine only when the sun, the moon or the lamp outside really reaches
   // the opening: a ray through the physics world toward it
   shared.shafts?.setSee((from, dir, max) => !!g.physics.ray(from, dir, max));
   game.start(g);
   const gi = world.lighting?.gi;
-  if (gi && !Q.has('start')) g.game.on('start', () => { gi.cfg.budget = 20; });   // a player's first bake is gentler; ?start=1 (automation) keeps the fast one
+  if (gi && !Q.has('start')) g.game.on('start', () => { gi.cfg.budget = 0; gi.cfg.pace = 2; });   // a player's first bake takes what the frame can spare; ?start=1 (automation) keeps the fast one
   performance.mark('nd:title');
   document.getElementById('boot')?.remove();
   if (Q.has('start')) g.ui.begin();
@@ -254,13 +278,13 @@ if (Q.has('world')) {   // the district alone: walk, fly, orbit (stills, the wor
 // left out of the mirror too (a puddle shows the shell's silhouette and the lit visor, not a 4 cm hub)
 const NO_MIRROR = /^(viewmodel|vending-(can|bottle|cup|box|pack|cap|spirals)|bar-props|relay-props|stall-goods|grime-props|clutter-props|shop-props|robot-m|robot-gun|shaft|shaft-motes)$/;
 { const far = new Map(); world.scene.traverse((o) => { if (o.userData.ndFar) { if (!far.has(o.userData.ndFar)) far.set(o.userData.ndFar, []); far.get(o.userData.ndFar).push(o); } });
-  for (const [d, list] of far) { const cull = distanceCull(list, d); world.ctx.onUpdate((t) => cull(camera, t)); } }
+  for (const [d, list] of far) { culled.push(...list); const cull = distanceCull(list, d); world.ctx.onUpdate((t) => cull(camera, t)); } }
 // the pickups (ammunition and med kits: small boxes that spin and bob all over the district) are drawn within 45 m:
 // each was four draws a frame wherever it was (the scene, the velocity buffer as it spins, the mirror, the moon's map)
 if (g) {
   const near = [];
   for (const p of plan.pickups) g.game.entities.get(p.id)?.object?.traverse((m) => { if (m.isMesh) near.push(m); });
-  if (near.length) { const cull = distanceCull(near, 45); world.ctx.onUpdate((t) => cull(camera, t)); }
+  if (near.length) { culled.push(...near); const cull = distanceCull(near, 45); world.ctx.onUpdate((t) => cull(camera, t)); }
 }
 if (lighting.planar && Q.get('mirrorall') !== '1') mirrorLayer(world.scene, (o) => o.userData.mgClustered || NO_MIRROR.test(o.name));
 const v = plan.viewpoints.find((p) => p.name === Q.get('view'));
@@ -270,6 +294,6 @@ window.__mirage = { world, built, play, g, game, vfx, rain, big, shared, setHour
 document.getElementById('boot')?.remove();
 // ready = the light is baked too (the stills and the checks wait for it); the title and the game are up before that
 while (world.lighting?.busy) await new Promise((r) => setTimeout(r, 50));
-if (world.lighting?.gi) world.lighting.gi.cfg.budget = 20;   // later re-bakes (the hour) take 20 ms a frame at most
+if (world.lighting?.gi) { world.lighting.gi.cfg.budget = 0; world.lighting.gi.cfg.pace = 2; }   // later re-bakes (the hour) take what the frame can spare
 performance.mark('nd:ready');
 window.__READY = true;
