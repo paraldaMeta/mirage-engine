@@ -8,6 +8,9 @@ export type { Collider, RigidBody, KinematicCharacterController, World } from '#
 export function loadRapier(): Promise<RapierAPI>;
 export interface PhysicsBody extends Body { stride: number }
 export interface PhysicsCharacter extends WalkerLike {
+  /** an outside push [vx, vz] in m/s (a blow, a blast), added to each move and dying away (fast on the ground, slowly in
+   *  the air); null when there is none. Opt-in: nothing sets it but the game */
+  push: [number, number] | null;
   body: PhysicsBody; collider: Collider; controller: KinematicCharacterController;
   walked: number; surface: string; onStride: ((surface: string, run: boolean | undefined) => void) | null;
   update(dt: number, input?: MotionInput): this;

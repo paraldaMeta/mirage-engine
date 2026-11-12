@@ -894,6 +894,10 @@
    "walkTo": [
     [
      14,
+     -18.9
+    ],
+    [
+     14,
      -21.6
     ],
     [
@@ -939,6 +943,26 @@
    "expect": {
     "y": "~ 6 0.08",
     "flags.cp_roof": "== true"
+   }
+  },
+  {
+   "name": "the-swordsman-wakes",
+   "ms": 2500,
+   "shot": true,
+   "expect": {
+    "flags.bossAwake": "== true",
+    "errors": "== 0"
+   }
+  },
+  {
+   "name": "the-swordsman-joins",
+   "tap": "KeyN",
+   "ms": 6000,
+   "shot": true,
+   "expect": {
+    "flags.bossKneels": ">= 1",
+    "flags.allyJoined": ">= 1",
+    "flags.bossBeaten": "== true"
    }
   },
   {

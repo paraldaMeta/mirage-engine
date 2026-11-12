@@ -94,7 +94,7 @@ export default {
 
     // (the vending machines are vending.js's)
     // ---- the machines (the cyber kit's buildMachines): bystanders, walkers and a courier on the east pavement's loop, the vendors, a
-    //      sweeper, the clinic's queue totem, units that broke down. Decor: walked and shot through, out of the walk grid.
+    //      sweeper, the clinic's queue totem, units that broke down, a queue charging at the plaza's drink machine. Decor: walked and shot through, out of the walk grid.
     const people = thin(ctx, L.people || [], 4), walkers = thin(ctx, L.walkers || [], 1), w0 = (L.walkers || [])[0];
     const machines = buildMachines(ctx, {
       stand: people.map((p) => ({ x: p[0], z: p[1], yaw: p[2], umb: !!p[3], y: p[4] ?? K })),
@@ -104,6 +104,7 @@ export default {
       cart: L.cartVendor && { m: geom.compose([L.cartVendor[0], K, L.cartVendor[1]], [0, L.cartVendor[2], 0]) },
       sweeper: L.sweeper && D > 0.5 && { a: L.sweeper[0], b: L.sweeper[1], y: K },   // not at low detail
       totem: L.totem && [L.totem[0], K, L.totem[1], L.totem[2]],
+      queue: L.queue && { slots: L.queue.slots, y: K, socket: [L.queue.socket[0], K + L.queue.socket[1], L.queue.socket[2]] },
       broken: thin(ctx, L.broken || [], 1).map(([x, z, yaw, y]) => [x, y ?? K, z, yaw]),
       detail: D,
     });

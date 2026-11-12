@@ -13,6 +13,13 @@
 //               blue beacon, a wet-floor sign
 //   totem       a signage kiosk on a mast (four notices in English, 繁中 and kana, paging), a camera, a status ring
 //   broken      a pedestrian slumped against a wall, grimy, an out-of-order sticker, its status light flickering
+//   queue       pedestrians in line at a drink machine to charge: the first plugged in by a lit cable, its light
+//               pulsing; come close (or disturb them: group.userData.disturb(pos, r)) and they turn their heads round,
+//               further than a neck should go, and stare
+// Standing pedestrians now and then imitate people, a little off: a bow in servo steps, a wave on a slipping tempo, a
+// probe held to the face plate like a cigarette, a forearm repaired, a pose that loops and stutters, an arm gone limp
+// (robot-behaviours.js civilianAct); one of a pair sometimes copies the other half a second late.
+// group.userData.sync(pos, r, hold): everyone standing within r freezes on the same frame for `hold` s, then all stare.
 // Every part is an instance of one of four THREE.BatchedMesh: the shells (the kit's powder coat), the printed decals
 // (the kit's decal atlas, cut out), the lights (unlit; the notices' atlas) and the umbrella canopies (translucent). Parts move by their
 // instance matrices (each segment of a body posed in code), levels of detail swap the instances' geometry.
@@ -21,6 +28,7 @@ import * as THREE from 'three';
 import { WET } from '@miragekit/core';
 import { humanoid, quadruped, quadrupedDims, mergeParts, moved, part, tf, cover, drum, decal, ext, robotMaterials, decalTexture, trotLegs, legIK, COL } from './robot-kit.js';
 import { motionClips, samplePose, MOTION_BONES } from './motion-clips.js';
+import { civilianAct, CIV_ACTS, ACT_LEN } from './robot-behaviours.js';
 
 const FONT = '"PingFang TC", "Hiragino Sans", "Noto Sans TC", "Noto Sans JP", "Microsoft JhengHei", system-ui, sans-serif';
 const HP = Math.PI / 2, TAU = Math.PI * 2;
@@ -105,7 +113,8 @@ const shellGeo = (list) => mergeParts(list.length ? list : [part(new THREE.Buffe
 const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const hash = (n) => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
 const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
-const mod = (a, n) => ((a % n) + n) % n;   // the clock can start a hair under 0 (the motion-blur shutter)
+const mod = (a, n) => ((a % n) + n) % n;
+const steps3 = (k) => Math.round(k * 3) / 3;   // the clock can start a hair under 0 (the motion-blur shutter)
 
 // the home humanoid's segments, posed from the body frame (feet at the origin, +z forward): [name, parent, offset]
 const SEG = [['Hips', null, [0, 0, 0]], ['Spine', 'Hips', [0, 0.13, 0]], ['Chest', 'Spine', [0, 0.17, 0]], ['Neck', 'Chest', [0, 0.21, 0]], ['Head', 'Neck', [0, 0.08, 0]],
@@ -133,7 +142,8 @@ function homeSegments(lod, kit) {
 
 /**
  * Build the machines. `spec`: { stand: [{ x, y, z, yaw, umb }], walkers: { loop: { x0, x1, z0, z1 }, speed, n, courier },
- * stall: { m (Matrix4: the container's frame) }, cart: { m }, sweeper: { a, b, y }, totem: [x, y, z, yaw], broken: [[x, y, z, yaw]], detail }.
+ * stall: { m (Matrix4: the container's frame) }, cart: { m }, sweeper: { a, b, y }, totem: [x, y, z, yaw], broken: [[x, y, z, yaw]],
+ * queue: { slots: [[x, z, yaw]] (the first at the machine), y, socket: [x, y, z] }, detail }.
  * Returns { group, update(t), count, tris, units() }.
  */
 export function buildMachines(ctx, spec) {
@@ -261,10 +271,14 @@ export function buildMachines(ctx, spec) {
   const stance = (hipY, shift) => { const L = [0, 1].map((k) => { const [up, bend] = legIK(0.0, 0.08 - (hipY + (k ? -shift : shift) * 0.01), 0.42, 0.42, 1); return { up, bend, foot: up - bend }; }); return L; };
 
   // ---- standing pedestrians: pairs and threes talk (heads turn to each other, a hand gesture), the rest look about
-  const stand = (spec.stand || []).map((p) => body({ ...p, kind: 'pedestrian' }));
+  const Qs = spec.queue, stand = [...(spec.stand || []), ...(Qs?.slots || []).map(([x, z, yaw], i) => ({ x, z, yaw, y: Qs.y, queue: i }))].map((p) => body({ ...p, kind: 'pedestrian' }));
+  // a probe in each hand (shown while it smokes); the queue's charging cable
+  const gProbe = G.geo(glowGeo([part(tf(new THREE.CylinderGeometry(0.006, 0.008, 0.11, 5), [0, -0.05, 0.06], [HP, 0, 0]), 'l', [1, 1, 1])]));
+  const gCable = G.geo(glowGeo([part(tf(new THREE.CylinderGeometry(0.01, 0.01, 1, 5), [0, 0.5, 0]), 'l', [1, 1, 1])]));
+  for (const r of stand) { if (r.o.queue === undefined) r.probe = G.add(gProbe, WHITE); else if (r.o.queue === 0) r.cable = G.add(gCable, WHITE); r.freezeT = r.stareT = -1; }
   stand.forEach((r) => {
     let best = null, bd = 1.7;
-    for (const o of stand) { if (o === r) continue; const d = Math.hypot(o.o.x - r.o.x, o.o.z - r.o.z); if (d < bd) { bd = d; best = o; } }
+    for (const o of stand) { if (o === r || o.o.queue !== undefined || r.o.queue !== undefined) continue; const d = Math.hypot(o.o.x - r.o.x, o.o.z - r.o.z); if (d < bd) { bd = d; best = o; } }
     r.partner = best; r.B = TR(new THREE.Matrix4(), r.o.x, r.o.y, r.o.z, 0, r.o.yaw, 0, CIV_SCALE * (r.o.scale ?? 1));
   });
   // ---- walkers: one loop, one speed, evenly spaced (they never meet); the courier rides it too
@@ -376,6 +390,16 @@ export function buildMachines(ctx, spec) {
   group.add(S.finish(shell, 'machines-shell'), G.finish(lights, 'machines-lights'), D.finish(printed, 'machines-decals'));
   if (U.inst.length) group.add(U.finish(canopy, 'machines-umbrellas'));
 
+  // ---- the acts: each standing unit's own schedule from the clock (none half the time); one of a pair copies the
+  // other's act half a second late, some of the time
+  const actOf = (r, t) => {
+    if (r.force && t >= r.force.t0 && t - r.force.t0 < ACT_LEN) return { name: r.force.name, u: t - r.force.t0, slot: -1 };
+    const lead = r.partner && r.partner.seed > r.seed ? r.partner : null;
+    if (lead) { const a = actOf(lead, t - 0.55); if (a && a.name !== 'stutter' && a.name !== 'limp' && hash(a.slot + lead.seed) > 0.3) return a; }
+    const P = 10 + 7 * hash(r.seed), s = t + r.seed * 3, slot = Math.floor(s / P), u = s - slot * P, pick = hash(slot * 7.13 + r.seed);
+    return u < ACT_LEN && pick > 0.5 ? { name: CIV_ACTS[Math.floor((pick - 0.5) * 2 * CIV_ACTS.length)], u, slot } : null;
+  };
+  const qv = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
   // ---- the poses
   const camPos = new THREE.Vector3(), B = new THREE.Matrix4(), Bv = new THREE.Matrix4();
   let lastT = Infinity, raining = null;
@@ -384,6 +408,7 @@ export function buildMachines(ctx, spec) {
     if (t < lastT - 0.25) {
       for (const r of [...robots, ...vendors, ...(cr ? [cr] : [])]) r.lod = -1;
       for (const r of walkers) Object.assign(r, { gait: 'walk', w: [1, 0, 0], v: Wk.speed, ds: 0, uOff: 0 });   // where the clock says, walking
+      for (const r of stand) { r.freezeT = r.stareT = -1; r.force = null; }
     }
     const dt = Math.min(0.1, Math.max(0, t - lastT));
     lastT = t;
@@ -391,9 +416,13 @@ export function buildMachines(ctx, spec) {
     // umbrellas only while it rains (the day is dry)
     const wet = WET.uRain.value > 0.05;
     if (wet !== raining) { raining = wet; for (const r of robots) if (r.canopy !== undefined) { U.mesh.setVisibleAt(r.canopy, wet); G.mesh.setVisibleAt(r.rim, wet); S.mesh.setVisibleAt(r.shaft, wet); } }
+    const tNow = t;
     for (const r of stand) {
-      const o = r.o, ph = r.seed;
-      setLod(r, camPos.distanceTo(v.set(o.x, o.y + 1, o.z)));
+      if (r.freezeT > tNow) continue;   // the network's hold: the frame it froze on stays
+      const o = r.o, ph = r.seed, t0 = tNow, dc = camPos.distanceTo(v.set(o.x, o.y + 1, o.z)), a = o.queue === undefined ? actOf(r, t0) : null;
+      setLod(r, dc);
+      // a stutter: the clock loops a fifth of a second
+      const t = a?.name === 'stutter' && a.u > 0.6 && a.u < ACT_LEN - 0.3 ? t0 - a.u + 0.6 + mod(a.u, 0.21) : t0;
       let hy = 0.5 * Math.sin(t * 0.17 + ph) + 0.22 * Math.sin(t * 0.41 + ph * 2), hp = 0.06 * Math.sin(t * 0.23 + ph), gest = 0;
       if (r.partner) {
         const rel = wrap(Math.atan2(r.partner.o.x - o.x, r.partner.o.z - o.z) - o.yaw), speaking = Math.sin(t * 0.45 + (r.seed > r.partner.seed ? 0 : Math.PI)) > 0;
@@ -402,8 +431,30 @@ export function buildMachines(ctx, spec) {
       }
       const umb = r.canopy !== undefined && raining, w = Math.sin(t * 0.31 + ph), hipY = 0.92 - 0.035;
       const arms = [[0.05 + 0.25 * gest, 0.04 + 0.05 * gest, 0.3 * gest, 0.3 + 1.1 * gest], umb ? [0.55, 0.05, 0.2, 1.25] : [0.05 + 0.02 * Math.sin(t * 0.5 + ph), 0.04, 0, 0.32]];
-      poseBody(r, r.B, { hipY, sway: 0.016 * w, roll: -0.02 * w, legRoll: 0.018 * w, yaw: 0.04 * Math.sin(t * 0.13 + ph), legs: stance(hipY, w), head: [hp, hy, 0.04 * Math.sin(t * 0.29 + ph)], arms, chest: [0.02, 0.05 * gest * Math.sin(t * 1.1 + ph), 0] });
-      breathe(r, t);
+      const P = { hipY, sway: 0.016 * w, roll: -0.02 * w, legRoll: 0.018 * w, yaw: 0.04 * Math.sin(t * 0.13 + ph), legs: stance(hipY, w), head: [hp, hy, 0.04 * Math.sin(t * 0.29 + ph)], arms, chest: [0.02, 0.05 * gest * Math.sin(t * 1.1 + ph), 0] };
+      if (o.queue === 0) { P.arms = [arms[0], [1.35, 0.02, 0, 0.15]]; P.head = [0.3, 0, 0]; }   // plugged in: a hand on the machine
+      else if (o.queue !== undefined) P.head = [0.12, (mod(t + ph, 9) < 1.2 ? 0.5 : 0) * Math.sign(Math.sin(ph)), mod(t + ph, 9) < 1.2 ? 0.25 : 0];   // a look round the one ahead
+      const glow = a ? civilianAct(a.name, a.u, t, ph, P) : 0;
+      // staring: disturbed (or the viewer within 3.4 m of the queue), the head swung round to the camera in three steps
+      const stare = r.stareT > t0 || (o.queue !== undefined && dc < 3.4);
+      if (stare && !r.staring) r.stareA = Math.max(t0, r.stareA > t0 ? r.stareA : t0);
+      r.staring = stare;
+      if (stare) {
+        const k = steps3(Math.min(1, Math.max(0, t0 - r.stareA) * 5)), d = Math.hypot(camPos.x - o.x, camPos.z - o.z);
+        const yaw = Math.max(-2.6, Math.min(2.6, wrap(Math.atan2(camPos.x - o.x, camPos.z - o.z) - o.yaw))), pitch = Math.atan2(o.y + 1.25 - camPos.y, d);
+        P.head = [P.head[0] + (pitch - P.head[0]) * k, P.head[1] + (yaw - P.head[1]) * k, P.head[2] * (1 - k)];
+      }
+      poseBody(r, r.B, P);
+      if (r.probe !== undefined) {
+        if ((glow > 0) !== r.probeOn) { r.probeOn = glow > 0; G.mesh.setVisibleAt(r.probe, r.probeOn); }
+        if (glow > 0) { set(G, r.probe, W4[SEG_I.RightHand]); G.mesh.setColorAt(r.probe, v.set(1.6 * glow, 0.5 * glow, 0.15 * glow)); }
+      }
+      if (r.cable !== undefined) {   // chest port -> the machine's socket
+        const so = Qs.socket; v.set(0, 0.1, 0.13).applyMatrix4(W4[SEG_I.Chest]); qv.set(so[0], so[1], so[2]).sub(v);
+        const len = qv.length(); m4.compose(v, q.setFromUnitVectors(up, qv.normalize()), sc.set(1, len, 1)); set(G, r.cable, m4);
+        G.mesh.setColorAt(r.cable, v.set(0.4, 1.6, 2.4).multiplyScalar(0.6 + 0.4 * Math.sin(t * 5)));
+      }
+      breathe(r, t, o.queue === 0 ? 1.4 + 0.6 * Math.sin(t * 5) : 1);
     }
     if (Wk && Wk.n > 0) {
       // the walk's phase runs on the distance walked (its stance foot stays put); a jog or a limp covers the ground at
@@ -506,7 +557,7 @@ export function buildMachines(ctx, spec) {
   // every unit's batch instances and body frame (for the destructible civilians: hide, swap or move them by id)
   const units = () => {
     const out = [], frame = (id) => { const m = new THREE.Matrix4(); S.mesh.getMatrixAt(id, m); return m; };
-    const human = (r, i) => ({ id: `${r.kind}-${i}`, kind: r.kind, shell: r.shell.slice(), lights: r.lights.map(([, id]) => id), decals: r.decals.map(([, id]) => id), canopy: r.canopy !== undefined ? [r.canopy, r.shaft, r.rim] : [], frame: frame(r.shell[0]) });
+    const human = (r, i) => ({ id: `${r.kind}-${i}`, kind: r.kind, shell: r.shell.slice(), lights: [...r.lights.map(([, id]) => id), ...[r.probe, r.cable].filter((x) => x !== undefined)], decals: r.decals.map(([, id]) => id), canopy: r.canopy !== undefined ? [r.canopy, r.shaft, r.rim] : [], frame: frame(r.shell[0]) });
     stand.forEach((r, i) => out.push(human(r, i))); walkers.forEach((r, i) => out.push(human(r, i)));
     broken.forEach((r, i) => { const u = human(r, i); u.decals.push(r.sticker); out.push(u); });
     vendors.forEach((r, i) => out.push({ id: `vendor-${i}`, kind: 'vendor', shell: [...r.shell, r.carriage, ...(r.rail !== undefined ? [r.rail] : [])], lights: r.lights.map(([, id]) => id), decals: r.decals.map(([, id]) => id), canopy: [], frame: frame(r.shell[0]) }));
@@ -518,6 +569,13 @@ export function buildMachines(ctx, spec) {
   group.userData.units = units;
   /** a walker's gait by its unit id ('walker-2'): 'walk', 'jog' (scared), 'broken' (damaged); cross-faded */
   group.userData.gait = (id, g) => { const r = walkers[+(/^walker-(\d+)$/.exec(id)?.[1] ?? -1)]; if (r && GAIT[g]) r.gait = g; };
+  const near = (pos, rad) => stand.filter((r) => Math.hypot(r.o.x - pos[0], r.o.z - pos[2]) < rad && Math.abs(r.o.y - pos[1]) < 4);
+  /** everyone standing within rad of pos freezes on this frame for `hold` s, then all turn their heads to the camera */
+  group.userData.sync = (pos, rad = 12, hold = 0.4) => { for (const r of near(pos, rad)) { r.freezeT = lastT + hold; r.stareT = lastT + hold + 2.2; r.stareA = lastT + hold; } };
+  /** the queue near pos (a shot, a blast) turns round and stares for a while */
+  group.userData.disturb = (pos, rad = 8) => { for (const r of near(pos, rad)) if (r.o.queue !== undefined && r.stareT < lastT) { r.stareT = lastT + 3; r.stareA = lastT; } };
+  /** for scripts: standing unit i begins act `name` now */
+  group.userData.act = (i, name) => { if (stand[i]) stand[i].force = { name, t0: lastT }; };
   group.userData.batches = { shell: S.mesh, lights: G.mesh, decals: D.mesh, canopy: U.mesh || null };
   let tris = 0; for (const b of [S, G, U, D]) for (const i of b.inst) tris += b.geos[i.geo].attributes.position.count / 3;
   return { group, update, units, count: stand.length + walkers.length + broken.length + vendors.length + (cr ? 1 : 0) + (sw ? 1 : 0) + (tt ? 1 : 0), tris: Math.round(tris) };

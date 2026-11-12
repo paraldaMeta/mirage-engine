@@ -162,6 +162,15 @@ export default {
     { id: 'h2', at: [24, KERB, -9.5], face: 3.14, zone: 'plaza', kind: 'hound' },
     { id: 'h3', at: [22.5, FLOOR, -24.5], face: 0, zone: 'holdout', kind: 'hound' },
     { id: 'h4', at: [13, FLOOR, -24], face: 0, zone: 'holdout', kind: 'hauler' },
+    // close combat (melee.js): a brawler at the street's east end, two sword robots and a brawler on the plaza;
+    // the swordsman on the relay's roof by the uplink, facing the stair door (boss.js: it wakes when the player is up
+    // there); in New Game+ the heavy chassis in its place (heavy.js; parked otherwise)
+    { id: 'm0', at: [27, KERB, 8.6], face: 3.14, zone: 'street', kind: 'brawler' },
+    { id: 'm1', at: [20, KERB, -13], face: 3.14, zone: 'plaza', kind: 'blade' },
+    { id: 'm2', at: [27, KERB, -6], face: 3.14, zone: 'plaza', kind: 'blade' },
+    { id: 'm3', at: [8, KERB, -12], face: 1.57, zone: 'plaza', kind: 'brawler' },
+    { id: 'k0', at: [11.5, ROOF, -24.6], face: 1.57, zone: 'duel', kind: 'ronin' },
+    { id: 'k1', at: [12.5, ROOF, -24.2], face: 1.57, zone: 'duel', kind: 'bulwark' },
   ],
   // kites: flying drones, where each hovers until it is woken ([x, y, z] in the air)
   drones: [
@@ -220,7 +229,7 @@ export default {
   streetlife: {
     people: [[12.4, 9.75, 0.2, 0], [13.1, 9.7, -2.7, 1], [19.7, 9.75, 2.9, 0], [21.2, 9.72, 0.4, 1], [32.3, 9.3, 3.0, 1], [-32.2, 9.3, 0.1, 1],
       [-25.0, 9.3, -2.9, 0], [-31.0, 2.6, 3.1, 0], [-29.9, 2.75, 0.4, 1], [-11.4, 2.6, 2.8, 0], [23.6, 0.95, 3.0, 0], [24.9, 1.05, -2.9, 1],
-      [8.9, -4.2, -1.57, 0], [9.0, -6.6, -1.4, 0], [-21.2, 23.2, 2.2, 0, 0], [28.5, -3.8, 1.57, 0], [6.7, -14.5, 1.0, 0], [8.2, -1.2, 2.2, 1]],
+      [8.9, -4.2, -1.57, 0], [9.0, -6.6, -1.4, 0], [-21.2, 23.2, 2.2, 0, 0], [6.7, -14.5, 1.0, 0], [8.2, -1.2, 2.2, 1]],
     walkers: [{ x0: 12, x1: 23.6, z0: 8.75, z1: 9.35, speed: 1.3, phase: 0 }, { x0: 12, x1: 23.6, z0: 8.75, z1: 9.35, speed: 1.15, phase: 0.36 },
       { x0: 12, x1: 23.6, z0: 8.75, z1: 9.35, speed: 1.4, phase: 0.7 }, { x0: 23.6, x1: 12, z0: 9.35, z1: 8.75, speed: 1.2, phase: 0.18 }, { x0: 23.6, x1: 12, z0: 9.35, z1: 8.75, speed: 1.05, phase: 0.55 }],
     vending: [[-20.42, 26.9, 0, 1.05, 3, -Math.PI / 2, 0x5ff7ff], [29.25, -3.35, 0, -1.05, 2, -Math.PI / 2, 0xffb347]],
@@ -231,6 +240,8 @@ export default {
     cartVendor: [24.28, -1.12, 0.12],
     sweeper: [[25.4, 3.15], [30.6, 3.15]],
     totem: [1.55, 9.45, Math.PI],
+    // a queue at the plaza's drink machine to charge: slots [x, z, rotY] (the first plugged in), the socket [x, height, z]
+    queue: { slots: [[28.35, -3.35, Math.PI / 2], [28.25, -2.55, Math.PI], [28.15, -1.75, Math.PI]], socket: [28.76, 0.75, -3.05] },
     broken: [[-23.68, 15.2, Math.PI / 2, 0], [-26.4, 2.42, 0, KERB]],
   },
   // ---- grime (grime.js): cables across the alley [z, y, how many]; its duct; pipes that drip [x, z, top, [out x, z]];

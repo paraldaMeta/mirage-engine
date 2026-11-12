@@ -205,7 +205,7 @@ export async function createPhysics(scene, { gravity = 9.81 } = {}) {
     // sensors are left out by the flag; the predicate must not call back into Rapier (c.isSensor() here left the
     // collider set marked as borrowed for good, and world.free() then threw)
     const notMe = (c) => c.handle !== col.handle;
-    const w = { pos: pos.slice(), vy: 0, onGround: false, blocked: false, body: B, collider: col, controller: kcc, walked: 0, surface: 'default', onStride: null };
+    const w = { pos: pos.slice(), vy: 0, onGround: false, blocked: false, body: B, collider: col, controller: kcc, walked: 0, surface: 'default', onStride: null, push: null };
     // Rapier's autostep needs a move longer than the controller's offset (2 cm): at 120 fps and up a walking step
     // is 1.25 cm or less and the character stopped at snow-hut's bevelled door step (Firefox at 120 Hz). Frames
     // shorter than MIN_DT are added up and moved as one.
@@ -242,6 +242,12 @@ export async function createPhysics(scene, { gravity = 9.81 } = {}) {
       const want = { x: (input.x || 0) * speed * dt, y: w.vy * dt, z: (input.z || 0) * speed * dt };
       if (carry && (want.x || want.z)) { want.x += carry.x; want.z += carry.z; }
       carry = null;
+      // an outside push (a blow, a blast: the game sets w.push): carried with the move, dying away
+      if (w.push) {
+        want.x += w.push[0] * dt; want.z += w.push[1] * dt;
+        const k = Math.exp(-(w.onGround && w.vy <= 0 ? 7 : 0.9) * dt); w.push[0] *= k; w.push[1] *= k;
+        if (Math.hypot(w.push[0], w.push[1]) < 0.05) w.push = null;
+      }
       kcc.computeColliderMovement(col, want, R.QueryFilterFlags.EXCLUDE_SENSORS, undefined, notMe);
       let m = kcc.computedMovement();
       if ((want.x || want.z) && m.y > 0.01 && w.vy <= 0 && !supported(w.pos[0] + m.x, w.pos[1] + m.y, w.pos[2] + m.z)) {
@@ -276,7 +282,7 @@ export async function createPhysics(scene, { gravity = 9.81 } = {}) {
       rb.setTranslation(centre, true);
       rb.setNextKinematicTranslation(centre);
       world.propagateModifiedBodyPositionsToColliders();
-      acc = 0; w.vy = 0; w.onGround = true; w.blocked = false; w.walked = 0;
+      acc = 0; w.vy = 0; w.onGround = true; w.blocked = false; w.walked = 0; w.push = null;
       onPlace?.();
       return w;
     };

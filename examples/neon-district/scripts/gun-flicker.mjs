@@ -6,7 +6,7 @@
 // held, the muzzle flash flickers by design). Per run over the gun's pixels: the temporal standard deviation of luma
 // (0..255; a still view should be near 0) and the RMS of its second difference in time (a smooth sway or bob
 // cancels, a pixel that switches on and off does not), mean and 95th percentile.
-//   node scripts/gun-flicker.mjs [dist] [--q medium] [--time night] [--frames 60] [--out out/gun] [--query k=v&..]
+//   node scripts/gun-flicker.mjs [dist] [--gun carbine|rocket|gatling] [--q medium] [--time night] [--frames 60] [--out out/gun] [--query k=v&..]
 // --out writes per run a crop of the last frame and the heat map of the metric (white = 25 levels) side by side.
 import path from 'node:path';
 import fs from 'node:fs';
@@ -16,7 +16,7 @@ import { launch, serve } from '../../../packages/tools/src/chrome.mjs';
 const here = path.dirname(fileURLToPath(import.meta.url)), args = process.argv.slice(2);
 const flag = (k, d) => { const i = args.indexOf('--' + k); return i >= 0 ? args[i + 1] : d; };
 const dist = path.resolve(args.find((a, i) => !a.startsWith('--') && !(i > 0 && args[i - 1].startsWith('--'))) || path.join(here, '../dist'));
-const W = 1280, H = 800, Q = flag('q', 'medium'), FRAMES = +flag('frames', 60), OUT = flag('out'), TIME = flag('time', 'night');
+const W = 1280, H = 800, Q = flag('q', 'medium'), FRAMES = +flag('frames', 60), OUT = flag('out'), TIME = flag('time', 'night'), GUN = flag('gun', 'carbine');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const srv = await serve(dist), browser = await launch({ w: W, h: H });
 const page = await browser.newPage(), errors = [];
@@ -26,12 +26,13 @@ await page.evaluateOnNewDocument(() => localStorage.removeItem('mirage:neon-dist
 await page.goto(`${srv.url}?grain=0&hud=0&assist=1&quality=${Q}&start=1&lang=en&w=${W}&h=${H}&rain=0&time=${TIME}${flag('query') ? '&' + flag('query') : ''}`, { waitUntil: 'load', timeout: 180000 });
 await page.waitForFunction('window.__READY === true', { timeout: 180000, polling: 100 });
 await sleep(1500);
-await page.evaluate(() => {
+await page.evaluate((GUN) => {
   const m = window.__mirage;
   for (const e of m.game.enemies.list) m.game.enemies.park?.(e);
   for (const e of m.game.drones.list) m.game.drones.park?.(e);
   const s = m.built.plan.spawn; m.play.place(s.eye, s.look, 'walk');
-  m.game.weapon.select('carbine');
+  if (GUN === 'rocket' || GUN === 'gatling') m.game.weapon.unlock(true);   // the 0 key: the secret weapons
+  m.game.weapon.select(GUN);
   // the crop the gun is in (the lower right of the view), GL rows bottom-up
   const gl = m.world.renderer.getContext(), w = gl.drawingBufferWidth, h = gl.drawingBufferHeight;
   const C = window.__crop = { x: Math.floor(w * 0.3), y: 0, w: Math.floor(w * 0.7), h: Math.floor(h * 0.62) };
@@ -61,7 +62,7 @@ await page.evaluate(() => {
     };
     requestAnimationFrame(tick);
   });
-});
+}, GUN);
 // the gun's pixels: with and without it
 const mask = await page.evaluate(async () => {
   const m = window.__mirage, hold = m.game.weapon.holder, C = window.__crop, N = C.w * C.h;
@@ -124,12 +125,12 @@ for (const mode of ['scene', 'iso']) for (const R of RUNS) {
     return { sd: st(sd), d2: st(d2), map };
   }, R.name, FRAMES, !!OUT, mode === 'iso');
   for (const k of R.keys) await page.keyboard.up(k);
-  if (r.map) { fs.mkdirSync(OUT, { recursive: true }); fs.writeFileSync(path.join(OUT, `gun-${Q}-${TIME}-${mode}-${R.name}.png`), Buffer.from(r.map.split(',')[1], 'base64')); }
+  if (r.map) { fs.mkdirSync(OUT, { recursive: true }); fs.writeFileSync(path.join(OUT, `gun-${GUN}-${Q}-${TIME}-${mode}-${R.name}.png`), Buffer.from(r.map.split(',')[1], 'base64')); }
   const f = (x, k) => (Number.isFinite(x) ? +x.toFixed(k) : '-');
   rows.push({ mode, run: R.name, px: r.d2.n, sd: f(r.sd.mean, 3), sd95: f(r.sd.p95, 2), d2: f(r.d2.mean, 3), d295: f(r.d2.p95, 2), d299: f(r.d2.p99, 2) });
 }
 await browser.close(); srv.close?.();
-console.log(`neon-district view model flicker, ${Q}, ${TIME}, ${W} x ${H}, ${FRAMES} frames, ${mask} gun pixels (0..255 luma)\n`);
+console.log(`neon-district view model flicker, ${GUN}, ${Q}, ${TIME}, ${W} x ${H}, ${FRAMES} frames, ${mask} gun pixels (0..255 luma)\n`);
 console.log('scene: in the district, over the gun\'s pixels (with / without it); iso: the gun alone on black, over the pixels it covers\n');
 console.log('| mode | run | pixels | temporal sd, mean | sd p95 | 2nd difference RMS, mean | p95 | p99 |\n|---|---|---|---|---|---|---|---|');
 for (const r of rows) console.log(`| ${r.mode} | ${r.run} | ${r.px} | ${r.sd} | ${r.sd95} | ${r.d2} | ${r.d295} | ${r.d299} |`);

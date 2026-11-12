@@ -1455,6 +1455,38 @@ lowest at mid-stance, from the leg phase, twice a cycle.
 The hips' bob at a walk is 5.4-6 cm (it was 4.9-5.4). Strips go to `out/anim/` (gitignored): walk, run, turn, hit in
 the front, death per type, the civilian walker, the hound's trot and turn.
 
+## Robot behaviours (machines, not NPCs)
+
+Ten behaviours that only a machine would do, readable at 10-30 m: cheap state machines and bone offsets on top of the
+clips, in game/behaviours.js (hooked into enemies.js in a few lines) and the cyber kit's robot-behaviours.js (rig clips:
+repair, kneel, crawl, rise; the civilians' acts). What starts each:
+
+- **self-repair**: a sentinel idle at its post (8-28 s, then every 15-40 s) stops, a forearm panel swings open over a lit
+  board, the joint jitters in servo steps, sparks; civilians do it too (one of their acts).
+- **network sync**: a sentinel hit: every other within 14 m freezes on that frame for 0.4 s (6 s cooldown each), then all
+  turn their heads to the player at once; standing civilians within 12 m do the same.
+- **imitation (civilians)**: standing units act now and then on their own clock: a bow in servo steps held too long, an
+  off-tempo wave, a probe smoked like a cigarette (lit tip); one of a talking pair copies the other's act 0.55 s late.
+- **firmware glitch**: sentinels at post: the animator's state replayed every 0.2 s (a loop that stutters) or the free arm
+  limp, swinging, then snapped back; civilians: the clock looped (stutter) or an arm gone limp.
+- **a leg lost**: a leg hit leaving a biped (not the shield carrier) under 60 % (one in two): the shin goes (bone scaled out, sparks), it crawls on
+  its arms at 0.9 m/s after the player and keeps firing; low hit volumes; dies where it lies.
+- **scavenging**: three in five bipeds that fall stay down (up to 25 s, not fading) until another, at its post or searching
+  with the player unseen for 3 s, is within 14 m: it walks over, kneels, pulls the head off (sparks) and carries it away.
+- **queue to charge**: three civilians in line at the plaza's drink machine, the first plugged in by a lit cable; within
+  3.4 m (or a shot within 8 m) their heads swing round past a human neck's reach, in steps, and stare.
+- **inhuman motion**: searching with the player behind it, the trunk turns 180° and it walks on backwards; noticing
+  something (alert), the head locks on while the body turns slowly after; a rebooted one rises with its knees and elbows
+  bent the wrong way and its head turned round.
+- **scan**: a sentinel that sees the player from its post scans for 1.2 s before it aggros: the head tilts in steps like a
+  lens focusing and a red laser grid (two fans, one sweeping head to foot, one across) runs over the player.
+- **playing dead**: one in eight bipeds that fall (not a wave's or the holdout's, never the last of its zone) lies with its
+  eyes dark, they flicker back on at 2.8-4.1 s and it gets up and fights at 40 %. Score-safe: the kill counted at the
+  first fall; a second fall emits no kill and returns false to the weapon (no kill flags, no drop, no overdrive).
+
+Dead robots' eyes go dark (a shell with black lights swapped in). Strips: `node scripts/behaviour-shots.mjs` ->
+out/behaviours/*.png and sheet.png.
+
 ## Destructibles (things break when shot)
 
 The engine's registry (`createDestructibles`, `docs/destructibles.md`) over what the modules already draw, wired in

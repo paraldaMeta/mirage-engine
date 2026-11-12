@@ -291,7 +291,7 @@ Gaussian splats, `@miragekit/world/kits/splat` (opt-in subpath, world README "Ga
 |---|---|---|
 | `startGame(world, opts)` | stable | physics, character, game state, input, audio, overlay and play in one call |
 | `createGame({ id, version, migrate })` | stable | entities, flags, inventory, events, zones, saves |
-| `createPhysics(scene, { gravity })` | stable | Rapier world: static colliders, bodies, hinged doors, character |
+| `createPhysics(scene, { gravity })` | stable | Rapier world: static colliders, bodies, hinged doors, character (opt-in `character.push = [vx, vz]`: an outside push that dies away) |
 | `createInput({ target, bindings, deadzone })` | stable | the action map over keyboard, mouse, gamepad and touch |
 | `DEFAULT_BINDINGS` | stable | default keys per action |
 | `ACTIONS` | stable | the action names |
