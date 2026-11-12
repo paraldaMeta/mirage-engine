@@ -64,3 +64,4 @@ export type { Impostor } from './impostor.js';
 export { createOcclusion } from './hiz.js';
 export type { Occlusion, OcclusionOptions, OcclusionStats } from './hiz.js';
 export { onView } from './frame.js';
+export { viewModelDepth, viewModelShaders } from './viewmodel.js';

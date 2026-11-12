@@ -48,13 +48,14 @@ const lut = makeLut(([r, g, b]) => {
   return [sat(r) * (1 - 0.05 * sh) + 0.02 * hi, sat(g) * (1 + 0.01 * sh), sat(b) * (1 + 0.07 * sh) - 0.015 * hi].map((v) => Math.min(1, Math.max(0, v)));
 }, 24);
 
-// ?time=night | dusk | day | dawn | HH:MM (26 October, a full Moon high over the roofs by night). Day is late
-// afternoon: the Sun low in the west-south-west (16:15, 10.6 degrees up, bearing 247), so its light comes down the
-// street from the west end over the roofs, rakes the north facades above the south blocks' shadow line, lights the
-// tower at the east end and comes through the alley mouth in a shaft; the street floor is in cool shade with warm
-// light bounced off the sunlit walls.
-const TIMES = { night: { day: '2026-10-26', time: '23:10' }, dawn: { day: '2026-10-26', time: '06:20' }, day: { day: '2026-10-26', time: '16:15' }, dusk: { day: '2026-10-26', time: '17:04' } };
-const timeOf = (t) => TIMES[t] || (/^\d{1,2}:\d{2}$/.test(t || '') ? { day: '2026-10-26', time: t } : null);
+// ?time=night | dusk | day | dawn | HH:MM (night and dusk: 26 October, a full Moon high over the roofs by night). Day
+// is the golden hour of 10 September (17:44, the Sun 5.6 degrees up at bearing 272: due west, straight down Kestrel
+// Street's axis), so from the street's east end and from the plaza the sun stands low in the street's open west end
+// (plan.js: a low deck between the two west towers), backlighting the canyon: long shadows down the street, the
+// floor lit along its length, the facades in cool shade with warm light bounced off the sunlit ones. A clock time
+// (the slider) is a time of 10 September.
+const TIMES = { night: { day: '2026-10-26', time: '23:10' }, dawn: { day: '2026-10-26', time: '06:20' }, day: { day: '2026-09-10', time: '17:44' }, dusk: { day: '2026-10-26', time: '17:04' } };
+const timeOf = (t) => TIMES[t] || (/^\d{1,2}:\d{2}$/.test(t || '') ? { day: '2026-09-10', time: t } : null);
 const bar = plan.bar.rect, room = plan.relay.room;
 const lighting = {
   bounce: on('bounce') && { spacing: 2 },                                                          // by day: light off the sunlit side of the street into the shade
@@ -87,7 +88,7 @@ const WX_H = [-12, -4, 2, 8, 16];
 const WX = {
   rain: [1, 0.6, 0, 0, 0],
   wet: [0.9, 0.8, 0.55, 0.22, 0.12],
-  clouds: [0.85, 0.75, 0.45, 0.3, 0.25],
+  clouds: [0.85, 0.75, 0.5, 0.45, 0.35],
   fog: [1, 1, 0.75, 0.4, 0.3],
   air: [1, 1, 0.8, 0.5, 0.4],
   glow: [1, 0.9, 0.55, 0.3, 0.22],
@@ -119,8 +120,11 @@ const world = createWorldRenderer({
       black: 0, curve: 0.1, punch: 0.15, clarity: 0.08, highlightWarmth: 0, lift: [0.0065, 0.006, 0.0056], gamma: 1.08 },
     dusk: { exposure: 0.15, temperature: 0.05, tint: 0.08, saturation: 0.98, contrast: 1.0, tonemapMix: 0.45, shadowTint: [0.95, 1, 1.07], hiTint: [1.08, 1, 0.9],
       black: 0.003, curve: 0.12, punch: 0.3, clarity: 0.12, highlightWarmth: 0.15, lift: [0.0015, 0.0015, 0.002] },
-    golden: { exposure: 0.7, temperature: 0.25, tint: 0.06, saturation: 1.04, contrast: 1.06, tonemapMix: 0.35, shadowTint: [0.95, 1, 1.07], hiTint: [1.08, 1, 0.9],
-      black: 0.008, curve: 0.2, punch: 0.35, clarity: 0.14, highlightWarmth: 0.25 },
+    // the golden hour: Nizwa's grade at 3-8 degrees of sun (its daynight GRADE_KEYS: white balance neutral, the
+    // warmth is the light's own; saturation 1.12, AgX share 0.3, curve 0.22, cool shade [0.95, 1, 1.08], a trace of
+    // warm highlight [1.03, 1, 0.96]), no tint (a +tint is magenta)
+    golden: { exposure: 0.0, temperature: 0.0, tint: 0, saturation: 1.12, contrast: 1.0, tonemapMix: 0.3, shadowTint: [0.95, 1, 1.08], hiTint: [1.03, 1, 0.96],
+      black: 0.01, curve: 0.22, punch: 0.4, clarity: 0.14, highlightWarmth: 0.1 },
     noon: { exposure: 0.6, temperature: 0.12, tint: 0.03, saturation: 1.0, contrast: 1.05, tonemapMix: 0.35, shadowTint: [0.97, 1, 1.04], hiTint: [1.04, 1, 0.95],
       black: 0.008, curve: 0.16, punch: 0.3, clarity: 0.1, highlightWarmth: 0.1 } },
   sky: on('dusk') ? { dusk: { haze: 2.2, night: 0.45 } } : undefined,
@@ -130,7 +134,7 @@ const world = createWorldRenderer({
   // is the sky's (x1, not brighter: a brighter fog than the sky is what washed the day out)
   fog: { groundDensity: 0.0045, height: 14, air: 0.0003, color: 1.0, glow: 1 },
   lighting,
-  light2: on('vol') ? { ssr: false, bloom: false, ls: { slots: 4 }, vol: { lamps: 1.5, dustOut: 0.008, height: 9, lampDust: 0.05, haloR: 1.3, lampReach: 7, noise: 0.7 } } : undefined,
+  light2: on('vol') ? { ssr: false, bloom: false, ls: { slots: 4 }, vol: { lamps: 1.5, dustOut: 0.008, golden: 0.3, height: 9, lampDust: 0.05, haloR: 1.3, lampReach: 7, noise: 0.7 } } : undefined,
   post: {
     // a neutral base (the grade does the hour's look): no extra contrast or colour; bloom only off true emitters, tight
     exposure: 0.5, contrast: 1.0, saturation: 0.97, vignette: 0.26, grain: Q.get('grain') === '0' ? 0 : 0.014, bloom: 0.11, bloomRadius: 0.32, ao: 0.9,
@@ -179,6 +183,16 @@ world.ctx.onUpdate(() => {
   world.scene.environmentIntensity = 0.6 * wxNow.env;
   FOG.params[0] *= wxNow.fog; FOG.params[2] *= wxNow.air;
   for (let i = 0; i < 3; i++) FOG.glow[i] *= wxNow.glow;
+  // the golden hour's haze, as Nizwa's (its daynight fogHue at 6.8 degrees, [0.32, 0.35, 0.44]: a cool blue-grey air
+  // away from the sun, at the brightness of the world's own haze) and its glow toward the sun (Nizwa: the sunlight x
+  // [1, 0.886, 0.7], a gold, not the red of the low sky's lean): a sun haze that glows, not a pink-white veil
+  const d = THREE.MathUtils.smoothstep(h, 0.5, 4) * (1 - THREE.MathUtils.smoothstep(h, 18, 30));
+  if (d > 0) {
+    const fc = world.scene.fog.color, y = 0.2126 * fc.r + 0.7152 * fc.g + 0.0722 * fc.b, k = y / 0.3445;   // 0.3445: the luma of Nizwa's hue
+    fc.setRGB(fc.r + (0.32 * k - fc.r) * d, fc.g + (0.35 * k - fc.g) * d, fc.b + (0.44 * k - fc.b) * d);
+    const g = FOG.glow, gy = 0.2126 * g[0] + 0.7152 * g[1] + 0.0722 * g[2], kc = world.G.uKeyColor.value, ky = 0.2126 * kc.x + 0.7152 * kc.y * 0.886 + 0.0722 * kc.z * 0.7;
+    if (ky > 1e-5) { const s = (gy / ky) * 1.4; g[0] += (kc.x * s - g[0]) * d; g[1] += (kc.y * 0.886 * s - g[1]) * d; g[2] += (kc.z * 0.7 * s - g[2]) * d; }
+  }
 });
 const volLamps = (shared.lamps || []).filter((l) => l.vol).map(({ light }, i) => ({ id: 'nd' + i, light, x: light.position.x, y: light.position.y, z: light.position.z, range: light.distance, power: 0, near: 0.5, col: [0, 0, 0] }));
 // (the rain-lit cones are kept near neutral: 65 % of each lamp's colour goes to its grey, so a coloured lamp's cone
@@ -209,6 +223,9 @@ if (Q.has('world')) {   // the district alone: walk, fly, orbit (stills, the wor
     objective, summary,
   });
   play = g.play;
+  // the rooms' shafts of light (modules/shafts.js) shine only when the sun, the moon or the lamp outside really reaches
+  // the opening: a ray through the physics world toward it
+  shared.shafts?.setSee((from, dir, max) => !!g.physics.ray(from, dir, max));
   game.start(g);
   if (Q.has('start')) g.ui.begin();
 }
@@ -216,7 +233,7 @@ if (Q.has('world')) {   // the district alone: walk, fly, orbit (stills, the wor
 // bottles, keys, bolts, goods) stay out of the wet street's mirror, with the view model (?mirrorall=1 puts them back);
 // the goods of each row of vending machines are drawn within 30 m (userData.ndFar); the robots' metal parts (joints, hubs, rods: robot-m) and their rifles are
 // left out of the mirror too (a puddle shows the shell's silhouette and the lit visor, not a 4 cm hub)
-const NO_MIRROR = /^(viewmodel|vending-(can|bottle|cup|box|pack|cap|spirals)|bar-props|relay-props|stall-goods|grime-props|clutter-props|shop-props|robot-m|robot-gun)$/;
+const NO_MIRROR = /^(viewmodel|vending-(can|bottle|cup|box|pack|cap|spirals)|bar-props|relay-props|stall-goods|grime-props|clutter-props|shop-props|robot-m|robot-gun|shaft|shaft-motes)$/;
 { const far = new Map(); world.scene.traverse((o) => { if (o.userData.ndFar) { if (!far.has(o.userData.ndFar)) far.set(o.userData.ndFar, []); far.get(o.userData.ndFar).push(o); } });
   for (const [d, list] of far) { const cull = distanceCull(list, d); world.ctx.onUpdate((t) => cull(camera, t)); } }
 // the pickups (ammunition and med kits: small boxes that spin and bob all over the district) are drawn within 45 m:

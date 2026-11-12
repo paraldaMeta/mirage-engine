@@ -55,8 +55,12 @@ export default {
       { face: 'n', at: 24.5, y: 5.4, w: 6, h: 1.4, text: 'HOTEL NOVA', color: 'amber' },
       { face: 'n', at: 26, y: 8.2, w: 7.6, h: 1.2, text: '视频号：AI乐子人灰叔', color: 'cyan' },
       { face: 'n', at: 16.2, y: 8, w: 1.1, h: 3.2, text: '酒吧', color: 'pink', kind: 'blade' } ] },
-    { name: 'westcap', rect: [-42, -2, -34, 14], h: 30, style: 'glass', signs: [
-      { face: 'e', at: 6, y: 13, w: 3.2, h: 10, text: '新城', color: 'pink', vertical: true } ] },
+    // the west end: two towers either side of the street's line and a low deck between them (was one 30 m tower across
+    // the street's end): the sight line west down the street stays open, so the late sun stands in the street's end
+    { name: 'westcap', rect: [-42, -2, -34, 1.6], h: 30, style: 'glass' },
+    { name: 'westdeck', rect: [-42, 1.6, -34, 10.4], h: 2.6, style: 'concrete' },
+    { name: 'westcapS', rect: [-42, 10.4, -34, 14], h: 30, style: 'glass', signs: [
+      { face: 'e', at: 12.2, y: 13, w: 3.2, h: 10, text: '新城', color: 'pink', vertical: true } ] },
     { name: 'eastcap', rect: [34, -2, 42, 14], h: 32, style: 'panel', signs: [
       { face: 'w', at: 6, y: 13.5, w: 2.6, h: 12, text: 'KESTREL', color: 'cyan', vertical: true } ] },
     { name: 'w', rect: [-34, -30, -22, 2], h: 27, style: 'panel', signs: [
@@ -101,6 +105,8 @@ export default {
     stair: { rect: [23.3, -28.7, 28.7, -21.3], top: 8.8, risers: RISERS, rise: RISE, tread: TREAD, width: 2.5,
       foot: -23.0, door: { z: -22.15, width: 1.2, height: 2.3 } },      // doors in its west wall: ground and roof
     uplink: [9.5, ROOF, -25],                                           // the console on the roof
+    clerestory: [{ x: 9.0 }, { x: 11.6 }, { x: 17.0 }, { x: 20.0 }],      // high windows in the south wall (centres), 1.6 wide, 2.2 to 3.4 m
+    stairWindow: { x0: 25.2, x1: 27.8, y0: 6.7, y1: 7.9 },             // the stairwell's high south window
   },
 
   // ---- things modules place and the game spawns on (one [x, y, z] per name)
@@ -119,6 +125,10 @@ export default {
     [-12, 6.9, 0.2, 2.4], [-1.5, 4.6, -0.15, 2.4], [9.5, 7.2, 0.1, 2.4],
     [11, -4, 1.57, 3], [24.5, -5.5, 1.57, 3], [12.5, -14, 0, 3], [23.5, -14.5, 0, 3], [18, -2.2, 0, 3.2],
   ],
+  // reserved for an open water channel (not built yet): the carriageway's south gutter, 0.5 m wide and 16 m long, in
+  // full sun at the golden hour (main.js TIMES.day: the sun 5.6 deg up at bearing 272, down the street's axis over the
+  // low west deck), seen from the street and the plaza's corner. Nothing is to stand on it (props, parked cars, colliders)
+  waterStrip: { rect: [1.5, 7.85, 17.5, 8.35], y: 0 },
   cars: [[-21.5, 7.3, 0.03, 'teal'], [2.5, 4.7, 3.12, 'amber'], [22, 7.25, -0.04, 'white']],   // parked: [x, z, rotY, paint]
   roofUnits: [[12.5, -27.6, 2.6, 1.5], [17.5, -22.2, 2.2, 1.4], [20.2, -27.8, 1.6, 1.3]],       // HVAC: [x, z, length, height]
 
