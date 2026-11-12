@@ -21,8 +21,12 @@ MsS ms_concrete(vec2 u){
   vec4 pc = msCell(u + 0.008 * vec2(msFbm(u, 60.0, 2), msFbm(u + 2.0, 60.0, 2)), 26.0, 1.0);
   float big = step(0.96, pc.w);
   float pr = mix(0.06 + 0.12 * pc.w * pc.w, 0.22 + 0.2 * fract(pc.w * 17.0), big);
-  float on = step(1.0 - (0.05 + 0.6 * dens) * (big > 0.5 ? 1.6 : 1.0), pc.z);
+  float on = step(1.0 - (0.015 + 0.75 * dens * dens) * (big > 0.5 ? 1.6 : 1.0), pc.z);
   float pore = (1.0 - smoothstep(pr * 0.65, pr, pc.x)) * on * msLod(0.01);
+  // a second, coarser set (5..12 mm) only where the vibration was worst: they come in nests, not on a grid
+  vec4 pc2 = msCell(msWarp(u + 3.3, 30.0, 0.01), 9.0, 1.0);
+  float nest = (1.0 - smoothstep(0.12 + 0.1 * pc2.w, 0.2 + 0.12 * pc2.w, pc2.x)) * step(0.55, dens) * step(0.6, pc2.z) * msLod(0.02);
+  pore = max(pore, nest);
   float prim = (1.0 - smoothstep(pr, pr * 1.6, pc.x)) * on * msLod(0.02) - pore;
   vec2 pin = msSpeck(u + 8.0, 300.0, 0.08 + 0.2 * dens, 0.4, 1.0);
   pore = max(pore, pin.x * 0.6);
@@ -34,7 +38,9 @@ MsS ms_concrete(vec2 u){
   // water marks: darker tide-edged blotches (the form's release agent and the cure), a few paler bleached ones
   float wm = msFbm(msWarp(u + 2.0, 3.0, 0.05), 1.8, 4);
   float blot = smoothstep(0.15, 0.4, wm) * (0.6 + 0.4 * smoothstep(0.38, 0.42, wm));
-  vec3 col = base * (0.86 + 0.32 * m1 + 0.18 * cl + 0.09 * m2 + 0.07 * sand) * mix(vec3(1.0), vec3(1.03, 1.0, 0.95), 0.5 + 0.5 * m1) * (1.0 - 0.2 * blot);
+  // and the dirt a wall gathers: grime streaks down from the pour lines, darker blotches you see from across the street
+  float grime = smoothstep(0.1, 0.6, msFbm2(u + 2.2, vec2(5.0, 0.7), 3) * 0.5 + 0.5 + 0.3 * m1) * msW.x;
+  vec3 col = base * (0.86 + 0.34 * m1 + 0.2 * cl + 0.09 * m2 + 0.07 * sand) * mix(vec3(1.0), vec3(1.03, 1.0, 0.95), 0.5 + 0.5 * m1) * (1.0 - 0.3 * blot) * (1.0 - 0.28 * grime);
   col = mix(col, base * (0.62 + 0.75 * ag.w) * vec3(1.05, 1.0, 0.93), agg * 0.75);
   col *= (1.0 + 0.1 * prim) * (1.0 - 0.5 * pore);
   // relief: the pour's slow waves (the form bowed under the pressure), the sand skin, the voids cut into it
@@ -185,6 +191,34 @@ MsS ms_asphalt(vec2 u){
   paving: /* glsl */ `
 MsS ms_paving(vec2 u){
   float V = msX.z;
+  if (V > 3.5) {
+    // flags (crazy paving): irregular flat stones (Voronoi cells of a warped plane, cell[0] their size), each its own
+    // tone (brown, rust, grey, pale), split in layers that flaked off in sheets, the arrises chipped; wide joints of
+    // dark soil with grit and a little moss
+    float f = 1.0 / msB.x;
+    vec4 ck = msCell(msWarp(u, 2.5, 0.04 * msB.x), f, 0.95);
+    float e = (ck.y - ck.x) * msT / msP(f) * 0.5;
+    vec3 ph = mgHash3(vec3(ck.z * 91.0, ck.w * 57.0, msSeed));
+    float jw = msB.z * 0.5 * (0.7 + 0.8 * (msFbm(u, 6.0, 2) * 0.5 + 0.5));
+    float chipN = msFbm(u + 4.0, 30.0, 3) * 0.5 + 0.5;
+    float edge = e - jw - 0.012 * chipN * smoothstep(0.4, 0.8, chipN);
+    float body = smoothstep(-msFP, msFP, edge), bevel = smoothstep(0.0, 0.01, edge);
+    vec3 tone = ph.x < 0.45 ? vec3(1.0) : ph.x < 0.7 ? vec3(1.3, 0.92, 0.72) : ph.x < 0.88 ? vec3(0.85, 0.88, 0.92) : vec3(1.4, 1.25, 1.05);
+    float lay = msFbm(u + ph.xy * 7.0, 5.0, 4) * 0.5 + 0.5, flake = msCut(lay, 0.6, 0.015);
+    float grain = msFbm(u + ph.zx * 3.0, 40.0, 3);
+    vec3 col = msA.rgb * tone * (0.82 + 0.5 * ph.y) * (0.88 + 0.16 * msFbm(u + ph.zx * 3.0, 8.0, 3) + 0.08 * grain) * (1.0 + 0.12 * flake);
+    // (each stone set at its own lean: a slow field offset per stone)
+    float h = 0.62 + 0.14 * msFbm(u + ph.xy * 11.0, 2.0, 2) + 0.14 * lay - 0.1 * flake + 0.1 * grain + 0.02 * msFbm(u + 2.0, 110.0, 2);
+    h = mix(0.18, h, bevel);
+    float r = msA.a + 0.05 * (ph.z - 0.5) + 0.04 * grain - 0.05 * flake;
+    // the joint: soil, grit, moss
+    vec2 grit = msSpeck(u + 1.0, 200.0, 0.4, 0.4, 1.0);
+    float moss = smoothstep(0.55, 0.8, msFbm(u + 9.0, 4.0, 3) * 0.5 + 0.5);
+    vec3 jc = mix(msC.rgb * (0.7 + 0.5 * grit.y * grit.x), vec3(0.06, 0.08, 0.03), moss * 0.6);
+    col = mix(jc, col, body); h = mix(0.08 + 0.06 * grit.x, h, body); r = mix(0.95, r, body);
+    float ao = mix(0.55, 1.0, bevel);
+    return MsS(col, clamp(r, 0.04, 1.0), clamp(h, 0.0, 1.0), 0.0, ao);
+  }
   vec4 g = msGrid(u, msB.xy, msB.w);
   vec2 s = msCellSize, q = g.xy, c = q - 0.5 * s;
   float de = msEdgeD(g);
@@ -273,17 +307,17 @@ MsS ms_brick(vec2 u){
   float mw = msB.z * 0.5;
   // every brick its own box inside its cell: each side set back by its own amount (joints 0.5x..1.7x the nominal),
   // its own corner radius, its outline bitten by erosion (deepest at the corners) and a few broken-off corners
-  vec4 ins = mw * (0.5 + (0.35 + 0.85 * ero) * vec4(b.x, b.y, b2.x, b2.y));
+  vec4 ins = mw * (0.3 + (0.25 + 0.55 * ero) * vec4(b.x, b.y, b2.x, b2.y));
   vec2 lo = ins.xz, hi = s - ins.yw, c = 0.5 * (lo + hi), hs = 0.5 * (hi - lo);
   vec2 lp = q - c;
   float rad = min(hs.y * 0.8, 0.002 + 0.01 * b3.x * ero);
   vec2 ed = hs - abs(lp);                                          // distance to the two nearest sides
   float corner = exp(-(ed.x + ed.y) / 0.02);
-  float bite = (msFbm(u + 13.0, 7.0, 4) * 0.5 + 0.5) * 0.01 + (msFbm(u + 2.0, 40.0, 3) * 0.5 + 0.5) * 0.003;
+  float bite = (msFbm(u + 13.0, 7.0, 4) * 0.5 + 0.5) * 0.012 + (msFbm(u + 2.0, 40.0, 3) * 0.5 + 0.5) * 0.004;
   vec4 ch = msCell(u + 7.7, 9.0, 1.0);
   float chip = (1.0 - smoothstep(0.25, 0.5, ch.x)) * step(1.0 - 0.45 * ero, ch.z) * 0.012;
   float sd = msBox(lp, hs, rad) + ero * (bite * (0.6 + 1.6 * corner)) + chip * (0.4 + corner);
-  float face = smoothstep(-0.001, 0.006 + 0.01 * ero, -sd);          // the arris rolls off over 0.5..1.5 cm
+  float face = smoothstep(-0.003, 0.016 + 0.016 * ero, -sd);         // the arris rolls off over 1.5..3 cm (worn round)
   face = face * (2.0 - face);
   float body = 1.0 - smoothstep(-0.5 * msFP, 0.5 * msFP, sd);
   // the fired clay: a palette per brick (buff, pink, ochre, pale, over-burnt), a mottle at 1..5 cm, flashing to one end
@@ -296,19 +330,24 @@ MsS ms_brick(vec2 u){
   vec3 col = msA.rgb * pal * mix(vec3(1.0), mott, 0.55) * (0.82 + 0.3 * b3.y) * (1.0 + 0.12 * m2) * (1.0 - 0.18 * flash);
   // the face: tilted (laid out of plane), spalled (flakes off in sheets, a crisp step, the fresh clay paler and rougher),
   // a torn, crinkled sanded texture (the mould's sand), pits; the relief darkens its own hollows
-  float tilt = dot(lp, (b3.yz - 0.5) * 2.0) * 0.9;
+  float tilt = dot(lp, (b3.yz - 0.5) * 2.0) * 0.25;
   vec4 sp = msCell(msWarp(u, 20.0, 0.004) + b.xy, 11.0, 1.0);
   float spall = msCut(1.0 - sp.x + 0.12 * msFbm(u, 60.0, 2), 0.62, 0.015) * step(1.0 - 0.5 * ero, sp.z);
-  float cn = msFbm2(msWarp(u, 24.0, 0.004) + b.zy * 4.0, vec2(16.0, 42.0), 4);
-  float crink = 1.0 - abs(cn), crev = (1.0 - smoothstep(0.0, 0.1, abs(cn))) * msLod(0.004);
-  float tex = msFbm(u + b.xz * 6.0, 40.0, 4), sand = msFbm(u + 2.0, 220.0, 2);
+  // crumpled like torn paper: two ridged layers (folds 2..4 cm and 5..10 mm), the folds' valleys dark crevices
+  // (the folds as facets: the fold field read twice a few mm apart along the light, so each facet takes its own tone,
+  // a crisp change at the crease: what the eye reads as crumpled)
+  vec2 uc = msWarp(u, 18.0, 0.006) + b.zy * 4.0;
+  float cn = msFbm2(uc, vec2(11.0, 20.0), 4), cnL = msFbm2(uc + vec2(0.003, -0.004), vec2(11.0, 20.0), 4);
+  float fac = clamp((abs(cnL) - abs(cn)) * 9.0, -1.0, 1.0) * msLod(0.004);
+  float crink = 1.0 - abs(cn), crev = (1.0 - smoothstep(0.0, 0.05, abs(cn))) * msLod(0.004);
+  float tex = msFbm(u + b.xz * 6.0, 40.0, 3), sand = msFbm(u + 2.0, 220.0, 2);
   vec2 pit = msSpeck(u, 140.0, 0.1 + 0.15 * ero, 0.3, 3.1);
   float cr = smoothstep(0.35, 1.0, crink);
-  float rel = ero * (0.05 * tex + 0.05 * cr - 0.03 - 0.04 * crev) + 0.004 * sand - 0.12 * spall - 0.03 * pit.x;
+  float rel = ero * (0.04 * tex + 0.06 * crink - 0.04 - 0.024 * crev) + 0.004 * sand - 0.06 * spall - 0.012 * pit.x;
   float hf = 0.8 + 0.05 * (b2.y - 0.5) + tilt + rel;
-  col *= (1.0 + ero * (0.5 * cr - 0.3 + 0.25 * tex)) * (1.0 - 0.4 * ero * crev) * (1.0 + 0.08 * sand) * (1.0 - 0.15 * pit.x);
+  col *= (1.0 + ero * (0.32 * fac + 0.3 * cr - 0.15 + 0.22 * tex)) * (1.0 - 0.3 * ero * crev) * (1.0 + 0.08 * sand) * (1.0 - 0.15 * pit.x);
   col = mix(col, col * vec3(1.12, 1.06, 1.0), spall * 0.7);
-  float h = mix(0.32, hf, face);
+  float h = mix(0.92 - 0.6 * msB.w, hf, face);                         // the arris rolls down to just under the joint
   col = mix(col * vec3(1.08, 1.06, 1.02), col, face);                 // the worn arris: paler, rougher
   float r = msA.a + 0.06 * (b.y - 0.5) - 0.12 * step(1.0 - msC.a, b2.z) + 0.05 * sand + 0.06 * spall;
   float ao = 1.0 - 0.35 * pit.x;
@@ -317,8 +356,9 @@ MsS ms_brick(vec2 u){
   float mort = max(1.0 - body, smear * body);
   vec2 sg = msSpeck(u + 9.0, 300.0, 0.6, 0.55, 0.0);
   float mrel = msFbm(u + 3.0, 50.0, 3), mtone = msFbm(u + 6.0, 25.0, 3);
-  vec3 mc = msC.rgb * (0.92 + 0.22 * mtone) * mix(1.0, 0.75 + 0.6 * sg.y, sg.x);
-  float hm = 1.0 - msB.w + 0.03 * mrel + 0.015 * sg.x;
+  // dirty: darker at the brick (shadowed, the grime washed into the corner), blotched, sand grains
+  vec3 mc = msC.rgb * (0.92 + 0.22 * mtone) * mix(1.0, 0.75 + 0.6 * sg.y, sg.x) * (0.62 + 0.38 * smoothstep(0.0, 0.007, sd)) * (0.8 + 0.3 * (msFbm(u + 1.0, 9.0, 3) * 0.5 + 0.5));
+  float hm = 1.0 - 0.6 * msB.w + 0.002 * mrel;   // (the grains a fraction of a mm proud: the scan's joints read flat)
   col = mix(col, mc, mort); r = mix(r, 0.92, mort);
   h = mix(h, max(hm, h * smear), mort);
   ao *= 1.0 - 0.12 * mort * (1.0 - sg.x) * (1.0 - smoothstep(0.0, 0.01, sd));
@@ -333,7 +373,8 @@ MsS ms_brick(vec2 u){
     r = mix(0.72, r, bare);
   }
   if (V > 0.5 && V < 1.5) r -= 0.12;   // engineering brick: dense, a little glossy
-  return MsS(col, clamp(r, 0.04, 1.0), clamp(h, 0.0, 1.0), 0.0, ao);
+  ao *= 1.0 - 0.3 * crev * (1.0 - mort);
+  return MsS(col, clamp(r, 0.04, 1.0), clamp(0.5 + 0.7 * (h - 0.5), 0.0, 1.0), 0.0, ao);
 }`,
 
   // A: render rgb, roughness   B: spall (broken-off top coat), crack amount, patch amount, -   C: patch rgb, -
@@ -345,7 +386,9 @@ MsS ms_render(vec2 u){
   // stains: soft dark clouds (damp, dirt), a few paler bleached ones; the coat's own blotchy tone
   float stain = smoothstep(0.1, 0.7, msFbm(msWarp(u + 9.0, 3.0, 0.05), 1.3, 5) + 0.25 * age);
   float bleach = smoothstep(0.35, 0.8, msFbm(u + 3.0, 2.2, 4));
-  vec3 col = msA.rgb * (0.94 + 0.26 * m1 + 0.16 * m2 + 0.07 * m3 + 0.05 * fine) * (1.0 - (0.22 + 0.15 * age) * stain) * (1.0 + 0.14 * bleach);
+  // (the mottle sits at the coat's own scales: broad clouds over the wall and a fine 2..6 mm sand speckle; little between)
+  float speck = msFbm(u + 7.0, 260.0, 2);
+  vec3 col = msA.rgb * (0.94 + 0.42 * m1 + 0.08 * m2 + 0.03 * m3 + 0.06 * fine + 0.07 * speck) * (1.0 - (0.22 + 0.15 * age) * stain) * (1.0 + 0.14 * bleach);
   // trowel: overlapping arcs of the float, faint ridges where strokes meet, each stroke a slightly other sheen
   vec4 tc = msCell2(u + 0.25 * vec2(m2, m1), vec2(2.4, 3.2), 1.0);
   float stroke = smoothstep(0.0, 0.2, tc.y - tc.x);
@@ -353,7 +396,7 @@ MsS ms_render(vec2 u){
   vec2 pit = msSpeck(u + 1.0, 14.0, 0.025 + 0.03 * age, 0.12, 0.0), pit2 = msSpeck(u + 4.0, 45.0, 0.012, 0.2, 5.0);
   float pits = max(pit.x, pit2.x * 0.8), rim = msSpeck(u + 1.0, 14.0, 0.025 + 0.03 * age, 0.2, 0.0).x - pit.x;
   float h = 0.5 + 0.34 * m2 + 0.2 * m3 + 0.05 * fine + 0.04 * stroke - 0.3 * pits + 0.04 * rim;
-  col *= (1.0 - 0.55 * pits) * (1.0 + 0.04 * rim) * (0.97 + 0.06 * tc.z);
+  col *= (1.0 - 0.3 * pits) * (1.0 + 0.04 * rim) * (0.97 + 0.06 * tc.z);
   float sheen = msFbm(u + 8.0, 1.1, 3);
   float r = msA.a + 0.06 * sheen + 0.03 * fine - 0.04 * (1.0 - stroke) + 0.1 * pits;
   float ao = 1.0 - 0.5 * pits;
@@ -419,15 +462,26 @@ MsS ms_tile(vec2 u){
   float edge = smoothstep(gw, gw + max(bev, 0.0008), de);
   float h = 0.55 * sqrt(edge) + 0.3 + dot(c, t2.xy - 0.5) * 0.08 - dot(c, c) * 0.05;
   float r = msA.a + 0.03 * msFbm(u, 25.0, 2);
-  if (V > 2.5) { r = msA.a; h += 0.02 * msFbm(u, 160.0, 2); }   // floor tiles: matte, a fine grit
+  if (V > 2.5) {
+    // floor tiles (terracotta, cement): hand-made: each tile a little dished and wavy, trowel swirls in the face (arcs of
+    // the float in tone and relief), waxed and worn to a patchy sheen, a fine grit
+    vec2 sw = msWarp(u + t.xy * 5.0, 2.5, 0.12);
+    float arc = pow(msRidge(sw, vec2(4.0, 11.0), 4), 5.0), arc2 = pow(msRidge(msWarp(u + 3.3, 4.0, 0.08), vec2(10.0, 5.0), 3), 6.0);
+    float blot = msFbm(u + t.zx * 3.0, 3.0, 3);
+    arc = max(arc, 0.7 * arc2);
+    glaze *= (0.88 + 0.3 * arc + 0.12 * blot) * (0.95 + 0.1 * t.z);
+    r = msA.a - 0.12 * smoothstep(0.3, 0.8, msFbm(u + 2.0, 1.5, 3) * 0.5 + 0.5) + 0.05 * arc;
+    h += 0.15 * arc + 0.25 * blot + 0.04 * msFbm(u, 160.0, 2);
+  }
   // crazing in old glaze
   if (msD.a > 0.0) {
     vec4 cz = msCell(u + t.xy, 30.0, 1.0);
     float craze = msLine((cz.y - cz.x) * msT / msP(30.0) * 0.5, 0.00025) * msD.a * msLod(0.01);
     glaze *= 1.0 - 0.25 * craze; r += 0.15 * craze;
   }
+  if (V < 2.5) h += 0.04 * msFbm(u + t.yz * 4.0, 9.0, 3);           // the glaze is never a mirror: a slow wave in it
   float grout = 1.0 - smoothstep(gw - 0.4 * msFP, gw + msFP, de);
-  vec3 gc = msC.rgb * (0.85 + 0.25 * (msFbm(u + 3.0, 80.0, 2) * 0.5 + 0.5));
+  vec3 gc = msC.rgb * (0.85 + 0.25 * (msFbm(u + 3.0, 80.0, 2) * 0.5 + 0.5)) * (1.0 - 0.35 * smoothstep(0.3, 0.8, msFbm(u + 5.0, 3.0, 3) * 0.5 + 0.5));   // grime in the grout, patchy
   vec3 col = mix(glaze, gc, grout);
   r = mix(r, 0.92, grout); h = mix(h, 0.12, grout);
   float ao = 1.0 - 0.45 * grout - 0.15 * (1.0 - edge) * (1.0 - grout);
@@ -435,8 +489,22 @@ MsS ms_tile(vec2 u){
 }`,
 
   // A: paint rgb, roughness   B: pitch, sheet width, fixing spacing, profile (0 sine, 1 box)   C: rust amount, chips, white rust, -
-  // D: gravity in the surface plane (xy: an axis, [0, -1] = down v), -, -
+  // D: gravity in the surface plane (xy: an axis, [0, -1] = down v), stencil, dents
   corrugated: /* glsl */ `
+// a seven-segment digit (the shape of a cheap stencil set), p in the digit's cell (x 0..1, y 0..1.7): the distance
+float msSegDigit(vec2 p, int d){
+  int m = d == 0 ? 63 : d == 1 ? 6 : d == 2 ? 91 : d == 3 ? 79 : d == 4 ? 102 : d == 5 ? 109 : d == 6 ? 125 : d == 7 ? 7 : d == 8 ? 127 : 111;
+  float e = 1e3;
+  vec2 hs = vec2(0.36, 0.11), vs = vec2(0.11, 0.33);
+  if ((m & 1) != 0) e = min(e, msBox(p - vec2(0.5, 1.6), hs, 0.02));
+  if ((m & 2) != 0) e = min(e, msBox(p - vec2(0.9, 1.22), vs, 0.02));
+  if ((m & 4) != 0) e = min(e, msBox(p - vec2(0.9, 0.48), vs, 0.02));
+  if ((m & 8) != 0) e = min(e, msBox(p - vec2(0.5, 0.1), hs, 0.02));
+  if ((m & 16) != 0) e = min(e, msBox(p - vec2(0.1, 0.48), vs, 0.02));
+  if ((m & 32) != 0) e = min(e, msBox(p - vec2(0.1, 1.22), vs, 0.02));
+  if ((m & 64) != 0) e = min(e, msBox(p - vec2(0.5, 0.85), hs, 0.02));
+  return e;
+}
 MsS ms_corrugated(vec2 u){
   float V = msX.z;
   float pitch = msSnap(msB.x), x = u.x / pitch, fx = fract(x);
@@ -511,9 +579,30 @@ MsS ms_corrugated(vec2 u){
     float ghost = msCut(msFbm(u + 7.0, 2.0, 3) * 0.5 + 0.5 + 0.05 * fine, 0.62, 0.006);
     col = mix(col, msA.rgb * 0.7, ghost * 0.85); r = mix(0.86 + 0.06 * scale_, 0.7, ghost);
   }
+  // a stencilled code sprayed on each sheet (three digits, 12 cm high, upright whichever way the ribs run), its paint
+  // thin and worn where it has weathered
+  if (msD.z > 0.0 && V < 1.5) {
+    vec2 sq = vec2(mod(c - msT * 0.31, msT), mod(-a - msT * 0.42, msT)) / 0.07;      // the code's frame: x across, y up
+    vec3 sh = mgHash3(vec3(msSeed, 3.0, 7.0));
+    float e = 1e3;
+    for (int i = 0; i < 3; i++) e = min(e, msSegDigit(sq - vec2(1.35 * float(i), 0.0), int(floor(fract(sh.x * 7.3 + float(i) * 0.37) * 10.0))));
+    float ink = (1.0 - smoothstep(-0.02, 0.03 + msFP / 0.07, e)) * msCut(msFbm(u + 4.0, 30.0, 3) * 0.5 + 0.5 + 0.25 * msD.z, 0.42, 0.04) * (1.0 - smoothstep(0.0, 0.01, -prof + 0.15));
+    vec3 inkC = sh.y < 0.6 ? vec3(0.62, 0.6, 0.55) : sh.y < 0.85 ? vec3(0.55, 0.4, 0.04) : vec3(0.03);
+    col = mix(col, inkC * (0.9 + 0.1 * fine), ink * 0.92); r = mix(r, 0.75, ink); met *= 1.0 - ink;
+  }
+  // dents: a few knocks per sheet 6..20 cm across, the ribs pressed flat in them, a crease of chipped paint at the rim
+  float dentH = 0.0;
+  if (msD.w > 0.0) {
+    vec4 dn = msCell(u + 2.9, 3.0, 1.0);
+    float rad = 0.25 + 0.3 * dn.w;
+    float dent = (1.0 - smoothstep(rad * 0.4, rad, dn.x)) * step(1.0 - 0.45 * msD.w, dn.z);
+    dentH = dent;
+    float rim = msLine(dn.x - rad * 0.85, 0.04) * step(1.0 - 0.45 * msD.w, dn.z);
+    col = mix(col, col * 0.85, rim * 0.5); r += 0.05 * rim;
+  }
   vec2 pit = msSpeck(u + 5.0, 200.0, 0.4, 0.5, 4.0);
   float rustAmt = V < 0.5 ? 0.0 : 1.0 - smoothstep(0.0, 0.6, abs(r - 0.86) * 10.0);
-  float h = prof * 0.9 + 0.04 * fine + 0.06 * fix - 0.04 * pit.x * rustAmt;
+  float h = mix(prof * 0.9, 0.2 + prof * 0.4, dentH) + 0.04 * fine + 0.06 * fix - 0.04 * pit.x * rustAmt;
   col *= 1.0 - 0.35 * lap;
   col = mix(col, vec3(0.5, 0.5, 0.52), fix * 0.6);
   float ao = 1.0 - 0.25 * valley - 0.3 * lap;
@@ -538,8 +627,15 @@ MsS ms_paintedMetal(vec2 u){
     // the bloom round a fixing: ragged (its radius pushed by noise), drawn out below it (what runs off), not round
     // every fixing
     float ry = abs(q.y - 0.035) < abs(q.y - (s.y - 0.035)) ? q.y - 0.035 : q.y - (s.y - 0.035);
-    float dw = length(vec2(bx * (1.0 + 2.0 * max(-ry, 0.0) / 0.05), ry * (ry < 0.0 ? 0.3 : 1.0))) * (0.55 + 1.1 * (msFbm(msWarp(u, 40.0, 0.004) + 3.3, 35.0, 3) * 0.5 + 0.5));
-    near = (1.0 - smoothstep(0.008, 0.045, dw)) * step(0.35, bh0(g.zw + floor(q.x / sp) * 0.137));
+    // (lobed, not round: the radius pushed by a coarse warped noise as well as a fine one, each bloom its own lean and
+    // length of run below)
+    float bk = bh0(g.zw + floor(q.x / sp) * 0.271);
+    // the run hangs from the row above the pixel (it crosses the seam below a panel's lower row)
+    float yA = q.y < 0.035 ? 0.035 : (q.y < s.y - 0.035 ? s.y - 0.035 : s.y + 0.035), rA = min(q.y - yA, 0.0);
+    float bxl = bx + rA * (bk - 0.5) * 0.6;
+    float dw = min(2.2 * length(vec2(bx, ry)), length(vec2(bxl * (1.0 + 2.5 * (-rA) / 0.05), rA * (0.05 + 0.1 * bk))))
+             * (0.5 + 1.1 * fract(bk * 13.7)) * (0.35 + 1.3 * (msFbm(msWarp(u, 14.0, 0.012) + 3.3, 12.0, 3) * 0.5 + 0.5)) * (0.7 + 0.6 * (msFbm(msWarp(u, 40.0, 0.004) + 1.1, 45.0, 2) * 0.5 + 0.5));
+    near = (1.0 - smoothstep(0.008, 0.045, dw)) * step(0.55, mgHash3(vec3(g.zw, floor(q.x / sp) + 0.5 * step(s.y * 0.5, q.y))).y);
   }
   // rust: patches at every scale (a 30 cm cluster, 5 cm islands, 1 cm specks), the edges warped and cut crisp; new
   // rust nucleates as many small spots round the patches that merge into them
@@ -558,7 +654,7 @@ MsS ms_paintedMetal(vec2 u){
   // the paint over it: lifts and flakes in islands with crisp ragged edges (paint -> lifted rim -> primer -> bare),
   // more round the rust and the fixings
   float wn = msFbm(msWarp(u, 18.0, 0.008) + 11.0, 5.0, 5) * 0.42 + msFbm(u + 3.0, 32.0, 3) * 0.12 + 0.5 + 0.3 * near + 0.12 * halo;
-  float amt = msB.a * (V > 1.5 ? 0.35 : 1.0);
+  float amt = msB.a * (V > 1.5 ? 0.2 : 1.0);
   float L = msLayers(wn, amt);
   float lip = clamp(L, 0.0, 1.0) * (1.0 - clamp(L - 1.0, 0.0, 1.0));
   float primer = clamp(L - 1.0, 0.0, 1.0) * (1.0 - clamp(L - 2.0, 0.0, 1.0));
@@ -706,15 +802,17 @@ MsS ms_castIron(vec2 u){
     raised = 0.85 + 0.15 * m1;
   }
   recess = 1.0 - raised;
-  float rust = clamp(msB.a * (smoothstep(0.2, 0.7, recess + 0.3 * m2) + 0.25 * (m1 * 0.5 + 0.5)), 0.0, 1.0);
+  vec2 pits = msSpeck(u + 3.0, 160.0, 0.25, 0.35, 2.0);            // the casting's sand pits
+  float rust = clamp(msB.a * (smoothstep(0.2, 0.7, recess + 0.3 * m2 + 0.3 * pits.x) + 0.25 * (m1 * 0.5 + 0.5)), 0.0, 1.0);
   vec3 bare = msA.rgb * (0.85 + 0.15 * sand);
   vec3 dirt = mix(vec3(0.04, 0.035, 0.03), msB.rgb, rust);
   float wornTop = smoothstep(0.6, 0.95, raised);
   vec3 col = mix(dirt * (0.8 + 0.3 * sand), bare, wornTop * (1.0 - 0.6 * rust * (1.0 - wornTop)));
   float met = wornTop * (1.0 - 0.7 * rust * (1.0 - wornTop));
   float r = mix(0.88 + 0.05 * sand, msA.a + 0.08 * sand, wornTop);
-  float h = 0.25 + 0.6 * raised + 0.04 * sand;
-  float ao = 1.0 - 0.5 * recess;
+  float h = 0.25 + 0.6 * raised + 0.04 * sand - 0.08 * pits.x;
+  col = mix(col, msB.rgb * 1.3, smoothstep(0.55, 0.75, raised) * (1.0 - wornTop) * msB.a * 0.6);   // the orange rim at a top's edge
+  float ao = 1.0 - 0.5 * recess - 0.2 * pits.x;
   col = mix(col, vec3(0.006), clamp(hole, 0.0, 1.0)); h = mix(h, 0.0, clamp(hole, 0.0, 1.0)); ao *= 1.0 - 0.9 * clamp(hole, 0.0, 1.0); met *= 1.0 - clamp(hole, 0.0, 1.0);
   return MsS(col, clamp(r, 0.04, 1.0), clamp(h, 0.0, 1.0), met, ao);
 }`,
@@ -781,8 +879,16 @@ MsS ms_metal(vec2 u){
   vec3 col = msA.rgb; float r = msA.a, h = 0.5;
   if (V < 0.5) { float lathe = msFbm2(u, vec2(0.5, 700.0), 2) * msLod(0.0015); h += 0.25 * lathe; r *= 0.85 + 0.3 * (lathe * 0.5 + 0.5); }
   else if (V < 1.5) { h += 0.3 * fine; r += 0.12 + 0.05 * fine; }
-  else { r += 0.08 * m1; h += 0.1 * fine; }
-  float tn = smoothstep(0.55 - 0.45 * msB.a, 0.75 - 0.45 * msB.a, msFbm(u + 5.0, 4.0, 3) * 0.5 + 0.5);
+  else {
+    // worn (handled brass, a rail): polished by hands, a fine haze of tarnish in the low spots, hairline wipes and
+    // a few dark spots where water dried; the tone barely moves, the roughness does
+    float wipe = msFbm2(u + 2.0, vec2(3.0, 160.0), 2) * msLod(0.002);
+    r += 0.04 * m1 + 0.05 * (wipe * 0.5 + 0.5); h += 0.1 * fine + 0.05 * wipe;
+    vec4 sp = msCell(u + 4.0, 25.0, 1.0);
+    float spot = (1.0 - smoothstep(0.1, 0.3, sp.x)) * step(0.85, sp.z) * msLod(0.006);
+    col *= 1.0 - 0.12 * spot; r += 0.15 * spot;
+  }
+  float tn = smoothstep(0.55 - 0.45 * msB.a, 0.75 - 0.45 * msB.a, msFbm(u + 5.0, V > 1.5 ? 14.0 : 4.0, 3) * 0.5 + 0.5) * (V > 1.5 ? 0.2 : 1.0);
   col = mix(col, col * msB.rgb, tn); r = mix(r, r + 0.2, tn);
   return MsS(col, clamp(r, 0.03, 1.0), clamp(h, 0.0, 1.0), 1.0, 1.0);
 }`,
@@ -999,9 +1105,12 @@ MsS ms_fabric(vec2 u){
   float crumple = msFbm(msWarp(u + 2.0, 12.0, 0.01), 9.0, 5);
   vec4 cr = msCell(msWarp(u + 6.0, 5.0, 0.02), 4.0, 1.0);
   float crease = msLine((cr.y - cr.x) * msT / msP(4.0) * 0.5, 0.0012) * smoothstep(0.5, 0.8, msFbm(u + 1.0, 2.0, 2) * 0.5 + 0.5);
-  float h = mix(0.5, 0.2 + 0.6 * wh, k) * 0.62 + 0.3 * (crumple * 0.5 + 0.5) + 0.05 * fuzz + 0.04 * slub - 0.2 * crease;
-  col *= (1.0 - 0.18 * crease) * (0.94 + 0.12 * (crumple * 0.5 + 0.5));
-  float r = msA.a + 0.04 * fuzz + 0.06 * (1.0 - wh) * k;
+  // what survives when the threads are below a pixel: bundles of threads lying a little higher or lower (streaks a few
+  // threads wide, both ways: a woven cloth's coarse grain), so the cloth still reads woven and matte from metres away
+  float bun = msFbm2(u + 1.7, vec2(1.5, 0.2 / p), 3) * 0.5 + msFbm2(u + 3.9, vec2(0.2 / p, 1.5), 3) * 0.5;
+  float h = mix(0.5, 0.2 + 0.6 * wh, k) * 0.9 + 0.5 * (crumple * 0.5 + 0.5) + 0.05 * fuzz + 0.04 * slub - 0.2 * crease + 0.6 * bun - 0.2;
+  col *= (1.0 - 0.18 * crease) * (0.92 + 0.16 * (crumple * 0.5 + 0.5)) * (1.0 + 0.1 * bun);
+  float r = msA.a + 0.04 * fuzz + 0.06 * (1.0 - wh) * k + 0.04 * (1.0 - k);
   float ao = mix(1.0, 0.82 + 0.18 * wh, k) * (1.0 - 0.3 * crease);
   if (V > 0.5 && V < 1.5) {
     // tarpaulin: a PVC coat over a coarse scrim: the grid shows faintly through, glossier
@@ -1033,6 +1142,13 @@ MsS ms_paper(vec2 u){
   float fib = msFbm(u, 400.0, 2) * msLod(0.0015);
   vec3 col = msA.rgb * (0.95 + 0.06 * m1 + 0.05 * fib) * (1.0 + 0.2 * (fb.w - 0.5) * strand);
   float r = msA.a + 0.03 * fib, h = 0.5 + 0.15 * fib + 0.1 * strand, ao = 1.0;
+  // handled: the sheet cockles (damp), a fold or two pressed in, scuffed pale where rubbed, a water stain's tide line
+  vec4 fo = msCell(msWarp(u, 3.0, 0.02) + 4.0, 2.0, 1.0);
+  float fold = msLine((fo.y - fo.x) * msT / msP(2.0) * 0.5, 0.0008) * step(0.6, fo.z);
+  float cockle = msFbm(u + 1.0, 9.0, 3), scuff = smoothstep(0.65, 0.85, msFbm(u + 7.0, 6.0, 3) * 0.5 + 0.5);
+  float wm = msFbm(msWarp(u + 3.0, 4.0, 0.03), 2.0, 3), tide = msLine(wm - 0.35, 0.004), stain = step(0.35, wm);
+  col *= (1.0 - 0.12 * fold) * (1.0 + 0.1 * scuff) * (1.0 - 0.1 * stain) * (1.0 - 0.25 * tide);
+  h += 0.15 * cockle - 0.15 * fold; r += 0.04 * scuff; ao *= 1.0 - 0.2 * fold;
   if (V < 0.5) {
     // kraft board: the flutes under the liner show as soft ridges along u
     float fl = 0.5 + 0.5 * cos(2.0 * MS_PI * u.y / msSnap(msB.x));
@@ -1098,7 +1214,7 @@ MsS ms_wood(vec2 u){
   // relief: weathering wears the soft earlywood, the latewood stands proud (raised grain); fibres; a board cups
   float cup = (fy / bw - 0.5); cup = cup * cup * 4.0;
   float wavy = msFbm2(vec2(u.x, across) + bb.yz * 2.0, vec2(2.0, 22.0), 3);
-  float h = 0.6 + (0.04 + 0.12 * age) * late + 0.05 * fib - 0.4 * cup * (0.3 + age) + 0.08 * knot - 0.12 * streak * age + 0.4 * wavy + 0.25 * msFbm(u + bb.xz * 5.0, 5.0, 3);
+  float h = 0.6 + (0.08 + 0.2 * age) * late + 0.3 * fib + 0.1 * msFbm2(vec2(u.x, across) + bb.zy * 4.0, vec2(3.0, 70.0), 3) - 0.4 * cup * (0.3 + age) + 0.08 * knot - 0.12 * streak * age + 0.06 * wavy + 0.04 * msFbm(u + bb.xz * 5.0, 5.0, 3);
   float ao = 1.0;
   // checks: cracks along the grain, of random length, opening at the board ends
   vec4 ck = msCell2(vec2(u.x, across) + bb.zy, vec2(0.5, 1.0 / max(bw * 0.25, 0.01)), 1.0);
@@ -1118,8 +1234,15 @@ MsS ms_wood(vec2 u){
   if (V > 4.5) { h += 0.12 * msFbm2(u, vec2(8.0, 90.0), 3); r = max(r, 0.82); }   // rough-sawn
   // use and age: dents, gouges along the grain, nails with a rust halo near the board ends and at the joists
   if (age > 0.0 && !(V > 3.5 && V < 4.5)) {
-    vec4 dn = msCell(u + b.xy * 3.0, 14.0, 1.0);
-    float dent = (1.0 - smoothstep(0.0, 0.22, dn.x + 0.15 * msFbm(u, 80.0, 2))) * step(1.0 - 0.1 * age, dn.z) * msLod(0.01);
+    // dents and dings: knocks 3..15 mm, ragged (a warped distance), some drawn out along the grain, dirt in them
+    vec4 dn = msCell2(msWarp(u + b.xy * 3.0, 60.0, 0.004), vec2(9.0, 22.0), 1.0);
+    float dent = (1.0 - smoothstep(0.0, 0.18 + 0.2 * dn.w, dn.x + 0.25 * msFbm(u, 90.0, 2))) * step(1.0 - 0.45 * age, dn.z) * msLod(0.008);
+    // long scratches: dragged things, mostly along the boards (20..60 cm, a hair wide, broken), a few across
+    float sA = msFbm2(u + 2.7, vec2(1.6, 70.0), 2), sB = msFbm2(u + 5.1, vec2(55.0, 2.2), 2);
+    float scr = (1.0 - smoothstep(0.0, 0.025, abs(sA))) * smoothstep(0.55, 0.75, msFbm2(u + 8.0, vec2(3.0, 9.0), 2) * 0.5 + 0.5)
+              + 0.7 * (1.0 - smoothstep(0.0, 0.02, abs(sB))) * smoothstep(0.62, 0.8, msFbm2(u + 4.0, vec2(9.0, 3.0), 2) * 0.5 + 0.5);
+    scr = clamp(scr, 0.0, 1.0) * age * msLod(0.006);
+    col *= 1.0 + 0.6 * scr; h -= 0.3 * scr; r += 0.08 * scr;
     float gouge = smoothstep(0.8, 0.86, msFbm2(u + bb.zx * 5.0, vec2(5.0, 160.0), 2) * 0.5 + 0.5) * age * msLod(0.002);
     float js = msSnap(0.6);                                          // joists under the boards every ~60 cm
     float jx = mod(u.x + 0.5 * js, js) - 0.5 * js;
@@ -1127,19 +1250,19 @@ MsS ms_wood(vec2 u){
     float nd = length(nq), nOn = step(0.3, age) * (ply ? 0.0 : 1.0) * step(0.2, fract(b4.x * 7.0 + floor(u.x / js) * 0.37));
     float nail = (1.0 - smoothstep(0.0022, 0.003 + msFP, nd)) * nOn;
     float halo = (1.0 - smoothstep(0.003, 0.012 + 0.008 * b4.z, nd * (0.8 + 0.4 * (msFbm(u, 90.0, 2) * 0.5 + 0.5)))) * nOn * (1.0 - nail);
-    col *= (1.0 - 0.15 * dent) * (1.0 - 0.45 * gouge);
+    col *= (1.0 - 0.4 * dent) * (1.0 - 0.45 * gouge);
     col = mix(col, col * vec3(0.7, 0.5, 0.35), halo * 0.8);
     col = mix(col, msRustCol(0.35 + 0.3 * b4.z) * 0.8, nail);
     h += 0.06 * nail - 0.25 * dent - 0.15 * gouge; ao *= (1.0 - 0.3 * dent);
     r += 0.06 * dent; r = mix(r, 0.75, nail);
   }
-  if (V > 3.5 && V < 4.5) { r = msA.a + 0.03 * fib; }                         // varnished: one smooth film
+  if (V > 3.5 && V < 4.5) { r = msA.a + 0.03 * fib; h = 0.6 + 0.45 * (h - 0.6); }   // varnished: one smooth film over the grain
   // gaps between boards (deep, dark) and butt joints; the arrises rounded and worn
   float gap = msB.z * 0.5;
   float ee = min(min(fy, bw - fy), ply ? 1.0 : min(fx, bl - fx));
   float joint = 1.0 - smoothstep(gap, gap + msFP + 0.0004, ee);
   float arris = (1.0 - smoothstep(gap, gap + 0.003 + 0.009 * age * (0.6 + 0.4 * (msFbm(u, 20.0, 2) * 0.5 + 0.5)), min(fy, bw - fy))) * (1.0 - joint);
-  col *= (1.0 - 0.85 * joint) * (1.0 - 0.15 * arris); h = mix(h - 0.4 * arris * arris, 0.0, joint); ao *= 1.0 - 0.8 * joint - 0.2 * arris;
+  col *= (1.0 - 0.85 * joint) * (1.0 - 0.15 * arris); h = mix(h - 0.7 * arris * arris, 0.0, joint); ao *= 1.0 - 0.8 * joint - 0.2 * arris;
   if (V > 1.5 && V < 2.5) {
     // painted: the film cracks along the grain and flakes, grey wood underneath
     float pn = msFbm2(u + 7.0, vec2(3.0, 18.0), 4) * 0.6 + late * 0.25 + arris * 0.4;
@@ -1166,8 +1289,15 @@ MsS ms_bamboo(vec2 u){
   float fibre = msFbm2(u + b.yz * 3.0, vec2(3.0, 500.0), 2) * msLod(0.0015);
   vec3 col = msA.rgb * (0.85 + 0.3 * b.y) * (0.94 + 0.06 * fibre) * mix(vec3(1.0), vec3(0.8, 0.82, 0.7), node * 0.8);
   col *= 1.0 - 0.25 * smoothstep(0.3, 0.8, msFbm2(u + b.zx, vec2(2.0, 10.0), 2)) * msW.x;   // dark mottle with age
-  float h = 0.15 + 0.75 * prof + 0.08 * ridge + 0.03 * fibre;
-  float r = msA.a + 0.06 * fibre + 0.1 * node;
+  // the skin: faint long stripes along the culm, a dark scar ring under each node (the sheath's), splits along the
+  // grain, the wax worn off in patches (duller, paler)
+  float stripe = msFbm2(u + b.xy * 5.0, vec2(1.0, 120.0), 2);
+  float scar = msLine((nx - 0.5) * ns + 0.012, 0.004);
+  float split = msLine(msFbm2(u + b.zx * 7.0, vec2(1.5, 1.0 / w), 2) * w * 0.3, 0.0004) * step(0.6, b.z) * msLod(0.003);
+  float dull = smoothstep(0.5, 0.8, msFbm(u + b.yx * 3.0, 4.0, 3) * 0.5 + 0.5);
+  col *= (1.0 + 0.08 * stripe) * (1.0 - 0.35 * scar) * (1.0 - 0.6 * split) * (1.0 + 0.1 * dull);
+  float h = 0.15 + 0.75 * prof + 0.08 * ridge + 0.03 * fibre + 0.03 * stripe - 0.2 * split;
+  float r = msA.a + 0.06 * fibre + 0.1 * node + 0.2 * dull + 0.1 * scar;
   float ao = 0.5 + 0.5 * smoothstep(0.0, 0.25, prof);
   return MsS(col, clamp(r, 0.04, 1.0), clamp(h, 0.0, 1.0), 0.0, ao);
 }`,
@@ -1215,7 +1345,8 @@ MsS ms_leather(vec2 u){
   carbonFibre: /* glsl */ `
 MsS ms_carbonFibre(vec2 u){
   float w = msSnap(msB.x);
-  vec2 q = u / w, c = floor(q), f = fract(q);
+  // tows never lie quite straight (a slow wander of the weave), resin pools a hair glossier and darker
+  vec2 q = (u + 0.25 * w * vec2(msFbm(u, 6.0, 2), msFbm(u + 3.0, 6.0, 2))) / w, c = floor(q), f = fract(q);
   // 2x2 twill: a tow goes over two and under two, shifted one per row
   float over = step(mod(c.x - c.y, 4.0), 1.5);
   float k = msLod(w);
@@ -1227,7 +1358,9 @@ MsS ms_carbonFibre(vec2 u){
   vec3 col = msA.rgb * mix(1.0, 0.8 + 0.4 * crown + 0.15 * (over - 0.5), k);
   vec3 tw = mgHash3(vec3(mod(c, vec2(msT / w)), msSeed));             // each tow a little apart (resin, tension)
   col *= 0.94 + 0.12 * tw.x;
-  float r = msA.a + mix(0.0, 0.15 * (1.0 - crown), k) + 0.04 * (tw.y - 0.5);
+  float pool = smoothstep(0.6, 0.9, msFbm(u + 5.0, 9.0, 3) * 0.5 + 0.5);
+  col *= 1.0 - 0.2 * pool;
+  float r = msA.a + mix(0.0, 0.15 * (1.0 - crown), k) + 0.04 * (tw.y - 0.5) - 0.08 * pool;
   return MsS(col, clamp(r, 0.04, 1.0), clamp(h, 0.0, 1.0), 0.0, 1.0);
 }`,
 
@@ -1236,8 +1369,11 @@ MsS ms_carbonFibre(vec2 u){
 MsS ms_ceramic(vec2 u){
   float V = msX.z;
   float m1 = msFbm(u, 4.0, 3), fine = msFbm(u + 2.0, 250.0, 2) * msLod(0.003);
-  vec3 col = msA.rgb * (0.96 + 0.06 * m1);
-  float r = msA.a, h = 0.5 + 0.06 * m1;
+  // the glaze runs and pools (thicker: deeper tone), iron specks from the clay come through, the surface waves
+  float pool = smoothstep(0.2, 0.8, msFbm2(u + 2.0, vec2(6.0, 2.0), 3) * 0.5 + 0.5);
+  vec2 sp = msSpeck(u + 6.0, 90.0, 0.06, 0.25, 1.0);
+  vec3 col = msA.rgb * (0.96 + 0.06 * m1) * mix(vec3(1.0), vec3(0.85, 0.82, 0.8), pool * 0.6) * (1.0 - 0.5 * sp.x);
+  float r = msA.a, h = 0.5 + 0.06 * m1 + 0.12 * msFbm(u + 4.0, 5.0, 3);
   if (V > 0.5 && V < 1.5) { h += 0.3 * fine; r = max(r, 0.7) + 0.05 * fine; col *= 0.95 + 0.08 * fine; }
   // glaze: thicker in hollows (a darker pool), crazing network
   vec4 cz = msCell(u, 40.0, 1.0);
@@ -1267,11 +1403,22 @@ MsS ms_roofing(vec2 u){
     col = msA.rgb * (0.94 + 0.08 * m1 + 0.04 * m2); r = msA.a + 0.04 * m2; h = 0.5 + 0.05 * m2 + 0.15 * bead;
     col *= 1.0 + 0.15 * bead;
   } else {
-    vec4 pb = msCell(u, 40.0, 1.0);
-    float dome = sqrt(max(1.0 - pb.x * pb.x * 2.6, 0.0)), k = msLod(0.03);
-    col = msA.rgb * mix(0.6, 1.5, pb.z) * mix(vec3(1.0), vec3(0.75, 0.68, 0.6), step(0.8, pb.w)) * (0.9 + 0.2 * msFbm(u + pb.zw * 9.0, 60.0, 2));
-    col = mix(msA.rgb, col, k);
-    h = mix(0.5, 0.1 + 0.85 * dome, k); r = 0.82 - 0.1 * dome * k; ao = mix(1.0, 0.5 + 0.5 * dome, k);
+    // gravel: stones of three sizes (5..60 mm) scattered in a sandy matrix of fines, not a packed carpet of beads;
+    // each stone its own rock (grey, ochre, pale quartz, dark), the matrix compacted smooth in patches, darker there
+    float fines = msFbm(u + 1.0, 180.0, 2), pack = smoothstep(0.2, 0.7, msFbm(u + 6.0, 1.5, 3) * 0.5 + 0.5);
+    vec2 sd = msSpeck(u + 2.0, 260.0, 0.5, 0.45, 1.0);
+    col = msA.rgb * (0.85 + 0.12 * fines + 0.1 * msFbm(u + 3.0, 6.0, 3)) * mix(1.0, 0.7 + 0.7 * sd.y, sd.x * 0.6) * (1.0 - 0.15 * pack);
+    h = 0.3 + 0.04 * fines + 0.04 * sd.x - 0.05 * pack + 0.1 * msFbm(u + 4.0, 45.0, 3) * (1.0 - 0.6 * pack); r = 0.9 - 0.06 * pack;
+    for (int i = 0; i < 3; i++) {
+      float f = i == 0 ? 16.0 : i == 1 ? 38.0 : 90.0, share = (i == 0 ? 0.12 : i == 1 ? 0.3 : 0.45) * (1.0 - 0.5 * pack);
+      vec4 pb = msCell(msWarp(u + float(i) * 3.1, f * 0.5, 0.15 / f), f, 1.0);
+      float on = step(1.0 - share, pb.z) * msLod(1.0 / f);
+      float st = (1.0 - smoothstep(0.3 + 0.1 * pb.w, 0.42 + 0.1 * pb.w, pb.x)) * on, dome = sqrt(max(1.0 - pb.x * pb.x * 5.0, 0.0));
+      vec3 rk = pb.w < 0.45 ? vec3(0.85, 0.82, 0.78) : pb.w < 0.7 ? vec3(1.02, 0.82, 0.58) : pb.w < 0.85 ? vec3(1.0, 0.97, 0.92) : vec3(0.45);
+      col = mix(col, msA.rgb * rk * (0.75 + 0.25 * fract(pb.z * 13.0)) * (0.85 + 0.2 * dome), st);
+      h = mix(h, 0.35 + 0.6 * dome * (1.0 - 0.3 * float(i)), st); r = mix(r, 0.7 + 0.15 * fract(pb.w * 7.0), st);
+      ao *= 1.0 - 0.3 * on * (1.0 - smoothstep(0.42, 0.6, pb.x)) * (1.0 - st);   // the shadowed rim round each stone
+    }
   }
   col *= 1.0 - 0.4 * lap; h -= 0.2 * lap;
   return MsS(col, clamp(r, 0.04, 1.0), clamp(h, 0.0, 1.0), 0.0, ao);

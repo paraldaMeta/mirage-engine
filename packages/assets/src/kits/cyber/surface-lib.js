@@ -34,11 +34,13 @@ export function surfaceLib(ctx) {
     m.userData.surfaceKind = { kind: spec.kind, variant: spec.variant };
     return m;
   };
-  // painted steel in any colour from one bake per variant: a mid-grey set tinted by the material's colour (the rust and
-  // the primer take the tint too, which is why the tints are muted colours)
+  // painted steel in any colour from one bake per variant: a mid-grey set tinted by the material's colour. Only the
+  // paint takes the tint: in the grey bake the paint is the neutral part, so rust and primer (coloured) and bare steel
+  // (metal) are divided back out of it (no blue rust on blue paint)
+  const UNTINT = '{ float mx = max(msAlb.r, max(msAlb.g, msAlb.b)); float k = max(smoothstep(0.1, 0.3, (mx - min(msAlb.r, min(msAlb.g, msAlb.b))) / max(mx, 1e-3)), msM);\n  msAlb *= mix(vec3(1.0), 1.0 / max(diffuseColor.rgb, vec3(0.02)), k); }';
   const painted = (color, { variant = 'sheet', side, size = 'mid', ...o } = {}) => surf(
     SURFACES.paintedMetal({ variant, color: [0.4, 0.4, 0.4], chips: 0.3, rust: 0.22, streaks: 0.35 }),
-    { size, ...o, params: { color: new THREE.Color().setRGB(color[0] / 0.4, color[1] / 0.4, color[2] / 0.4), ...(side ? { side } : {}) } });
+    { size, ...o, params: { color: new THREE.Color().setRGB(color[0] / 0.4, color[1] / 0.4, color[2] / 0.4), ...(side ? { side } : {}) } }, { post: UNTINT });
   // light-coloured sets shared by every part of that make, the part's colour a tint (one bake each): 'plastic',
   // 'coat' (satin powder coat), 'board' (cardboard), 'sawn' (sawn wood). shade(kind, rgb, options)
   const LIGHT = {
