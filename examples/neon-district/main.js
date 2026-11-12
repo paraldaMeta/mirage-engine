@@ -27,7 +27,7 @@ import { setupGame, objective, summary, VERSION, T } from './game/index.js';
 import { mirrorLayer, distanceCull, MIRROR_LAYER } from './perf.js';
 
 performance.mark('nd:eval');
-if (!location.search.includes('world=')) loadRapier().catch(() => {});   // the wasm compiles while the world builds (createPhysics shares this promise)
+if (!location.search.includes('world=')) loadRapier().then(() => performance.mark('nd:rapier'), () => {});   // the wasm compiles while the world builds (createPhysics shares this promise)
 const Q = new URLSearchParams(location.search);
 const W = +Q.get('w') || innerWidth, H = +Q.get('h') || innerHeight;
 const canvas = document.querySelector('canvas');
@@ -210,6 +210,7 @@ const world = createWorldRenderer({
 });
 
 performance.mark('nd:renderer');
+{ const prepare = world.prepare; world.prepare = async (...a) => { performance.mark('nd:prepare0'); const r = await prepare(...a); performance.mark('nd:prepare1'); return r; }; }
 // detail: how much optional dressing the modules build (crowds, traffic, balcony life, the far skyline): phones stay light
 const shared = { quality: on('shadows') ? quality : 'low', tier: quality, gi: !!lighting.gi, detail: Q.has('detail') ? +Q.get('detail') : { low: 0.4, medium: 0.8, high: 1 }[quality] ?? 1 };
 const skip = (Q.get('skip') || '').split(',');                                                     // ?skip=aerial,grime: build without those modules (A/B timing)
@@ -286,7 +287,7 @@ if (Q.has('world')) {   // the district alone: walk, fly, orbit (stills, the wor
   g = await startGame(world, {
     built, canvas, id: plan.name, version: VERSION, title: T.title, subtitle: T.subtitle,
     spp, shadowRadius: 34, fit: !Q.get('w'), quality, hud, idle: 0,
-    setup: (ctx) => { game = setupGame(ctx, { built, shared, vfx, Q, quality, relight, setHour, hour: () => hour }); },
+    setup: (ctx) => { performance.mark('nd:setup0'); game = setupGame(ctx, { built, shared, vfx, Q, quality, relight, setHour, hour: () => hour }); performance.mark('nd:setup1'); },
     objective, summary,
   });
   play = g.play;
@@ -298,8 +299,9 @@ if (Q.has('world')) {   // the district alone: walk, fly, orbit (stills, the wor
   const gi = world.lighting?.gi;
   if (gi && !Q.has('start')) g.game.on('start', () => { gi.cfg.budget = 0; gi.cfg.pace = 2; });   // a player's first bake takes what the frame can spare; ?start=1 (automation) keeps the fast one
   performance.mark('nd:title');
+  window.__ndInfo = { programs: world.renderer.info.programs?.length };
   document.getElementById('boot')?.remove();
-  if (Q.has('start')) g.ui.begin();
+  if (Q.has('start') || window.__ndTap) g.ui.begin();   // (a tap on the loading card counts)
 }
 // the frame budget (perf.js, NOTES.md "Frame budget"): the close-up props (modelled for a look from a metre: cans,
 // bottles, keys, bolts, goods) stay out of the wet street's mirror, with the view model (?mirrorall=1 puts them back);
