@@ -309,11 +309,11 @@ MsS ms_brick(vec2 u){
   float tex = msFbm(u + b.xz * 6.0, 40.0, 3), sand = msFbm(u + 2.0, 220.0, 2);
   vec2 pit = msSpeck(u, 140.0, 0.1 + 0.15 * ero, 0.3, 3.1);
   float cr = smoothstep(0.35, 1.0, crink);
-  float rel = ero * (0.005 * tex + 0.007 * crink - 0.005 - 0.003 * crev) + 0.0006 * sand - 0.04 * spall - 0.008 * pit.x;
+  float rel = ero * (0.04 * tex + 0.06 * crink - 0.04 - 0.024 * crev) + 0.004 * sand - 0.06 * spall - 0.012 * pit.x;
   float hf = 0.8 + 0.05 * (b2.y - 0.5) + tilt + rel;
   col *= (1.0 + ero * (0.32 * fac + 0.3 * cr - 0.15 + 0.22 * tex)) * (1.0 - 0.3 * ero * crev) * (1.0 + 0.08 * sand) * (1.0 - 0.15 * pit.x);
   col = mix(col, col * vec3(1.12, 1.06, 1.0), spall * 0.7);
-  float h = mix(0.32, hf, face);
+  float h = mix(0.92 - 0.6 * msB.w, hf, face);                         // the arris rolls down to just under the joint
   col = mix(col * vec3(1.08, 1.06, 1.02), col, face);                 // the worn arris: paler, rougher
   float r = msA.a + 0.06 * (b.y - 0.5) - 0.12 * step(1.0 - msC.a, b2.z) + 0.05 * sand + 0.06 * spall;
   float ao = 1.0 - 0.35 * pit.x;
@@ -324,7 +324,7 @@ MsS ms_brick(vec2 u){
   float mrel = msFbm(u + 3.0, 50.0, 3), mtone = msFbm(u + 6.0, 25.0, 3);
   // dirty: darker at the brick (shadowed, the grime washed into the corner), blotched, sand grains
   vec3 mc = msC.rgb * (0.92 + 0.22 * mtone) * mix(1.0, 0.75 + 0.6 * sg.y, sg.x) * (0.62 + 0.38 * smoothstep(0.0, 0.007, sd)) * (0.8 + 0.3 * (msFbm(u + 1.0, 9.0, 3) * 0.5 + 0.5));
-  float hm = 1.0 - 0.6 * msB.w + 0.02 * mrel + 0.015 * sg.x - 0.06 * (1.0 - smoothstep(0.0, 0.006, sd));
+  float hm = 1.0 - 0.6 * msB.w + 0.002 * mrel;   // (the grains a fraction of a mm proud: the scan's joints read flat)
   col = mix(col, mc, mort); r = mix(r, 0.92, mort);
   h = mix(h, max(hm, h * smear), mort);
   ao *= 1.0 - 0.12 * mort * (1.0 - sg.x) * (1.0 - smoothstep(0.0, 0.01, sd));
