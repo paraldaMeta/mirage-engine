@@ -50,7 +50,7 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
     get id() { return cur; },
     cool: 0, bloom: 0, reloading: 0, reloadLen: 0, reloadStep: '', ads: 0, kick: 0, roll: 0, rollSign: 1, fovPunch: 0, debtP: 0, debtY: 0, markP: 0, markY: 0, flashT: 0, sprint: 0, draw: 1,
     fire: false, fireWas: false, aim: false, wantReload: false, lastYaw: 0, lastPitch: 0, walked: 0, fov: GUN.fov, lean: 0, wantLean: 0, jab: 0, boost: false, burst: 0, sinceShot: 9,
-    spin: 0, heat: 0, vent: false, firing: false, switching: null, autoReload: 0, tuck: 0, swayX: 0, swayY: 0, shake: 0, flinchP: 0, flinchY: 0, dip: 0, pumpT: 0, slideT: 0, magOutAt: 0, reloadSaid: 0,
+    spin: 0, heat: 0, vent: false, firing: false, switching: null, autoReload: 0, tuck: 0, swayX: 0, swayY: 0, shake: 0, flinchP: 0, flinchY: 0, dip: 0, pumpT: 0, slideT: 0, reloadSaid: 0,
   };
   let play = null, grid = null, rnd = 0x1234567, unlocked = false, refillAt = -1e9;
   // the comfort values (feel.js COMFORT), read where they act; without them (opts {}) the old feel, factor 1

@@ -28,7 +28,7 @@ const CSS = `
 @keyframes ndm-pulse{0%,100%{transform:scale(1) translateY(0)}45%{transform:scale(1.07) translateY(-2%)}60%{transform:scale(.99) translateY(0)}}
 `;
 // the owner's handle and contact, as given (not translated, not in text.js)
-export const END_LINES = ['AI乐子人灰叔', '+vx tamtamjun'];
+const END_LINES = ['AI乐子人灰叔', '+vx tamtamjun'];
 
 export function createCallouts() {
   const root = document.createElement('div');

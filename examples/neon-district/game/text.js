@@ -551,7 +551,7 @@ export const LANG_NAMES = { zh: '繁體中文', en: 'English', ja: '日本語' }
 /** the tag on <html lang>: the browser picks the Han glyphs by it (Traditional for zh, Japanese forms for ja) */
 export const HTML_LANG = { en: 'en', zh: 'zh-Hant-TW', ja: 'ja' };
 /** the CJK faces after the Latin ones, per language (set as --nd-cjk on the root; the CSS uses it in its stacks) */
-export const CJK_FONTS = {
+const CJK_FONTS = {
   en: '"PingFang TC","Hiragino Sans","Noto Sans TC","Noto Sans JP"',
   zh: '"PingFang TC","Noto Sans TC","Noto Sans CJK TC","Microsoft JhengHei","Heiti TC"',
   ja: '"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Noto Sans CJK JP","Yu Gothic","YuGothic","Meiryo"',

@@ -33,7 +33,7 @@ export { T, lang };
 // the modes and the difficulty (kept in the settings; ?mode= and ?difficulty= set them for one visit)
 export const MODES = ['mission', 'holdout'], DIFFS = ['standard', 'hard', 'brutal'], TITLE_HOURS = ['night', 'dusk', 'day'];
 /** factors on the damage the player takes, the enemies' health and their accuracy */
-export const TUNE = { standard: { dmg: 1, hp: 1, acc: 1 }, hard: { dmg: 1.4, hp: 1.3, acc: 1.15 }, brutal: { dmg: 2, hp: 1.6, acc: 1.35 } };
+const TUNE = { standard: { dmg: 1, hp: 1, acc: 1 }, hard: { dmg: 1.4, hp: 1.3, acc: 1.15 }, brutal: { dmg: 2, hp: 1.6, acc: 1.35 } };
 // the holdout: sentinels come from the stair foot and the relay room, kites out of the air over the plaza
 const STAIR_FOOT = [[24.5, 0.16, -22], [26.2, 0.16, -22.2], [20, 0.16, -26], [16, 0.16, -22], [19, 0.16, -22.6], [12, 0.16, -27]];
 const SKY = [[13, 10.5, -17], [19, 11, -16], [16, 10, -10], [23, 10.5, -11], [10, 10, -8]];
@@ -74,11 +74,8 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
   // what a round can hit: the nearer of a sentinel and a kite; a hit knows whose it is (hit.owner.damage)
   const targets = { rayHit(o, d, max) { const a = enemies.rayHit(o, d, max), b = drones.rayHit(o, d, max); return a && b ? (a.t < b.t ? a : b) : a || b; }, noise: (p, r) => { enemies.noise(p, r); world.scene.getObjectByName('machines')?.userData.disturb?.(p, 8); } };   // the queue at the drink machine turns round to stare
   const wake = (zone) => { enemies.wake(zone, player.feet); drones.wake(zone); };
-  // the player's own settings (kept with the key bindings and volumes, not in a save)
-  // touch: its own look sensitivity, the buttons' opacity and size, the left FIRE, the sprint lock
-  // feel: vibration (0-1) and the comfort preset with its values (feel.js COMFORT: shake, bob, punch, roll, kick,
-  // settle, hit-stop, blur, flashes); prefers-reduced-motion: the comfort preset with the flashes down.
-  // Kept settings are cleaned (an old or hand-edited one: NaN, strings, out of range) before use.
+  // the player's own settings (kept with the key bindings and volumes, not in a save), cleaned before use (NaN, strings,
+  // out of range); feel.js COMFORT holds the comfort preset; prefers-reduced-motion picks it with the flashes down.
   const calm = !!globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   const coarse = !!globalThis.matchMedia?.('(pointer: coarse)').matches;
   const opts = cleanOptions(game.settings.nd, { reduced: calm, touch: coarse });

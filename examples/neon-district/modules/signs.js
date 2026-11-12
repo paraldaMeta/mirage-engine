@@ -9,7 +9,7 @@ import { lamp, signTexture, decor } from './lib.js';
 import { recorder, track, trackLamps } from '@miragekit/assets/kits/cyber';
 
 /** the owner's five wall signs (never break: game/destruct.js registers them protected, tagged `owner`) */
-export const ownerSign = (text) => /视频号|他抄由他抄/.test([].concat(text).join(''));
+const ownerSign = (text) => /视频号|他抄由他抄/.test([].concat(text).join(''));
 
 const hex = ([r, g, b]) => '#' + [r, g, b].map((v) => Math.round(255 * Math.pow(v, 1 / 2.2)).toString(16).padStart(2, '0')).join('');
 
