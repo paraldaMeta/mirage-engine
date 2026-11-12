@@ -16,7 +16,8 @@ that is not listed (`scripts/check-imports.mjs`, over source, examples and docs)
 other value names than its module exports (`scripts/check-types.mjs`). The subpaths a world normally needs:
 
 - the world kits `@miragekit/world/kits/vegetation`, `/kits/terrain`, `/kits/water`, `/kits/rain`, `/kits/splat` and
-  `/kits/fur` (experimental), documented in the world README;
+  `/kits/fur` (experimental), documented in the world README, and the 2.5D kits `/kits/cutaway` and `/kits/edge`
+  (experimental, [sprites-25d.md](sprites-25d.md));
 - `@miragekit/core/rng`, `@miragekit/core/geom`, `@miragekit/world/plan`;
 - `@miragekit/core/export` (`exportWorld`, experimental: [export.md](export.md)), `@miragekit/core/assets`
   ([import.md](import.md)) and `@miragekit/core/ktx2` (`createKTX2Loader(renderer, { transcoderPath, workers })`,
@@ -198,6 +199,14 @@ Gaussian splats, `@miragekit/world/kits/splat` (opt-in subpath, world README "Ga
 | `splatEffects.reveal(options)`, `splatEffects.dissolve(options)` | experimental | built-in effects (GLSL hooks on centre, rotation / scale and colour), driven by `progress` |
 | `splatSorter()`, `packSplats(data, row)`, `splatBounds(data)` | experimental | the depth sort (the worker's code), the texture packing and the data bounds, for tests and tools |
 
+The 2.5D kit's world pieces, `@miragekit/world/kits/cutaway` and `@miragekit/world/kits/edge` (opt-in subpaths,
+[sprites-25d.md](sprites-25d.md)):
+
+| export | stability | what it is |
+|---|---|---|
+| `createCutaway({ radius, near, far, below })` | experimental | a see-through hole between the camera and a target in the materials marked with it: `hooks(h)`, `apply(mat, material)`, `set(x, y, z, r)`, `off()`, `hides(x, y, z, eye)` (the CPU test, for picking); shadows untouched |
+| `addPerimeter(ctx, bounds, { thickness, y0, y1 })`, `addBarrier(ctx, points, { thickness, y0, y1 })` | experimental | invisible collider walls inside the walk bounds and along a polyline, one mesh each |
+
 ## @miragekit/play
 
 | export | stability | what it is |
@@ -266,6 +275,16 @@ Gaussian splats, `@miragekit/world/kits/splat` (opt-in subpath, world README "Ga
 | `createRigCharacter(root, clips, { clipNames, layers, rootBone, footIK, look })` | experimental | an imported rigged model as the play character: `createPlay(world, { character: () => createRigCharacter(...) })`; set `ground` for foot placement, `lookTarget` for the head |
 | `createRigModel({ material, colors })` | experimental | a rigged humanoid authored in code (20 bones, 880 vertices, T-pose, nine clips with root motion and foot events): the test rig of the checks and the anim demo |
 | `RIG` | experimental | that rig's measures and clip speeds |
+| `spriteDirection(facing, yaw)`, `drawnDirection(dirs, dir)` | experimental | the 2.5D direction convention: the screen direction 0..7 of a facing seen from a camera yaw, and which drawn direction (mirrored or not) shows it ([sprites-25d.md](sprites-25d.md); also `@miragekit/play/sprites`) |
+| `parseAtlas(json, { width, height })` | experimental | check a sprite atlas.json against its image (throws listing every problem); `frame(name, dir, t)` -> the cell's texture rect, flip, index, done |
+| `createSpriteAnim(atlas)` | experimental | a sprite's animation state: `play(name, { restart, speed, onHit, onEnd })` (the atlas's `hit` frame as an event), `update(dt, dir)` |
+| `makePlaceholderAtlas(spec, { canvas })` | experimental | a placeholder atlas drawn in code in the same format (humanoid, blob, bird, crab, item; idle, walk, attack, hurt, die) |
+| `makeAtlas(json, image)`, `loadAtlas(url, { placeholder, fetch })` | experimental | an atlas with its texture; `loadAtlas` fetches atlas.json and its image, a placeholder when they are missing |
+| `createSpriteActor(world, atlas, { parent, shadow, shadowOpacity, silhouette, ground })` | experimental | a 2D figure in the lit world: a camera-facing card with a vertical card's depth, lit by the world's lights (patch() hooks), blob shadow, outline, flash, fade, see-through silhouette, `play`, `update(dt, yaw)`, `screenRect` for picking |
+| `createSpriteMaterial(world, atlas)`, `createSilhouetteMaterial(world, uniforms, { color, opacity })` | experimental | the actor's two materials on their own |
+| `createIsoCamera({ pitch, yaw, distance, min, max, ... })` | experimental | the 2.5D camera: fixed pitch, yaw, clamped zoom, a smoothed target; `bind(dom)` (right-drag, wheel, Q / E, two-finger twist and pinch) returns unbind; `apply(camera)` (also `@miragekit/play/iso-camera`) |
+| `pickWalkGrid(grid, ray, { nav, radius, skip })` | experimental | click to move: a screen ray's first walkable floor, marched through the walk grid (no mesh lists) (also `@miragekit/play/walk-pick`) |
+| `reachableGoal(nav, p, { radius, from, tryGoal })` | experimental | a reachable goal at or near a clicked point: the point, the floors under it, rings round its foot |
 
 ## @miragekit/game
 

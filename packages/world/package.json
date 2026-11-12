@@ -18,6 +18,8 @@
   "exports": {
     ".": { "types": "./src/index.d.ts", "default": "./src/index.js" },
     "./plan.schema.json": "./plan.schema.json",
+    "./kits/cutaway": { "types": "./src/kits/cutaway.d.ts", "default": "./src/kits/cutaway.js" },
+    "./kits/edge": { "types": "./src/kits/edge.d.ts", "default": "./src/kits/edge.js" },
     "./kits/fur": { "types": "./src/kits/fur.d.ts", "default": "./src/kits/fur.js" },
     "./kits/rain": { "types": "./src/kits/rain.d.ts", "default": "./src/kits/rain.js" },
     "./kits/splat": { "types": "./src/kits/splat.d.ts", "default": "./src/kits/splat.js" },
@@ -47,7 +49,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "node check.mjs && node vegetation.check.mjs && node landscape.check.mjs && node splat.check.mjs"
+    "test": "node check.mjs && node vegetation.check.mjs && node landscape.check.mjs && node splat.check.mjs && node cutaway.check.mjs"
   },
   "author": "灰叔 Racso"
 }

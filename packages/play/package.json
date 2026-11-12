@@ -1,7 +1,7 @@
 {
   "name": "@miragekit/play",
   "version": "1.0.0",
-  "description": "Mirage play: walk, fly, an isometric game view and orbit over a built world; collision from a walk grid baked from the geometry; progressive refinement when still; an embed API for games.",
+  "description": "Mirage play: walk, fly, an isometric game view and orbit over a built world; lit 2.5D sprite actors, an iso camera and click-to-move picking; collision from a walk grid baked from the geometry; progressive refinement when still; an embed API for games.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -20,6 +20,7 @@
     "./character": { "types": "./src/character.d.ts", "default": "./src/character.js" },
     "./character-model": { "types": "./src/character-model.d.ts", "default": "./src/character-model.js" },
     "./embed": { "types": "./src/embed.d.ts", "default": "./src/embed.js" },
+    "./iso-camera": { "types": "./src/iso-camera.d.ts", "default": "./src/iso-camera.js" },
     "./glyphs": { "types": "./src/glyphs.d.ts", "default": "./src/glyphs.js" },
     "./ik": { "types": "./src/ik.d.ts", "default": "./src/ik.js" },
     "./motion": { "types": "./src/motion.d.ts", "default": "./src/motion.js" },
@@ -28,8 +29,10 @@
     "./retarget": { "types": "./src/retarget.d.ts", "default": "./src/retarget.js" },
     "./rig-character": { "types": "./src/rig-character.d.ts", "default": "./src/rig-character.js" },
     "./rig-model": { "types": "./src/rig-model.d.ts", "default": "./src/rig-model.js" },
+    "./sprites": { "types": "./src/sprites.d.ts", "default": "./src/sprites.js" },
     "./timeline": { "types": "./src/timeline.d.ts", "default": "./src/timeline.js" },
     "./walker": { "types": "./src/walker.d.ts", "default": "./src/walker.js" },
+    "./walk-pick": { "types": "./src/walk-pick.d.ts", "default": "./src/walk-pick.js" },
     "./walkgrid": { "types": "./src/walkgrid.d.ts", "default": "./src/walkgrid.js" },
     "./xr": { "types": "./src/xr.d.ts", "default": "./src/xr.js" },
     "./xr-hands": { "types": "./src/xr-hands.d.ts", "default": "./src/xr-hands.js" },
@@ -50,7 +53,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "node check.mjs && node character.check.mjs && node nav.check.mjs && node navx.check.mjs && node mover.check.mjs && node xr.check.mjs && node xr2.check.mjs && node anim.check.mjs && node rig.check.mjs"
+    "test": "node check.mjs && node character.check.mjs && node nav.check.mjs && node navx.check.mjs && node mover.check.mjs && node xr.check.mjs && node xr2.check.mjs && node anim.check.mjs && node rig.check.mjs && node sprites.check.mjs"
   },
   "author": "灰叔 Racso",
   "types": "./src/index.d.ts"

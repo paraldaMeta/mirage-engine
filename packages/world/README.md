@@ -176,6 +176,22 @@ inside arcades and rooms wherever the box reaches (hide the mesh indoors). Remov
 Limits: no splashes, and no shelter: streaks fall inside arcades and rooms wherever the box reaches (hide the mesh
 indoors). Remove it with `mesh.removeFromParent()` and dispose its geometry and material.
 
+## Cutaway and map edges (2.5D, opt-in)
+
+```js
+import { createCutaway } from '@miragekit/world/kits/cutaway';
+import { addPerimeter, addBarrier } from '@miragekit/world/kits/edge';
+
+const cut = createCutaway({ radius: 1.9 });                         // shared by the modules (shared.cut)
+const wall = ctx.mat.std({ color }, cut.hooks(ctx.mat.PROC.plaster('vec3(1.0)')));
+addPerimeter(ctx, ctx.plan.bounds);                                 // the walk grid ends inside the bounds
+// each frame: cut.set(feet.x, feet.y + 1, feet.z);
+```
+
+For high cameras: a dithered see-through hole between the camera and the player in the marked materials (shadows
+untouched, one program for all; `cut.hides(x, y, z, eye)` for picking), and invisible collider walls, one mesh each.
+Guide: [docs/sprites-25d.md](../../docs/sprites-25d.md); `cutaway.check.mjs`.
+
 ## Gaussian splats
 
 ```js
