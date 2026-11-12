@@ -3,8 +3,10 @@
 // boots, a dark glass face plate with a soft white or blue status light, no weapons; the sentinels are carbon black
 // with red and amber sensors.
 //   pedestrian  a compact domestic humanoid (the kit's 'home' body at 0.82 scale); standing ones shift their weight and
-//               talk in pairs (heads turn, one gestures); walkers stroll a loop with a real gait (the stance foot stays
-//               where it landed: the cycle runs on the distance walked); some carry an umbrella, only while it rains
+//               talk in pairs (heads turn, one gestures); walkers stroll a loop on borrowed motion capture (motion-clips.js:
+//               the walk, played at the rate the distance walked asks for); a scared one jogs, a damaged one limps on
+//               (the broken walk), cross-faded (`group.userData.gait(id, 'walk' | 'jog' | 'broken')`); some carry an
+//               umbrella, only while it rains
 //   courier     a robot dog with a parcel box on its back, trotting the walkers' loop
 //   vendors     a humanoid upper body on a ceiling rail (the yakitori container) or a pedestal (the noodle cart)
 //   sweeper     a floor scrubber: a rounded hull, two disc brushes with bristle tufts, a squeegee, a lidar puck, a
@@ -17,7 +19,8 @@
 // `machineUnits(group)` (or the returned `units()`) lists every unit's batch instance ids and its body frame.
 import * as THREE from 'three';
 import { WET } from '@miragekit/core';
-import { humanoid, quadruped, quadrupedDims, mergeParts, moved, part, tf, cover, drum, decal, ext, robotMaterials, decalTexture, bipedLegs, trotLegs, legIK, GAITS, COL } from './robot-kit.js';
+import { humanoid, quadruped, quadrupedDims, mergeParts, moved, part, tf, cover, drum, decal, ext, robotMaterials, decalTexture, trotLegs, legIK, COL } from './robot-kit.js';
+import { motionClips, samplePose, MOTION_BONES } from './motion-clips.js';
 
 const FONT = '"PingFang TC", "Hiragino Sans", "Noto Sans TC", "Noto Sans JP", "Microsoft JhengHei", system-ui, sans-serif';
 const HP = Math.PI / 2, TAU = Math.PI * 2;
@@ -111,6 +114,15 @@ const SEG = [['Hips', null, [0, 0, 0]], ['Spine', 'Hips', [0, 0.13, 0]], ['Chest
   ['LeftUpLeg', 'Hips', [0.1, -0.03, 0]], ['LeftLeg', 'LeftUpLeg', [0, -0.42, 0]], ['LeftFoot', 'LeftLeg', [0, -0.42, 0]],
   ['RightUpLeg', 'Hips', [-0.1, -0.03, 0]], ['RightLeg', 'RightUpLeg', [0, -0.42, 0]], ['RightFoot', 'RightLeg', [0, -0.42, 0]]];
 const SEG_I = Object.fromEntries(SEG.map(([n], i) => [n, i]));
+// for the borrowed clips (on @miragekit/play's rig: the same bones and lengths, the arms out along +-x in its rest):
+// each segment's rig offset, its track, and the quarter turn about Z between a rig arm and the body's hanging one
+const RIG_OFF = SEG.map(([n, , off]) => (/(ForeArm|Hand)$/.test(n) ? [(n.startsWith('Left') ? 1 : -1) * -off[1], 0, 0] : off));
+const CLIP_I = SEG.map(([n]) => MOTION_BONES.indexOf(n)), HIPS_P = MOTION_BONES.length * 4;
+const ARM_R = SEG.map(([n]) => (/(Arm|Hand)$/.test(n) ? new THREE.Matrix4().makeRotationZ((n.startsWith('Left') ? 1 : -1) * Math.PI / 2) : null));
+const ARM_RI = ARM_R.map((m) => m && m.clone().invert());
+// a walker's gaits: [clip, weight] blends at a speed in the street (m/s); the jog's own stride is a sprinter's, so a
+// scared walker's run is half walk; walk's speed is the spec's
+const GAIT = { walk: [[1, 0, 0], 0], jog: [[0.45, 0.55, 0], 2.8], broken: [[0, 0, 1], 0.55] };
 const CIV_SCALE = 0.82;
 /** the home body's geometry per segment (shells, lights), its toes folded into its feet */
 function homeSegments(lod, kit) {
@@ -188,6 +200,53 @@ export function buildMachines(ctx, spec) {
       set(U, r.canopy, m4); set(G, r.rim, m4); set(S, r.shaft, m4);
     }
   }
+  // the borrowed walk, jog and broken walk, blended at one phase u (0..1 of each cycle)
+  const MC = motionClips().byName, WALKS = [MC.walk, MC.run, MC.brokenWalk], PA = new Float32Array(HIPS_P + 3), PB = new Float32Array(HIPS_P + 3);
+  function blendPose(w, u) {
+    let first = true;
+    for (let i = 0; i < 3; i++) {
+      if (w[i] < 0.01) continue;
+      samplePose(WALKS[i], u * WALKS[i].duration, first ? PA : PB);
+      if (first) { for (let j = 0; j < PA.length; j++) PA[j] *= w[i]; first = false; continue; }
+      for (let b = 0; b < HIPS_P; b += 4) { const sg = PA[b] * PB[b] + PA[b + 1] * PB[b + 1] + PA[b + 2] * PB[b + 2] + PA[b + 3] * PB[b + 3] < 0 ? -w[i] : w[i]; for (let c = 0; c < 4; c++) PA[b + c] += PB[b + c] * sg; }
+      for (let c = 0; c < 3; c++) PA[HIPS_P + c] += PB[HIPS_P + c] * w[i];
+    }
+    let ws = 0; for (let i = 0; i < 3; i++) if (w[i] >= 0.01) ws += w[i];
+    for (let b = 0; b < HIPS_P; b += 4) { const l = 1 / Math.hypot(PA[b], PA[b + 1], PA[b + 2], PA[b + 3]); for (let c = 0; c < 4; c++) PA[b + c] *= l; }
+    for (let c = 0; c < 3; c++) PA[HIPS_P + c] /= ws;
+    return PA;
+  }
+  /** pose a body from B and a rig pose (samplePose's layout): the rig's T-pose arms are the body's hanging ones turned
+   *  a quarter round Z, so the arm chain is worked in the rig's frame and turned back per segment. umb: the right
+   *  hand up holding the umbrella */
+  function poseClip(r, B, P, umb) {
+    for (let i = 0; i < SEG.length; i++) {
+      const [name, parent] = SEG[i], W = W4[i], o = RIG_OFF[i], b = CLIP_I[i];
+      q.set(P[b * 4], P[b * 4 + 1], P[b * 4 + 2], P[b * 4 + 3]);
+      if (!parent) W.copy(B).multiply(m4.compose(v.set(P[HIPS_P], P[HIPS_P + 1], P[HIPS_P + 2]), q, sc.setScalar(1)));
+      else {
+        // the parent's rig frame (an arm segment's own frame is its rig frame turned by ARM_R)
+        W.copy(W4[SEG_I[parent]]); if (ARM_R[SEG_I[parent]]) W.multiply(ARM_RI[SEG_I[parent]]);
+        W.multiply(m4.compose(v.set(o[0], o[1], o[2]), q, sc.setScalar(1)));
+        if (ARM_R[i]) W.multiply(ARM_R[i]);
+      }
+    }
+    if (umb) {   // as poseBody holds it
+      const i = SEG_I.RightArm, a = [0.55, 0.05, 0.2, 1.25];
+      W4[i].copy(W4[SEG_I.Chest]).multiply(m4.makeTranslation(-0.19, 0.15, 0)).multiply(R4.makeRotationZ(-(0.07 + a[1]))).multiply(m4.makeRotationX(-a[0])).multiply(m5.makeRotationY(-a[2]));
+      W4[i + 1].copy(W4[i]).multiply(m4.makeTranslation(0, -0.28, 0)).multiply(R4.makeRotationX(-a[3]));
+      W4[i + 2].copy(W4[i + 1]).multiply(m4.makeTranslation(0, -0.26, 0));
+    }
+    for (let i = 0; i < SEG.length; i++) set(S, r.shell[i], W4[i]);
+    for (const [i, id] of r.lights) set(G, id, W4[i]);
+    for (const [i, id] of r.decals) set(D, id, W4[i]);
+    if (r.canopy !== undefined) {
+      v.set(0, -0.1, 0.03).applyMatrix4(W4[SEG_I.RightHand]); const hp = v.clone();
+      e.setFromRotationMatrix(B, 'YXZ');
+      m4.compose(hp, q.setFromEuler(e.set(0.08, e.y, -0.1, 'YXZ')), sc.setScalar(CIV_SCALE));
+      set(U, r.canopy, m4); set(G, r.rim, m4); set(S, r.shaft, m4);
+    }
+  }
   const setLod = (r, d) => {
     const want = d > (r.lod === 2 ? LF - 4 : LF) ? 2 : d > (r.lod >= 1 ? LN - 2 : LN) ? 1 : 0;
     if (want === r.lod) return;
@@ -223,7 +282,7 @@ export function buildMachines(ctx, spec) {
     Wk.at = at; Wk.per = per;
     for (let i = 0; i < Wk.n; i++) {
       if (i === Wk.courier) { courier = { s0: per * i / Wk.n }; continue; }
-      walkers.push(Object.assign(body({ umb: i % 2 === 0, kind: 'walker' }), { s0: per * i / Wk.n }));
+      walkers.push(Object.assign(body({ umb: i % 2 === 0, kind: 'walker' }), { s0: per * i / Wk.n, gait: 'walk', w: [1, 0, 0], v: Wk.speed, ds: 0, uOff: 0 }));
     }
   }
   // ---- broken units: grimy, sat against a wall, an out-of-order sticker on the chest, the light flickering
@@ -319,11 +378,14 @@ export function buildMachines(ctx, spec) {
 
   // ---- the poses
   const camPos = new THREE.Vector3(), B = new THREE.Matrix4(), Bv = new THREE.Matrix4();
-  const legs = { hipY: 0, legs: [{}, {}] };
   let lastT = Infinity, raining = null;
   const update = (t) => {
     // a jump of the view (play.place sets the scene clock back to 0): the LODs are chosen afresh
-    if (t < lastT - 0.25) for (const r of [...robots, ...vendors, ...(cr ? [cr] : [])]) r.lod = -1;
+    if (t < lastT - 0.25) {
+      for (const r of [...robots, ...vendors, ...(cr ? [cr] : [])]) r.lod = -1;
+      for (const r of walkers) Object.assign(r, { gait: 'walk', w: [1, 0, 0], v: Wk.speed, ds: 0, uOff: 0 });   // where the clock says, walking
+    }
+    const dt = Math.min(0.1, Math.max(0, t - lastT));
     lastT = t;
     if (cam) camPos.setFromMatrixPosition(cam.matrixWorld);
     // umbrellas only while it rains (the day is dry)
@@ -344,16 +406,19 @@ export function buildMachines(ctx, spec) {
       breathe(r, t);
     }
     if (Wk && Wk.n > 0) {
-      const sp = Wk.speed, G0 = { ...GAITS.stroll, v: sp / CIV_SCALE, T: GAITS.stroll.v * GAITS.stroll.T / (sp / CIV_SCALE) };
-      const cyc = G0.v * G0.T * CIV_SCALE;   // metres a cycle covers in the street
+      // the walk's phase runs on the distance walked (its stance foot stays put); a jog or a limp covers the ground at
+      // its own pace, the extra distance and phase kept per walker (ds, uOff) so a plain walk is where the clock says
+      const sp = Wk.speed, walkCyc = MC.walk.speed * MC.walk.duration * CIV_SCALE, k = Math.min(1, dt * 2.5);
       for (const r of walkers) {
-        const s = t * sp + r.s0, [x, z, yaw] = Wk.at(s), ph = mod(s / cyc + r.seed, 1);
+        const g = GAIT[r.gait];
+        let cyc = 0;
+        for (let i = 0; i < 3; i++) { r.w[i] += (g[0][i] - r.w[i]) * k; cyc += r.w[i] * WALKS[i].speed * WALKS[i].duration * CIV_SCALE; }
+        r.v += ((r.gait === 'walk' ? sp : g[1]) - r.v) * k;
+        r.ds += (r.v - sp) * dt; r.uOff += (r.v * dt) / cyc - (sp * dt) / walkCyc;
+        const s = t * sp + r.s0 + r.ds, [x, z, yaw] = Wk.at(s), u = mod((t * sp + r.s0) / walkCyc + r.seed + r.uOff, 1);
         setLod(r, camPos.distanceTo(v.set(x, Wk.y + 1, z)));
         TR(B, x, Wk.y, z, 0, yaw, 0, CIV_SCALE);
-        bipedLegs(ph, G0, legs);
-        const c = Math.cos(TAU * ph), umb = r.canopy !== undefined && raining;
-        poseBody(r, B, { hipY: legs.hipY, sway: 0.02 * Math.cos(TAU * (ph - G0.duty / 2)), roll: -0.03 * Math.cos(TAU * (ph - G0.duty / 2)), yaw: 0.06 * Math.sin(TAU * ph), pitch: 0.03, legs: legs.legs,
-          head: [0.04, 0.2 * Math.sin(t * 0.3 + r.seed), 0], arms: [[-0.3 * c, 0.03, 0, 0.35 + 0.15 * Math.max(0, -c)], umb ? [0.55, 0.05, 0.2, 1.25] : [0.3 * c, 0.03, 0, 0.35 + 0.15 * Math.max(0, c)]] });
+        poseClip(r, B, blendPose(r.w, u), r.canopy !== undefined && raining && r.gait === 'walk');
         breathe(r, t);
       }
       if (cr) {   // the courier trots: its legs' cycle from the distance it covered
@@ -451,6 +516,8 @@ export function buildMachines(ctx, spec) {
     return out;
   };
   group.userData.units = units;
+  /** a walker's gait by its unit id ('walker-2'): 'walk', 'jog' (scared), 'broken' (damaged); cross-faded */
+  group.userData.gait = (id, g) => { const r = walkers[+(/^walker-(\d+)$/.exec(id)?.[1] ?? -1)]; if (r && GAIT[g]) r.gait = g; };
   group.userData.batches = { shell: S.mesh, lights: G.mesh, decals: D.mesh, canopy: U.mesh || null };
   let tris = 0; for (const b of [S, G, U, D]) for (const i of b.inst) tris += b.geos[i.geo].attributes.position.count / 3;
   return { group, update, units, count: stand.length + walkers.length + broken.length + vendors.length + (cr ? 1 : 0) + (sw ? 1 : 0) + (tt ? 1 : 0), tris: Math.round(tris) };

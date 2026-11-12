@@ -13,6 +13,7 @@
 | Texture `paving` (example only, `examples/hello-courtyard/tex/paving_c.webp`, `paving_n.webp`) | Poly Haven "cobblestone_floor_04" by Rob Tuytel — https://polyhaven.com/a/cobblestone_floor_04 | CC0 1.0 |
 | Texture `planks` (example only, `examples/hello-courtyard/tex/planks_c.webp`, `planks_n.webp`) | Poly Haven "weathered_planks" by Dario Barresi, Dimitrios Savva — https://polyhaven.com/a/weathered_planks | CC0 1.0 |
 | Texture `ground` (example only, `examples/hello-courtyard/tex/ground_c.webp`, `ground_n.webp`) | Poly Haven "dry_ground_01" by Rob Tuytel — https://polyhaven.com/a/dry_ground_01 | CC0 1.0 |
+| Robot motion capture (`packages/assets/src/kits/cyber/motion-data.js`: idle, walk, jog, crouch walk, zombie walk, two hits, a knockdown, a death; retargeted and re-encoded, the source files not in the repository) | Quaternius, "Universal Animation Library" and "Universal Animation Library 2" [Standard], from OpenGameArt — https://opengameart.org/sites/default/files/universal_animation_librarystandard.zip, https://opengameart.org/sites/default/files/universal_animation_library_2standard.zip (downloaded 2026-11-12) | CC0 1.0 (the `License.txt` in each archive) |
 | Showcase stills (`docs/media/showcase/*.jpg`, README only) | screenshots of 灰叔 Racso's own earlier project, cropped and compressed; no code, models or materials from it are in the repository | the author's own work, shown with permission |
 
 `examples/walled-garden` uses the same five sets (imported from `examples/hello-courtyard/tex`); everything else in
