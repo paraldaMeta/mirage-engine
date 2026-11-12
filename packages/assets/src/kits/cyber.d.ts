@@ -202,6 +202,13 @@ export const MOTION_BONES: readonly string[];
 export function motionClips(): { clips: THREE.AnimationClip[]; byName: Record<string, MotionClip> };
 /** The pose of a borrowed clip at t seconds (looped when the clip loops) into out (MOTION_BONES.length * 4 + 3 floats). */
 export function samplePose(clip: MotionClip, t: number, out: Float32Array): Float32Array;
+/** Behaviour clips for the rig: 'repair' (upper body), 'kneel', 'crawl', 'rise' (up off its back the wrong way). */
+export function behaviourClips(): THREE.AnimationClip[];
+/** The civilians' acts (buildMachines' pose parameters) and their length in seconds. */
+export const CIV_ACTS: readonly string[];
+export const ACT_LEN: number;
+/** Write act `name`, u s in, over pose parameters p; returns the probe tip's brightness (0: none). */
+export function civilianAct(name: string, u: number, t: number, seed: number, p: object): number;
 /** A robot dog on its own skeleton, posed in code. */
 export function createHound(options: { style: string; mats: Record<string, THREE.Material> }): any;
 

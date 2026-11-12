@@ -16,7 +16,7 @@ const NAMES = ['propKit', 'uvRect', 'tint', 'uvByHeight', 'hex', 'canGeo', 'bott
   'breakables', 'markBatch', 'sinceMark', 'track', 'breakablesLamp', 'trackLamps', 'recorder', 'surfaceLib', 'gasBottle', 'extinguisher',
   'tf', 'decalTexture', 'decalUV', 'robotSurfaces', 'robotMaterials', 'COL', 'part', 'mergeParts', 'moved', 'ext', 'drum', 'link', 'cover',
   'cable', 'decal', 'JOINTS', 'LEN', 'humanoid', 'humanoidRig', 'quadrupedDims', 'quadruped', 'legIK', 'bipedLegs', 'GAITS', 'trotLegs',
-  'humanoidMeshes', 'robotClips', 'CLIP_SPEED', 'createHound', 'motionClips', 'samplePose', 'MOTION_BONES', 'corrugated', 'canopy', 'WORN_DECL', 'worn', 'interiorMaterial', 'textAtlas', 'atlasQuad'];
+  'humanoidMeshes', 'robotClips', 'CLIP_SPEED', 'createHound', 'motionClips', 'samplePose', 'MOTION_BONES', 'behaviourClips', 'civilianAct', 'CIV_ACTS', 'ACT_LEN', 'corrugated', 'canopy', 'WORN_DECL', 'worn', 'interiorMaterial', 'textAtlas', 'atlasQuad'];
 for (const n of NAMES) ok(n in K, `exports ${n}`);
 ok(Object.keys(K).length === NAMES.length, `exports exactly the listed names (${Object.keys(K).length} vs ${NAMES.length})`);
 
@@ -49,5 +49,10 @@ ok(K.CAR_DESIGNS.length === 3 && K.CAR_DESIGNS.map((d) => d.name).join() === 'sl
 ok(K.legIK(0, -0.8, 0.42, 0.42).every(Number.isFinite), 'legIK: finite angles for a reachable foot');
 ok(K.hex('#ff0000', 2).join() === '2,0,0', 'hex: linear rgb times k');
 
+const bc = K.behaviourClips();
+ok(['repair', 'kneel', 'crawl', 'rise'].every((n) => bc.some((c) => c.name === n)), 'behaviourClips: repair, kneel, crawl, rise');
+ok(bc.every((c) => c.tracks.every((t) => Array.from(t.values).every(Number.isFinite))), 'behaviourClips are finite');
+{ const p = { head: [0, 0, 0], arms: [[0, 0, 0, 0.3], [0, 0, 0, 0.3]] }; for (const a of K.CIV_ACTS) for (const u of [0, 1, 2.5, 4.4]) K.civilianAct(a, u, u, 1.3, p); ok(p.arms.flat().every(Number.isFinite) && p.head.every(Number.isFinite), 'civilianAct keeps the pose finite'); }
 console.log(fails ? `cyber kit check: ${fails} failed` : 'cyber kit check: ok');
 process.exit(fails ? 1 : 0);
+
