@@ -30,7 +30,21 @@ const Q = new URLSearchParams(location.search);
 const W = +Q.get('w') || innerWidth, H = +Q.get('h') || innerHeight;
 const canvas = document.querySelector('canvas');
 canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
-const quality = Q.get('quality') || (await pickQuality()).quality;
+const picked = await pickQuality();
+const quality = Q.get('quality') || picked.quality;
+
+// ---- clarity (options panel, reloads): how many canvas pixels per CSS pixel. A phone's screen is 2.6-3.5x; drawing
+// 1x is why it looked soft. 'sharp' (a phone's default unless its GPU is weak) draws 1.5x and sharpens, 'max' 2x;
+// on a phone either lets the resolution drop while frames run late. A desktop stays at 1x unless chosen.
+const CLARITY_KEY = 'nd.clarity', CLARITY = ['standard', 'sharp', 'max'];
+const phone = !!globalThis.matchMedia?.('(pointer: coarse)').matches || /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
+const clarity = (() => {
+  const q = Q.get('clarity'); if (CLARITY.includes(q)) return q;
+  try { const s = localStorage.getItem(CLARITY_KEY); if (CLARITY.includes(s)) return s; } catch { /* no storage */ }
+  return phone && !/gpu/.test(picked.why) ? 'sharp' : 'standard';
+})();
+document.documentElement.dataset.clarity = clarity;
+const pixelRatio = Math.min(devicePixelRatio || 1, { standard: 1, sharp: 1.5, max: 2 }[clarity]);
 
 // ---- what each quality level turns on; a URL flag overrides one feature
 const TIER = {
@@ -107,7 +121,8 @@ const wetQ = (v) => Math.round(v * 20) / 20;   // in steps of 0.05: a wetness ch
 setWetness(Q.has('wet') ? +Q.get('wet') : wetQ(wx0.wet));
 setRain(Q.has('rain') ? +Q.get('rain') : (TIER.rain ?? 1) * wx0.rain);
 const world = createWorldRenderer({
-  quality, canvas, width: W, height: H, preserveDrawingBuffer: true,
+  quality, canvas, width: W, height: H, preserveDrawingBuffer: true, pixelRatio,
+  ...(phone && clarity !== 'standard' ? { dynamicRes: { target: 60, min: 0.6 } } : {}),
   place: { lat: 34, lon: 135, height: 20, tzHours: 9 },                                           // a generic mid-latitude coast, not a real city
   time: timeOf(Q.get('time')) || TIMES.night,
   // the hour's look, photographic: a neutral night (white street and shop light, coloured accents; the darks lifted
@@ -145,7 +160,7 @@ const world = createWorldRenderer({
     ...(F('lut') && !on('grade') ? { lut: lutTexture(lut), lutStrength: 1 } : {}),                    // the code-made LUT stands in when the grade is off
     godrays: on('godrays') ? 0.9 : 0, flare: on('flare') ? 0.8 : 0,
     // a dirty lens and anamorphic streaks off the signs; the threshold keeps sunlit ground out of both by day
-    lensDirt: F('dirt') || 0, lensDirtThreshold: 8, streak: F('streak') || 0, streakThreshold: 10, streakLength: 0.6, rcas: F('sharp') || 0,
+    lensDirt: F('dirt') || 0, lensDirtThreshold: 8, streak: F('streak') || 0, streakThreshold: 10, streakLength: 0.6, rcas: F('sharp') || (clarity === 'standard' ? 0 : 0.45),
     ssr2: on('ssr') ? 1 : 0, ssrRough: 0.5, ssgi: on('ssgi') ? 0.7 : 0, ssgiRange: 3, contact: on('contact') ? 1 : 0,
   },
 });

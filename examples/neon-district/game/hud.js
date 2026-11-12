@@ -121,6 +121,8 @@ export const ICON = {
 };
 const SLOTS = [['sidearm', 1], ['carbine', 2], ['shotgun', 3], ['rocket', 4], ['gatling', 5]];
 const hourValue = (h) => (h in HOURS ? HOURS[h] : (() => { const [a, b] = String(h).split(':'); return +a + (+b || 0) / 60; })());
+/** the clarity main.js chose (saved, ?clarity= or the device's default); a change is saved and reloads the page */
+const clarityNow = () => document.documentElement.dataset.clarity || 'standard';
 const hourText = (v) => `${String(Math.floor(v)).padStart(2, '0')}:${String(Math.round((v % 1) * 60)).padStart(2, '0')}`;
 
 export function createHud({ camera, onDispose, T }) {
@@ -192,6 +194,7 @@ export function createHud({ camera, onDispose, T }) {
       ${flip('invert', T.opt.invert)}
       ${flip('full', T.opt.full, v.fullscreen !== false)}
       ${flip('pops', T.opt.pops, v.pops === true)}
+      <label><span>${T.opt.clarity}</span><button data-b="clarity">${T.opt.clarityNames[clarityNow()]}</button></label>
       <label><span>${T.opt.lang}</span><button data-b="lang" lang="${HTML_LANG[lang]}">${LANG_NAMES[lang]}</button></label>
       <h3>${T.opt.feel}</h3><label><span>${T.opt.comfort}</span><button data-b="comfort">${T.opt.comfortNames[v.comfort] || T.opt.comfortNames.custom}</button></label>${range('shake', 0, 1.5, 0.05, T.opt.shake)}${range('vibrate', 0, 1, 0.05, T.opt.vibrate)}
       ${flip('hitStop', T.opt.hitStop, v.hitStop !== false)}
@@ -217,6 +220,7 @@ export function createHud({ camera, onDispose, T }) {
         else if (k === 'hitStop') { v[k] = v[k] === false; show(b, v[k]); o.onChange(k, v[k]); }
         else if (k === 'lang') o.onLang();   // the switch rebuilds this panel (relang) with values.lang from the game
         else if (k === 'comfort') { const L = ['comfort', 'standard', 'intense']; v.comfort = L[(L.indexOf(v.comfort) + 1) % 3]; b.textContent = T.opt.comfortNames[v.comfort]; o.onChange('comfort', v.comfort); }
+        else if (k === 'clarity') { const L = ['standard', 'sharp', 'max'], n = L[(L.indexOf(clarityNow()) + 1) % 3]; document.documentElement.dataset.clarity = n; try { localStorage.setItem('nd.clarity', n); } catch { /* no storage */ } b.textContent = T.opt.clarityNames[n]; setTimeout(() => location.reload(), 400); }
         else if (k === 'pops') { v.pops = v.pops !== true; show(b, v.pops); o.onChange('pops', v.pops); }
       });
     }
