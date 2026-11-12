@@ -24,7 +24,7 @@ const dist = path.resolve(args.find((a) => !a.startsWith('--')) || path.join(her
 const OUT = path.join(here, '../out/melee'), FR = path.join(OUT, 'frames'), STRIPS = !args.includes('--no-strips'), W = 1280, H = 720;
 fs.mkdirSync(FR, { recursive: true });
 const srv = await serve(dist), b = await launch({ w: W, h: H });
-const URL = `${srv.url}?w=${W}&h=${H}&start=1&grain=0&quality=medium&time=night&lang=en&fullscreen=0&drill=1`;
+const URL = `${srv.url}?w=${W}&h=${H}&start=1&grain=0&quality=medium&time=night&lang=en&fullscreen=0&drill=1&ending=1`;
 const fails = [], report = {}, strips = [];
 const ok = (c, m) => { if (!c) { fails.push(m); console.error('  FAIL ' + m); } else console.log('  ok   ' + m); };
 

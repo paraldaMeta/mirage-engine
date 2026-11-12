@@ -46,6 +46,7 @@ const HIT = {
 };
 const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 const NG_KEY = 'ndAlly';
+const Q = new URLSearchParams(globalThis.location?.search || ''), TEST = Q.has('start'), ENDING = Q.get('ending') === '1';
 
 export function createBoss(X) {
   const { game, player, vfx, sfx, R, list, ui, on, start, step, strikePlayer, strikeRobots, launch, slow, glint, trail, flag, MFX, plan, edgeMat } = X;
@@ -297,11 +298,13 @@ export function createBoss(X) {
     else if (!X.heavy?.barOn) ui.bar(null);
     if (ngRun && e.ally && !ngSaid && inArena(player.feet)) { ngSaid = true; say(e, 'roof'); }
     // the ending: after the story's closing card (12 s), the black card; then the next run
-    if (game.flags.closed && endT < 0) endT = 12.5;
+    // (the tests' runs, ?start=1, see it only with ?ending=1: it holds the screen until a key)
+    if (game.flags.closed && endT < 0 && (!TEST || ENDING)) endT = 12.5;
     if (endT > 0 && (endT -= dt) <= 0 && !endShown) {
       endShown = true; flag('endCards');
       if (!unlocked()) { game.settings[NG_KEY] = { unlocked: true }; try { game.saveSettings(); } catch { /* blocked */ } }
-      ui.endCard(() => { game.set('ngReady', true); if (!new URLSearchParams(location.search).has('start')) location.reload(); });
+      game.pause(true);   // the world holds still behind the card
+      ui.endCard(() => { game.set('ngReady', true); game.pause(false); if (!TEST) location.reload(); });
     }
   }
   /** the title's reset: the swordsman a foe again, the heavy chassis back to its rest, New Game+ off */

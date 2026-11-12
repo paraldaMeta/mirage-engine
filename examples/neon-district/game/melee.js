@@ -57,7 +57,8 @@ export function createMelee(ctx) {
     if (K.melee === 'heavy') return { extra: heavyParts(), key: 'bulwark' };
     return { extra: {}, key: 'melee-' + K.melee };
   }
-  const meshes = (g, mats) => { const o = new THREE.Group(); for (const [k, m] of mats) if (g[k]) { const x = new THREE.Mesh(g[k], m); x.castShadow = k !== 'l'; x.userData.occlude = false; x.userData.collide = false; x.name = 'robot-gun'; o.add(x); } return o; };
+  // (the blades and the scabbard cast no shadow: thin, and each would be drawn again in every lamp's shadow pass)
+  const meshes = (g, mats) => { const o = new THREE.Group(); for (const [k, m] of mats) if (g[k]) { const x = new THREE.Mesh(g[k], m); x.castShadow = false; x.userData.occlude = false; x.userData.collide = false; x.name = 'robot-gun'; o.add(x); } return o; };
   const KATANA = bladeParts('katana'), SABRE = bladeParts('sabre'), SAYA = scabbardParts();
   // the scabbard on the left hip, mouth forward and up a little, edge up (in the Hips bone's frame)
   const SAYA_POS = new THREE.Vector3(0.17, -0.03, 0.11);
@@ -202,6 +203,7 @@ export function createMelee(ctx) {
   /** the player thrown: horizontal (x, z) unit, speed m/s, lift m/s; the camera kicked */
   function launch(x, z, speed, up) {
     const b = player.body; if (!b) return;
+    if (assist) { speed *= 0.25; up *= 0.25; }   // the easy mode: a nudge, not a throw
     b.push = [x * speed, z * speed];
     if (up) { b.vy = up; b.onGround = false; }
     player.shake?.(Math.min(2.5, 0.4 + speed * 0.12));

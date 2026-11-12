@@ -255,7 +255,7 @@ const doorFront = (page) => page.evaluate(() => {
 if (want('touch')) {
   const b = await launch({ w: 844, h: 390, args: ['--autoplay-policy=no-user-gesture-required'] });
   const { page, errors } = await open(b, 'lang=en', { mobile: true });
-  const fits = await page.evaluate(() => { const r = (s) => document.querySelector(s).getBoundingClientRect(), m = r('.nt-main'), l = r('.nt-legend'), rows = [...document.querySelectorAll('.nt-row')].map((e) => e.getBoundingClientRect());
+  const fits = await page.evaluate(() => { const r = (s) => document.querySelector(s).getBoundingClientRect(), m = r('.nt-main'), l = r('.nt-legend'), rows = [...document.querySelectorAll('.nt-row:not([hidden])')].map((e) => e.getBoundingClientRect());
     return { inside: [m, l].every((b) => b.left >= 0 && b.top >= 0 && b.right <= innerWidth && b.bottom <= innerHeight), apart: l.left >= m.right || l.top >= m.bottom, rows: Math.min(...rows.map((b) => b.height)) }; });
   check('touch', 'the title fits a phone held sideways', fits.inside && fits.apart && fits.rows >= 34, JSON.stringify(fits));
   await phone(page, 667, 375); await sleep(300);
