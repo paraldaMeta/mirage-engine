@@ -1,4 +1,4 @@
-// Mirage original code. Node checks for the cyber kit (kits/cyber.js): the subpath exports what its header lists, the
+// Mirage original code. Node checks for the cyber kit (src/kits/cyber.js, @miragekit/assets/kits/cyber): the subpath exports what its header lists, the
 // product shapes are finite, stand on y = 0 and keep their uv inside the atlas cell they print from, the corrugated
 // sheet and the canopy have the size asked for, the material hooks compose, and the three car designs are there.
 // The canvas atlas, the builders that add to a batch and the robots need a DOM: examples/neon-district builds every
@@ -15,7 +15,8 @@ const NAMES = ['propKit', 'uvRect', 'tint', 'uvByHeight', 'hex', 'canGeo', 'bott
   'bollard', 'jersey', 'newsBox', 'bench', 'parkedCars', 'carMaterials', 'CAR_DESIGNS', 'rainBeads', 'buildMachines', 'machineUnits',
   'breakables', 'markBatch', 'sinceMark', 'track', 'breakablesLamp', 'trackLamps', 'recorder', 'surfaceLib', 'gasBottle', 'extinguisher',
   'tf', 'decalTexture', 'decalUV', 'robotSurfaces', 'robotMaterials', 'COL', 'part', 'mergeParts', 'moved', 'ext', 'drum', 'link', 'cover',
-  'cable', 'decal', 'JOINTS', 'LEN', 'humanoid', 'humanoidRig', 'quadrupedDims', 'quadruped', 'legIK', 'bipedLegs', 'GAITS', 'trotLegs', 'corrugated', 'canopy', 'WORN_DECL', 'worn', 'interiorMaterial', 'textAtlas', 'atlasQuad'];
+  'cable', 'decal', 'JOINTS', 'LEN', 'humanoid', 'humanoidRig', 'quadrupedDims', 'quadruped', 'legIK', 'bipedLegs', 'GAITS', 'trotLegs',
+  'humanoidMeshes', 'robotClips', 'CLIP_SPEED', 'createHound', 'corrugated', 'canopy', 'WORN_DECL', 'worn', 'interiorMaterial', 'textAtlas', 'atlasQuad'];
 for (const n of NAMES) ok(n in K, `exports ${n}`);
 ok(Object.keys(K).length === NAMES.length, `exports exactly the listed names (${Object.keys(K).length} vs ${NAMES.length})`);
 

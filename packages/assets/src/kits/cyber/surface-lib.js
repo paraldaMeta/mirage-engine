@@ -4,7 +4,7 @@
 // layout marks over it), painted (painted steel in any colour from one bake) and shade (light-coloured sets tinted per part).
 import * as THREE from 'three';
 import { withWet } from '@miragekit/core';
-import { SURFACES, SURFACE_KINDS, createSurfaces } from '@miragekit/assets/surfaces';
+import { SURFACES, SURFACE_KINDS, createSurfaces } from '../../surfaces/index.js';
 
 /** The district's surface library (one per world, ctx.shared.surf): createSurfaces in 'auto' mode with a bake size
  *  per quality (ctx.shared.tier) and per role, so the baked sets stay inside the memory budget (NOTES.md "Surfaces").

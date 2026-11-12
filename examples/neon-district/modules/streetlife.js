@@ -1,4 +1,4 @@
-// streetlife: the machines and the trade of the street (plan.streetlife). The street life is robots (machines.js):
+// streetlife: the machines and the trade of the street (plan.streetlife). The street life is robots (the cyber kit's buildMachines):
 // service androids in soft liveries standing under the awnings in twos and threes, talking (heads turn, a hand
 // gestures), at the noodle cart, the stall and the vending machines, some under umbrellas with lit rims; androids and
 // a wheeled parcel courier on a loop along the far pavement east of the fight; a vendor on a rail in the stall and one
@@ -12,7 +12,7 @@ import * as THREE from 'three';
 import { materials, surfaceLib } from './materials.js';
 import { lamp, decor, signTexture } from './lib.js';
 import { detail, thin, corrugated, textAtlas, atlasQuad } from './kit.js';
-import { buildMachines, propKit, recorder, track, trackLamps, breakablesLamp, paperLantern, spiritBottle, jar, pot, skewers, bowls, chopsticks, riceCooker, gasBottle, extinguisher } from '@miragekit/world/kits/cyber';
+import { buildMachines, propKit, recorder, track, trackLamps, breakablesLamp, paperLantern, spiritBottle, jar, pot, skewers, bowls, chopsticks, riceCooker, gasBottle, extinguisher } from '@miragekit/assets/kits/cyber';
 
 export default {
   name: 'streetlife',
@@ -93,7 +93,7 @@ export default {
     }
 
     // (the vending machines are vending.js's)
-    // ---- the machines (machines.js): bystanders, walkers and a courier on the east pavement's loop, the vendors, a
+    // ---- the machines (the cyber kit's buildMachines): bystanders, walkers and a courier on the east pavement's loop, the vendors, a
     //      sweeper, the clinic's queue totem, units that broke down. Decor: walked and shot through, out of the walk grid.
     const people = thin(ctx, L.people || [], 4), walkers = thin(ctx, L.walkers || [], 1), w0 = (L.walkers || [])[0];
     const machines = buildMachines(ctx, {

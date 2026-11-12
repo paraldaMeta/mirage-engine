@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import { materials } from './materials.js';
 import { lamp, slab, decor } from './lib.js';
-import { propKit, recorder, track, beacon, tubeFixture, floodlight, bulkhead, crate } from '@miragekit/world/kits/cyber';
+import { propKit, recorder, track, beacon, tubeFixture, floodlight, bulkhead, crate } from '@miragekit/assets/kits/cyber';
 import { detail } from './kit.js';
 
 export default {

@@ -1,7 +1,7 @@
 // kit: what the street-level modules share (not a module itself): the keep-clear rectangles of the plan's wall signs
 // and the density factor of the quality level. The surfaces (corrugated sheet, canopy, worn paint, shop interiors, text
-// atlases) live in @miragekit/world/kits/cyber and are passed through here.
-export { corrugated, canopy, WORN_DECL, worn, interiorMaterial, textAtlas, atlasQuad } from '@miragekit/world/kits/cyber';
+// atlases) live in @miragekit/assets/kits/cyber and are passed through here.
+export { corrugated, canopy, WORN_DECL, worn, interiorMaterial, textAtlas, atlasQuad } from '@miragekit/assets/kits/cyber';
 
 /** how much of the optional dressing to build: low 0.4, medium 0.8, high 1 (main.js sets ctx.shared.detail) */
 export const detail = (ctx) => ctx.shared.detail ?? 1;

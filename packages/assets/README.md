@@ -48,5 +48,62 @@ const wall = lib.material(SURFACES.brick({ age: 0.6 }), { mapping: 'wall', wet: 
 addSounds(audio, soundNames('ui'));
 ```
 
+## The cyber kit (`@miragekit/assets/kits/cyber`)
+
+```js
+import { propKit, paperLantern, streetLamp, bin, crate, parkedCars, buildMachines } from '@miragekit/assets/kits/cyber';
+
+export default {
+  name: 'alley',
+  build(ctx) {
+    const { geom } = ctx, P = propKit(ctx), b = new geom.MeshBatch();
+    paperLantern(P, b, geom, [0, 3.2, 0], { print: 1 });                 // hangs from a point
+    streetLamp(P, b, geom, [4, 0, 0], 5.5, Math.PI);                      // foot, height, the arm's direction
+    bin(P, b, geom, geom.compose([1.5, 0, 0.8], [0, 0.3, 0]));            // the rest: a matrix at its foot, front +z
+    crate(P, b, geom, geom.compose([2.4, 0, 0.6]), 0.7, undefined, 1);
+    parkedCars(ctx, P, b, [[-4, 2, 0.1]], undefined, { lamp: (c, l) => myLamp(c, l) });   // your light for its glow
+    ctx.root.add(b.finish({ name: 'alley-props' }));
+  },
+};
+```
+
+Street props for a dense, rain-wet neon city, made entirely in code: three.js geometry for every shape, and every
+printed thing (drink labels, price tags, stickers, warnings, stencils, number plates, menus, lantern paper, tyre
+walls) drawn into one canvas atlas at start-up. No model, texture or image files. All brands are invented; labels mix
+English, Traditional Chinese and Japanese (system fonts).
+
+- **The props kit** `propKit(ctx)`: the atlas and six materials (`paint`, `metal`, `glow` whose vertex colour is its
+  intensity, `lantern`, `clear`, `product`). `P.put(batch, geometry, material, matrix, color, rect)` fits the
+  geometry's uv into an atlas cell and tints it, so everything a module builds merges into one draw per material;
+  `P.instanced(geometry, base, items)` draws many products in one instanced mesh, each with its own label.
+- **Products** (`canGeo`, `bottleGeo`, `cupGeo`, `boxGeo`, `packGeo`, `capsuleGeo`, `spiralGeo`, `wineGeo`,
+  `glassGeo`, `bowlGeo`, `jarGeo`), **goods** (`spiritBottle`, `tumbler`, `bowls`, `pot`, `noodleBasket`,
+  `riceCooker`, `chopsticks`, `skewers`, `stool`, `goodsBox`, `jar`, `goodsRack`), **light fixtures**
+  (`paperLantern`, `bulbString`, `streetLamp`, `bulkhead`, `tubeFixture`, `floodlight`, `beacon`, `signalHead`) and
+  **street furniture** (`bin`, `crate`, `bag`, `cardboard`, `acUnit`, `junctionBox`, `bollard`, `jersey`, `newsBox`,
+  `bench`), each modelled for a look from half a metre.
+- **Cars** `parkedCars(ctx, P, batch, [[x, z, rotY]], proxyBox, { lamp })`: three designs (an angular brushed-steel
+  pickup, a low pearlescent wedge, an autonomous cab) with lofted bodies, real wheel openings, interiors, rain beads
+  and running water. The kit draws only the glowing strips: `lamp` is how your world lights them, `proxyBox` your
+  collision volume per car.
+- **Robots** `buildMachines(ctx, spec)`: civilian domestic humanoids (standing ones talk in pairs, walkers stroll a
+  loop with a real gait, some carry an umbrella while it rains), rail and pedestal vendors, a robot-dog courier, a
+  floor scrubber, a notice totem, a broken one slumped on a wall. Four batched draws for all of them, distance LOD;
+  call `update(t)` each frame; `machineUnits(group)` lists each unit's instances.
+- **The robot kit**: `humanoid(style, lod)` / `quadruped(style, lod)` bodies as parts per bone at three levels of
+  detail, `part`, `mergeParts`, `cover`, `drum`, `decal`, `robotMaterials(world)`, gaits (`GAITS`, `bipedLegs`,
+  `trotLegs`, `legIK`); the rig (`humanoidMeshes` skinned to @miragekit/play's bones, `robotClips`, `createHound`).
+- **Destructibles' recording**: `recorder(ctx)`, `track(batch, fn)`, `trackLamps(ctx, fn)`: the vertex ranges and
+  lamps each prop adds, for @miragekit/game's destructibles.
+- **Surfaces**: `surfaceLib(ctx)` (the surface library per world, bake sizes by quality), `corrugated` sheet as geometry, `canopy`, `worn(base)` hooks for chipped, rusting painted metal,
+  `interiorMaterial` (a lit shop seen through its window by ray-casting a box: depth without geometry),
+  `textAtlas` / `atlasQuad` for many neon or light-box labels in one texture, `rainBeads(hooks)` for drops on smooth
+  surfaces.
+
+examples/neon-district builds its whole district from this kit. Limits: the builders need a DOM canvas (the atlas);
+the fonts are the system's, so labels look a little different on Windows; a prop's collision is not built (add your
+own boxes or let the walk grid read the props you leave `collide`).
+
+
 Guides: [docs/surfaces.md](../../docs/surfaces.md), [docs/sounds.md](../../docs/sounds.md),
 [docs/destructibles.md](../../docs/destructibles.md), the cyber kit in [docs/api.md](../../docs/api.md).

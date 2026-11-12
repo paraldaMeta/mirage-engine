@@ -12,7 +12,7 @@ import * as THREE from 'three';
 import { materials } from './materials.js';
 import { lamp, decor } from './lib.js';
 import { detail } from './kit.js';
-import { propKit, hex, recorder, markBatch, sinceMark, trackLamps, breakablesLamp, canGeo, bottleGeo, cupGeo, boxGeo, packGeo, capsuleGeo, spiralGeo } from '@miragekit/world/kits/cyber';
+import { propKit, hex, recorder, markBatch, sinceMark, trackLamps, breakablesLamp, canGeo, bottleGeo, cupGeo, boxGeo, packGeo, capsuleGeo, spiralGeo } from '@miragekit/assets/kits/cyber';
 
 // the singles along the street: [x, y, z, rotY, lamp tint, kind]
 const SINGLES = [[-25.2, 'K', 2.5, 0, 'cyan', 'drinks'], [3.4, 'K', 9.5, Math.PI, 'pink', 'snack'], [29.3, 'K', -2.2, -Math.PI / 2, 'amber', 'hot'], [-23.55, 0, 16.5, Math.PI / 2, 'green', 'drinks']];

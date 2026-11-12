@@ -192,22 +192,6 @@ Model import, `@miragekit/core/assets` (opt-in subpath, [import.md](import.md)):
 The module interface (`name`, `build`, `finalize`, `anchors`, `ambientVolumes`, and the `ctx` fields) is stable;
 see [world-protocol.md](world-protocol.md).
 
-The cyber kit, `@miragekit/world/kits/cyber` (opt-in subpath, world README "The cyber kit"): street props for a dense
-neon city, all made in code (geometry, and labels drawn into a canvas). Every export is experimental.
-
-| export | stability | what it is |
-|---|---|---|
-| `propKit(ctx)` | experimental | the shared label atlas and its six materials (`paint`, `metal`, `glow`, `lantern`, `clear`, `product`); `put(batch, geometry, material, matrix, color, rect)`, `instanced(geometry, base, items)`, `R` (cells), `texture`, `names`; cached on `ctx.shared.props` |
-| `uvRect`, `tint`, `uvByHeight`, `hex` | experimental | geometry helpers: fit uv into a cell, a vertex colour, uv by height and angle, linear RGB from a CSS colour |
-| `canGeo`, `bottleGeo`, `wineGeo`, `cupGeo`, `boxGeo`, `packGeo`, `capsuleGeo`, `spiralGeo`, `glassGeo`, `bowlGeo`, `jarGeo` | experimental | product shapes with their uv laid out for an atlas cell |
-| `spiritBottle`, `tumbler`, `bowls`, `pot`, `noodleBasket`, `riceCooker`, `chopsticks`, `skewers`, `stool`, `goodsBox`, `jar`, `goodsRack` | experimental | counter and shop goods: `(P, batch, geom, matrix, ...)` |
-| `paperLantern`, `bulbString`, `streetLamp`, `bulkhead`, `tubeFixture`, `floodlight`, `beacon`, `signalHead` | experimental | light fixtures (the visible fitting; the light is the host's) |
-| `bin`, `crate`, `bag`, `cardboard`, `acUnit`, `junctionBox`, `bollard`, `jersey`, `newsBox`, `bench` | experimental | street furniture: `(P, batch, geom, matrix, ...)` |
-| `parkedCars(ctx, P, batch, list, proxyBox, { lamp })`, `carMaterials(ctx)`, `CAR_DESIGNS` | experimental | three designs of an invented marque in brushed steel, pearlescent paint and tinted glass, with rain |
-| `rainBeads(hooks, options)` | experimental | rain beads, runs and a film as material hooks (inside core's `withWet`) |
-| `buildMachines(ctx, spec)`, `FACES`, `androidParts(lod)`, `androidFace(face, lod)` | experimental | civilian robots (androids, vendors, couriers, sweepers, notice totems, broken ones), animated; returns `{ group, update(t), count, tris }` |
-| `corrugated`, `canopy`, `WORN_DECL`, `worn`, `interiorMaterial`, `textAtlas`, `atlasQuad` | experimental | corrugated sheet, canopies, worn painted metal hooks, shop interiors behind glass (interior mapping), text atlases |
-
 Gaussian splats, `@miragekit/world/kits/splat` (opt-in subpath, world README "Gaussian splats"):
 
 | export | stability | what it is |
@@ -428,3 +412,31 @@ Command-line tools (no JS entry point). Stable: `mirage-playtest` (scenario form
 `mirage-package`, `mirage-snap`, `mirage-deploy`. Experimental: `mirage-walktest`, `mirage-perf`, `mirage-e2e` (runs the `examples/` of the current folder or `--root`),
 `mirage-gpu-load`, `mirage-still-pop`, `mirage-xr-stereo-check` (both eyes of an emulated session against the desktop frame, interaction, locomotion, AR), `mirage-xr-check` (WebXR in an emulated Quest 3; repository checks; some expect this repository's `examples/`). `mirage-ship` (web, PWA and wrapper scaffolds; `mirage-desktop-check` runs an Electron scaffold or its packaged app and checks it over DevTools; with the subpaths `@miragekit/core/platform`, `@miragekit/core/byte-targets` and `@miragekit/game/platform`: `docs/platforms.md`). The tools
 need Chrome: `$CHROME`, or the usual install place on macOS, Linux and Windows.
+
+## @miragekit/assets
+
+**Business Source License 1.1, not MIT** ([packages/assets/LICENSE](../packages/assets/LICENSE)): the library's
+content, which plugs into the MIT systems above. Sub-paths only (no root entry).
+
+### The cyber kit: `@miragekit/assets/kits/cyber`
+
+Street props for a dense neon city, cars, civilian robots and the robot parts kit, all made in code (geometry, and
+labels drawn into a canvas); assets README "The cyber kit". Every export is experimental.
+
+| export | stability | what it is |
+|---|---|---|
+| `propKit(ctx)` | experimental | the shared label atlas and its six materials (`paint`, `metal`, `glow`, `lantern`, `clear`, `product`); `put(batch, geometry, material, matrix, color, rect)`, `instanced(geometry, base, items)`, `R` (cells), `texture`, `names`; cached on `ctx.shared.props` |
+| `uvRect`, `tint`, `uvByHeight`, `hex` | experimental | geometry helpers: fit uv into a cell, a vertex colour, uv by height and angle, linear RGB from a CSS colour |
+| `recorder(ctx)`, `track(batch, fn)`, `trackLamps(ctx, fn)`, `breakables(ctx)`, `breakablesLamp`, `markBatch`, `sinceMark` | experimental | what a builder records for the destructibles: the vertex ranges each prop adds to a merged batch, resolved to draw handles once it is finished, and its lamps |
+| `surfaceLib(ctx)` | experimental | the surface library per world (cached on `ctx.shared.surf`): bake sizes by quality and role, `surf(spec, options, { post, decl })`, `painted(rgb)`, `shade(kind, rgb)` |
+| `canGeo`, `bottleGeo`, `wineGeo`, `cupGeo`, `boxGeo`, `packGeo`, `capsuleGeo`, `spiralGeo`, `glassGeo`, `bowlGeo`, `jarGeo` | experimental | product shapes with their uv laid out for an atlas cell |
+| `spiritBottle`, `tumbler`, `bowls`, `pot`, `noodleBasket`, `riceCooker`, `chopsticks`, `skewers`, `stool`, `goodsBox`, `jar`, `goodsRack`, `gasBottle`, `extinguisher` | experimental | counter and shop goods: `(P, batch, geom, matrix, ...)` |
+| `paperLantern`, `bulbString`, `streetLamp`, `bulkhead`, `tubeFixture`, `floodlight`, `beacon`, `signalHead` | experimental | light fixtures (the visible fitting; the light is the host's) |
+| `bin`, `crate`, `bag`, `cardboard`, `acUnit`, `junctionBox`, `bollard`, `jersey`, `newsBox`, `bench` | experimental | street furniture: `(P, batch, geom, matrix, ...)` |
+| `parkedCars(ctx, P, batch, list, proxyBox, { lamp })`, `carMaterials(ctx)`, `CAR_DESIGNS` | experimental | three designs of an invented marque in brushed steel, pearlescent paint and tinted glass, with rain |
+| `rainBeads(hooks, options)` | experimental | rain beads, runs and a film as material hooks (inside core's `withWet`) |
+| `buildMachines(ctx, spec)`, `machineUnits(group)` | experimental | civilian robots (domestic humanoids with a real gait, umbrellas in the rain, rail and pedestal vendors, a robot-dog courier, a floor scrubber, a notice totem, a broken one), animated; returns `{ group, update(t), count, tris, units() }` |
+| `humanoid`, `quadruped`, `quadrupedDims`, `humanoidRig`, `part`, `mergeParts`, `moved`, `tf`, `ext`, `drum`, `link`, `cover`, `cable`, `decal`, `decalTexture`, `decalUV`, `COL`, `JOINTS`, `LEN`, `robotMaterials(world)`, `robotSurfaces(world)` | experimental | the robot parts kit: bodies as parts per bone at three levels of detail, decals, powder-coat and metal materials |
+| `GAITS`, `bipedLegs`, `trotLegs`, `legIK` | experimental | gaits: a biped's and a quadruped's legs at a phase, two-bone IK |
+| `humanoidMeshes`, `robotClips`, `CLIP_SPEED`, `createHound` | experimental | the rig: a humanoid skinned rigidly to @miragekit/play's bones, idle / walk / run clips with root motion, a robot dog posed in code |
+| `corrugated`, `canopy`, `WORN_DECL`, `worn`, `interiorMaterial`, `textAtlas`, `atlasQuad` | experimental | corrugated sheet, canopies, worn painted metal hooks, shop interiors behind glass (interior mapping), text atlases |

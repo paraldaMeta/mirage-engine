@@ -8,7 +8,7 @@ import { WET } from '@miragekit/core';
 import { materials, surfaceLib } from './materials.js';
 import { decor } from './lib.js';
 import { detail, thin, textAtlas, atlasQuad } from './kit.js';
-import { propKit, recorder, track, markBatch, sinceMark, beacon, junctionBox, bag as sack, crate } from '@miragekit/world/kits/cyber';
+import { propKit, recorder, track, markBatch, sinceMark, beacon, junctionBox, bag as sack, crate } from '@miragekit/assets/kits/cyber';
 
 export default {
   name: 'grime',

@@ -1,4 +1,4 @@
-// robot-rig: the enemies' bodies from the robot kit (modules/robot-kit.js).
+// Mirage original code. kit/cyber's robot rig: robot bodies from the robot kit (robot-kit.js), skinned and animated.
 //   humanoidMeshes  the kit's humanoid parts skinned rigidly to @miragekit/play's rig (each part to its bone), merged
 //                   per material: shell, metal, lights; three levels of detail, the geometry shared per kind
 //   robotClips      idle, walk and run for the rig from the kit's gait (stance feet fixed to the ground, heel strike
@@ -7,7 +7,7 @@
 //   createHound     a robot dog on its own skeleton (a body, four legs of two links, a turret's yaw), skinned the same
 //                   way; posed in code each frame: a trot from the distance travelled, a crouch, a leap, a fall
 import * as THREE from 'three';
-import { humanoid, humanoidRig, quadruped, quadrupedDims, mergeParts, moved, bipedLegs, trotLegs, legIK, GAITS, LEN } from '@miragekit/world/kits/cyber';
+import { humanoid, humanoidRig, quadruped, quadrupedDims, mergeParts, moved, bipedLegs, trotLegs, legIK, GAITS, LEN } from './robot-kit.js';
 
 const TAU = Math.PI * 2, ARM_DOWN = 1.32;
 const X = new THREE.Vector3(1, 0, 0), Y = new THREE.Vector3(0, 1, 0), Z = new THREE.Vector3(0, 0, 1);

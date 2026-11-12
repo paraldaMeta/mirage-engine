@@ -186,6 +186,16 @@ export function bipedLegs(phase: number, gait: object, out?: object): { hipY: nu
 export const GAITS: Record<string, object>;
 export function trotLegs(phase: number, dims: object, gait: object, crouch?: number, out?: [number, number][]): [number, number][];
 
+// ---- the robot rig
+/** A humanoid's parts skinned rigidly to the rig's bones, merged per material (shell, metal, lights). */
+export function humanoidMeshes(look: string, lod: number, kit: object, boneNames: readonly string[], extra?: object | null, extraKey?: string): Record<string, THREE.BufferGeometry | null>;
+/** idle, walk and run clips for the rig from the kit's gait (root motion in the clips). */
+export function robotClips(): Record<string, THREE.AnimationClip>;
+/** per clip: [ground speed (m/s), cycle (s)] */
+export const CLIP_SPEED: Record<'idle' | 'walk' | 'run', [number, number]>;
+/** A robot dog on its own skeleton, posed in code. */
+export function createHound(options: { style: string; mats: Record<string, THREE.Material> }): any;
+
 // ---- surfaces
 export function corrugated(width: number, height: number, options?: { pitch?: number; depth?: number; ribs?: 'v' | 'h' }): THREE.BufferGeometry;
 export function canopy(width: number, depth: number, drop: number, segments?: number): THREE.PlaneGeometry;

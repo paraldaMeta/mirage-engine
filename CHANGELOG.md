@@ -105,7 +105,7 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
   minified. examples/neon-district now plays its guns from it (same names; 24 of its 46 sounds byte-identical, the
   other 22 differ only in their noise seed, which was the minified function's name; its Chrome measurements all
   pass). Listen: `examples/demos/sounds`. Checked by `packages/game/sounds.check.mjs` (in `npm test`).
-- @miragekit/world: the cyber kit, `@miragekit/world/kits/cyber` (experimental, opt-in subpath, world README "The
+- @miragekit/assets: the cyber kit, `@miragekit/assets/kits/cyber` (experimental, BUSL-1.1, assets README "The
   cyber kit"): the street props of examples/neon-district as a library anyone can import. 94 exports,
   all made in code (geometry, and one canvas atlas for every printed label; no model or image files): products and
   shop goods, light fixtures, street furniture, three parked cars with rain, animated civilian robots, the robot

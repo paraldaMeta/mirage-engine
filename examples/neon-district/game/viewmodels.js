@@ -9,7 +9,7 @@
 // gloves and a nylon sleeve. Materials are the surface library's (object space: the pattern rides on the gun).
 import * as THREE from 'three';
 import { SURFACES } from '@miragekit/assets/surfaces';
-import { robotSurfaces as surfaceLib } from '@miragekit/world/kits/cyber';
+import { robotSurfaces as surfaceLib } from '@miragekit/assets/kits/cyber';
 
 const HP = Math.PI / 2, v2 = (pts) => pts.map(([a, b]) => new THREE.Vector2(a, b));
 

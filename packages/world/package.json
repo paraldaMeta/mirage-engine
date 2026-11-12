@@ -21,10 +21,6 @@
       "default": "./src/index.js"
     },
     "./plan.schema.json": "./plan.schema.json",
-    "./kits/cyber": {
-      "types": "./src/kits/cyber.d.ts",
-      "default": "./src/kits/cyber.js"
-    },
     "./kits/fur": {
       "types": "./src/kits/fur.d.ts",
       "default": "./src/kits/fur.js"
@@ -87,7 +83,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "node check.mjs && node vegetation.check.mjs && node landscape.check.mjs && node splat.check.mjs && node cyber.check.mjs"
+    "test": "node check.mjs && node vegetation.check.mjs && node landscape.check.mjs && node splat.check.mjs"
   },
   "author": "灰叔 Racso"
 }

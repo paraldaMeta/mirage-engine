@@ -19,7 +19,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { WET } from '@miragekit/core';
-import { SURFACES, createSurfaces } from '@miragekit/assets/surfaces';
+import { SURFACES, createSurfaces } from '../../surfaces/index.js';
 
 const HP = Math.PI / 2, TAU = Math.PI * 2;
 const v2 = (pts) => pts.map(([a, b]) => new THREE.Vector2(a, b));

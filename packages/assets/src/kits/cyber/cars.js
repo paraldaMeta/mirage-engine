@@ -23,7 +23,7 @@
 // The game reads only the anchors (pos, rotY) and the car's volume: each keeps the old car's collision boxes and lamps.
 import * as THREE from 'three';
 import { withWet, WET } from '@miragekit/core';
-import { SURFACES } from '@miragekit/assets/surfaces';
+import { SURFACES } from '../../surfaces/index.js';
 import { rainBeads } from './rain-beads.js';
 import { surfaceLib } from './robot-kit.js';
 import { recorder, markBatch, sinceMark, trackLamps } from './kit.js';

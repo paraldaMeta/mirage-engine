@@ -2,7 +2,7 @@
 // model or image files: every shape is three.js geometry, every printed label, menu and number plate is drawn into a
 // canvas at start-up). Grown out of examples/neon-district, which builds its whole district from it.
 //
-//   import { propKit, paperLantern, streetLamp, bin, parkedCars, buildMachines } from '@miragekit/world/kits/cyber';
+//   import { propKit, paperLantern, streetLamp, bin, parkedCars, buildMachines } from '@miragekit/assets/kits/cyber';
 //   build(ctx) {
 //     const P = propKit(ctx), b = new ctx.geom.MeshBatch();            // P: { R (atlas rects), mats, put, instanced, texture }
 //     paperLantern(P, b, ctx.geom, [0, 3, 0], { print: 1 });           // most builders: (P, batch, geom, matrix | position, opts)
@@ -32,6 +32,8 @@
 //                  four batched draws for all of them; machineUnits(group) lists each unit's instances
 //   robot-kit.js   the robot parts kit: humanoid / quadruped bodies at three levels of detail, parts, decals, the
 //                  robot materials, gaits and leg IK (the neon district's enemies are built from it too)
+//   robot-rig.js   the robot kit's bodies skinned to @miragekit/play's rig (humanoidMeshes), walk / run / idle clips
+//                  from its gait (robotClips, CLIP_SPEED), a robot dog on its own skeleton (createHound)
 //   surfaces.js    corrugated sheet, canopies, worn painted metal, shop interiors behind glass, text atlases
 //
 // All brands, names and plates are invented. Text is English, Traditional Chinese and Japanese (the fonts of the
@@ -48,4 +50,5 @@ export { rainBeads } from './cyber/rain-beads.js';
 export { buildMachines, machineUnits } from './cyber/robots.js';
 export { tf, decalTexture, decalUV, surfaceLib as robotSurfaces, robotMaterials, COL, part, mergeParts, moved, ext, drum, link, cover, cable, decal,
   JOINTS, LEN, humanoid, humanoidRig, quadrupedDims, quadruped, legIK, bipedLegs, GAITS, trotLegs } from './cyber/robot-kit.js';
+export { humanoidMeshes, robotClips, CLIP_SPEED, createHound } from './cyber/robot-rig.js';
 export { corrugated, canopy, WORN_DECL, worn, interiorMaterial, textAtlas, atlasQuad } from './cyber/surfaces.js';

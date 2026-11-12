@@ -10,7 +10,7 @@ import * as THREE from 'three';
 import { lamp } from './lib.js';
 import { materials, surfaceLib } from './materials.js';
 import { corrugated, canopy, interiorMaterial, textAtlas, atlasQuad, signRects, inFrontOfSign } from './kit.js';
-import { propKit, recorder, track, acUnit } from '@miragekit/world/kits/cyber';
+import { propKit, recorder, track, acUnit } from '@miragekit/assets/kits/cyber';
 
 const NAMES = [
   ['珍寶電器', 'DENKI'], ['金魚茶室'], ['喫茶 夜', 'KISSA'], ['24H 便利', 'コンビニ'], ['鍵匠 LOCKS'], ['眼鏡 OPTIC'], ['涼茶舖'],

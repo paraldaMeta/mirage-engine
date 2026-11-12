@@ -176,56 +176,10 @@ inside arcades and rooms wherever the box reaches (hide the mesh indoors). Remov
 Limits: no splashes, and no shelter: streaks fall inside arcades and rooms wherever the box reaches (hide the mesh
 indoors). Remove it with `mesh.removeFromParent()` and dispose its geometry and material.
 
-## The cyber kit
+## The cyber kit (moved)
 
-```js
-import { propKit, paperLantern, streetLamp, bin, crate, parkedCars, buildMachines } from '@miragekit/world/kits/cyber';
-
-export default {
-  name: 'alley',
-  build(ctx) {
-    const { geom } = ctx, P = propKit(ctx), b = new geom.MeshBatch();
-    paperLantern(P, b, geom, [0, 3.2, 0], { print: 1 });                 // hangs from a point
-    streetLamp(P, b, geom, [4, 0, 0], 5.5, Math.PI);                      // foot, height, the arm's direction
-    bin(P, b, geom, geom.compose([1.5, 0, 0.8], [0, 0.3, 0]));            // the rest: a matrix at its foot, front +z
-    crate(P, b, geom, geom.compose([2.4, 0, 0.6]), 0.7, undefined, 1);
-    parkedCars(ctx, P, b, [[-4, 2, 0.1]], undefined, { lamp: (c, l) => myLamp(c, l) });   // your light for its glow
-    ctx.root.add(b.finish({ name: 'alley-props' }));
-  },
-};
-```
-
-Street props for a dense, rain-wet neon city, made entirely in code: three.js geometry for every shape, and every
-printed thing (drink labels, price tags, stickers, warnings, stencils, number plates, menus, lantern paper, tyre
-walls) drawn into one canvas atlas at start-up. No model, texture or image files. All brands are invented; labels mix
-English, Traditional Chinese and Japanese (system fonts). An opt-in subpath: 106 KB minified, 39 KB gzip, three and
-@miragekit/core external.
-
-- **The props kit** `propKit(ctx)`: the atlas and six materials (`paint`, `metal`, `glow` whose vertex colour is its
-  intensity, `lantern`, `clear`, `product`). `P.put(batch, geometry, material, matrix, color, rect)` fits the
-  geometry's uv into an atlas cell and tints it, so everything a module builds merges into one draw per material;
-  `P.instanced(geometry, base, items)` draws many products in one instanced mesh, each with its own label.
-- **Products** (`canGeo`, `bottleGeo`, `cupGeo`, `boxGeo`, `packGeo`, `capsuleGeo`, `spiralGeo`, `wineGeo`,
-  `glassGeo`, `bowlGeo`, `jarGeo`), **goods** (`spiritBottle`, `tumbler`, `bowls`, `pot`, `noodleBasket`,
-  `riceCooker`, `chopsticks`, `skewers`, `stool`, `goodsBox`, `jar`, `goodsRack`), **light fixtures**
-  (`paperLantern`, `bulbString`, `streetLamp`, `bulkhead`, `tubeFixture`, `floodlight`, `beacon`, `signalHead`) and
-  **street furniture** (`bin`, `crate`, `bag`, `cardboard`, `acUnit`, `junctionBox`, `bollard`, `jersey`, `newsBox`,
-  `bench`), each modelled for a look from half a metre.
-- **Cars** `parkedCars(ctx, P, batch, [[x, z, rotY]], proxyBox, { lamp })`: three designs (an angular brushed-steel
-  pickup, a low pearlescent wedge, an autonomous cab) with lofted bodies, real wheel openings, interiors, rain beads
-  and running water. The kit draws only the glowing strips: `lamp` is how your world lights them, `proxyBox` your
-  collision volume per car.
-- **Robots** `buildMachines(ctx, spec)`: civilian androids (some with lit umbrellas, chatting in pairs, ten face
-  glyphs), vendors on a rail or a pedestal, a wheeled courier, a sweeper with a beacon, a notice totem, broken ones
-  slumped on a wall. Three draws for all of them (BatchedMesh), distance LOD; call `update(t)` each frame.
-- **Surfaces**: `corrugated` sheet as geometry, `canopy`, `worn(base)` hooks for chipped, rusting painted metal,
-  `interiorMaterial` (a lit shop seen through its window by ray-casting a box: depth without geometry),
-  `textAtlas` / `atlasQuad` for many neon or light-box labels in one texture, `rainBeads(hooks)` for drops on smooth
-  surfaces.
-
-examples/neon-district builds its whole district from this kit. Limits: the builders need a DOM canvas (the atlas);
-the fonts are the system's, so labels look a little different on Windows; a prop's collision is not built (add your
-own boxes or let the walk grid read the props you leave `collide`).
+The cyber kit (the neon district's street props, cars, robots and the robot parts kit) is library content and lives in
+`@miragekit/assets/kits/cyber`, under the Business Source License 1.1: see [packages/assets](../assets/README.md).
 
 ## Gaussian splats
 

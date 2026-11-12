@@ -6,7 +6,7 @@
 // hooks scaled by the world's lamp gain (uLampGain), so they read the same at any exposure.
 import * as THREE from 'three';
 import { SURFACES } from '@miragekit/assets/surfaces';
-import { surfaceLib } from '@miragekit/world/kits/cyber';
+import { surfaceLib } from '@miragekit/assets/kits/cyber';
 
 // ---- facades: one window grid per style, lit rooms by a hash of the bay and the floor
 const FACADE_DECL = /* glsl */ `
@@ -124,7 +124,7 @@ const HAZARD = /* glsl */ `{ vec3 p = msPW, n = msNWorld; float u = abs(n.y) > 0
   float s = step(0.5, fract((u + p.y) / 0.32)) * (1.0 - msM); msAlb = mix(msAlb, vec3(0.03) * (0.9 + 0.2 * msH), s); }`;
 
 // the district's surface library (surf, painted, shade; one per world, ctx.shared.surf) is the cyber kit's
-export { surfaceLib } from '@miragekit/world/kits/cyber';
+export { surfaceLib } from '@miragekit/assets/kits/cyber';
 
 export function materials(ctx) {
   if (ctx.shared.mats) return ctx.shared.mats;

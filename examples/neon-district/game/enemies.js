@@ -1,11 +1,11 @@
 // The sentinels: security robots on the district's walk grid.
-//   body       general-purpose humanoid robots from the robot kit (modules/robot-kit.js: exposed rotary actuators,
+//   body       general-purpose humanoid robots from the robot kit (@miragekit/assets/kits/cyber robot-kit.js: exposed rotary actuators,
 //              dark powder-coated shells with panel gaps, a sensor head, a battery pack, unit numbers and warning
 //              labels), skinned to @miragekit/play's rig (createRigModel; its own body is not drawn) in three levels of
 //              detail; animated by createAnimator: a speed blend of the kit's gait (idle / walk / run: planted feet,
 //              heel strike and toe-off, playback scaled to the ground covered), an aim pose on a masked upper body
 //              layer, an additive flinch, a fall. The four extra clips are authored below. The hounds (robot dogs)
-//              are posed in code (game/robot-rig.js).
+//              are posed in code (the cyber kit's robot-rig.js, @miragekit/assets).
 //   moving     createNavGrid on the player's own walk grid, one createNavAgent each, createNavCrowd keeps them apart
 //   seeing     createSenses: sight cones the walk grid occludes, and the noise of the player's shots
 //   thinking   a small state machine: post / patrol -> alert -> fight (close in, hold and fire bursts, shift) -> search
@@ -14,8 +14,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { createRigModel, createAnimator, createNavGrid, createNavAgent, createNavCrowd, createSenses, solveLookAt, blend1d } from '@miragekit/play';
 import { FX } from './fx.js';
-import { robotMaterials, part, mergeParts, ext, tf, moved, COL } from '@miragekit/world/kits/cyber';
-import { humanoidMeshes, robotClips, CLIP_SPEED, createHound } from './robot-rig.js';
+import { robotMaterials, part, mergeParts, ext, tf, moved, COL, humanoidMeshes, robotClips, CLIP_SPEED, createHound } from '@miragekit/assets/kits/cyber';
 
 const q = (x, y, z) => new THREE.Quaternion().setFromEuler(new THREE.Euler(x, y, z)).toArray();
 const hold = (name, tracks, dur = 1) => new THREE.AnimationClip(name, dur, Object.entries(tracks).map(([bone, v]) => new THREE.QuaternionKeyframeTrack(bone + '.quaternion', [0, dur], [...v, ...v])));
@@ -104,7 +103,7 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
   const R = () => ((rnd = (Math.imul(rnd ^ (rnd >>> 15), 0x2c1b3c6d) ^ (rnd << 7)) >>> 0) / 4294967296);
   const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3();
 
-  // the parts are the robot kit's (modules/robot-kit.js), skinned rigidly to the rig's bones (game/robot-rig.js):
+  // the parts are the robot kit's (@miragekit/assets/kits/cyber), skinned rigidly to the rig's bones (its robot-rig.js):
   // two meshes (the shell with the lights and the rifle, the metal) at each of three levels of detail, the geometry
   // shared per kind
   function build(def) {
@@ -201,7 +200,7 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
     sk.update = () => { if (sk.ndV !== e.boneV) { sk.ndV = e.boneV; upd(); } };
     e.anim.update = (dt) => { e.boneV++; return au(dt); };
   }
-  /** a hound (a robot dog, game/robot-rig.js): no rig, no animator; a stand-in for the animator's calls that poses
+  /** a hound (a robot dog, the kit's createHound): no rig, no animator; a stand-in for the animator's calls that poses
    *  the dog in code from its speed, the distance it covered, a crouch (the tell), a leap and a fall */
   function buildHound(def, K, kk) {
     const dog = createHound({ style: K.style, mats: { shell: shellOf[kk], metal: mats.metal } });

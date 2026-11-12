@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import { materials } from './materials.js';
 import { lamp, signTexture, decor } from './lib.js';
-import { recorder, track, trackLamps } from '@miragekit/world/kits/cyber';
+import { recorder, track, trackLamps } from '@miragekit/assets/kits/cyber';
 
 /** the owner's five wall signs (never break: game/destruct.js registers them protected, tagged `owner`) */
 export const ownerSign = (text) => /视频号|他抄由他抄/.test([].concat(text).join(''));

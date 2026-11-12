@@ -1,4 +1,4 @@
-// Mirage original code. Surfaces for a dense street (part of @miragekit/world/kits/cyber): corrugated sheet as real
+// Mirage original code. Surfaces for a dense street (part of @miragekit/assets/kits/cyber): corrugated sheet as real
 // geometry (roller shutters, container walls), a canopy, worn painted metal (chips, rust streaks under fixings, water
 // stains, a wet foot) as material hooks, a shop's interior drawn by ray-casting a box behind a pane (interior mapping:
 // depth without geometry), and text atlases (many labels, one texture, one draw call). No image files: every label is

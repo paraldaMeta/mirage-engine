@@ -14,6 +14,7 @@
   },
   "type": "module",
   "exports": {
+    "./kits/cyber": { "types": "./src/kits/cyber.d.ts", "default": "./src/kits/cyber.js" },
     "./presets": { "types": "./src/presets/index.d.ts", "default": "./src/presets/index.js" },
     "./surfaces": { "types": "./src/surfaces/index.d.ts", "default": "./src/surfaces/index.js" },
     "./package.json": "./package.json"
@@ -34,7 +35,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "node surfaces.check.mjs"
+    "test": "node surfaces.check.mjs && node cyber.check.mjs"
   },
   "author": "灰叔 Racso"
 }

@@ -1,5 +1,5 @@
 // Destructible props in neon-district: the engine's registry (createDestructibles, docs/destructibles.md) over what
-// the modules already draw. The modules record each prop as they build it (modules/props-kit.js recorder: its id, its
+// the modules already draw. The modules record each prop as they build it (the cyber kit's recorder, @miragekit/assets/kits/cyber: its id, its
 // family, its box, the vertex ranges it added to their merged batches, its lamps, its collider proxies; ctx.shared.
 // breakables); this file turns each family into the registry's spec, wires the weapon, the enemies' rounds, the lamps,
 // the dark zones, the civilians and the score. docs/destructibles-neon-district.md is the plan it follows.
@@ -16,13 +16,13 @@
 //                sweeps glass and lights (its rounds count 1.6 x on props)
 //   protected    the relay door, the pass, the uplink terminal, the stairs (none registered or protected) and the
 //                owner's five wall signs (protected, tag `owner`)
-//   civilians    the street's robots (machines.js units) are actors: a hit fells one (sparks, it folds over), its
+//   civilians    the street's robots (the cyber kit's buildMachines units) are actors: a hit fells one (sparks, it folds over), its
 //                neighbours cower; the player's rounds, blasts and props he set off are charged (points, a warning, a
 //                radio line), the robots' rounds are not. A civilian between the player and a target takes the round.
 // Saves: the registry is the game's 'destructibles' entity; 'destructScore' keeps whose casualties were whose.
 import * as THREE from 'three';
 import { createDestructibles } from '@miragekit/game';
-import { machineUnits } from '@miragekit/world/kits/cyber';
+import { machineUnits } from '@miragekit/assets/kits/cyber';
 
 /** the price of each family (the end card's property damage); civilians cost the most by far */
 export const PRICE = {
@@ -407,7 +407,7 @@ export function setupDestruct({ ctx, shared, vfx, sfx, player, weapon, enemies, 
     c.item.civ = c; civ.push(c); count('civilian');
   }
   // after the machines have posed every unit this frame: a fallen one folds over its feet where it fell, a scared
-  // one crouches (written onto the instances machines.js wrote; a matrix it did not write again is left alone)
+  // one crouches (written onto the instances the kit's robots wrote; a matrix it did not write again is left alone)
   const post = (dt) => {
     for (const c of civ) {
       const fallen = c.k > 0, cower = c.cower > 0;
