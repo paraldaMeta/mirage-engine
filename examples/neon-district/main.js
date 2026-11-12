@@ -8,7 +8,7 @@
 //      every rendering feature has a switch, for A/B stills and timing (default: what the quality level turns on):
 //      ?ssr=0|1 ?ssgi=0|1 ?contact=0|1 (screen-space passes)  ?gi=0|1 ?probes=0|1 ?csm=0|1 ?shadows=0|1 (lamp tiles)
 //      ?vol=0|1 (volumetric lamps, light2)  ?taa2=0|1 ?mb=0..1 ?bloom2=0|1 ?lut=0|1 ?chroma=N ?upscale=0.5..1
-//      ?grade=0|1 (the hour's look) ?dusk=0|1 (the dusk sky) ?pool=0|1 (the lamp pool) ?bounce=0|1 ?godrays=0|1 ?flare=0|1
+//      ?grade=0|1 (the hour's look) ?dusk=0|1 (the dusk sky) ?flash=0|1 (the lightning lighting every wet surface, the storm sky) ?pool=0|1 (the lamp pool) ?bounce=0|1 ?godrays=0|1 ?flare=0|1
 //      ?moon=0|1 (the moon casts shadows by night) ?percell=N (the lamp pool's lamps per view cell, 32; 16 darkens the street)
 //      ?mirrorall=1 (the close-up props and the view model in the mirror too)
 //      ?time=night | dusk | day | dawn | HH:MM (in the game: T steps through them, the options panel has a slider)
@@ -34,9 +34,9 @@ const quality = Q.get('quality') || (await pickQuality()).quality;
 
 // ---- what each quality level turns on; a URL flag overrides one feature
 const TIER = {
-  low: { grade: 1, dusk: 1, pool: 1, bounce: 0, godrays: 0, flare: 0, ssr: 0, ssgi: 0, contact: 0, gi: 0, probes: 1, csm: 0, shadows: 0, vol: 0, taa2: 0, mb: 0, bloom2: 1, lut: 1, chroma: 0, upscale: 0.75, rain: 0.6, big: 0, moon: 0, percell: 20, planar: 0, dirt: 0, streak: 0, sharp: 0 },
-  medium: { grade: 1, dusk: 1, pool: 1, bounce: 1, godrays: 1, flare: 1, ssr: 0, ssgi: 0, contact: 0, gi: 1, probes: 1, csm: 0, shadows: 1, vol: 1, taa2: 1, mb: 0, bloom2: 1, lut: 1, chroma: 0.06, upscale: 1, rain: 1, big: 0, moon: 1, percell: 26, planar: 3, dirt: 0.12, streak: 0.08, sharp: 0.5 },
-  high: { grade: 1, dusk: 1, pool: 1, bounce: 1, godrays: 1, flare: 1, ssr: 1, ssgi: 1, contact: 1, gi: 1, probes: 1, csm: 1, shadows: 1, vol: 1, taa2: 1, mb: 0.12, bloom2: 1, lut: 1, chroma: 0.08, upscale: 1, rain: 1, big: 0, moon: 1, percell: 32, planar: 3, dirt: 0.15, streak: 0.1, sharp: 0.55 },
+  low: { flash: 1, grade: 1, dusk: 1, pool: 1, bounce: 0, godrays: 0, flare: 0, ssr: 0, ssgi: 0, contact: 0, gi: 0, probes: 1, csm: 0, shadows: 0, vol: 0, taa2: 0, mb: 0, bloom2: 1, lut: 1, chroma: 0, upscale: 0.75, rain: 0.6, big: 0, moon: 0, percell: 20, planar: 0, dirt: 0, streak: 0, sharp: 0 },
+  medium: { flash: 1, grade: 1, dusk: 1, pool: 1, bounce: 1, godrays: 1, flare: 1, ssr: 0, ssgi: 0, contact: 0, gi: 1, probes: 1, csm: 0, shadows: 1, vol: 1, taa2: 1, mb: 0, bloom2: 1, lut: 1, chroma: 0.06, upscale: 1, rain: 1, big: 0, moon: 1, percell: 26, planar: 3, dirt: 0.12, streak: 0.08, sharp: 0.5 },
+  high: { flash: 1, grade: 1, dusk: 1, pool: 1, bounce: 1, godrays: 1, flare: 1, ssr: 1, ssgi: 1, contact: 1, gi: 1, probes: 1, csm: 1, shadows: 1, vol: 1, taa2: 1, mb: 0.12, bloom2: 1, lut: 1, chroma: 0.08, upscale: 1, rain: 1, big: 0, moon: 1, percell: 32, planar: 3, dirt: 0.15, streak: 0.1, sharp: 0.55 },
 }[quality] || {};
 const F = (k) => (Q.has(k) ? (isNaN(+Q.get(k)) ? Q.get(k) : +Q.get(k)) : TIER[k]);
 const on = (k) => !!F(k);
@@ -127,7 +127,10 @@ const world = createWorldRenderer({
       black: 0.01, curve: 0.22, punch: 0.4, clarity: 0.14, highlightWarmth: 0.1 },
     noon: { exposure: 0.6, temperature: 0.12, tint: 0.03, saturation: 1.0, contrast: 1.05, tonemapMix: 0.35, shadowTint: [0.97, 1, 1.04], hiTint: [1.04, 1, 0.95],
       black: 0.008, curve: 0.16, punch: 0.3, clarity: 0.1, highlightWarmth: 0.1 } },
-  sky: on('dusk') ? { dusk: { haze: 2.2, night: 0.45 } } : undefined,
+  // the lightning (core weather.js) lights every wet surface; the storm sky (a torn deck, a bright horizon band, lit by
+  // the flash) is blended in by the rain's weight (below), so dusk and day are the sky as they were
+  flash: on('flash') ? { intensity: 6 } : undefined,
+  sky: on('dusk') || on('flash') ? { ...(on('dusk') ? { dusk: { haze: 2.2, night: 0.45 } } : {}), ...(on('flash') ? { storm: true } : {}) } : undefined,
   lampPool: on('pool') ? { perCell: F('percell'), ...(Q.has('captures') ? { captures: Q.get('captures') !== '0' } : {}) } : undefined,
   clouds: wx0.clouds, shadow: { center: [0, 2, -6], radius: 46 }, envProbe: [-2, 5, 6], envIntensity: 0.6 * wx0.env,
   // the haze: by night a rain haze round the lamps; by day only distance (weatherAt scales it per hour). Its colour
@@ -173,13 +176,14 @@ const setHour = (t) => { const v = timeOf(t); if (!v) return hour; hour = t; wor
 // scaled after the world writes them (onUpdate runs after writeFog), the wetness moves in 0.05 steps (each one
 // recaptures the image-based light), the rain and the cloud cover are uniforms
 const wxNow = { ...wx0 };
-const cloudU = world.sky.material.uniforms.uCloudCover;
+const cloudU = world.sky.material.uniforms.uCloudCover, stormU = world.sky.material.uniforms.uStorm;
 world.ctx.onUpdate(() => {
   const h = world.state ? world.state.sun.elevation : -60, want = weatherAt(h);
   for (const k in want) wxNow[k] += (want[k] - wxNow[k]) * 0.08;
   if (!Q.has('rain')) setRain((TIER.rain ?? 1) * (wxNow.rain < 0.01 ? 0 : wxNow.rain));
   if (!Q.has('wet')) { const w = wetQ(wxNow.wet); if (Math.abs(w - WET.uWet.value) > 0.01) setWetness(w); }
   cloudU.value = wxNow.clouds;
+  if (stormU) stormU.value.x = THREE.MathUtils.smoothstep(wxNow.rain, 0.25, 0.9);   // the storm sky by the rain's weight
   world.scene.environmentIntensity = 0.6 * wxNow.env;
   FOG.params[0] *= wxNow.fog; FOG.params[2] *= wxNow.air;
   for (let i = 0; i < 3; i++) FOG.glow[i] *= wxNow.glow;
