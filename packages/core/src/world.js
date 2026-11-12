@@ -356,20 +356,19 @@ export function createWorldRenderer(config = {}) {
     // with scene.environment set is another program). So compile against a pipeline target, once without the
     // environment (the first capture pass) and once with it; a throwaway capture makes the texture exist, and the
     // real capture below starts again from no environment, so the image is the same as before.
-    const compile = () => { const saved = renderer.getRenderTarget(); renderer.setRenderTarget(pipeline.sceneRT); const p = renderer.compileAsync(scene, camera); renderer.setRenderTarget(saved); return p; };
-    await Promise.all([compile(), pipeline.compileAsync()]);
-    if (!envLight.texture) {
-      envLight.capture(scene, envProbe, { instant: true });
-      scene.environment = envLight.texture;
-      await compile();
-      scene.environment = null;
-    }
+    let rounds = 0;
+    const compile = () => { const saved = renderer.getRenderTarget(); renderer.setRenderTarget(pipeline.sceneRT); const p = renderer.compileAsync(scene, camera).then(() => performance.mark('mg:compile' + ++rounds, { detail: renderer.info.programs?.length })); renderer.setRenderTarget(saved); return p; };
+    // The lighting parts are put on the materials BEFORE the first compile: the programs without them (compiled once
+    // before, for the throwaway capture and its environment) were never drawn with again, and cost a third to a half
+    // of the cold start (every program is built from nothing on a first visit). The throwaway capture only makes the
+    // environment texture exist; the real capture below starts again from none.
     if (lighting) lighting.adopt();
     if (lampPool) lampPool.adopt();
-    if (lighting || lampPool) await compile();
-    // the lighting parts act on the image-based light: their programs are the ones WITH the environment (compiled
-    // here in parallel; without this every lit material of a big world was linked one by one in the first capture)
-    if (lighting) { scene.environment = envLight.texture; await compile(); scene.environment = null; }
+    await Promise.all([compile(), pipeline.compileAsync()]);
+    if (!envLight.texture) envLight.capture(scene, envProbe, { instant: true });
+    // the programs WITH the environment (the capture's second pass and every frame): compiled here in parallel;
+    // without this every lit material of a big world was linked one by one in the first capture
+    scene.environment = envLight.texture; await compile(); scene.environment = null;
     captureEnv(true);
     if (warm) return { warmMs: warmUp() };
   }

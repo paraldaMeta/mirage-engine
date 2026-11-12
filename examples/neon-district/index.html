@@ -14,7 +14,7 @@
   <!-- shown at once, while the code and the world load; main.js removes it when the title is up -->
   <div id="boot"><div><h1>NEON DISTRICT</h1><p>loading</p></div></div>
   <script>if (/^(zh|ja)/.test(new URLSearchParams(location.search).get('lang') || navigator.language)) { const z = /^zh/.test(new URLSearchParams(location.search).get('lang') || navigator.language); document.querySelector('#boot h1').textContent = z ? '霓虹街區' : 'ネオン街区'; document.querySelector('#boot p').textContent = '…'; }</script>
-  <script>{ const b = document.getElementById('boot'), p = b.querySelector('p'); let t = false; const go = (e) => { if (t || e.target.isContentEditable) return; t = true; window.__ndTap = true; p.textContent = '…'; }; b.addEventListener('pointerdown', go); addEventListener('keydown', go); }</script>   <!-- a tap or key before the world is ready starts the game the moment it is -->
+  <script>{ const b = document.getElementById('boot'), p = b.querySelector('p'); let t = false, n = 0; const go = (e) => { if (t || e.target.isContentEditable) return; t = true; window.__ndTap = true; p.textContent = '…'; }; b.addEventListener('pointerdown', go); addEventListener('keydown', go); const tick = setInterval(() => { if (!b.isConnected) clearInterval(tick); else if (!t && ++n > 3) p.textContent = n + ' s'; }, 1000); }</script>   <!-- a tap or key before the world is ready starts the game the moment it is -->
   <script type="module" src="./main.js"></script>
 </body>
 </html>
