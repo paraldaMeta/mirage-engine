@@ -5,7 +5,7 @@ buildings together, five material styles, and `house()`, which builds a whole ho
 code: no models, no textures (the surfaces are core's procedural ones).
 
 ```js
-import { buildingMaterials, house, wallOpenings, stairs, roofGable } from '@miragekit/assets/building';   // @miragekit/assets/building once published
+import { buildingMaterials, house, wallOpenings, stairs, roofGable } from '@miragekit/assets/building';
 
 export default {
   name: 'square',
