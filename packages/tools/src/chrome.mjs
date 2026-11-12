@@ -114,7 +114,7 @@ async function launchPlaywright(name, { w, h }) {
   };
 }
 
-const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.webp': 'image/webp', '.png': 'image/png', '.css': 'text/css', '.svg': 'image/svg+xml', '.wasm': 'application/wasm' };
+const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.webp': 'image/webp', '.png': 'image/png', '.css': 'text/css', '.svg': 'image/svg+xml', '.wasm': 'application/wasm', '.webmanifest': 'application/manifest+json' };
 /** a static server for a built folder; resolves to { url, close() } */
 export function serve(dir, port = 0) {
   // the real folder: a root that is itself a symlink (macOS /tmp) compares equal to the real paths below
