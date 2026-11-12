@@ -191,6 +191,34 @@ MsS ms_asphalt(vec2 u){
   paving: /* glsl */ `
 MsS ms_paving(vec2 u){
   float V = msX.z;
+  if (V > 3.5) {
+    // flags (crazy paving): irregular flat stones (Voronoi cells of a warped plane, cell[0] their size), each its own
+    // tone (brown, rust, grey, pale), split in layers that flaked off in sheets, the arrises chipped; wide joints of
+    // dark soil with grit and a little moss
+    float f = 1.0 / msB.x;
+    vec4 ck = msCell(msWarp(u, 2.5, 0.04 * msB.x), f, 0.95);
+    float e = (ck.y - ck.x) * msT / msP(f) * 0.5;
+    vec3 ph = mgHash3(vec3(ck.z * 91.0, ck.w * 57.0, msSeed));
+    float jw = msB.z * 0.5 * (0.7 + 0.8 * (msFbm(u, 6.0, 2) * 0.5 + 0.5));
+    float chipN = msFbm(u + 4.0, 30.0, 3) * 0.5 + 0.5;
+    float edge = e - jw - 0.012 * chipN * smoothstep(0.4, 0.8, chipN);
+    float body = smoothstep(-msFP, msFP, edge), bevel = smoothstep(0.0, 0.01, edge);
+    vec3 tone = ph.x < 0.45 ? vec3(1.0) : ph.x < 0.7 ? vec3(1.3, 0.92, 0.72) : ph.x < 0.88 ? vec3(0.85, 0.88, 0.92) : vec3(1.4, 1.25, 1.05);
+    float lay = msFbm(u + ph.xy * 7.0, 5.0, 4) * 0.5 + 0.5, flake = msCut(lay, 0.6, 0.015);
+    float grain = msFbm(u + ph.zx * 3.0, 40.0, 3);
+    vec3 col = msA.rgb * tone * (0.82 + 0.5 * ph.y) * (0.88 + 0.16 * msFbm(u + ph.zx * 3.0, 8.0, 3) + 0.08 * grain) * (1.0 + 0.12 * flake);
+    // (each stone set at its own lean: a slow field offset per stone)
+    float h = 0.62 + 0.14 * msFbm(u + ph.xy * 11.0, 2.0, 2) + 0.14 * lay - 0.1 * flake + 0.1 * grain + 0.02 * msFbm(u + 2.0, 110.0, 2);
+    h = mix(0.18, h, bevel);
+    float r = msA.a + 0.05 * (ph.z - 0.5) + 0.04 * grain - 0.05 * flake;
+    // the joint: soil, grit, moss
+    vec2 grit = msSpeck(u + 1.0, 200.0, 0.4, 0.4, 1.0);
+    float moss = smoothstep(0.55, 0.8, msFbm(u + 9.0, 4.0, 3) * 0.5 + 0.5);
+    vec3 jc = mix(msC.rgb * (0.7 + 0.5 * grit.y * grit.x), vec3(0.06, 0.08, 0.03), moss * 0.6);
+    col = mix(jc, col, body); h = mix(0.08 + 0.06 * grit.x, h, body); r = mix(0.95, r, body);
+    float ao = mix(0.55, 1.0, bevel);
+    return MsS(col, clamp(r, 0.04, 1.0), clamp(h, 0.0, 1.0), 0.0, ao);
+  }
   vec4 g = msGrid(u, msB.xy, msB.w);
   vec2 s = msCellSize, q = g.xy, c = q - 0.5 * s;
   float de = msEdgeD(g);

@@ -98,6 +98,7 @@ share a program (the kind, the mapping, the path, wet or dry, decals and road pa
 | `wood` | `along: 'u' \| 'v'` | the boards' (and grain's) direction in the surface plane. `'u'` (default): along the mapping's u, i.e. the grain vector under `mapping: 'grain'`, horizontal on a wall; `'v'`: boards up a wall (cladding, fences). The repetition breaker's module turns with them |
 | `render` | `spall: 0` | 0..1: islands where the top coat broke off, a crisp torn step down to the darker scratch coat |
 | `paving` | variant `hex` | hexagonal pavers, `cell[0]` across the flats (0.27 m) |
+| `paving` | variant `flags` | round 3: crazy paving: irregular flat stones (`cell[0]` their size, 0.4 m), each its own tone, flaked layers, chipped arrises, soil and moss joints |
 | `corrugated` | `stencil: 0`, `dents: 0` | round 3: 0..1: a sprayed three-digit code per sheet (upright along the fall, worn); a few knocks per sheet that press the ribs flat |
 | `neon` | `electrodes: 0`, `supports: 0` | on a tube mapped with `'uv'` (uv.y along it, `uvScale` = its length): electrode caps at both ends (m) and support clips every `supports` m |
 
