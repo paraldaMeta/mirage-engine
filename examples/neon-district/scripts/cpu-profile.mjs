@@ -3,6 +3,7 @@
 // + a 1-pixel read-back, as measure.mjs times them), self time per function and total time per top-level caller.
 // Build unminified for names: npx vite build --minify false --outDir <dir>
 //   node scripts/cpu-profile.mjs <dist> [--view "street west"] [--quality low] [--frames 240] [--world] [--top 40]
+//     [--incl <regexp>]: also the inclusive time of the functions whose name matches
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { launch, serve, open } from '../../../packages/tools/src/chrome.mjs';
@@ -37,8 +38,15 @@ const ms = await page.evaluate((N) => {
 }, N);
 const { profile } = await cdp.send('Profiler.stop');
 await browser.close(); srv.close?.();
-const byId = new Map(profile.nodes.map((n) => [n.id, n])), self = new Map();
+const byId = new Map(profile.nodes.map((n) => [n.id, n])), self = new Map(), incl = new Map(), parent = new Map();
+for (const n of profile.nodes) for (const c of n.children || []) parent.set(c, n.id);
 const dt = profile.timeDeltas, total = dt.reduce((a, b) => a + b, 0) / 1000;
-profile.samples.forEach((id, i) => { const n = byId.get(id); const f = n.callFrame; const k = `${f.functionName || '(anon)'} ${path.basename(f.url || '')}:${f.lineNumber}`; self.set(k, (self.get(k) || 0) + dt[i] / 1000); });
+const key = (n) => { const f = n.callFrame; return `${f.functionName || '(anon)'} ${path.basename(f.url || '')}:${f.lineNumber}`; };
+profile.samples.forEach((id, i) => {
+  const n = byId.get(id), k = key(n); self.set(k, (self.get(k) || 0) + dt[i] / 1000);
+  // inclusive: every function on the sample's stack once
+  const seen = new Set(); for (let x = id; x !== undefined; x = parent.get(x)) { const kk = key(byId.get(x)); if (!seen.has(kk)) { seen.add(kk); incl.set(kk, (incl.get(kk) || 0) + dt[i] / 1000); } }
+});
 console.log(`${VIEW}, ${query}: ${N} frames; ms a frame: ${Object.entries(ms).map(([k, v]) => `${k} ${v.toFixed(2)}`).join(', ')}; profiled ${total.toFixed(0)} ms\nself time, ms a frame:`);
 for (const [k, v] of [...self].sort((a, b) => b[1] - a[1]).slice(0, TOP)) console.log(`${(v / N).toFixed(3).padStart(7)}  ${k}`);
+if (flag('incl')) { const re = new RegExp(flag('incl')); console.log('inclusive time, ms a frame (functions matching ' + re + '):'); for (const [k, v] of [...incl].filter(([k]) => re.test(k)).sort((a, b) => b[1] - a[1]).slice(0, TOP)) console.log(`${(v / N).toFixed(3).padStart(7)}  ${k}`); }
