@@ -31,6 +31,7 @@ Chinese; the dated ones are records of what was done and are not kept current.
 | [animation.md](animation.md) | the animation controller, IK, retargeting, timelines |
 | [audio.md](audio.md) | the audio engine |
 | [sounds.md](sounds.md) | the sound library: 125 sounds made in code |
+| [building-kit.md](building-kit.md) | the building kit: walls, doors, windows, stairs, roofs and whole houses made in code |
 | [ui.md](ui.md) | the in-game UI toolkit |
 | [big-worlds.md](big-worlds.md) | chunking, LOD, instancing, occlusion, streaming |
 | [import.md](import.md) | glTF / GLB models, compressed formats, reference counting |

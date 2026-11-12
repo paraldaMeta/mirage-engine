@@ -105,6 +105,12 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
   view" difference in `npm run test:determinism` went from 260 k to 18 k pixels at its street view (not yet zero).
 
 **New**
+- Asset library (`packages/assets`, its licence to be set with the package): a building kit, `src/building.js`
+  (docs/building-kit.md): 29 parts made in code (walls with doors and windows, floors, columns, beams, an archway,
+  straight and spiral stairs, four railings, a ramp, steps, a ladder, gable / hip / flat roofs, dormers, chimneys,
+  gutters, balconies, awnings, three fences, a gate, mouldings), five material styles from core's procedural
+  surfaces, and `house()`, a whole house from a seed (a 3 x 2 bay, two-storey house is about 12,500 triangles).
+  Demo `examples/demos/building`; checked by `packages/assets/building.check.mjs`.
 - @miragekit/game: destructibles (`createDestructibles`, also `@miragekit/game/destruct`; experimental, opt-in,
   `docs/destructibles.md`). Props register over what is already drawn (a mesh, one instance of an `InstancedMesh` or
   `BatchedMesh`, a vertex range of a merged mesh) with a hit volume (box, sphere, capsule or the drawn bounds), a
