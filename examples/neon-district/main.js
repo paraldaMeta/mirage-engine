@@ -73,13 +73,27 @@ const grabBoot = () => {
     for (const m of [].concat(o.material || [])) if (m.emissive && !seen.has(m)) { seen.add(m); boot.push({ o: m, k: 'emissiveIntensity', c: 'emissive', i: m.emissiveIntensity, col: m.emissive.clone(), i1: 0, col1: new THREE.Color() }); }
   });
 };
+const bootU = [];   // the world's shared uniforms (the lamp gain, the sky's light...) as they were
+const grabU = () => { for (const k of Object.keys(world.G)) { const v = world.G[k]?.value; if (v === undefined || v === null) continue; bootU.push({ u: world.G[k], v: typeof v === 'object' ? (v.clone ? v.clone() : null) : v, now: null }); } };
+// (and the clustered lamps' data texture is written by the first frame: before it the lamps gave the captures no light, so the first bake draws with an empty one)
+let noLamps = null;
 const bakeScope = (fn, first) => {
   if (!first || !boot.length) return fn();
   const u = stormU0, x = u ? u.value.x : 0, vis = culled.map((m) => m.visible);
   if (u) u.value.x = 0;
   for (const m of culled) m.visible = true;
   for (const b of boot) { b.i1 = b.o[b.k]; b.col1.copy(b.o[b.c]); b.o[b.k] = b.i; b.o[b.c].copy(b.col); }
+  const lu = world.lighting?.lights?.uniforms?.mgLT, lamps = lu && lu.value, rp = world.lighting?.probes?.uniforms?.mgRpH?.value, rpw = rp ? rp.map((v) => v.w) : [];
+  if (rp) for (const v of rp) v.w = 0;   // (and the reflection probes were not captured yet)
+  if (lu) {
+    if (!noLamps) { noLamps = new THREE.DataTexture(new Float32Array(lamps.image.data.length), lamps.image.width, lamps.image.height, lamps.format, lamps.type); noLamps.minFilter = lamps.minFilter; noLamps.magFilter = lamps.magFilter; noLamps.needsUpdate = true; }
+    lu.value = noLamps;
+  }
+  for (const b of bootU) { if (b.v === null) continue; if (typeof b.v === 'object') { b.now = (b.now || b.v.clone()).copy(b.u.value); b.u.value.copy(b.v); } else { b.now = b.u.value; b.u.value = b.v; } }
   try { fn(); } finally {
+    for (const b of bootU) { if (b.v === null) continue; if (typeof b.v === 'object') b.u.value.copy(b.now); else b.u.value = b.now; }
+    if (lu) lu.value = lamps;
+    if (rp) rp.forEach((v, i) => { v.w = rpw[i]; });
     if (u) u.value.x = x;
     culled.forEach((m, i) => { m.visible = vis[i]; });
     for (const b of boot) { b.o[b.k] = b.i1; b.o[b.c].copy(b.col1); }
@@ -252,7 +266,7 @@ let play, g = null, game = null;
 if (Q.has('world')) {   // the district alone: walk, fly, orbit (stills, the world check)
   await world.prepare();
   play = createPlay(world, { plan: built.plan, canvas, mode: Q.get('mode') || 'walk', spp, ui: Q.get('ui') !== '0', shadowRadius: 34, fit: !Q.get('w'), quality, hud });
-  grabBoot();
+  grabBoot(); grabU();
 } else {
   g = await startGame(world, {
     built, canvas, id: plan.name, version: VERSION, title: T.title, subtitle: T.subtitle,
@@ -261,7 +275,7 @@ if (Q.has('world')) {   // the district alone: walk, fly, orbit (stills, the wor
     objective, summary,
   });
   play = g.play;
-  grabBoot();
+  grabBoot(); grabU();
   // the rooms' shafts of light (modules/shafts.js) shine only when the sun, the moon or the lamp outside really reaches
   // the opening: a ray through the physics world toward it
   shared.shafts?.setSee((from, dir, max) => !!g.physics.ray(from, dir, max));
@@ -294,6 +308,9 @@ window.__mirage = { world, built, play, g, game, vfx, rain, big, shared, setHour
 document.getElementById('boot')?.remove();
 // ready = the light is baked too (the stills and the checks wait for it); the title and the game are up before that
 while (world.lighting?.busy) await new Promise((r) => setTimeout(r, 50));
+// the reflection probes were captured before the volume was baked, from a world without its light: capture them again,
+// from the state the first bake had (they were captured after it)
+if (world.lighting?.probes && boot.length) bakeScope(() => { const p = world.lighting.probes; p.targets.forEach((t) => t && t.dispose()); p.targets.fill(null); p.envCaptured(); }, true);
 if (world.lighting?.gi) { world.lighting.gi.cfg.budget = 0; world.lighting.gi.cfg.pace = 2; }   // later re-bakes (the hour) take what the frame can spare
 performance.mark('nd:ready');
 window.__READY = true;
