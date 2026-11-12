@@ -8,7 +8,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "check": "node scripts/yard-check.mjs"
   },
   "dependencies": {
     "@miragekit/core": "1.0.0",

@@ -58,10 +58,15 @@ let seed = 1;
 const rand = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
 function reset() {
   seed = 1; clock = 0; hero.order = null; hero.swing = null; hero.cd = 0; mark.visible = false;
+  crowd.agents.length = 0;   // the same order every time (it decides who steps aside first)
   for (const a of [hero, ...critters]) {
-    a.agent.place(nav.nearest(a.home, { radius: R, snap: 3 }) || a.home); a.agent.stop();
-    a.sprite.play('idle', { restart: true }).setFade(1).setFacing(0);
-    if (a !== hero) { a.hp = 3; a.dead = 0; a.wait = 0; if (!crowd.agents.includes(a.agent)) crowd.add(a.agent); }
+    const g = a.agent;
+    g.place(nav.nearest(a.home, { radius: R, snap: 3 }) || a.home); g.stop();
+    // what stop() leaves of the last walk: a reset starts from nothing, or the first wander shifts by a step
+    g.moving = g.arrived = g.blocked = false; g.heading[0] = 0; g.heading[1] = 1; g.push[0] = g.push[1] = 0; g.index = 0;
+    a.sprite.play('idle', { restart: true }).setFade(1).setFacing(0).flash(0);
+    if (a !== hero) { a.hp = 3; a.dead = 0; a.wait = 0; }
+    crowd.add(g);
   }
 }
 

@@ -293,8 +293,8 @@ export function createSpriteActor(world, atlas, { parent = world.scene, shadow =
     play(name, options) { anim.play(name, options); return actor; },
     /** seconds one run of an animation lasts at speed 1 */
     duration: (name) => atlas.duration(name),
-    /** a white flash that fades in about 0.15 s (k: 0..1) */
-    flash(k = 1) { st.flash = Math.max(st.flash, k); return actor; },
+    /** a white flash that fades in about 0.15 s (k: 0..1); flash(0) clears one */
+    flash(k = 1) { st.flash = k > 0 ? Math.max(st.flash, k) : 0; U.uFlash.value = st.flash * 0.75; return actor; },
     /** 'hover' | 'enemy' | 'friend' | 'select' | [r, g, b] (linear, may exceed 1) | null; width in texels */
     outline(kind, width = 4) {
       if (!kind) { U.uOutline.value.w = 0; return actor; }

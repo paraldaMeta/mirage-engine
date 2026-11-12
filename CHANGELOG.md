@@ -20,6 +20,9 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
   camera and the player in the marked materials, shadows untouched, `hides()` for picking) and `kits/edge`
   (`addPerimeter`, `addBarrier`: invisible collider walls, one mesh each). Checked by
   `packages/play/sprites.check.mjs` and `packages/world/cutaway.check.mjs` (in `npm test`); `docs/types/sprites-25d.mts`.
+  In Chrome: sprite-yard has no console errors, clicks walk / step off a crate / strike on the hit frame
+  (`npm run check -w sprite-yard`), its stills are bit-identical (determinism check); the nine existing examples
+  build byte-identical to main and river-ford / hello-courtyard stills differ by 0 pixels.
 - @miragekit/core: the wet layer learns where water goes and how it looks in rain (ported from the rainy ship deck
   of the owner's Oman project, `withWet` options, all opt-in): `wear` (a GLSL float: ruts, a trodden path, joints,
   round drains; the water gathers there, `wearDepth` 0.016 m) and `shelter` (a number, a GLSL float or a `{ value }`

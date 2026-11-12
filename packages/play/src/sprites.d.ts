@@ -72,6 +72,7 @@ export interface SpriteActor {
   faceToward(x: number, z: number): SpriteActor;
   play(name: string, options?: SpritePlayOptions): SpriteActor;
   duration(name: string): number;
+  /** k: 0..1; 0 clears */
   flash(k?: number): SpriteActor;
   outline(kind: 'hover' | 'enemy' | 'friend' | 'select' | readonly [number, number, number] | null, width?: number): SpriteActor;
   setTint(r: number, g: number, b: number): SpriteActor;

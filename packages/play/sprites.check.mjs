@@ -173,6 +173,7 @@ const stubCanvas = (w, h) => {
   assert.deepEqual(ends, [1]);
   actor.flash(1); actor.update(0, 0); assert.ok(actor.uniforms.uFlash.value > 0.7);
   actor.update(1, 0); assert.equal(actor.uniforms.uFlash.value, 0, 'the flash fades');
+  actor.flash(1).flash(0); assert.equal(actor.uniforms.uFlash.value, 0, 'flash(0) clears at once');
   actor.outline('enemy'); assert.equal(actor.uniforms.uOutline.value.w, 4); actor.outline(null); assert.equal(actor.uniforms.uOutline.value.w, 0);
   actor.setFade(0.5); assert.ok(near(actor.blob.material.opacity, 0.16));
   // screenRect: centred on the projected feet, the card's height above them

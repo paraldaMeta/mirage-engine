@@ -15,5 +15,10 @@ no art file in this folder; `?atlas=<url of an atlas.json>` loads real art for t
 npm run dev -w sprite-yard        # or: npm run build -w sprite-yard
 ```
 
+Browser check (real Chrome, after a build): `npm run check -w sprite-yard`: no console errors; real mouse clicks
+walk the hero to a ground point, off a crate's top to the ground beside it, and up to a creature it strikes on the
+attack's hit frame; stills of the hover outline, the silhouette, the cutaway and the night in
+`out/sprite-yard/check`. `node packages/tools/determinism.check.mjs examples/sprite-yard/dist`: bit-identical.
+
 `window.__mirage.play` is a small adapter with the parts of a `createPlay` object the repository's still tools use
 (`stop`, `step`, `place`, `viewpoint`, `render`); `place` and `viewpoint` reset the simulation, so a still repeats.
