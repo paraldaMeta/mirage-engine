@@ -515,6 +515,10 @@ export function setupDestruct({ ctx, shared, vfx, sfx, player, weapon, enemies, 
   // cover test the props get)
   d.on('blast', (e) => {
     if (!e.source || typeof e.source !== 'object' || !e.source.id) return;   // the player's own rockets: weapon.js
+    // only what goes off: a fallen sign's landing is a blast of kind 'melee' in the registry (it damages the props it
+    // lands on) and is the 'crush' below; taken here too it boomed like a rocket, shook the view as a gas bottle does a
+    // second after the round that dropped it, and hurt whoever was under it twice
+    if (e.kind !== 'blast') return;
     const P = e.point, r = e.radius, fall = (dd) => Math.max(0.1, 1 - dd / r);
     let kills = 0;
     const at = (list, owner, cy) => { for (const en of list) { if (en.dead || (en.rig && !en.rig.root.visible) || (en.o && !en.o.visible)) continue; const c = [en.pos[0], en.pos[1] + cy(en), en.pos[2]], dd = Math.hypot(c[0] - P[0], c[1] - P[1], c[2] - P[2]); if (dd > r) continue; const k = e.cover(c); if (k <= 0) continue; stats.lastHead = false; if (owner.damage(en, e.damage * fall(dd) * k, false, c, [(c[0] - P[0]) / (dd || 1), (c[1] - P[1]) / (dd || 1), (c[2] - P[2]) / (dd || 1)], { splash: true })) kills++; } };
