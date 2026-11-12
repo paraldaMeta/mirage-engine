@@ -441,6 +441,20 @@ in-world signs are the plan's and stay as they are.
   card one line at a time), and nothing the HUD shows enters the stick's zone or a button (`tablet` in the
   controls check, phones and tablets in both orientations).
 
+## Logo and the installable app
+
+- **Logo:** `game/logo.js` draws it as neon tubes in SVG paths (no font): the mark is an N whose last stem is the stem
+  of a D (cyan N, magenta bowl); the wordmark is a chamfered monoline on a 60 x 100 grid. `node scripts/logo.mjs`
+  writes `public/logo.svg`, `public/icon.svg`, the PNG icons (192, 512, 512 maskable, 180 apple-touch, 32 favicon,
+  drawn by headless Chrome), the loading card's inline mark in `index.html`, and the look sheet `out/logo/sheet.png`.
+  The title screen draws the mark above its kicker (beside the title on a phone held sideways).
+- **PWA (the hosted `npm run build` only):** `vite.config.js` adds the manifest and icon links to `index.html` and
+  writes the list of built files and a version into `dist/sw.js` (source `public/sw.js`: network first for the page,
+  cache first for the rest; a new build takes over on the next load). `game/pwa.js` registers it over https or on
+  localhost in the top window only; the dev server and the single file (`npm run package`, from `file://`) have no
+  manifest link and register nothing. When the browser offers an install, the options panel shows an Install row.
+  `node scripts/pwa-check.mjs` (after a build): manifest, precache, an offline reload, and the packaged file.
+
 ## Measured
 
 Apple M4 Pro, headless Chrome (ANGLE Metal), 1440 x 900 at pixel ratio 1, `node scripts/measure.mjs` (and `--ab`).

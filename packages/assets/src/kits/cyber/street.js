@@ -7,11 +7,9 @@
 // The colliding volumes stay where their modules put them; these are drawn as decor.
 import * as THREE from 'three';
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
-import { hex } from './kit.js';
+import { hex, lathe, C } from './kit.js';
 
-const lathe = (pts, seg) => { const g = new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(Math.max(r, 1e-4), y)), seg); g.computeVertexNormals(); return g; };
 const cache = new Map(), once = (k, f) => { if (!cache.has(k)) cache.set(k, f()); return cache.get(k); };
-const C = (m, geom, p, r = [0, 0, 0], s = 1) => m.clone().multiply(geom.compose(p, r, s));
 const DARK = [0.03, 0.03, 0.033];
 
 /** a street bin, r 0.26, h 0.85: a body colour, an open or shut lid */

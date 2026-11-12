@@ -290,7 +290,7 @@ export function createModels({ world, M }) {
     put('dark', side([[0.1, 0.05], [0.1, 0.07], [0.06, 0.07], [0.06, 0.05]], 0.01, 0.002), [-0.04, 0, 0]);
     put('dark', new THREE.TorusGeometry(0.013, 0.0022, 6, 18), [-0.04, 0.083, 0.08]);
     put('dark', side([[-0.1, 0.05], [-0.1, 0.075], [-0.115, 0.083], [-0.13, 0.075], [-0.13, 0.05]], 0.008, 0.002), [-0.04, 0, 0]);
-    const dot = part(new THREE.SphereGeometry(0.0018, 8, 6), neon('amber'), [-0.04, 0.083, -0.115], [0, 0, 0], gun);
+    part(new THREE.SphereGeometry(0.0018, 8, 6), neon('amber'), [-0.04, 0.083, -0.115], [0, 0, 0], gun);
     // the fire-control box under the tube, two grips, the trigger, a status lamp
     put('body', side([[0.12, -0.05], [0.12, -0.078], [0.1, -0.088], [-0.12, -0.088], [-0.13, -0.074], [-0.13, -0.05]], 0.05, 0.006));
     put('poly', side([[0.06, -0.086], [0.098, -0.086], [0.108, -0.1], [0.122, -0.18], [0.084, -0.186], [0.064, -0.11]], 0.032, 0.007));
@@ -309,7 +309,7 @@ export function createModels({ world, M }) {
     rk.put('steel', lathe([[0.0, -0.212], [0.004, -0.211], [0.006, -0.198]], 10));
     rk.fuse(round);
     const h = hands(gun, { grip: [0.0, -0.12, 0.09], gripRot: [0.05, 0, 0], support: [0, -0.1, -0.15], supportRot: [0, 0, 0] });
-    return { group: gun, scale: 0.9, dot: null, sightPost: dot, round, lamp, left: h.left, muzzle: [0, 0, -0.68], back: [0, 0, 0.45], hip: [0.16, -0.115, -0.25], ads: [0.036, -0.0747, -0.2], port: null };
+    return { group: gun, scale: 0.9, dot: null, round, lamp, left: h.left, muzzle: [0, 0, -0.68], back: [0, 0, 0.45], hip: [0.16, -0.115, -0.25], ads: [0.036, -0.0747, -0.2], port: null };
   }
 
   // ---- the gatling: six barrels on a rotor, a motor housing, a drum on the left feeding through a chute ------------

@@ -109,6 +109,7 @@ const CSS = `
 `;
 
 import { LANG_NAMES, HTML_LANG, lang } from './text.js';
+import { canInstall, install, onInstallChange } from './pwa.js';
 
 const HOURS = { night: 23.25, dawn: 6.25, day: 13.5, dusk: 17 };
 /** the guns' silhouettes, drawn here (the touch strip uses them too) */
@@ -179,6 +180,7 @@ export function createHud({ camera, onDispose, T }) {
   labels(); setTimeout(localiseCorner, 0);   // the corner is made after the game's setup
   const set = (el, k, v) => { let c = shown.get(el); if (!c) shown.set(el, (c = {})); if (c[k] !== v) { c[k] = v; if (k === 'text') el.textContent = v; else el.style[k] = v; } };
   onDispose(() => { root.remove(); opt?.remove(); });
+  onDispose(onInstallChange(() => { if (opt && optArgs) build(optArgs); }));   // the install row comes and goes (pwa.js)
   /** the options panel's content (again after a language switch; the values live in o.values) */
   function build(o) {
     const v = o.values, num = (k, x) => (k === 'fov' ? String(x) : k === 'tOpacity' ? `${Math.round(x * 100)}%` : (+x).toFixed(2));
@@ -196,6 +198,7 @@ export function createHud({ camera, onDispose, T }) {
       ${flip('pops', T.opt.pops, v.pops === true)}
       <label><span>${T.opt.clarity}</span><button data-b="clarity">${T.opt.clarityNames[clarityNow()]}</button></label>
       <label><span>${T.opt.lang}</span><button data-b="lang" lang="${HTML_LANG[lang]}">${LANG_NAMES[lang]}</button></label>
+      ${canInstall() ? `<label><span>${T.opt.install}</span><button data-b="install">${T.opt.installGo}</button></label>` : ''}
       <h3>${T.opt.feel}</h3><label><span>${T.opt.comfort}</span><button data-b="comfort">${T.opt.comfortNames[v.comfort] || T.opt.comfortNames.custom}</button></label>${range('shake', 0, 1.5, 0.05, T.opt.shake)}${range('vibrate', 0, 1, 0.05, T.opt.vibrate)}
       ${flip('hitStop', T.opt.hitStop, v.hitStop !== false)}
       <label><span>${T.opt.code}</span><span><input type="text" inputmode="numeric" autocomplete="off" maxlength="4" data-c="code" placeholder="${T.opt.codeHint}" style="width:90px;min-height:30px;background:#04141c;color:#d8f6ff;border:1px solid #6fe8ff88;font:600 14px ui-monospace,monospace;text-align:center"></span></label>
@@ -218,6 +221,7 @@ export function createHud({ camera, onDispose, T }) {
         else if (k === 'invert' || k === 'leftFire' || k === 'sprintLock') { v[k] = !v[k]; show(b, v[k]); o.onChange(k, v[k]); }
         else if (k === 'full') { v.fullscreen = v.fullscreen === false; show(b, v.fullscreen); Promise.resolve(o.onFull?.(v.fullscreen)).catch(() => {}); }
         else if (k === 'hitStop') { v[k] = v[k] === false; show(b, v[k]); o.onChange(k, v[k]); }
+        else if (k === 'install') install();   // the browser's own prompt; the row goes with the offer
         else if (k === 'lang') o.onLang();   // the switch rebuilds this panel (relang) with values.lang from the game
         else if (k === 'comfort') { const L = ['comfort', 'standard', 'intense']; v.comfort = L[(L.indexOf(v.comfort) + 1) % 3]; b.textContent = T.opt.comfortNames[v.comfort]; o.onChange('comfort', v.comfort); }
         else if (k === 'clarity') { const L = ['standard', 'sharp', 'max'], n = L[(L.indexOf(clarityNow()) + 1) % 3]; document.documentElement.dataset.clarity = n; try { localStorage.setItem('nd.clarity', n); } catch { /* no storage */ } b.textContent = T.opt.clarityNames[n]; setTimeout(() => location.reload(), 400); }

@@ -7,6 +7,7 @@
 // While it is up it owns the keys (a window capture listener added before the overlay's, so a key does not start the
 // game behind it) and the pad (the overlay's per-frame update, which starts the game on A, is held back).
 import * as THREE from 'three';
+import { mark } from './logo.js';
 
 const CSS = `
 .nt{position:fixed;inset:0;z-index:30;pointer-events:none;color:#d8f6ff;font:600 13px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace;user-select:none;-webkit-user-select:none;transition:opacity .45s;--pad:max(28px,env(safe-area-inset-left));--cy:#19d8ff;--mg:#ff3fd2}
@@ -20,6 +21,7 @@ const CSS = `
 .nt-replay{all:unset;pointer-events:auto;cursor:pointer;margin-right:18px;padding:4px 10px;border:1px solid #19d8ff50;color:#d8f6ffd0;letter-spacing:.24em;font-size:10px}.nt-replay:hover,.nt-replay:focus-visible{border-color:#19d8ff;color:#fff}
 @keyframes nt-blink{50%{opacity:.15}}
 .nt-main{position:absolute;left:var(--pad);top:50%;transform:translateY(-52%);width:min(430px,calc(100vw - 2 * var(--pad)))}
+.nt-logo{width:68px;height:68px;margin:0 0 12px -9px}.nt-logo svg{display:block;width:100%;height:100%}
 .nt-kicker{font-size:10px;letter-spacing:.32em;color:var(--mg);margin:0 0 10px;text-shadow:0 0 12px #ff3fd280}
 .nt-h{margin:0;font:800 66px/.9 ui-monospace,SFMono-Regular,Menlo,var(--nd-cjk,"PingFang TC"),monospace;letter-spacing:.02em;color:#f4feff;text-shadow:-2px 0 #ff3fd270,2px 0 #19d8ff70,0 0 30px #19d8ff3a}
 .nt-h span{display:block}
@@ -39,6 +41,7 @@ const CSS = `
 .nt-row.go{height:52px;margin-bottom:6px;border-color:#19d8ff;background:linear-gradient(90deg,#19d8ffe8,#19d8ffb0 62%,#19d8ff30);box-shadow:0 0 24px #19d8ff30}
 .nt-row.go .k{font-size:17px;letter-spacing:.42em;color:#02080d;font-weight:800;padding-left:18px}
 .nt-row.go .k:before{content:"";display:inline-block;margin-right:16px;border:7px solid transparent;border-left:11px solid #02080d;border-right:0;vertical-align:-1px}
+.nt-row.go.busy{background:linear-gradient(90deg,#19d8ffe8 calc(var(--p,0) * 100%),#19d8ff30 calc(var(--p,0) * 100%));cursor:progress;filter:saturate(.6)}
 .nt-row.go.on{background:linear-gradient(90deg,#7af4ff,#19d8ffd0 62%,#19d8ff40);box-shadow:0 0 34px #19d8ff60}
 .nt-row:focus-within{outline:none}.nt-row button:focus-visible{outline:none}
 .nt-desc{margin:12px 0 0;min-height:2.9em;font:400 12px/1.45 system-ui,-apple-system,var(--nd-cjk,"PingFang TC"),sans-serif;color:#d8f6ffa8;max-width:32em}
@@ -56,6 +59,7 @@ const CSS = `
   .nt-top{top:max(10px,env(safe-area-inset-top))}
   .nt-main{top:max(30px,env(safe-area-inset-top));transform:none;width:min(390px,52vw)}
   .nt-kicker{display:none}
+  .nt-logo{float:left;width:36px;height:36px;margin:-4px 8px 0 -5px}.nt-p{clear:left}
   .nt-h{font-size:30px}.nt-h span{display:inline}.nt-h span+span:before{content:" "}
   .nt-h.cjk{font-size:30px}
   .nt-p{margin:7px 0 10px;font-size:11.5px;line-height:1.35}
@@ -113,6 +117,7 @@ export function createTitle({ T, plan, world, values, choices, names = {}, best,
   root.innerHTML = `<style>${CSS}</style><div class="nt-shade"></div><div class="nt-scan"></div>
     <div class="nt-top"><span><i></i><span class="nt-feed"></span></span><span>${onIntro ? '<button class="nt-replay" data-a="intro"></button>' : ''}<span class="nt-clock"></span></span></div>
     <div class="nt-main">
+      <div class="nt-logo" aria-hidden="true">${mark({ id: 'ndt', tile: false })}</div>
       <p class="nt-kicker"></p>
       <h1 class="nt-h"></h1>
       <p class="nt-p"></p>
@@ -125,6 +130,7 @@ export function createTitle({ T, plan, world, values, choices, names = {}, best,
     <div class="nt-nav"></div>`;
   document.body.appendChild(root);
   const els = [...root.querySelectorAll('.nt-row')], desc = root.querySelector('.nt-desc'), nav = root.querySelector('.nt-nav'), clock = root.querySelector('.nt-clock');
+  let busy = null;   // null, or 0..1: the shaders are still compiling (main.js): the menu works, DEPLOY waits and shows how far it is
   let sel = 0, shown = false, g = null, orig = null, t = 0, last = 0, stickT = 0, stickDir = 0, source = '';
   onDispose(() => { root.remove(); document.body.classList.remove('nd-titling'); });
   const esc = (v) => String(v).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -185,13 +191,13 @@ export function createTitle({ T, plan, world, values, choices, names = {}, best,
     else change(i, 1);
   }
   function deploy(ev) {
-    if (!shown) return;
+    if (!shown || busy !== null) return;
     hide();
     onDeploy(ev);
   }
   /** the intro again, then the run (intro.js) */
   function replay(ev) {
-    if (!shown || !onIntro) return;
+    if (!shown || !onIntro || busy !== null) return;
     hide();
     onIntro(ev);
   }
@@ -310,6 +316,14 @@ export function createTitle({ T, plan, world, values, choices, names = {}, best,
     setTimeout(() => { if (!shown) root.hidden = true; }, 480);
   }
   /** the language changed: every text again */
-  const relang = () => { texts(); render(); };
-  return { show, hide, render, relang, get shown() { return shown; }, get selected() { return rows[sel].id; }, root };
+  const relang = () => { texts(); render(); setBusy(busy); };
+  /** f in 0..1: DEPLOY is a progress bar; null: it is DEPLOY */
+  function setBusy(f) {
+    busy = f;
+    const row = els[0], k = row.querySelector('.k');
+    row.classList.toggle('busy', f !== null);
+    row.style.setProperty('--p', f === null ? 1 : f.toFixed(3));
+    k.textContent = f === null ? rows[0].label() : `${rows[0].label()} · ${Math.round(f * 100)}%`;
+  }
+  return { show, hide, render, relang, setBusy, get shown() { return shown; }, get selected() { return rows[sel].id; }, root };
 }

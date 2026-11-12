@@ -26,11 +26,11 @@
 // `machineUnits(group)` (or the returned `units()`) lists every unit's batch instance ids and its body frame.
 import * as THREE from 'three';
 import { WET } from '@miragekit/core';
+import { FONT } from './kit.js';
 import { humanoid, quadruped, quadrupedDims, mergeParts, moved, part, tf, cover, drum, decal, ext, robotMaterials, decalTexture, trotLegs, legIK, COL } from './robot-kit.js';
 import { motionClips, samplePose, MOTION_BONES } from './motion-clips.js';
 import { civilianAct, CIV_ACTS, ACT_LEN } from './robot-behaviours.js';
 
-const FONT = '"PingFang TC", "Hiragino Sans", "Noto Sans TC", "Noto Sans JP", "Microsoft JhengHei", system-ui, sans-serif';
 const HP = Math.PI / 2, TAU = Math.PI * 2;
 
 // ---------------------------------------------------------------------------------------------------------------

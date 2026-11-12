@@ -196,6 +196,7 @@ async function strip(page, name, label, times, setup, frame = null, zoom = 1.6) 
     const { M, put, at, only, step } = window.__mc;
     only([]);
     const h = M.heavy.entity, a = M.boss.entity, hp = [9.8, roof, lane], pf = [9.8 + d, roof, lane];
+    h.agent.setGoal = () => {}; h.agent.stop();   // it stands where it is put: its between-moves walk (circling out to 7 m, its path queries budgeted by the frame time) took it a metre away in the settling frames, by a different side with every timing: out of the grab's reach, or off the ally's line
     h.hp = h.maxHp; h.mm.move = null; h.mm.awake = true; h.mm.cd = {}; h.mm.gap = 99; h.mm.posture = 0; h.mm.open = false; h.mm.lt = 0; h.mm.perchAt = null; h.mm.perch = null; h.mm.land = null; h.mm.landed = false; h.mm.called = false; h.mm.held = false; h.mm.name = null;
     at(pf, hp); put(h, hp, pf);
     put(a, [Math.min(21, 9.8 + d + 1.2), roof, lane + 2.4], hp); a.mm.allyCd = extra === 'ally' ? 0 : 99; a.mm.move = null;
