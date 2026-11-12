@@ -426,9 +426,12 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
   function pose(dt) {
     if (!play) return;
     clock += dt;
-    // the lens: aiming narrows it, a shot punches it for a moment (after play wrote its own field of view)
+    // the lens: aiming narrows it, a shot punches it for a moment (after play wrote its own field of view). Not while
+    // a director drives the camera (the map intro): this runs before every sub-frame, after the director's lens and
+    // lens shift, and it wrote the gun's lens over both (the intro's far long-lens frames came out wide)
+    const directed = !!play.director;
     const fov = S.fov + (S.fov * (A.adsFov / GUN.fov) - S.fov) * S.ads + S.fovPunch;
-    if (Math.abs(camera.fov - fov) > 1e-3) { camera.fov = fov; camera.updateProjectionMatrix(); }
+    if (!directed && Math.abs(camera.fov - fov) > 1e-3) { camera.fov = fov; camera.updateProjectionMatrix(); }
     S.lean += (S.wantLean - S.lean) * Math.min(1, dt * 9);
     // the camera's offsets go on once a frame: play writes the camera every frame, so a camera that is not where these
     // left it is a new frame (a frame's later sub-frames find it where they left it)
@@ -439,7 +442,7 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
     const offY = S.bobY - player.crouch * 0.6 - S.dip;
     const pitch = (Math.sin(t * 41) + Math.sin(t * 67 + 1.3)) * sh + S.flinchP, yaw = (Math.sin(t * 37 + 0.7) + Math.sin(t * 59 + 2.1)) * sh * 0.8 + S.flinchY;
     const roll = -S.lean * 0.13 + rl * (Math.sin(ph) * 0.004 * bobK + S.roll * A.recoil.roll * S.rollSign * k * 0.35 + Math.sin(t * 29) * sh * 0.6);
-    const any = Math.abs(offY) + Math.abs(S.lean) + Math.abs(pitch) + Math.abs(yaw) + Math.abs(roll) > 1e-5;
+    const any = !directed && Math.abs(offY) + Math.abs(S.lean) + Math.abs(pitch) + Math.abs(yaw) + Math.abs(roll) > 1e-5;
     if (any && !(camera.position.equals(left.pos) && camera.quaternion.equals(left.q))) {
       right.set(1, 0, 0).applyQuaternion(camera.quaternion); right.y = 0; right.normalize();
       let reach = 0;

@@ -24,7 +24,7 @@
 import * as THREE from 'three';
 import { FOG } from '@miragekit/core';
 
-const SEEN = 'nd-intro-seen', D2R = Math.PI / 180, NEAR = 0.08, FADE = 0.32, MIN_FOV = 12;
+const SEEN = 'nd-intro-seen', D2R = Math.PI / 180, NEAR = 0.08, FADE = 0.32;
 let seenHere = false;   // storage blocked: once a page
 export function introSeen() { try { return seenHere || localStorage.getItem(SEEN) === '1'; } catch { return seenHere; } }
 function markSeen() { seenHere = true; try { localStorage.setItem(SEEN, '1'); } catch { /* storage blocked: once a page */ } }
@@ -78,8 +78,9 @@ export function tour(end) {
   const S = [];
   // 1  Kestrel Street from its open west end: flat, opened (the robots stand in a row across the street), flat again
   //    (they move into a diagonal), opened again
-  const st = { F: [-4, 6.5, 6], h: 0, W: 30, fov: 2.6, el: 1.5, fy: -0.05, clip: 30 };
-  S.push(shot('street', [[0, st], [1.6, drift(st)], [4.2, { W: 26.5, fov: 48, el: 0.5, F: [-4, 4.5, 6], clip: 30 }], [5.2, { W: 25.5 }],
+  //    (clip 27: a sign's back stands at x -34, the plane 30 m before the focus cut through it, a black panel)
+  const st = { F: [-4, 6.5, 6], h: 0, W: 30, fov: 2.6, el: 1.5, fy: -0.05, clip: 27 };
+  S.push(shot('street', [[0, st], [1.6, drift(st)], [4.2, { W: 26.5, fov: 48, el: 0.5, F: [-4, 4.5, 6], clip: 27 }], [5.2, { W: 25.5 }],
     [7.0, { W: 26, fov: 2.6, el: 1.5, F: [-4, 6.5, 6] }], [7.7, { W: 25.5 }], [10.2, { W: 24, fov: 54, el: 4, F: [-6, 4.5, 6], h: 8 }], [11.0, { W: 23.4 }]], { swap: [0, 7.35] }));
   // 2  the walls: the north side's signs head on (the couplet, MIRAGE), a long lens from across the street, then open
   const sg = { F: [-2.4, 7, 2], h: -90, W: 15, fov: 2.2, el: 0, fy: 0, clip: 7.6 };
@@ -161,9 +162,6 @@ export function createIntro({ T, world, game, enemies, onDispose, onFrame }) {
     let i = 0;
     while (i < shots.length - 1 && time >= starts[i + 1]) i++;
     const s = shots[i], lt = Math.min(s.len, Math.max(0, time - starts[i])), p = s.at(lt);
-    // the flattest lens drawn: below about 12 deg (hundreds of metres out) the frame came out as a far, wide view of
-    // the district in the stills (cause not found yet); about 12 deg was seen to draw right
-    p.fov = Math.max(MIN_FOV, p.fov);
     const aspect = world.pipeline.w / world.pipeline.h;
     const th = Math.tan(p.fov * D2R / 2), vt = th / aspect, D = p.W / (2 * th), h = p.h * D2R, dx = Math.cos(h), dz = Math.sin(h), te = Math.tan(p.el * D2R);
     cam.position.set(p.F[0] - dx * D, p.F[1] + D * te, p.F[2] - dz * D);
