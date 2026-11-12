@@ -343,7 +343,7 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
   const strike = (a = R() * 6.28, r = 260 + R() * 200) => {
     const c = world.camera.position, bx = c.x + Math.cos(a) * r, bz = c.z + Math.sin(a) * r;
     if (flash) flash.strike([bx + (R() - 0.5) * 60, 330, bz + (R() - 0.5) * 60], [bx, 25, bz], R() * 1000, c.toArray());
-    bolt.dir = [bx - c.x, 160, bz - c.z]; bolt.t = 0;
+    bolt.dir = [bx - c.x, 160, bz - c.z]; bolt.t = 0; boltT = Math.max(boltT, 16);
     if (sky) { sky.position.set(c.x + (bx - c.x) * 0.4, 110, c.z + (bz - c.z) * 0.4); sky.userData.t = 0.38; }
     thunderT = 0.15 + Math.hypot(r, 200) / 343;   // sound at 343 m/s from the bolt's middle
   };

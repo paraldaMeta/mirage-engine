@@ -181,11 +181,12 @@ async function measure(label, root, query) {
   // after a fall of 0.1 (flashes below 1: one smooth pulse at most, never above the setting)
   a.flash = await page.evaluate(async () => {
     const w = window.__mirage.g.game.weather; if (!w) return null;
+    for (let i = 0; i < 200 && w.flash > 0.01; i++) await new Promise((r) => requestAnimationFrame(r));   // a strike of the weather's own still fading
     w.strike(); const lv = [];
     const t0 = performance.now(); while (performance.now() - t0 < 1600) { lv.push(w.flash); await new Promise((r) => requestAnimationFrame(r)); }
     let pulses = 0, lo = 0, hi = 0, up = false;
     for (const v of lv) { if (!up && v > lo + 0.1) { up = true; pulses++; hi = v; } else if (up) { hi = Math.max(hi, v); if (v < hi - 0.1) { up = false; lo = v; } } else lo = Math.min(lo, v); }
-    return { peak: Math.max(...lv), pulses, flashes: window.__mirage.game?.opts?.flashes ?? null };
+    return { peak: Math.max(...lv), pulses, lv: lv.map((v) => +v.toFixed(2)).join(" ") };
   });
   await page.close();
   const j = {};
@@ -212,6 +213,7 @@ console.log(`| measure | ${cols.map((c) => c.label).join(' | ')} |\n|---|${cols.
 for (const [name, fn] of rowsOut) console.log(`| ${name} | ${cols.map((c) => f1(fn(c))).join(' | ')} |`);
 let failed = 0;
 const gate = (ok, what) => { console.log(`${ok ? 'pass' : 'FAIL'}  ${what}`); if (!ok) failed++; };
+if (process.env.VERBOSE) for (const x of cols) console.log(x.label, x.a.flash?.lv);
 const c = cols.find((x) => x.label === 'comfort');
 if (c) {
   gate(c.a.offPeak <= 1.5, `comfort: shake + flinch offset peak ${f1(c.a.offPeak)} deg <= 1.5`);
