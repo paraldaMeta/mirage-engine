@@ -3,27 +3,33 @@
 // gun is merged into one mesh per material. Each builder returns { group, muzzle, port, hip, ads, sight, parts... }:
 // the moving parts (a magazine, a slide, a pump, a spinning barrel cluster, the rocket in the tube) are their own
 // meshes so weapon.js can animate them. Every gun points along -Z (the camera's view); metres.
-// The gloved hands are modelled once, round the carbine (the right hand on its grip, the left under its guard), and
-// moved onto each gun's own grip and support point (`hands`).
+// The gloved hands are modelled round the carbine (the right hand on its grip, the left under its guard) and moved
+// onto each gun's own grip and support point (`hands`), the fingers opened or closed per gun: each finger one smooth
+// tube tapering to a rounded tip (knuckle pads on the back), a palm and a back of the hand, a cuff; dark leather
+// gloves and a nylon sleeve. Materials are the surface library's (object space: the pattern rides on the gun).
 import * as THREE from 'three';
+import { SURFACES } from '@miragekit/assets/surfaces';
+import { robotSurfaces as surfaceLib } from '@miragekit/assets/kits/cyber';
 
 const HP = Math.PI / 2, v2 = (pts) => pts.map(([a, b]) => new THREE.Vector2(a, b));
 
 export function createModels({ world, M }) {
   const { mat } = world;
   const C = (r, g, b) => new THREE.Color(r, g, b);
-  // materials: a little lighter than black, so the form reads by the fill light at night (weapon.js)
+  // materials: the surface library's, in the gun's own space (coatings dielectric, worn edges show the metal; a
+  // little lighter than black, so the form reads by the fill light at night: weapon.js)
+  const lib = surfaceLib(world), L = (spec, params) => lib.material(spec, { space: 'object', ...(params ? { params } : {}) });
   const mats = {
-    body: mat.std({ color: C(0.09, 0.098, 0.112), roughness: 0.45, metalness: 0.5 }),
-    dark: mat.std({ color: C(0.045, 0.048, 0.056), roughness: 0.55, metalness: 0.4 }),
+    body: L(SURFACES.powderCoat({ variant: 'cerakote', color: [0.075, 0.08, 0.09], edgeWear: 0.5 })),
+    dark: L(SURFACES.powderCoat({ variant: 'powder', color: [0.04, 0.042, 0.048] })),
     steel: M.steel,
-    poly: mat.std({ color: C(0.12, 0.125, 0.135), roughness: 0.66, metalness: 0.12 }),
-    glove: mat.std({ color: C(0.1, 0.1, 0.11), roughness: 0.62 }),
-    sleeve: mat.std({ color: C(0.16, 0.18, 0.21), roughness: 0.85 }),
-    olive: mat.std({ color: C(0.16, 0.17, 0.12), roughness: 0.6, metalness: 0.2 }),
-    brass: mat.std({ color: C(0.55, 0.38, 0.13), roughness: 0.3, metalness: 1 }),
-    hullRed: mat.std({ color: C(0.32, 0.03, 0.03), roughness: 0.5, metalness: 0.1 }),
-    warhead: mat.std({ color: C(0.16, 0.17, 0.12), roughness: 0.45, metalness: 0.5 }),
+    poly: L(SURFACES.plastic({ variant: 'textured', color: [0.1, 0.104, 0.112] })),
+    glove: L(SURFACES.leather({ variant: 'leather', color: [0.032, 0.029, 0.027], roughness: 0.55, grain: 0.0012 })),
+    sleeve: L(SURFACES.fabric({ variant: 'cotton', color: [0.04, 0.045, 0.055], roughness: 0.94 }), { sheen: 0 }),   // (a full sheen read as a pale sleeve under the gun's fill light)
+    olive: L(SURFACES.powderCoat({ variant: 'cerakote', color: [0.14, 0.15, 0.1] })),
+    brass: L(SURFACES.metal({ metal: 'brass', variant: 'machined' })),
+    hullRed: L(SURFACES.plastic({ variant: 'abs', color: [0.3, 0.03, 0.03] })),
+    warhead: L(SURFACES.powderCoat({ variant: 'cerakote', color: [0.14, 0.15, 0.1] })),
   };
   const glass = mat.std({ color: C(0.35, 0.75, 0.9), roughness: 0.05, metalness: 0, transparent: true, opacity: 0.14, depthWrite: false });
   const geo = {
@@ -56,63 +62,72 @@ export function createModels({ world, M }) {
   };
 
   // ---- the hands: modelled round the carbine's grip (G0) and guard (L0), then moved onto each gun's ----------------
-  const Y = new THREE.Vector3(0, 1, 0);
   const G0 = new THREE.Vector3(0.0, -0.09, 0.1), L0 = new THREE.Vector3(0, -0.03, -0.3);
-  function handGeo(right) {
-    const k = kit(), { put } = k, glove = right ? 'glove' : 'glove', sleeve = 'sleeve', plate = 'body';
-    const seg = (a, b, r) => {
-      const A = new THREE.Vector3(...a), B = new THREE.Vector3(...b), d = B.clone().sub(A), len = d.length();
-      const g = new THREE.CapsuleGeometry(r, len, 2, 7).toNonIndexed();
-      g.applyMatrix4(new THREE.Matrix4().compose(A.add(B).multiplyScalar(0.5), new THREE.Quaternion().setFromUnitVectors(Y, d.normalize()), new THREE.Vector3(1, 1, 1)));
-      (k.L[glove] ||= []).push(g);
+  function handGeo(right, open = 0) {
+    const k = kit(), { put } = k, glove = 'glove', sleeve = 'sleeve', plate = 'body';
+    // a finger: one tube through its joints, tapering to a rounded tip; `open` straightens it toward its first
+    // segment's line (0 as modelled round the carbine, 1 straight)
+    const finger = (pts, r0 = 0.0086, taper = 0.0006) => {
+      let P = pts.map((p) => new THREE.Vector3(...p));
+      if (open) { const d0 = P[1].clone().sub(P[0]).normalize(); let acc = 0; P = P.map((p, i) => { if (i) acc += pts[i - 1] ? new THREE.Vector3(...pts[i]).distanceTo(new THREE.Vector3(...pts[i - 1])) : 0; return p.clone().lerp(P[0].clone().addScaledVector(d0, acc), open); }); }
+      const curve = new THREE.CatmullRomCurve3(P, false, 'centripetal'), n = 10, rad = 7;
+      const g = new THREE.TubeGeometry(curve, n, r0, rad, false), pos = g.attributes.position, c = new THREE.Vector3();
+      for (let i = 0; i <= n; i++) {   // taper ring by ring toward the tip, a slight flattening across the nail
+        curve.getPointAt(i / n, c); const f = 1 - (taper / r0) * (P.length - 1) * (i / n);
+        for (let j = 0; j <= rad; j++) { const q = i * (rad + 1) + j; pos.setXYZ(q, c.x + (pos.getX(q) - c.x) * f, c.y + (pos.getY(q) - c.y) * f * 0.88, c.z + (pos.getZ(q) - c.z) * f); }
+      }
+      g.computeVertexNormals();
+      (k.L[glove] ||= []).push(g.toNonIndexed());
+      const tip = P.at(-1), rt = r0 * (1 - (taper / r0) * (P.length - 1));
+      put(glove, new THREE.SphereGeometry(rt, 7, 5), tip.toArray());
+      put(glove, new THREE.SphereGeometry(r0 * 1.08, 7, 5).scale(1, 0.85, 1), P[0].toArray());   // the knuckle
     };
-    const finger = (pts, r0 = 0.0098, taper = 0.0007) => { for (let i = 0; i + 1 < pts.length; i++) seg(pts[i], pts[i + 1], r0 - i * taper); };
+    const seg = (a, b, r) => finger([a, b], r, 0);
     // a forearm from the wrist toward the elbow: a glove cuff with a strap, a sleeve with folds, a plate on the side facing `out`
     const forearm = (wrist, elbow, out) => {
       const o = new THREE.Vector3(...out), y = new THREE.Vector3(...elbow).sub(new THREE.Vector3(...wrist)).normalize(), z = o.addScaledVector(y, -y.dot(o)).normalize(), x = new THREE.Vector3().crossVectors(y, z);
       const m = new THREE.Matrix4().makeBasis(x, y, z).setPosition(...wrist);
-      put(glove, new THREE.LatheGeometry(v2([[0.0245, -0.012], [0.0265, 0.004], [0.0285, 0.03], [0.032, 0.052], [0.0335, 0.058], [0.031, 0.061]]), 10), [0, 0, 0], [0, 0, 0], m);
-      put(plate, new THREE.TorusGeometry(0.0295, 0.0038, 5, 12).rotateX(HP), [0, 0.022, 0], [0, 0, 0], m);
-      put(sleeve, new THREE.LatheGeometry(v2([[0.027, 0.045], [0.034, 0.066], [0.0375, 0.092], [0.0325, 0.106], [0.04, 0.124], [0.0415, 0.16], [0.036, 0.176], [0.0445, 0.196], [0.047, 0.255], [0.042, 0.272], [0.051, 0.294], [0.054, 0.44]]), 10), [0, 0, 0], [0, 0, 0], m);
-      put(plate, sect([[-0.022, -0.07], [0.022, -0.07], [0.026, -0.05], [0.02, 0.07], [-0.02, 0.07], [-0.026, -0.05]], 0.009, 0.003), [0, 0.155, 0.0425], [0.05, 0, 0], m);
-      for (const sx of [-1, 1]) put(plate, new THREE.CylinderGeometry(0.003, 0.003, 0.003, 6).rotateX(HP), [sx * 0.014, 0.115, 0.0455], [0, 0, 0], m);
+      put(glove, new THREE.LatheGeometry(v2([[0.0235, -0.012], [0.025, 0.004], [0.027, 0.03], [0.03, 0.052], [0.031, 0.058], [0.029, 0.061]]), 14), [0, 0, 0], [0, 0, 0], m);
+      put(plate, new THREE.TorusGeometry(0.0282, 0.0034, 5, 16).rotateX(HP), [0, 0.022, 0], [0, 0, 0], m);
+      put(sleeve, new THREE.LatheGeometry(v2([[0.026, 0.045], [0.033, 0.066], [0.036, 0.092], [0.0315, 0.106], [0.039, 0.124], [0.04, 0.16], [0.035, 0.176], [0.043, 0.196], [0.045, 0.255], [0.041, 0.272], [0.049, 0.294], [0.052, 0.44]]), 14), [0, 0, 0], [0, 0, 0], m);
+      put(plate, sect([[-0.02, -0.065], [0.02, -0.065], [0.024, -0.046], [0.018, 0.065], [-0.018, 0.065], [-0.024, -0.046]], 0.008, 0.003), [0, 0.155, 0.041], [0.05, 0, 0], m);
     };
     if (right) {   // the back of the hand on the grip's right, three fingers round its front, the index on the trigger, the thumb over the top
-      put(glove, RB(0.028, 0.086, 0.074, 0.012), [0.03, -0.092, 0.108], [-0.43, 0, 0]);
-      put(plate, RB(0.006, 0.05, 0.042, 0.002), [0.0455, -0.086, 0.1], [-0.43, 0, 0]);
-      for (const [i, y] of [-0.079, -0.1, -0.121].entries()) {
+      put(glove, RB(0.026, 0.08, 0.07, 0.012), [0.029, -0.09, 0.106], [-0.43, 0, 0]);
+      put(glove, RB(0.012, 0.07, 0.06, 0.005), [0.014, -0.088, 0.104], [-0.43, 0, 0]);   // the palm's heel against the grip
+      for (const [i, y] of [-0.079, -0.099, -0.118].entries()) {
         const zf = 0.05 + (-0.06 - y) * 0.465;
-        finger([[0.027, y, zf + 0.016], [0.02, y - 0.001, zf - 0.009], [-0.006, y - 0.002, zf - 0.0115], [-0.0245, y - 0.002, zf + 0.005 + i * 0.001]]);
+        finger([[0.026, y, zf + 0.016], [0.019, y - 0.001, zf - 0.009], [-0.006, y - 0.002, zf - 0.0115], [-0.0235, y - 0.002, zf + 0.004 + i * 0.001]], 0.0084 - i * 0.0004);
       }
-      finger([[0.026, -0.057, 0.072], [0.019, -0.057, 0.046], [0.004, -0.058, 0.028], [-0.011, -0.058, 0.03]], 0.0092);
-      seg([0.018, -0.056, 0.13], [-0.012, -0.054, 0.13], 0.012);
-      finger([[-0.017, -0.052, 0.124], [-0.0255, -0.047, 0.096], [-0.0255, -0.045, 0.07]], 0.0108, 0.001);
-      forearm([0.031, -0.108, 0.148], [0.085, -0.3, 0.5], [-0.6, 0.7, 0.2]);
+      finger([[0.025, -0.058, 0.072], [0.018, -0.058, 0.047], [0.004, -0.059, 0.03], [-0.009, -0.059, 0.031]], 0.0082);
+      seg([0.017, -0.056, 0.128], [-0.011, -0.054, 0.128], 0.0105);
+      finger([[-0.016, -0.052, 0.122], [-0.024, -0.048, 0.096], [-0.024, -0.046, 0.072]], 0.0098, 0.0009);
+      forearm([0.03, -0.106, 0.146], [0.085, -0.3, 0.5], [-0.6, 0.7, 0.2]);
     } else {   // the palm under the guard, the fingers up its far side, the thumb forward along the near side
-      put(glove, RB(0.054, 0.027, 0.09, 0.012), [-0.036, -0.03, -0.302], [0, 0, -0.5]);
-      for (const [i, z] of [-0.3345, -0.313, -0.2915, -0.27].entries()) {
-        const up = [0.016, 0.018, 0.014, 0.006][i];
-        finger([[-0.016, -0.0345, z], [0.019, -0.0355, z], [0.0345, -0.013, z], [0.0335, up, z - 0.002]]);
+      put(glove, RB(0.05, 0.025, 0.084, 0.011), [-0.035, -0.03, -0.302], [0, 0, -0.5]);
+      for (const [i, z] of [-0.333, -0.3125, -0.292, -0.272].entries()) {
+        const up = [0.015, 0.017, 0.013, 0.006][i];
+        finger([[-0.016, -0.0335, z], [0.018, -0.0345, z], [0.033, -0.013, z], [0.032, up, z - 0.002]], 0.0084 - (i === 3 ? 0.0012 : 0), 0.0006);
       }
-      seg([-0.054, -0.02, -0.288], [-0.047, -0.019, -0.324], 0.0145);
-      finger([[-0.047, -0.019, -0.324], [-0.039, -0.003, -0.346], [-0.0355, 0.006, -0.367]], 0.0112, 0.0012);
-      forearm([-0.064, -0.022, -0.292], [-0.3, -0.19, 0.0], [-0.2, 0.9, 0.35]);
+      seg([-0.052, -0.02, -0.288], [-0.046, -0.019, -0.322], 0.013);
+      finger([[-0.046, -0.019, -0.322], [-0.039, -0.004, -0.344], [-0.0355, 0.005, -0.364]], 0.0102, 0.001);
+      forearm([-0.062, -0.022, -0.292], [-0.3, -0.19, 0.0], [-0.2, 0.9, 0.35]);
     }
     return k.L;
   }
-  const handL = { right: handGeo(true), left: handGeo(false) };
+  const handCache = new Map(), handOf = (right, open) => { const key = right + ':' + open; if (!handCache.has(key)) handCache.set(key, handGeo(right, open)); return handCache.get(key); };
   /** the hands onto a gun: right at its grip (rotated by rr), left at its support (rotated by lr); left: the group that
-   *  carries the left hand (a pump moves it) */
-  function hands(parent, { grip, gripRot = [0, 0, 0], support, supportRot = [0, 0, 0], leftParent = parent, leftOrigin = [0, 0, 0] }) {
+   *  carries the left hand (a pump moves it); open: [right, left] fingers opened (0 round a carbine-sized grip) */
+  function hands(parent, { grip, gripRot = [0, 0, 0], support, supportRot = [0, 0, 0], leftParent = parent, leftOrigin = [0, 0, 0], open = [0, 0] }) {
     const place = (lists, at, rot, from, origin, to) => {
       const m = new THREE.Matrix4().makeTranslation(at[0] - origin[0], at[1] - origin[1], at[2] - origin[2])
         .multiply(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(...rot))).multiply(new THREE.Matrix4().makeTranslation(-from.x, -from.y, -from.z));
       for (const [k, list] of Object.entries(lists)) { if (!list.length) continue; const g = world.geom.mergeGeometries(list.map((x) => x.clone()), false); g.applyMatrix4(m); part(g, mats[k], [0, 0, 0], [0, 0, 0], to); }
     };
     const R = new THREE.Group(); parent.add(R);
-    place(handL.right, grip, gripRot, G0, [0, 0, 0], R);
+    place(handOf(true, open[0]), grip, gripRot, G0, [0, 0, 0], R);
     const Lg = new THREE.Group(); leftParent.add(Lg);
-    place(handL.left, support, supportRot, L0, leftOrigin, Lg);
+    place(handOf(false, open[1]), support, supportRot, L0, leftOrigin, Lg);
     return { right: R, left: Lg };
   }
   const glowDot = () => mat.glow([1, 0.1, 0.05], 12);
@@ -213,7 +228,7 @@ export function createModels({ world, M }) {
     part(side([[-0.013, 0.04], [0.013, 0.04], [0.014, -0.064], [-0.016, -0.064]], 0.022, 0.002), mats.body, [0, 0, 0], [0, 0, 0], magazine);
     part(side([[-0.02, -0.062], [0.018, -0.062], [0.02, -0.07], [-0.022, -0.07]], 0.032, 0.003), mats.poly, [0, 0, 0], [0, 0, 0], magazine);
     // both hands: the right on the grip, the left wrapped under it, its forearm in from the left
-    const h = hands(gun, { grip: [0.0, -0.062, 0.05], gripRot: [0.2, 0, 0], support: [-0.006, -0.118, 0.036], supportRot: [0.1, -0.15, -0.25] });
+    const h = hands(gun, { grip: [0.0, -0.062, 0.05], gripRot: [0.2, 0, 0], support: [-0.006, -0.118, 0.036], supportRot: [0.1, -0.15, -0.25], open: [-0.08, -0.12] });
     return { group: gun, scale: 0.95, dot, slide: slideG, magazine, magHome: magazine.position.clone(), left: h.left, muzzle: [0, 0.016, -0.15], port: [0.015, 0.021, -0.02], hip: [0.11, -0.105, -0.3], ads: [0, -0.0423, -0.25] };
   }
 
@@ -307,7 +322,7 @@ export function createModels({ world, M }) {
     for (const z of [-0.22, -0.44]) sk.put('dark', lathe([[0.012, z - 0.012], [0.039, z - 0.01], [0.039, z + 0.01], [0.012, z + 0.012]], 18));
     sk.put('body', cylZ(0.009, 0.5, 8), [0, 0, -0.27]);
     sk.fuse(spin);
-    const heat = mat.std({ color: new THREE.Color(0.08, 0.06, 0.05), roughness: 0.4, metalness: 0.8, emissive: new THREE.Color(1, 0.28, 0.05), emissiveIntensity: 0 });
+    const heat = mat.std({ color: new THREE.Color(0.3, 0.27, 0.25), roughness: 0.4, metalness: 1, emissive: new THREE.Color(1, 0.28, 0.05), emissiveIntensity: 0 });   // heat-blued steel (F0)
     for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; part(cylZ(0.0081, 0.16, 8), heat, [Math.cos(a) * 0.026, Math.sin(a) * 0.026, -0.5], [0, 0, 0], spin); }
     // the drum on the left, its chute into the housing, a carry handle on top, the rear grip and a front grip below
     put('olive', new THREE.CylinderGeometry(0.085, 0.085, 0.075, 22).rotateZ(HP), [-0.11, -0.07, 0.06]);
@@ -324,7 +339,7 @@ export function createModels({ world, M }) {
     for (const s of [-1, 1]) for (const z of [0.0, 0.1]) put('steel', hex(0.004, 0.003), [s * 0.057, 0, z]);
     fuse(gun);
     const glowRing = part(new THREE.TorusGeometry(0.058, 0.002, 4, 24), M.neon.cyan, [0, 0, -0.016], [0, 0, 0], gun);
-    const h = hands(gun, { grip: [0.0, -0.086, 0.2], gripRot: [0.15, 0, 0], support: [0, -0.07, -0.055], supportRot: [0, 0, 0.2] });
+    const h = hands(gun, { grip: [0.0, -0.086, 0.2], gripRot: [0.15, 0, 0], support: [0, -0.07, -0.055], supportRot: [0, 0, 0.2], open: [0, 0.18] });
     return { group: gun, scale: 0.92, spin, heat, glowRing, left: h.left, muzzle: [0, 0, -0.64], port: [0.04, -0.03, 0.06], hip: [0.15, -0.165, -0.27], ads: [0.0, -0.1, -0.22], dot: null };
   }
 

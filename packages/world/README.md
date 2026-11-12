@@ -176,6 +176,11 @@ inside arcades and rooms wherever the box reaches (hide the mesh indoors). Remov
 Limits: no splashes, and no shelter: streaks fall inside arcades and rooms wherever the box reaches (hide the mesh
 indoors). Remove it with `mesh.removeFromParent()` and dispose its geometry and material.
 
+## The cyber kit (moved)
+
+The cyber kit (the neon district's street props, cars, robots and the robot parts kit) is library content and lives in
+`@miragekit/assets/kits/cyber`, under the Business Source License 1.1: see [packages/assets](../assets/README.md).
+
 ## Gaussian splats
 
 ```js

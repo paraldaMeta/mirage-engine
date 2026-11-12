@@ -77,8 +77,9 @@ const SCREEN = (cols, rows, pages, gain) => /* glsl */ `{
   float dx = gl * 0.004 + 0.0006;
   vec3 c = vec3(texture2D(map, a + vec2(dx, 0.0)).r, texture2D(map, a).g, texture2D(map, a - vec2(dx, 0.0)).b);
   vec2 px = u * vec2(110.0, 220.0), f = abs(fract(px) - 0.5);
-  float dots = mix(1.0, smoothstep(0.5, 0.32, max(f.x, f.y)) * 1.25, clamp(1.0 - max(fwidth(px.x), fwidth(px.y)) * 1.6, 0.0, 1.0));
-  float scan = 0.86 + 0.14 * sin(u.y * 700.0 - uTime * 5.0);
+  // the LED dots and the scan lines fade to their mean before they get under ~3 px (no moire, no crawl far off)
+  float dots = mix(1.0, smoothstep(0.5, 0.32, max(f.x, f.y)) * 1.25, 1.0 - smoothstep(0.18, 0.5, max(fwidth(px.x), fwidth(px.y))));
+  float scan = 0.86 + 0.14 * sin(u.y * 700.0 - uTime * 5.0) * (1.0 - smoothstep(0.1, 0.3, fwidth(u.y * 111.4)));
   float flick = 0.93 + 0.07 * mgHash(vec2(floor(uTime * 22.0), id + 3.0));
   float edge = smoothstep(0.0, 0.015, u.x) * smoothstep(1.0, 0.985, u.x) * smoothstep(0.0, 0.01, u.y) * smoothstep(1.0, 0.99, u.y);
   outgoingLight = c * dots * scan * flick * edge * (1.0 + 0.6 * gl) * (${gain.toFixed(2)} * max(uLampGain, 0.16));
@@ -129,9 +130,9 @@ export default {
         vertexDecl: 'varying vec2 ndUv;', vertexWorld: 'ndUv = uv;', fragmentDecl: 'varying vec2 ndUv;',
         output: /* glsl */ `{
           vec2 px = vec2(ndUv.x / 0.035, ndUv.y * ${(T.h / 0.035).toFixed(1)}), f = abs(fract(px) - 0.5);
-          vec2 cu = (floor(px) + 0.5) / vec2(${rep.toFixed(2)} / 0.035, ${(T.h / 0.035).toFixed(1)}) + vec2(uTime * 0.045, 0.0);
+          vec2 cu = (mix(floor(px) + 0.5, px, smoothstep(0.18, 0.5, max(fwidth(px.x), fwidth(px.y))))) / vec2(${rep.toFixed(2)} / 0.035, ${(T.h / 0.035).toFixed(1)}) + vec2(uTime * 0.045, 0.0);
           vec3 c = texture2D(map, vec2(cu.x, mix(0.08, 0.92, cu.y))).rgb;
-          float dots = mix(1.0, smoothstep(0.5, 0.3, length(f)) * 1.6, clamp(1.0 - max(fwidth(px.x), fwidth(px.y)) * 1.5, 0.0, 1.0));
+          float dots = mix(1.0, smoothstep(0.5, 0.3, length(f)) * 1.6, 1.0 - smoothstep(0.18, 0.5, max(fwidth(px.x), fwidth(px.y))));
           float rule = step(abs(ndUv.y - 0.5), 0.47);
           outgoingLight = (c * dots * rule + vec3(0.06, 0.04, 0.0) * dots) * (2.6 * max(uLampGain, 0.16));
         }`,

@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <link rel="icon" href="data:,">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mirage · sound library</title>
+  <style>
+    :root { color-scheme: dark; }
+    html, body { margin: 0; background: #0b0f14; color: #e8e4dc; font: 13px/1.45 system-ui, -apple-system, "PingFang TC", "Noto Sans TC", sans-serif; }
+    header { position: sticky; top: 0; z-index: 2; background: #0b0f14ee; backdrop-filter: blur(6px); padding: 12px 16px 10px; border-bottom: 1px solid #222a33; }
+    h1 { margin: 0 0 4px; font-size: 17px; font-weight: 650; }
+    .sub { color: #9aa4ad; font-size: 12px; }
+    .bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px; }
+    .bar input { flex: 1 1 200px; min-width: 160px; background: #141a21; border: 1px solid #2a333d; border-radius: 6px; color: inherit; padding: 6px 9px; font: inherit; }
+    .chip { background: #141a21; border: 1px solid #2a333d; border-radius: 99px; color: #c9d1d9; padding: 4px 10px; cursor: pointer; font: inherit; }
+    .chip.on { background: #e8e4dc; color: #0b0f14; border-color: #e8e4dc; }
+    label.vol { display: flex; gap: 6px; align-items: center; color: #9aa4ad; }
+    main { padding: 12px 16px 40px; }
+    h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: #9aa4ad; margin: 18px 0 8px; font-weight: 600; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 8px; }
+    .card { background: #11161c; border: 1px solid #1f2730; border-radius: 8px; padding: 8px 10px; cursor: pointer; transition: border-color 0.1s; }
+    .card:hover { border-color: #3a4652; } .card.playing { border-color: #5ff7ff; }
+    .card .n { font: 600 12px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .card .d { color: #9aa4ad; font-size: 12px; margin: 2px 0 6px; min-height: 2.9em; }
+    .card canvas { width: 100%; height: 34px; display: block; background: #0b0f14; border-radius: 4px; }
+    .card .m { display: flex; justify-content: space-between; color: #6f7a84; font-size: 11px; margin-top: 4px; }
+    .card .v { display: flex; gap: 4px; }
+    .card .v button { background: #1a222b; border: 1px solid #2a333d; color: #c9d1d9; border-radius: 4px; font: 11px ui-monospace, monospace; padding: 1px 6px; cursor: pointer; }
+    .card .v button.on { background: #5ff7ff; color: #0b0f14; border-color: #5ff7ff; }
+    .tag { color: #ffd23a; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Mirage sound library <span class="sub" id="count"></span></h1>
+    <div class="sub">Every sound below is made in code at the moment you click it: no audio files. Click a card to play, a number for its variants; loops play until clicked again. <span id="note"></span></div>
+    <div class="bar" id="bar"><input id="q" placeholder="search: rain, door, metal, 雨…" autocomplete="off"><label class="vol">volume <input id="vol" type="range" min="0" max="1" step="0.01" value="0.6"></label></div>
+  </header>
+  <main id="main"></main>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

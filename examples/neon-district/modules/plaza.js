@@ -4,14 +4,14 @@
 import * as THREE from 'three';
 import { materials, holoMaterial } from './materials.js';
 import { lamp, decor } from './lib.js';
-import { propKit } from './props-kit.js';
+import { propKit, recorder, track, trackLamps } from '@miragekit/assets/kits/cyber';
 
 export default {
   name: 'plaza',
   build(ctx) {
     const { geom, root, plan } = ctx, M = materials(ctx), K = plan.levels.kerb;
     const [mx, mz] = plan.plaza.monument, R0 = plan.plaza.plinth;
-    const b = new geom.MeshBatch(), fx = new geom.MeshBatch(), P = propKit(ctx), pb = new geom.MeshBatch();
+    const b = new geom.MeshBatch(), fx = new geom.MeshBatch(), P = propKit(ctx), pb = new geom.MeshBatch(), rec = recorder(ctx);
     // the plinth: two steps and a dark drum with a projector ring
     b.cylinder(M.concrete, R0 + 0.7, R0 + 0.7, 0.22, [mx, K + 0.11, mz], [0, 0, 0], 48);
     b.cylinder(M.blackMetal, R0, R0 + 0.1, 0.5, [mx, K + 0.47, mz], [0, 0, 0], 48);
@@ -26,16 +26,19 @@ export default {
       add(b, M.blackMetal, [2.8, 0.06, 1.5], [0, 1.08, 0]);
       for (const sx of [-1.25, 1.25]) add(b, M.darkMetal, [0.1, 2.5, 0.1], [sx, 1.25, -0.55]);
       add(b, M.sheetRed, [3.0, 0.08, 1.9], [0, 2.52, 0.1]);
-      add(fx, M.neon[tint], [2.7, 0.04, 0.04], [0, 2.44, 0.98]);
+      const tube = track(fx, () => add(fx, M.neon[tint], [2.7, 0.04, 0.04], [0, 2.44, 0.98]));
       add(b, M.screenAmber, [1.6, 0.6, 0.04], [0, 2.0, -0.58]);
       const p = new THREE.Vector3(0, 2.1, 0.5).applyMatrix4(m);
-      lamp(ctx, { pos: p.toArray(), color: new THREE.Color().setRGB(...M.NEON[tint]), intensity: 3, range: 7 });
+      // destructibles (game/destruct.js): the canopy's tube is the kiosk's light
+      rec.add({ id: `kiosk-neon-${x}`, fam: 'neon', color: tint, box: { center: new THREE.Vector3(0, 2.44, 0.98).applyMatrix4(m).toArray(), half: [1.35, 0.03, 0.03], yaw: rot }, parts: [[fx, tube, 'draw']],
+        lamps: trackLamps(ctx, () => lamp(ctx, { pos: p.toArray(), color: new THREE.Color().setRGB(...M.NEON[tint]), intensity: 3, range: 7 })) });
       const px = new THREE.Mesh(new THREE.BoxGeometry(0.3, 2.5, 0.3)); px.position.copy(new THREE.Vector3(0, 1.25, -0.55).applyMatrix4(m)); px.scale.x = 9; px.rotation.y = rot; ctx.collider(px);
     }
     // benches
     for (const [x, z, rot] of [[14.2, -3.2, 0], [21.8, -3.2, 0], [13.5, -17.6, 0], [22.6, -17.8, 0]]) {
       b.box(M.concrete, [2.2, 0.42, 0.6], [x, K + 0.21, z], [0, rot, 0], 0.04);
-      fx.box(M.neon.violet, [2.0, 0.02, 0.02], [x, K + 0.06, z + 0.31], [0, rot, 0]);
+      const strip = track(fx, () => fx.box(M.neon.violet, [2.0, 0.02, 0.02], [x, K + 0.06, z + 0.31], [0, rot, 0]));
+      rec.add({ id: `bench-neon-${x}-${z}`, fam: 'neon', color: 'violet', box: { center: [x, K + 0.06, z + 0.31], half: [1.0, 0.02, 0.02], yaw: rot }, parts: [[fx, strip, 'draw']] });
       for (let i = 0; i < 4; i++) P.put(pb, new geom.RoundedBoxGeometry(2.1, 0.035, 0.12, 1, 0.012), P.mats.paint, geom.compose([x, K + 0.44, z - 0.2 + i * 0.135], [0, rot, 0]), [0.3, 0.17, 0.08]);   // the seat's slats
     }
     // advertising pylons: four live faces each
@@ -45,7 +48,7 @@ export default {
       lamp(ctx, { pos: [x + (x < 18 ? 1 : -1), K + 3, z + (z < -9 ? 1 : -1)], color: col, intensity: 4.5, range: 10, vol: true });
     }
     root.add(b.finish({ name: 'plaza' }));
-    root.add(decor(fx.finish({ name: 'plaza-decor', castShadow: false })), decor(pb.finish({ name: 'plaza-props', castShadow: false })));
+    root.add(decor(rec.finished(fx, fx.finish({ name: 'plaza-decor', castShadow: false }))), decor(pb.finish({ name: 'plaza-props', castShadow: false })));
 
     // ---- the hologram: a knot inside two tilted rings and a cone of light from the projector, turning on the scene clock
     const holo = new THREE.Group(); holo.name = 'hologram'; holo.position.set(mx, K + 3.6, mz); decor(holo);

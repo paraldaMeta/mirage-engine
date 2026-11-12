@@ -193,6 +193,15 @@
    }
   },
   {
+   "name": "drill-a-cell",
+   "tap": "KeyL",
+   "ms": 300,
+   "shot": false,
+   "expect": {
+    "flags.drills": ">= 3"
+   }
+  },
+  {
    "name": "take-the-cell",
    "lookAt": "lastcell",
    "keys": [
@@ -239,6 +248,11 @@
    },
    "see": [
     "bar"
+   ],
+   "lookAt": [
+    -17,
+    2.2,
+    0
    ]
   },
   {
@@ -307,6 +321,15 @@
    }
   },
   {
+   "name": "drill-a-kite",
+   "tap": "KeyU",
+   "ms": 300,
+   "shot": false,
+   "expect": {
+    "flags.drills": ">= 4"
+   }
+  },
+  {
    "name": "hack-the-kite",
    "lookAt": "d0",
    "keys": [
@@ -323,8 +346,10 @@
    "lookAt": "d0",
    "ms": 4000,
    "expect": {
-    "flags.kiteHits": ">= 1"
-   }
+    "flags.kiteHits": ">= 1",
+    "flags.drills": ">= 5"
+   },
+   "tap": "KeyK"
   },
   {
    "name": "fire-at-g2-1",

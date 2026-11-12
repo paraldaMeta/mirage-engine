@@ -30,6 +30,9 @@ export interface WorldRendererOptions {
   sky?: SkyOption;
   clouds?: number; fog?: Partial<{ density: number; groundDensity: number; height: number; air: number; level: number; color: number; glow: number }>;
   post?: Partial<PostSettings>; preserveDrawingBuffer?: boolean; mobile?: boolean; byteTargets?: boolean; shadowMapSize?: number; spp?: number;
+  /** Draws between flushes of the WebGL commands to the GPU (128; 0: only when the browser does, at the end of the
+   *  task): the GPU starts on a frame's first passes while the CPU still builds the rest. The image is the same. */
+  flushEvery?: number;
   /** A multisampled, XR-compatible context, so a WebXR session (@miragekit/play/xr) gets MSAA. Pass `(await xrSupport()).vr`. */
   xr?: boolean;
   /** Lamp shadows, screen-space reflections, volumetric light, mixed bloom (off by default). */

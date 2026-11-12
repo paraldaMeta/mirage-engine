@@ -12,8 +12,7 @@ import * as THREE from 'three';
 import { materials } from './materials.js';
 import { lamp, decor } from './lib.js';
 import { detail } from './kit.js';
-import { propKit, hex } from './props-kit.js';
-import { canGeo, bottleGeo, cupGeo, boxGeo, packGeo, capsuleGeo, spiralGeo } from './props-shapes.js';
+import { propKit, hex, recorder, markBatch, sinceMark, trackLamps, breakablesLamp, canGeo, bottleGeo, cupGeo, boxGeo, packGeo, capsuleGeo, spiralGeo } from '@miragekit/assets/kits/cyber';
 
 // the singles along the street: [x, y, z, rotY, lamp tint, kind]
 const SINGLES = [[-25.2, 'K', 2.5, 0, 'cyan', 'drinks'], [3.4, 'K', 9.5, Math.PI, 'pink', 'snack'], [29.3, 'K', -2.2, -Math.PI / 2, 'amber', 'hot'], [-23.55, 0, 16.5, Math.PI / 2, 'green', 'drinks']];
@@ -31,6 +30,9 @@ export default {
     const rbox = (w, h, d, r = 0.012, seg = 1) => new geom.RoundedBoxGeometry(w, h, d, seg, r);
     const quad = (w, h) => new THREE.PlaneGeometry(w, h);
     let seed = 0;
+    // destructibles (game/destruct.js): each machine's cabinet ranges (its lit parts apart), its glass, its goods
+    const rec = recorder(ctx), glowKey = P.mats.glow.uuid + '+c';
+    let owner = null;
 
     const machine = (m, kind, d) => {
       const f = d / 2, at = (p, r = [0, 0, 0], s = 1) => m.clone().multiply(geom.compose(p, r, s)), body = BODY[kind], dark = [0.03, 0.032, 0.036];
@@ -130,21 +132,37 @@ export default {
       put(b, rbox(0.06, 0.09, 0.04, 0.01), mats.paint, at([0.6, 0.35, -f - 0.09]), [0.7, 0.7, 0.66]);   // the socket on the wall
     };
 
-    const proxy = (m, d) => { const p = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.95, d)); p.applyMatrix4(m.clone().multiply(geom.compose([0, 0.975, 0]))); ctx.collider(p); };
+    const proxy = (m, d) => { const p = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.95, d)); p.applyMatrix4(m.clone().multiply(geom.compose([0, 0.975, 0]))); ctx.collider(p); return p; };
+    /** a machine and its record: the cabinet's box stops 2 cm behind the glass (a round goes through the glass first) */
+    const unit = (m, kind, d, rotY, lampGroup) => {
+      const id = 'vend-' + rec.n, f = d / 2, n0 = Object.fromEntries(Object.keys(items).map((k) => [k, items[k].length]));
+      rec.n++;
+      const mb = markBatch(b), mg = markBatch(glass);
+      machine(m, kind, d);
+      const body = sinceMark(b, mb), px = proxy(m, d);
+      for (const [k, n] of Object.entries(n0)) for (let j = n; j < items[k].length; j++) items[k][j].owner = id;
+      const c = new THREE.Vector3(0, 0.975, (-f + f - 0.02) / 2).applyMatrix4(m);
+      owner = rec.add({ id, fam: 'vending', kind, box: { center: c.toArray(), half: [0.5, 0.975, (2 * f - 0.02) / 2], yaw: rotY },
+        parts: [[b, body.filter(([k]) => k === glowKey), 'glow']], proxies: [px], lampGroup });
+      rec.add({ id: id + '-glass', fam: 'vending-glass', of: id, parts: [[glass, sinceMark(glass, mg), 'draw']] });
+    };
+    rec.n = 0; rec.goods = 0;
     const L = plan.streetlife || {};
     (L.vending || []).forEach(([x0, z0, dx, dz, nV, rotY, tint], r) => {
+      const group = 'vend-row-' + r;
       for (let i = 0; i < nV; i++) {
         const m = geom.compose([x0 + dx * i, K * (z0 < 10 ? 1 : 0), z0 + dz * i], [0, rotY, 0]);
-        machine(m, (ROW_KINDS[r] || ROW_KINDS[0])[i % 3], 0.75); proxy(m, 0.75);
+        unit(m, (ROW_KINDS[r] || ROW_KINDS[0])[i % 3], 0.75, rotY, group);
       }
       const mid = [x0 + dx * (nV - 1) / 2, 0, z0 + dz * (nV - 1) / 2], n2 = [Math.sin(rotY), 0, Math.cos(rotY)];
-      lamp(ctx, { pos: [mid[0] + n2[0] * 1.1, 1.3, mid[2] + n2[2] * 1.1], color: tint, intensity: 3.2, range: 5, normal: n2, back: 1.1 });
+      const lp = trackLamps(ctx, () => lamp(ctx, { pos: [mid[0] + n2[0] * 1.1, 1.3, mid[2] + n2[2] * 1.1], color: tint, intensity: 3.2, range: 5, normal: n2, back: 1.1 }));
+      breakablesLamp(ctx, group, lp);
     });
     for (const [x, y0, z, rot, tint, kind] of SINGLES) {
       const y = y0 === 'K' ? K : y0, m = geom.compose([x, y, z], [0, rot, 0]);
-      machine(m, kind, 0.8); proxy(m, 0.8);
+      unit(m, kind, 0.8, rot, null);
       const p = new THREE.Vector3(0, 1.2, 0.9).applyMatrix4(m);
-      lamp(ctx, { pos: p.toArray(), color: new THREE.Color().setRGB(...M.NEON[tint]), intensity: 6, range: 7, normal: [Math.sin(rot), 0, Math.cos(rot)], back: 0.5 });
+      owner.lamps = trackLamps(ctx, () => lamp(ctx, { pos: p.toArray(), color: new THREE.Color().setRGB(...M.NEON[tint]), intensity: 6, range: 7, normal: [Math.sin(rot), 0, Math.cos(rot)], back: 0.5 }));
     }
     // two cans dropped on the ground by the first machine of the alley row
     const v0 = (L.vending || [])[0];
@@ -155,9 +173,19 @@ export default {
 
     const out = new THREE.Group(); out.name = 'vending';
     const shapes = { can: [canGeo(R.can0), 'can0'], bottle: [bottleGeo(R.bottle0), 'bottle0'], cup: [cupGeo(R.can0), 'can0'], box: [boxGeo(R.box0), 'box0'], pack: [packGeo(R.pack0), 'pack0'], cap: [capsuleGeo(R.cap0), 'cap0'] };
-    for (const [k, [geo, base]] of Object.entries(shapes)) { const im = P.instanced(geo, base, items[k], { name: 'vending-' + k }); if (im) out.add(im); }
-    if (items.spiral.length) { const sp = geom.instances(spiralGeo(), mats.metal, items.spiral.map((s) => s.m), { castShadow: false }); tintInstanced(sp); sp.name = 'vending-spirals'; out.add(sp); }
-    out.add(b.finish({ name: 'vending-body', castShadow: false }), glass.finish({ name: 'vending-glass', castShadow: false }));
+    // the goods and the spirals: one instanced set per row of machines (not one for the district), so each is culled
+    // with its row and drawn only within FAR metres (a can is then under 3 px; the lit window behind stays)
+    const FAR = 30, rowOf = (m) => `${Math.round(m.elements[12] / 6)}:${Math.round(m.elements[14] / 6)}`;
+    const byRow = (list) => { const g = new Map(); for (const it of list) { const k = rowOf(it.m); if (!g.has(k)) g.set(k, []); g.get(k).push(it); } return [...g.values()]; };
+    for (const [k, [geo, base]] of Object.entries(shapes)) for (const list of byRow(items[k])) {
+      const im = P.instanced(geo.clone(), base, list, { name: 'vending-' + k });
+      if (!im) continue;
+      im.userData.ndFar = FAR; out.add(im);
+      // each product a breakable of its own (an instance: hidden and moved without a draw of its own)
+      list.forEach((it) => rec.add({ id: `${it.owner || 'vend-ground'}-${k}-${rec.goods++}`, fam: 'product', shape: k, of: it.owner || null, inst: { mesh: im, index: list.indexOf(it) } }));
+    }
+    for (const list of byRow(items.spiral)) { const sp = geom.instances(spiralGeo(), mats.metal, list.map((s) => s.m), { castShadow: false }); tintInstanced(sp); sp.name = 'vending-spirals'; sp.userData.ndFar = FAR; out.add(sp); }
+    out.add(rec.finished(b, b.finish({ name: 'vending-body', castShadow: false })), rec.finished(glass, glass.finish({ name: 'vending-glass', castShadow: false })));
     out.traverse((o) => { if (o.isMesh) o.castShadow = false; });
     root.add(decor(out));
     return {};

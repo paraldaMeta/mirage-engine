@@ -108,6 +108,7 @@ integration ([TRIAL.md](examples/agent-trial/TRIAL.md)).
 | [`@miragekit/net`](packages/net) | multiplayer: an authoritative room, prediction and reconciliation, delta snapshots, WebSocket and WebRTC transports (experimental) |
 | [`@miragekit/editor`](packages/editor) | `mirage-editor`: edit a live world in the browser; edits are a layer file over the plan (experimental) |
 | [`@miragekit/tools`](packages/tools) | the playtest runner, single-file packager, still snapshots and contact sheets, frame cost, a static deploy folder (no upload) |
+| [`@miragekit/assets`](packages/assets) | **BUSL-1.1, not MIT**: the content made in code: surface recipes (35 kinds, weathering decals), the cyber kit (neon street props, cars, civilian robots, the robot parts kit), 125 sounds, the destructibles' material classes |
 | [`agent/`](agent) | seven skills for agents, an install guide, a validator (run by `npm test`) |
 
 ## Examples
@@ -128,7 +129,9 @@ makes the single file.
 
 **Demos** (single files, [`examples/demos`](examples/demos)): `day-night` — the snow hut under a running clock
 from dawn to night, lamps coming on at dusk (0.80 MB); `assemble` — the walled garden assembling itself module by
-module while the loader's report scrolls by, including the module that fails and is skipped (2.11 MB). Build them
+module while the loader's report scrolls by, including the module that fails and is skipped (2.11 MB). `materials` — the surface library
+([docs/surfaces.md](docs/surfaces.md)): every surface on a sphere, a bevelled cube, a wall and a ground patch under
+studio, golden-hour and night light, dry or wet, from 5 m or 0.5 m, baked or procedural. Build them
 from the repository root with `node packages/tools/src/package.mjs examples/demos/<name> --out examples/demos/release/<name>.html`.
 
 ## Made with the Mirage approach
@@ -183,9 +186,27 @@ Mirage is a low-level piece meant to sit **next to** other tools, not replace th
   exports. Mirage covers a narrow slice — code-generated web worlds that agents build and test — and does not try
   to match their breadth.
 
-## Licence and acknowledgements
+## Licences
 
-MIT, see [LICENSE](LICENSE). Mirage's rendering techniques (physical sky, aerial perspective in materials,
+Two licences, by directory:
+
+- **MIT** ([LICENSE](LICENSE)): the engine. `packages/core`, `packages/world`, `packages/play`, `packages/game`,
+  `packages/net`, `packages/editor`, `packages/tools`, `agent/`, `scripts/`, `docs/` and every example except the
+  neon district. Systems, APIs, frameworks and tools: use them for anything the MIT licence allows.
+- **Business Source License 1.1** ([packages/assets/LICENSE](packages/assets/LICENSE)): the content.
+  `packages/assets` (`@miragekit/assets`: surface recipes, the cyber kit, the sound library, the destructibles'
+  material classes) and `examples/neon-district`. Free for non-production use; production use is free for an
+  individual using it for themselves, for non-commercial use, and for organisations of up to three people; never to
+  offer a competing engine, asset library or content-distribution tool. Each version turns Apache-2.0 four years after
+  its first public release. For a commercial licence, open an issue titled "Commercial license" in this repository or
+  write to flytoheptameron@outlook.com.
+
+Versions already published on `main` under MIT (the first neon district, its early props, cars, robots and gun
+sounds) stay MIT for those versions; the split governs what is published from now on.
+
+## Acknowledgements
+
+Mirage's rendering techniques (physical sky, aerial perspective in materials,
 sub-frame accumulation, the material patch system) were learnt from
 [Golden Temple](https://github.com/Leonxlnx/golden-temple) by Leon Lin (MIT); no Golden Temple code is included,
 and [NOTICE](NOTICE) reproduces its licence as an acknowledgement. Third-party code and assets: [CREDITS.md](CREDITS.md)

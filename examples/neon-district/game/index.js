@@ -15,18 +15,19 @@ import { createSfx } from './sfx.js';
 import { createHud } from './hud.js';
 import { createWeapon } from './weapon.js';
 import { ARMS } from './arms.js';
-import { createFeel } from './feel.js';
+import { createFeel, COMFORT, COMFORT_KEYS, COMFORT_RANGES, comfortPreset, cleanOptions } from './feel.js';
 import { createEnemies } from './enemies.js';
 import { createDrones } from './drones.js';
 import { createTitle } from './title.js';
 import { createTouch } from './touch.js';
 import { setupKit } from './kit.js';
-import { LANGS, pickLang } from './text.js';
+import { setupDestruct, shotTap } from './destruct.js';
+import { T, lang, setLang, nextLang, pickLang, onLang, LANG_ORDER, LANG_NAMES, TABLES } from './text.js';
 import { createAudioEngine, zonesFromPlan, PAD } from '@miragekit/game';
 
 export const VERSION = 1;
 const UPLINK_S = 40;
-export const lang = pickLang(new URLSearchParams(globalThis.location?.search || '')), T = LANGS[lang];
+export { T, lang };
 // the modes and the difficulty (kept in the settings; ?mode= and ?difficulty= set them for one visit)
 export const MODES = ['mission', 'holdout'], DIFFS = ['standard', 'hard', 'brutal'], TITLE_HOURS = ['night', 'dusk', 'day'];
 /** factors on the damage the player takes, the enemies' health and their accuracy */
@@ -38,6 +39,9 @@ const BREAK_S = 9;
 
 export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour }) {
   const { game, physics, audio, root, plan, anchors, world, onDispose, input } = ctx;
+  // the language: ?lang= for one visit, else the player's saved choice, else the browser's (text.js pickLang)
+  const want = pickLang(Q, game.settings.ndLang);
+  if (want !== lang) setLang(want);
   const M = shared.mats, { mat } = world, K = plan.levels;
   const sfx = createSfx(audio), assist = Q.get('assist') === '1';
   const stats = { shots: 0, hits: 0, heads: 0, kills: 0, deaths: 0 };
@@ -61,18 +65,37 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
   if (DIFFS.includes(Q.get('difficulty'))) run.difficulty = Q.get('difficulty');
   const saveRun = () => { game.settings.ndRun = { mode: run.mode, difficulty: run.difficulty, hour: run.hour }; game.saveSettings(); };
   const tune = { ...TUNE[run.difficulty] };
-  const enemies = createEnemies({ world, game, physics, plan, vfx, sfx, player, assist, onDispose, tune });
-  const drones = createDrones({ world, game, physics, plan, vfx, sfx, player, assist, onDispose, tune });
+  // (the robots draw their rounds through a tap: destruct.js puts each round through the props on its line)
+  const robotVfx = shotTap(vfx);
+  const enemies = createEnemies({ world, game, physics, plan, vfx: robotVfx, sfx, player, assist, onDispose, tune });
+  const drones = createDrones({ world, game, physics, plan, vfx: robotVfx, sfx, player, assist, onDispose, tune });
   // what a round can hit: the nearer of a sentinel and a kite; a hit knows whose it is (hit.owner.damage)
   const targets = { rayHit(o, d, max) { const a = enemies.rayHit(o, d, max), b = drones.rayHit(o, d, max); return a && b ? (a.t < b.t ? a : b) : a || b; }, noise: (p, r) => enemies.noise(p, r) };
   const wake = (zone) => { enemies.wake(zone, player.feet); drones.wake(zone); };
   // the player's own settings (kept with the key bindings and volumes, not in a save)
   // touch: its own look sensitivity, the buttons' opacity and size, the left FIRE, the sprint lock
-  // feel: camera shake (0-1.5), vibration (0-1), the hit-stop on kills; with prefers-reduced-motion a calmer default
+  // feel: vibration (0-1) and the comfort preset with its values (feel.js COMFORT: shake, bob, punch, roll, kick,
+  // settle, hit-stop, blur, flashes); prefers-reduced-motion: the comfort preset with the flashes down.
+  // Kept settings are cleaned (an old or hand-edited one: NaN, strings, out of range) before use.
   const calm = !!globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-  const opts = { sens: 1, fov: 62, invert: false, tSens: 1, tOpacity: 0.7, tScale: 1, leftFire: true, sprintLock: true, shake: calm ? 0.3 : 1, vibrate: 1, hitStop: !calm, unlocked: false, ...(game.settings.nd || {}) };
-  if (Q.get('fov')) opts.fov = Math.min(90, Math.max(50, +Q.get('fov')));
-  if (Q.get('sens')) opts.sens = +Q.get('sens');
+  const coarse = !!globalThis.matchMedia?.('(pointer: coarse)').matches;
+  const opts = cleanOptions(game.settings.nd, { reduced: calm, touch: coarse });
+  // the comic hit words are off unless the player turned them on (pops: true); full screen on deploy unless turned off
+  if (opts.pops !== true) opts.pops = false;
+  if (opts.fullscreen !== false) opts.fullscreen = true;
+  if (Q.get('fov') && Number.isFinite(+Q.get('fov'))) opts.fov = Math.min(90, Math.max(50, +Q.get('fov')));
+  if (Q.get('sens') && Number.isFinite(+Q.get('sens'))) opts.sens = Math.min(5, Math.max(0.1, +Q.get('sens')));
+  if (Q.get('comfort') in COMFORT) Object.assign(opts, comfortPreset(Q.get('comfort'), calm), { comfort: Q.get('comfort') });
+  // the world's motion blur at the quality level's strength; the comfort's `blur` is a factor on it
+  const blur0 = world.post?.motionBlur || 0;
+  /** the look and the comfort values to where they act (once a tick: the options and the tests write opts) */
+  function applyLook() {
+    if (!play) return;
+    const s = +opts.sens;
+    play.look.sens = Number.isFinite(s) && s > 0 ? Math.min(5, s) : 1;
+    play.look.invert = opts.invert === true;
+    if (world.post) world.post.motionBlur = blur0 * Math.max(0, Math.min(1, +opts.blur || 0));
+  }
   const feel = createFeel({ opts, input, sfx, canvas: world.renderer.domElement, game });
   // which room the shots ring in: the audio engine's zones (the bar, the relay) are indoors, the alley is the alley,
   // the rest (the street, the plaza, the roofs) is open
@@ -83,6 +106,19 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
     return p[0] > a[0] - 0.5 && p[0] < a[2] + 0.5 && p[2] > a[1] && p[2] < a[3] + 0.5 && p[1] < 3 ? 'alley' : 'open';
   };
   const saveOpts = () => { game.settings.nd = { ...opts }; game.saveSettings(); };
+  // the comfort setting, for the options panel (window.__mirage.game.comfort): a preset sets every value together;
+  // one value changed on its own makes the preset 'custom'. Both apply at once and are kept in the settings.
+  const comfort = {
+    presets: Object.keys(COMFORT), keys: COMFORT_KEYS, ranges: COMFORT_RANGES, table: COMFORT, reducedMotion: calm,
+    get preset() { return opts.comfort; },
+    get values() { return Object.fromEntries(COMFORT_KEYS.map((k) => [k, opts[k]])); },
+    set(name) { if (!(name in COMFORT)) return false; Object.assign(opts, comfortPreset(name, calm), { comfort: name }); saveOpts(); applyLook(); return true; },
+    setValue(k, v) {
+      if (k === 'hitStop') opts.hitStop = v === true || v === 'true';
+      else { const r = COMFORT_RANGES.find((x) => x[0] === k), x = +v; if (!r || !Number.isFinite(x)) return false; opts[k] = Math.min(r[2], Math.max(r[1], x)); }
+      opts.comfort = 'custom'; saveOpts(); applyLook(); return true;
+    },
+  };
   const onUnlock = (r) => {
     if (r === 'unlocked') { opts.unlocked = true; saveOpts(); game.ui.toast(T.arms.unlocked); hud.radio(T.arms.unlockRadio); }
     else if (r === 'refilled') game.ui.toast(T.arms.refilled);
@@ -116,6 +152,13 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
     if (drill && (e.code === 'KeyJ' || e.code === 'KeyK')) {
       const en = enemies.list.find((x) => x.id === (e.code === 'KeyJ' ? 'g11' : 'g1')), d = e.code === 'KeyJ' ? 8 : 4, at = [player.feet[0] + Math.cos(play.yaw) * d, player.feet[1], player.feet[2] + Math.sin(play.yaw) * d];
       en.yaw = Math.atan2(player.feet[0] - at[0], player.feet[2] - at[2]); enemies.revive(en, at, 1); en.drill = true; if (e.code === 'KeyK') enemies.stun(en, 4); game.set('drills', (game.flags.drills || 0) + 1);
+    }
+    // U: the street's kite 5 m ahead and 1.3 m over the eye, held still for 3 s (a hack's target); L: an ammo cell 2.5 m ahead
+    if (drill && (e.code === 'KeyU' || e.code === 'KeyL')) {
+      const d = e.code === 'KeyU' ? 5 : 2.5, at = [player.feet[0] + Math.cos(play.yaw) * d, player.feet[1], player.feet[2] + Math.sin(play.yaw) * d];
+      if (e.code === 'KeyU') { const k = drones.list.find((x) => x.id === 'd0'); k.drill = true; at[1] += player.height + 1.3; drones.revive(k, at, 1); k.grip = 3; }
+      else kit.ammo.drop(at, 24);
+      game.set('drills', (game.flags.drills || 0) + 1);
     } });
   listen(window, 'wheel', (e) => { if (!live() || hud.optionsOpen || performance.now() - wheelT < 120 || Math.abs(e.deltaY) < 1) return; wheelT = performance.now(); weapon.cycle(e.deltaY > 0 ? 1 : -1); }, { passive: true });
   listen(window, 'keydown', (e) => { if (e.code === 'KeyT' && !e.repeat && live()) { const order = ['night', 'dawn', 'day', 'dusk'], next = order[(order.indexOf(hour()) + 1) % 4]; setHour(next); game.ui.toast(T.hours[next]); }
@@ -126,11 +169,66 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
   // the options panel pauses the game; its values apply at once and are kept in the settings
   function toggleOptions() {
     const open = hud.options({ values: { ...opts, lang, hour: hour() }, touch: !!touch, onHour: (h) => setHour(h),
-      onChange: (k, v) => { if (k === 'code') { if (/0/.test(String(v))) weapon.unlock(); return; } opts[k] = v; if (k === 'fov') weapon.S.fov = v; saveOpts(); touch?.apply(); },
+      onChange: (k, v) => {
+        if (k === 'code') { if (/0/.test(String(v))) weapon.unlock(); return; }
+        if (k === 'comfort') { comfort.set(v); return; }
+        if (COMFORT_KEYS.includes(k)) { comfort.setValue(k, v); return; }
+        opts[k] = v; if (k === 'fov') weapon.S.fov = v; saveOpts(); applyLook(); touch?.apply();
+      },
+      onFull: (on) => { opts.fullscreen = on; saveOpts(); return on ? enterFull(true) : exitFull(); },
       onClose: () => { if (!title.shown) game.pause(false); title.render(); },
-      onLang: () => { const u = new URL(location.href); u.searchParams.set('lang', lang === 'zh' ? 'en' : 'zh'); location.href = u.href; } });
+      onLang: () => switchLang(nextLang()) });
     if (open) { game.pause(true); touch?.reset(); if (document.pointerLockElement) document.exitPointerLock(); }
   }
+
+  // ---- the language at run time: the tables swap in place (text.js); what was drawn once is drawn again here
+  function switchLang(l) {
+    if (!TABLES[l]) return;
+    run.lang = l;   // before the listeners: the title redraws its LANGUAGE row from it
+    setLang(l);
+    game.settings.ndLang = l; game.saveSettings();
+    const u = new URL(location.href);   // the choice is kept: a ?lang= left in the address would override it on reload
+    if (u.searchParams.has('lang')) { u.searchParams.delete('lang'); history.replaceState(history.state, '', u.href); }
+  }
+  onDispose(onLang(() => {
+    hud.relang(); title?.relang(); touch?.relang(); kit?.story.relang();
+    if (g) { g.ui.setStrings?.({ ...T.engine }); g.ui.objective(...objective(game)); }
+    const it = game.inventory.items.find((i) => i.id === 'pass');
+    if (it) { it.name = T.passName; it.text = T.passText; game.emit('inventory', {}); }
+  }));
+
+  // ---- full screen: asked for on DEPLOY (a user gesture: browsers allow it nowhere else), kept off once the player
+  // turns it off, ?fullscreen=0 for one visit (the headless checks). A phone also tries to lock landscape. iPhone
+  // Safari has no element full screen: a one-line hint to add the page to the Home Screen instead.
+  const fullAllowed = () => Q.get('fullscreen') !== '0' && opts.fullscreen !== false;
+  const fs = { asked: 0, hinted: false, left: false };
+  function enterFull(force = false) {
+    if (!force && !fullAllowed()) return Promise.resolve(false);
+    const el = document.documentElement, req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (!req) {
+      if (!fs.hinted && /iPhone|iPod/.test(navigator.userAgent)) { fs.hinted = true; setTimeout(() => game.ui.toast(T.opt.fullHint, 5000), 400); }
+      return Promise.resolve(false);
+    }
+    if (document.fullscreenElement || document.webkitFullscreenElement) return Promise.resolve(true);
+    fs.asked++;
+    let p;
+    try { p = req.call(el, { navigationUI: 'hide' }); } catch { return Promise.resolve(false); }
+    return Promise.resolve(p).then(() => {
+      if (matchMedia('(pointer: coarse)').matches) screen.orientation?.lock?.('landscape')?.catch?.(() => {});
+      return true;
+    }, () => false);
+  }
+  function exitFull() { try { const p = document.fullscreenElement && document.exitFullscreen?.(); Promise.resolve(p).catch(() => {}); } catch { /* not in it */ } return Promise.resolve(false); }
+  // left with Esc while playing: the engine pauses (pointer lock goes with it); its menu offers the way back
+  listen(document, 'fullscreenchange', () => { fs.left = !document.fullscreenElement && fs.asked > 0 && opts.fullscreen !== false; });
+  const menuWatch = new MutationObserver(() => {
+    const body = document.querySelector('.mg-menu[open] .mg-body');
+    if (!body || !fs.left || document.fullscreenElement || body.querySelector('[data-nd=full]') || !body.querySelector('[data-do=resume]')) return;
+    const b = document.createElement('button'); b.dataset.nd = 'full'; b.textContent = T.opt.fullBack;
+    b.addEventListener('click', () => { enterFull(true).then((ok) => { if (ok) b.remove(); }); });
+    body.querySelector('[data-do=resume]').after(b);
+  });
+  onDispose(() => menuWatch.disconnect());
 
   // ---- the relay pass, on the bar's counter
   const pass = new THREE.Group();
@@ -140,7 +238,7 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
   let passT = 0;
   game.on('place', () => { passT = 0; });
   game.add({ id: 'pass', object: pass,
-    interact: { label: T.passLabel, reach: 2.6, use: (gm, e) => {
+    interact: { label: () => T.passLabel, reach: 2.6, use: (gm, e) => {
       gm.inventory.add({ id: 'pass', name: T.passName, text: T.passText });
       audio.play('pickup', { at: plan.bar.pass }); vfx.burst(FX.take, plan.bar.pass); gm.remove(e); game.ui.toast(T.passToast); hud.radio(T.radio.pass);
     } },
@@ -171,7 +269,7 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
   // ---- the uplink console on the roof
   const con = anchors.consoles[0];
   game.add({ id: 'uplink', pos: con.pos,
-    interact: { reach: 2.8, can: (gm) => !gm.flags.uplink, label: T.uplinkLabel,
+    interact: { reach: 2.8, can: (gm) => !gm.flags.uplink, label: () => T.uplinkLabel,
       use: (gm) => {
         gm.set('uplink', true); uplinkT = 0; sfx.play('nd_alarm', { gain: 0.6 });
         wake('wave'); game.ui.toast(T.uplinkToast); hud.radio(T.radio.hold);
@@ -184,8 +282,9 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
   for (const p of plan.pickups) {
     const o = new THREE.Group(), ammo = p.kind === 'ammo';
     const box = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.2, 0.22), ammo ? crateMat : white); box.castShadow = true;
-    const tag = new THREE.Mesh(ammo ? new THREE.BoxGeometry(0.345, 0.04, 0.225) : new THREE.BoxGeometry(0.12, 0.205, 0.04), ammo ? M.neon.amber : M.neon.green);
-    o.add(box, tag); if (!ammo) { const t2 = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.205, 0.12), M.neon.green); o.add(t2); }
+    // (the med kit's cross is one mesh of its two bars)
+    const tag = new THREE.Mesh(ammo ? new THREE.BoxGeometry(0.345, 0.04, 0.225) : world.geom.mergeGeometries([new THREE.BoxGeometry(0.12, 0.205, 0.04), new THREE.BoxGeometry(0.04, 0.205, 0.12)], false), ammo ? M.neon.amber : M.neon.green);
+    o.add(box, tag);
     o.position.set(p.at[0], p.at[1] + 0.32, p.at[2]); root.add(o);
     let t = R() * 6;
     game.add(pickups[p.id] = { id: p.id, object: o, update: (dt, gm) => {
@@ -234,7 +333,7 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
   // ---- weather and sound: a lamp high over the block for the lightning, the audio engine for the rooms' reverb
   const sky = new THREE.PointLight(0xcfe0ff, 0, 600, 2); root.add(sky); world.lighting?.addLight(sky);
   const skyGain = 26000, said = { spotted: false, hurtT: -99 };
-  let boltT = 9, thunderT = 0, endYaw = 0, endPitch = 0, reverb = null;
+  let boltT = 9, thunderT = 0, reverb = null;
   try { reverb = createAudioEngine({ audio, voices: 24, zones: zonesFromPlan(plan), zoneOptions: { ambient: { reverb: 'outdoor', wet: 0.16 } } }); onDispose(() => reverb.dispose()); } catch { reverb = null; }
   game.on('start', () => hud.radio(H.on ? T.radio.holdStart : T.radio.start));
 
@@ -286,9 +385,11 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
     held.tap = false;
     weapon.S.aim = ok && (held.aimMouse || held.aimKey || held.aimPad || !!touch?.aim);
     if (assist && weapon.S.reserve < weapon.arm.mag) weapon.S.reserve = weapon.arm.mag;   // the easy mode never runs dry (one magazine in reserve: low enough for ammo.js's marker)
-    // the look: the player's sensitivity and the inverted axis, applied to what the mouse and the stick turned since
-    // the last tick (play turns the view itself, at a fixed rate)
-    if (opts.sens !== 1 || opts.invert) { play.yaw = endYaw + (play.yaw - endYaw) * opts.sens; play.pitch = Math.max(-1.45, Math.min(1.45, endPitch + (play.pitch - endPitch) * opts.sens * (opts.invert ? -1 : 1))); }
+    // the look: the player's sensitivity and inverted axis go to play, which applies them to each turn as it arrives.
+    // (They used to rescale here, once a tick, what had turned since the last tick: play had clamped the pitch first,
+    // so with the axis inverted the view latched at the top or the bottom for good, the scaled turn landed a frame
+    // late at 120 Hz, and a checkpoint's pitch was rescaled as if it were a turn.)
+    applyLook();
     // crouching: a lower eye and a slower walk (the body's collider keeps its height: no crawling under things)
     player.crouch += ((ok && player.wantCrouch ? 1 : 0) - player.crouch) * Math.min(1, dt * 10); player.height = 1.62 - 0.6 * player.crouch;
     // the gun's weight: the gatling slows the walk, more while it spins
@@ -315,7 +416,11 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
       vfx.beam({ from: [bx + (R() - 0.5) * 30, 150, bz + (R() - 0.5) * 30], to: [bx, 38 + R() * 20, bz], width: 1.6, color: '#cfe0ff', intensity: 7, jitter: 16, branches: 3, life: 0.4 });
       sky.position.set(bx * 0.4, 110, bz * 0.4); sky.userData.t = 0.38; thunderT = 0.7 + r / 340;
     }
-    sky.userData.t = (sky.userData.t || 0) - dt; sky.intensity = sky.userData.t > 0 ? skyGain * gains.room * (0.35 + 0.65 * R()) * Math.min(1, sky.userData.t * 6) : 0;
+    // the flash: raw (flashes 1) a random level every tick, a 60 Hz flicker; below 1 two smooth pulses (about 5 Hz,
+    // under the three-flashes-a-second line for the brighter one) at the flashes' strength
+    const fl = Math.max(0.2, Math.min(1, +opts.flashes || 0.6)), st = sky.userData.t = (sky.userData.t || 0) - dt;
+    sky.intensity = st <= 0 ? 0 : fl >= 1 ? skyGain * gains.room * (0.35 + 0.65 * R()) * Math.min(1, st * 6)
+      : skyGain * gains.room * fl * Math.min(1, st * 6) * (st > 0.2 ? 1 : 0.35 + 0.3 * Math.cos((0.2 - st) * 31));
     if (thunderT > 0 && (thunderT -= dt) <= 0) sfx.play('nd_thunder', { bus: 'ambience', gain: 0.9 });
     // health: a little of it comes back out of a fight
     if (!player.dead && assist) player.hp = Math.min(100, player.hp + dt * 6);
@@ -327,8 +432,8 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
       const left = enemies.byZone.wave.filter((e) => !e.dead).length + (drones.byZone.wave || []).filter((e) => !e.dead).length;
       if (uplinkT >= UPLINK_S && left === 0) {
         game.set('done', true); audio.play('done', { bus: 'sfx', gain: 0.9 });
-        const acc = stats.shots ? Math.round(100 * stats.hits / stats.shots) : 0, points = (stats.deaths === 0 ? 1 : 0) + (acc >= 35 ? 1 : 0) + (game.time < 420 ? 1 : 0);
-        game.ui.message(T.doneTitle, T.doneBody({ diff: T.front.diffs[run.difficulty], rating: T.ratings[points], min: Math.floor(game.time / 60), sec: Math.round(game.time % 60), kills: stats.kills, acc, shots: stats.shots, heads: stats.heads, deaths: stats.deaths }), T.doneBtn);
+        const acc = stats.shots ? Math.round(100 * stats.hits / stats.shots) : 0, points = props.rate((stats.deaths === 0 ? 1 : 0) + (acc >= 35 ? 1 : 0) + (game.time < 420 ? 1 : 0));   // (casualties: never the top rating, destruct.js)
+        game.ui.message(T.doneTitle, T.doneBody({ diff: T.front.diffs[run.difficulty], rating: T.ratings[points], min: Math.floor(game.time / 60), sec: Math.round(game.time % 60), kills: stats.kills, acc, shots: stats.shots, heads: stats.heads, deaths: stats.deaths }) + cardLines(), T.doneBtn);
         hud.radio(T.radio.done); game.set('rating', points);
         checkpoint('done', true);
       } else if (Math.floor(uplinkT) !== Math.floor(uplinkT - dt) && uplinkT < UPLINK_S) sfx.play('nd_tick', { gain: 0.25 });
@@ -339,19 +444,19 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
       if (list.length) { const a = list[Math.floor(R() * list.length)]; vfx.burst(FX.sparks, a.pos, { direction: [0, -1, 0], scale: 0.7 }); sparkLight.position.set(...a.pos); sparkLight.userData.t = 0.12; sfx.play('nd_impact', { at: a.pos, gain: 0.5, ref: 4 }); }
       sparkT = 2.5 + R() * 5;
     }
-    sparkLight.userData.t = (sparkLight.userData.t || 0) - dt; sparkLight.intensity = sparkLight.userData.t > 0 ? 40 * gains.room * R() : 0;
-    for (const s of strobes) s.light.intensity = s.light.userData.base * (s.flicker ? (R() < 0.04 ? 0.25 : 1) : 0.35 + 0.65 * Math.pow(0.5 + 0.5 * Math.sin(game.time * (game.flags.uplink ? 9 : 3.2)), 2));
+    sparkLight.userData.t = (sparkLight.userData.t || 0) - dt; sparkLight.intensity = sparkLight.userData.t > 0 ? 40 * gains.room * (fl >= 1 ? R() : fl * sparkLight.userData.t / 0.12) : 0;
+    // a sign that flickers: raw, a random dip a tick (4 %); below 1 a slow half dip now and then (every 4.8 s, 0.6 s long)
+    for (const s of strobes) s.light.intensity = s.light.userData.base * (s.flicker ? (fl >= 1 ? (R() < 0.04 ? 0.25 : 1) : 1 - 0.5 * Math.max(0, Math.sin(game.time * 1.3 + s.light.id) - 0.92) / 0.08) : 0.35 + 0.65 * Math.pow(0.5 + 0.5 * Math.sin(game.time * (game.flags.uplink ? 9 : 3.2)), 2));
     for (const [i, l] of lanterns.entries()) l.light.intensity = l.light.userData.base * (0.93 + 0.07 * Math.sin(game.time * (5 + i) + i));
     const indoors = (p[1] < 4 && ((p[0] > plan.bar.rect[0] && p[0] < plan.bar.rect[2] && p[2] > plan.bar.rect[1] && p[2] < plan.bar.rect[3]) || (p[0] > plan.relay.rect[0] && p[2] < plan.relay.rect[3])));
     feet.position.set(p[0], Math.round(p[1] * 50) / 50 + 0.03, p[2]);
     if (rewound > 0 && --rewound === 0) for (const l of loops) { l.h.stop(); l.h = vfx.spawn(l.fx, l.o); }
     if (splash) splash.h.move({ position: feet.position, rate: indoors ? 0 : 1 });   // rate: a factor on the effect's own
-    endYaw = play.yaw; endPitch = play.pitch;
     // the HUD
     const S = weapon.S;
     hud.update(dt, { hp: player.hp, dead: player.dead, mag: S.mag, reserve: S.reserve, reloading: S.reloading > 0, ads: S.ads, pos: p, yaw: play.yaw,
       spread: weapon.spread(), arm: weapon.arm, gun: { id: weapon.id, to: weapon.switchingTo, heat: S.heat, vent: S.vent, spin: S.spin, owned: weapon.W },
-      tally: `${H.on ? T.waveN(Math.max(1, H.wave)) + ' · ' : ''}${stats.kills} ${T.down} · ${T.front.diffs[run.difficulty]}${assist ? ' · ' + T.assist : ''}`,
+      tally: `${H.on ? T.waveN(Math.max(1, H.wave)) + ' · ' : ''}${stats.kills} ${T.down} · ${T.front.diffs[run.difficulty]}${assist ? ' · ' + T.assist : ''}${stats.civilians ? ' · ' + T.dx.tally(stats.civilians, stats.penalty) : ''}`,
       ...(H.on ? waveBar() : { uplink: game.flags.uplink && !game.flags.done ? uplinkT / UPLINK_S : null, uplinkText: uplinkT >= UPLINK_S ? T.uplinkReady : `${T.uplink} ${Math.round(100 * uplinkT / UPLINK_S)} %` }), goal: goal(game) });
   });
 
@@ -412,7 +517,7 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
   };
   function holdoutOver() {
     const waves = game.flags.waves || 0, acc = stats.shots ? Math.round(100 * stats.hits / stats.shots) : 0;
-    game.ui.message(T.holdTitle, T.holdBody({ diff: T.front.diffs[run.difficulty], waves, kills: stats.kills, acc, shots: stats.shots, rating: T.ratings[Math.min(3, Math.floor(waves / 3))], best: Math.max(waves, bestOf()) }), T.holdBtn);
+    game.ui.message(T.holdTitle, T.holdBody({ diff: T.front.diffs[run.difficulty], waves, kills: stats.kills, acc, shots: stats.shots, rating: T.ratings[props.rate(Math.min(3, Math.floor(waves / 3)))], best: Math.max(waves, bestOf()) }) + cardLines(), T.holdBtn);
     game.set('over', true);
     const dlg = document.querySelector('.mg-msg');
     const back = () => { dlg.removeEventListener('close', back); const u = new URL(location.href); u.searchParams.delete('start'); location.href = u.href; };
@@ -420,18 +525,22 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
   }
 
   // ---- the title: the camera flies the district, the game waits paused, DEPLOY starts the chosen run
-  const title = createTitle({ T, lang, plan, world, values: run, choices: { mode: MODES, difficulty: DIFFS, hour: TITLE_HOURS }, best: bestOf, onDispose,
+  run.lang = lang;
+  const title = createTitle({ T, plan, world, values: run, choices: { mode: MODES, difficulty: DIFFS, hour: TITLE_HOURS, lang: LANG_ORDER }, names: { lang: LANG_NAMES }, best: bestOf, onDispose,
     optionsOpen: () => hud.optionsOpen, onOptions: toggleOptions,
-    onChange: (k, v) => { if (k === 'difficulty') Object.assign(tune, TUNE[v]); if (k === 'hour') setHour(v); saveRun(); },
+    onChange: (k, v) => { if (k === 'lang') { switchLang(v); return; } if (k === 'difficulty') Object.assign(tune, TUNE[v]); if (k === 'hour') setHour(v); saveRun(); },
     onFrame: () => { play.turn(0, 0, 0); relight(); weapon.holder.visible = false; },
-    onDeploy: (ev) => { begin(); g.ui.begin(ev); } });
+    // the pointer lock is asked for before the full screen: the full screen takes the click's user activation, and a
+    // lock asked for after it in the same click was refused (the mouse did not look until a second click)
+    onDeploy: (ev) => { begin(); g.ui.begin(ev); enterFull(); } });
+  onDispose(onLang((l) => { run.lang = l; }));
   /** the run as chosen: the difficulty's health on everyone, the holdout's roof or the mission's spawn */
   function begin() {
     Object.assign(tune, TUNE[run.difficulty]); enemies.retune(); drones.retune();
     weapon.holder.visible = true;
     if (run.mode === 'holdout') startHoldout();
     else if (play.mode !== 'walk') play.place(plan.spawn.eye, plan.spawn.look, 'walk');
-    endYaw = play.yaw; endPitch = play.pitch;
+    applyLook();
     game.pause(false);
   }
 
@@ -445,20 +554,66 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
     return [plan.alley.rect[0] + 2, 1.4, plan.alley.rect[1]];
   };
 
+  // ---- ?debug=look: what the view is doing, on screen, for a screenshot when it misbehaves: the pitch the game holds
+  // and the one the camera shows, the last turn (its device and size), dropped pointer-lock jumps, the pad as the
+  // browser reports it and what the game reads of it, the touch fingers down, the offsets on the camera
+  function lookDebug() {
+    const el = document.createElement('pre'), dir = new THREE.Vector3();
+    el.style.cssText = 'position:fixed;left:8px;top:96px;z-index:60;margin:0;padding:6px 8px;font:11px/1.4 ui-monospace,monospace;color:#bff;background:#000b;pointer-events:none;white-space:pre';
+    document.body.appendChild(el); onDispose(() => el.remove());
+    const deg = (r) => (r * 180 / Math.PI).toFixed(1).padStart(6), f2 = (v) => (+v).toFixed(2);
+    const tick = () => {
+      if (!el.isConnected) return;
+      requestAnimationFrame(tick);
+      const t = play.lastTurn, p = input.pad, d = world.camera.getWorldDirection(dir), S = weapon.S;
+      el.textContent = [
+        `pitch ${deg(play.pitch)} deg   camera ${deg(Math.asin(Math.max(-1, Math.min(1, d.y))))} deg   yaw ${deg(play.yaw % (2 * Math.PI))} deg`,
+        `last turn ${t.source || '-'}  dx ${deg(t.dx)}  dy ${deg(t.dy)} deg  ${t.at ? Math.round(performance.now() - t.at) + ' ms ago' : ''}   lock jumps dropped ${t.dropped}`,
+        `sens ${f2(play.look.sens)}  invert ${play.look.invert}  pointer lock ${!!document.pointerLockElement}  paused ${game.paused}  input ${input.source}`,
+        p ? `pad "${String(p.id).slice(0, 44)}" ${p.mapping || 'non-standard'}  axes ${[...p.axes].slice(0, 6).map(f2).join(' ')}  read L ${input.sticks.left.map(f2)} R ${input.sticks.right.map(f2)}` : 'pad none',
+        `touch fingers ${touch?.busy || 0}   shake ${f2(S.shake)}  flinch ${f2(S.flinchP)}  recoil debt ${f2(S.debtP)}  comfort ${opts.comfort}`,
+      ].join('\n');
+    };
+    tick();
+  }
+
   // ---- the city as a weapon: hacks, abilities, ammunition that can be found, the story (kit.js)
   const kit = setupKit({ ctx, shared, vfx, Q, T, player, weapon, enemies, drones, hud, sfx, stats, opts, holdout: H, live });
 
+  // ---- the props that break (destruct.js): the weapon puts its rounds through them; the end cards' bill and casualties
+  const props = setupDestruct({ ctx, shared, vfx, sfx, player, weapon, enemies, drones, hud, stats, kit, T, holdout: H, tap: robotVfx, assist });
+  weapon.props = props; onDispose(() => props.dispose());
+  /** the end card's lines under the figures: property damage, civilian casualties, the remark on the bill */
+  const cardLines = () => { const c = props.card(); return `\n\n${T.dx.props(c.bill)}\n${T.dx.civ(c.civilians, c.points)}\n${T.dx.remarks[c.remark]}`; };
+
   return {
-    player, weapon, enemies, drones, stats, hud, sfx, leaves, opts, toggleOptions, run, tune, title, holdout: H, kit, get touch() { return touch; },
+    player, weapon, enemies, drones, stats, hud, sfx, leaves, opts, toggleOptions, run, tune, title, holdout: H, kit, props, cardLines: () => cardLines(), switchLang, fullscreen: fs, text: T, get lang() { return lang; }, get touch() { return touch; },
+    comfort, applyOpts: applyLook,
     /** once startGame has made the character and play */
     start(game_) {
       g = game_; play = g.play;
       g.character.body.walk = 3.3; g.character.body.run = 5.4;      // a shooter's pace (the engine's walker strolls at 1.5 m/s)
-      weapon.start(play); enemies.start(play.grid); drones.start(play.grid); endYaw = play.yaw; endPitch = play.pitch;
+      weapon.start(play); enemies.start(play.grid); drones.start(play.grid); applyLook();
       kit.start(g);
+      if (Q.get('debug') === 'look') lookDebug();
       vfx.setGround(play.grid);
       checkpoint('start', true);
-      if (Q.has('start')) begin();   // the tests: straight in (main.js starts the overlay)
+      hud.relang(); g.ui.setStrings?.({ ...T.engine });   // the corner of @miragekit/play (made by now); the engine's pause menu, panels and message button in the language
+      const menu = document.querySelector('.mg-menu');
+      if (menu) menuWatch.observe(menu, { childList: true, subtree: true, attributes: true, attributeFilter: ['open'] });
+      if (Q.has('start')) {   // the tests: straight in (main.js starts the overlay); full screen on the first click or tap
+        begin();
+        // (the pointer lock first, in the same click: the full screen takes the click's activation, see onDeploy)
+        const first = (e) => {
+          removeEventListener('pointerdown', first, true);
+          if (e.pointerType === 'mouse' && e.target === canvas && !touch && document.pointerLockElement !== canvas) { try { Promise.resolve(canvas.requestPointerLock?.()).catch(() => {}); } catch { /* the next click locks */ } }
+          enterFull();
+        };
+        addEventListener('pointerdown', first, true); onDispose(() => removeEventListener('pointerdown', first, true));
+      }
+      // a tool's still (mirage-snap, the determinism check: ?ui=0): the game waits paused and no title flies the camera
+      // (the title's flight runs on the wall clock, so a still after it was never the same twice)
+      else if (Q.get('ui') === '0') game.pause(true);
       else {
         if (!Q.get('time') && run.hour !== hour()) setHour(run.hour);
         game.pause(true); title.show(g);

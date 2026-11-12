@@ -11,7 +11,8 @@
 //             the frame's cost with the HUD on, hidden and absent (?hud=0), interleaved
 //   menu      (only when named: --only menu; needs examples/snow-hut/dist) createKitUI as startGame's overlay on
 //             snow-hut ?ui=kit: start screen, HUD, pause menu and its tabs, a message, with the keyboard; then
-//             createUI's message() on snow-hut ?start=1 (both resolve message()'s promise when the dialog closes)
+//             createUI's message() on snow-hut ?start=1 (both resolve message()'s promise when the dialog closes),
+//             and createUI's strings: English by default, setStrings() re-labels the open menu, {} is English again
 // Exit 1 if a step fails or a page logs an error.
 /* global __ui, __mirage, __pad */   // page globals, used inside page.evaluate()
 import { build } from 'vite';
@@ -377,6 +378,18 @@ if (ONLY.includes('menu')) {
     ok(await pev(() => window.__msg) === 'open', 'createUI: message() returns a promise, pending while the dialog is open');
     await pev(() => document.querySelector('.mg-msg button').click());
     ok(await puntil(() => window.__msg === 'closed' && !document.querySelector('.mg-msg').open && !__mirage.g.game.paused), "createUI: the button closes it and message()'s promise resolves");
+    // createUI's strings: English by default, another table at run time (the open menu follows), English again
+    const menuText = () => pev(() => [document.querySelector('#mg-menu-h').textContent, document.querySelector('[data-do=resume]')?.textContent, document.querySelector('.mg-btns [data-a=jump]').textContent, document.querySelector('.mg-inv button').textContent]);
+    await pev(() => __mirage.g.ui.openMenu());
+    const en = await menuText();
+    ok(en.join('|') === 'Paused|Resume|Jump|Close', `createUI: the default table is English (${en.join(', ')})`);
+    await pev(() => __mirage.g.ui.setStrings({ paused: '一時停止', resume: '再開', jump: 'ジャンプ' }));
+    const ja = await menuText();
+    ok(ja.join('|') === '一時停止|再開|ジャンプ|Close', `createUI: setStrings() re-labels the open menu; keys left out stay English (${ja.join(', ')})`);
+    ok(await pev(() => __mirage.g.ui.strings.resume === '再開' && __mirage.g.ui.strings.back === 'Back'), 'createUI: ui.strings is the table in use');
+    await pev(() => __mirage.g.ui.setStrings({}));
+    ok((await menuText()).join('|') === en.join('|'), 'createUI: setStrings({}) is English again');
+    await pev(() => document.querySelector('.mg-menu').close());
     ok(errs.length === 0, `menu (createUI): no page errors${errs.length ? ' (' + errs.slice(0, 3).join(' | ') + ')' : ''}`);
     await plain.close(); hs.close();
   }

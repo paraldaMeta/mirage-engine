@@ -1,5 +1,21 @@
-Mirage Engine — third-party notices
-====================================
+Mirage Engine — licences and third-party notices
+================================================
+
+Licences in this repository
+---------------------------
+
+MIT (LICENSE at the root): packages/core, packages/world, packages/play, packages/game, packages/net,
+packages/editor, packages/tools, agent/, scripts/, docs/, and every example except examples/neon-district.
+
+Business Source License 1.1 (packages/assets/LICENSE, and examples/neon-district/LICENSE): packages/assets
+(@miragekit/assets: the surface recipes, the cyber kit, the sound library, the destructibles' material classes) and
+examples/neon-district. Licensor 灰叔 Racso; each version changes to the Apache License 2.0 four years after its first
+public release. For a commercial licence, open an issue titled 'Commercial license' at
+https://github.com/paraldaMeta/mirage-engine or write to flytoheptameron@outlook.com.
+Versions of that content published earlier on main under MIT stay MIT for those versions.
+
+Third-party notices
+-------------------
 
 Mirage's rendering core (packages/core) was written for Mirage. The techniques behind several of its
 subsystems (physical sky, aerial perspective inside materials, sub-frame accumulation, the material patch

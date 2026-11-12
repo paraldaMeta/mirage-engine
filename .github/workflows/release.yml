@@ -38,9 +38,9 @@ jobs:
         run: |
           want="$(node -p "require('./packages/core/package.json').version")"
           test "${GITHUB_REF_NAME#v}" = "$want"
-      - name: 'publish in peer-dependency order: core, world, play, game, net, editor, tools'
+      - name: 'publish in peer-dependency order: core, world, play, game, net, editor, tools, assets (BUSL-1.1)'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           DRY: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && '--dry-run' || '' }}
         run: |
-          npm publish $DRY --provenance --access public -w packages/core -w packages/world -w packages/play -w packages/game -w packages/net -w packages/editor -w packages/tools
+          npm publish $DRY --provenance --access public -w packages/core -w packages/world -w packages/play -w packages/game -w packages/net -w packages/editor -w packages/tools -w packages/assets

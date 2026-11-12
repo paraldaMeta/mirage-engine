@@ -100,7 +100,9 @@ async function mountGame(world, opts, life, dispose, ownAudio) {
     if (game.settings.bindings) input.bindings = game.settings.bindings;
     for (const [b, v] of Object.entries(game.settings.volumes || {})) audio.volume(b, v);
   };
-  const ui = opts.ui === false ? null : (typeof opts.ui === 'function' ? opts.ui : createUI)({ game, input, audio, canvas, title: opts.title || plan.name, subtitle: opts.subtitle, onSave: save, onLoad: load, onRestart: opts.onRestart || (() => location.reload()) });
+  // ui: false (none), a factory (createKitUI), or createUI's own options ({ strings }: the overlay's text table)
+  const uiOwn = opts.ui && typeof opts.ui === 'object' ? opts.ui : {};
+  const ui = opts.ui === false ? null : (typeof opts.ui === 'function' ? opts.ui : createUI)({ ...uiOwn, game, input, audio, canvas, title: opts.title || plan.name, subtitle: opts.subtitle, onSave: save, onLoad: load, onRestart: opts.onRestart || (() => location.reload()) });
   if (ui) life.defer(() => ui.dispose());
   game.ui = ui || { toast() {}, message: () => Promise.resolve(), prompt() {}, objective() {} };   // entities talk to the overlay through the game
   const refresh = () => { if (ui && objective) ui.objective(...objective(game)); };
@@ -122,7 +124,7 @@ async function mountGame(world, opts, life, dispose, ownAudio) {
       const p = input.pad;   // a pad has no DOM events: any button or stick counts as someone being there
       if (p && (p.buttons.some((b) => b.pressed) || p.axes.some((v) => Math.abs(v) > 0.2))) play.wake();
       const [lx, ly] = input.look(dt);
-      if (lx || ly) play.turn(lx, ly, 1);
+      if (lx || ly) play.turn(lx, ly, 1, input.lookSource || input.source);
       const m = input.move();
       return { x: m.x, z: m.z, run: input.down('run'), jump: input.down('jump'), jumpPressed: input.pressed('jump') };
     },

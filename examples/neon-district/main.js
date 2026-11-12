@@ -9,11 +9,13 @@
 //      ?ssr=0|1 ?ssgi=0|1 ?contact=0|1 (screen-space passes)  ?gi=0|1 ?probes=0|1 ?csm=0|1 ?shadows=0|1 (lamp tiles)
 //      ?vol=0|1 (volumetric lamps, light2)  ?taa2=0|1 ?mb=0..1 ?bloom2=0|1 ?lut=0|1 ?chroma=N ?upscale=0.5..1
 //      ?grade=0|1 (the hour's look) ?dusk=0|1 (the dusk sky) ?pool=0|1 (the lamp pool) ?bounce=0|1 ?godrays=0|1 ?flare=0|1
+//      ?moon=0|1 (the moon casts shadows by night) ?percell=N (the lamp pool's lamps per view cell, 32; 16 darkens the street)
+//      ?mirrorall=1 (the close-up props and the view model in the mirror too)
 //      ?time=night | dusk | day | dawn | HH:MM (in the game: T steps through them, the options panel has a slider)
 //      ?detail=0..1 (how much optional dressing: low 0.4, medium 0.8, high 1)   ?skip=module,module (leave modules out)
 //      ?wet=0..1 ?rain=0..1   ?big=chunk,occ,lod (docs/big-worlds.md)   ?lamps=N (N extra lamps: the cluster test)
 import * as THREE from 'three';
-import { createWorldRenderer, pickQuality, setWetness, setRain, addLampSource, makeLut, lutTexture, createVfx } from '@miragekit/core';
+import { createWorldRenderer, pickQuality, setWetness, setRain, addLampSource, makeLut, lutTexture, createVfx, skyState, FOG, WET } from '@miragekit/core';
 import { applyBigWorld } from '@miragekit/core/bigworld';
 import { buildWorld } from '@miragekit/world';
 import { addRain } from '@miragekit/world/kits/rain';
@@ -22,6 +24,7 @@ import { startGame } from '@miragekit/game';
 import plan from './plan.js';
 import modules from './modules/index.js';
 import { setupGame, objective, summary, VERSION, T } from './game/index.js';
+import { mirrorLayer, distanceCull, MIRROR_LAYER } from './perf.js';
 
 const Q = new URLSearchParams(location.search);
 const W = +Q.get('w') || innerWidth, H = +Q.get('h') || innerHeight;
@@ -31,9 +34,9 @@ const quality = Q.get('quality') || (await pickQuality()).quality;
 
 // ---- what each quality level turns on; a URL flag overrides one feature
 const TIER = {
-  low: { grade: 1, dusk: 1, pool: 1, bounce: 0, godrays: 0, flare: 0, ssr: 0, ssgi: 0, contact: 0, gi: 0, probes: 1, csm: 0, shadows: 0, vol: 0, taa2: 0, mb: 0, bloom2: 1, lut: 1, chroma: 0, upscale: 0.75, rain: 0.6, big: 0, planar: 0, dirt: 0, streak: 0, sharp: 0 },
-  medium: { grade: 1, dusk: 1, pool: 1, bounce: 1, godrays: 1, flare: 1, ssr: 1, ssgi: 0, contact: 0, gi: 1, probes: 1, csm: 0, shadows: 1, vol: 1, taa2: 1, mb: 0, bloom2: 1, lut: 1, chroma: 0.06, upscale: 1, rain: 1, big: 0, planar: 2, dirt: 0.12, streak: 0.08, sharp: 0.5 },
-  high: { grade: 1, dusk: 1, pool: 1, bounce: 1, godrays: 1, flare: 1, ssr: 1, ssgi: 1, contact: 1, gi: 1, probes: 1, csm: 1, shadows: 1, vol: 1, taa2: 1, mb: 0.12, bloom2: 1, lut: 1, chroma: 0.08, upscale: 1, rain: 1, big: 0, planar: 1, dirt: 0.15, streak: 0.1, sharp: 0.55 },
+  low: { grade: 1, dusk: 1, pool: 1, bounce: 0, godrays: 0, flare: 0, ssr: 0, ssgi: 0, contact: 0, gi: 0, probes: 1, csm: 0, shadows: 0, vol: 0, taa2: 0, mb: 0, bloom2: 1, lut: 1, chroma: 0, upscale: 0.75, rain: 0.6, big: 0, moon: 0, percell: 20, planar: 0, dirt: 0, streak: 0, sharp: 0 },
+  medium: { grade: 1, dusk: 1, pool: 1, bounce: 1, godrays: 1, flare: 1, ssr: 0, ssgi: 0, contact: 0, gi: 1, probes: 1, csm: 0, shadows: 1, vol: 1, taa2: 1, mb: 0, bloom2: 1, lut: 1, chroma: 0.06, upscale: 1, rain: 1, big: 0, moon: 1, percell: 26, planar: 3, dirt: 0.12, streak: 0.08, sharp: 0.5 },
+  high: { grade: 1, dusk: 1, pool: 1, bounce: 1, godrays: 1, flare: 1, ssr: 1, ssgi: 1, contact: 1, gi: 1, probes: 1, csm: 1, shadows: 1, vol: 1, taa2: 1, mb: 0.12, bloom2: 1, lut: 1, chroma: 0.08, upscale: 1, rain: 1, big: 0, moon: 1, percell: 32, planar: 3, dirt: 0.15, streak: 0.1, sharp: 0.55 },
 }[quality] || {};
 const F = (k) => (Q.has(k) ? (isNaN(+Q.get(k)) ? Q.get(k) : +Q.get(k)) : TIER[k]);
 const on = (k) => !!F(k);
@@ -45,8 +48,12 @@ const lut = makeLut(([r, g, b]) => {
   return [sat(r) * (1 - 0.05 * sh) + 0.02 * hi, sat(g) * (1 + 0.01 * sh), sat(b) * (1 + 0.07 * sh) - 0.015 * hi].map((v) => Math.min(1, Math.max(0, v)));
 }, 24);
 
-// ?time=night | dusk | day | dawn | HH:MM (26 October, a full Moon high over the roofs by night)
-const TIMES = { night: { day: '2026-10-26', time: '23:10' }, dawn: { day: '2026-10-26', time: '06:20' }, day: { day: '2026-10-26', time: '13:30' }, dusk: { day: '2026-10-26', time: '17:04' } };
+// ?time=night | dusk | day | dawn | HH:MM (26 October, a full Moon high over the roofs by night). Day is late
+// afternoon: the Sun low in the west-south-west (16:15, 10.6 degrees up, bearing 247), so its light comes down the
+// street from the west end over the roofs, rakes the north facades above the south blocks' shadow line, lights the
+// tower at the east end and comes through the alley mouth in a shaft; the street floor is in cool shade with warm
+// light bounced off the sunlit walls.
+const TIMES = { night: { day: '2026-10-26', time: '23:10' }, dawn: { day: '2026-10-26', time: '06:20' }, day: { day: '2026-10-26', time: '16:15' }, dusk: { day: '2026-10-26', time: '17:04' } };
 const timeOf = (t) => TIMES[t] || (/^\d{1,2}:\d{2}$/.test(t || '') ? { day: '2026-10-26', time: t } : null);
 const bar = plan.bar.rect, room = plan.relay.room;
 const lighting = {
@@ -54,37 +61,79 @@ const lighting = {
   lights: { perCell: 0, perFrame: 1 },                                                            // clustered lamps, exact lists; one shadow tile redrawn a frame (sentinels walking past lamps)
   screen: on('ssr') || on('ssgi') || on('contact'),
   // the wet street mirrors the signs above it, off screen or not (?planar=N: the mirror is redrawn every Nth frame)
-  planar: on('planar') && { y: 0, scale: 0.5, roughMax: 0.4, every: Math.max(1, Math.round(F('planar'))) },
+  // (it draws one layer: everything but the view model and the close-up props, perf.js)
+  planar: on('planar') && { y: 0, scale: 0.5, roughMax: 0.4, every: Math.max(1, Math.round(F('planar'))), ...(Q.get('mirrorall') === '1' ? {} : { layers: [MIRROR_LAYER] }) },
   csm: on('csm') && { cascades: 3, stagger: true },
   gi: on('gi') && { min: [bar[0], 0, bar[1]], max: [bar[2], plan.bar.height, bar[3]], spacing: 1.3, fade: 0.5 },
   probes: on('probes') && [
     { min: [bar[0], 0, bar[1]], max: [bar[2], plan.bar.height, bar[3]], fade: 0.5 },
     { min: [room[0], 0, room[1]], max: [room[2], plan.relay.height, room[3]], fade: 0.5 },
-    // the steel truck at the alley mouth (the first close look at a car): its own capture of the signs round it
-    { min: [plan.cars[0][0] - 3.4, 0, plan.cars[0][1] - 2.6], max: [plan.cars[0][0] + 3.4, 3.2, plan.cars[0][1] + 2.4], fade: 0.6 },
+    // the steel truck at the alley mouth (?truckprobe=1): its own capture of the signs round it. Off by default: every
+    // probe is a texture unit in every lit material, and a lit material has 16 (13 go to the lighting on high); the
+    // baked surfaces need three of the rest and their weathering decals a fourth (NOTES.md "Surfaces")
+    ...(Q.get('truckprobe') === '1' ? [{ min: [plan.cars[0][0] - 3.4, 0, plan.cars[0][1] - 2.6], max: [plan.cars[0][0] + 3.4, 3.2, plan.cars[0][1] + 2.4], fade: 0.6 }] : []),
   ],
 };
-// wetness before the world exists: set later, the world sees a change, recaptures its light and re-bakes every probe
-setWetness(Q.has('wet') ? +Q.get('wet') : 0.9);
-setRain(Q.has('rain') ? +Q.get('rain') : TIER.rain ?? 1);
+// ---- the hour's weather, in one place. Keyed by the Sun's elevation h (degrees), so the time slider (setHour) carries
+// the weather with it: night rains (wet streets, low cloud lit from below, a rain haze), dusk is the moment after the
+// rain stopped (still wet, drying in patches, the cloud breaking, puddles holding the sky), the afternoon is dry and
+// clear (a few puddles left in the ruts and gutters, thin haze for depth). Keys at h = -12, -4, 2, 8, 16; between two
+// keys the value eases (smoothstep). rain: x the tier's rain; wet: setWetness; clouds: cloud cover; fog / air / glow:
+// x the ground haze, the air's haze and its glow toward the Sun or Moon; env: x the image-based light, the sky's fill in
+// the shade (the capture is taken down in the street, between dark walls: by day the open sky's share of the shade
+// is restored with x12; by night x1.8 is the glow of a lit city under low cloud, so no shadow is black). ?rain= / ?wet=
+// pin those two.
+const WX_H = [-12, -4, 2, 8, 16];
+const WX = {
+  rain: [1, 0.6, 0, 0, 0],
+  wet: [0.9, 0.8, 0.55, 0.22, 0.12],
+  clouds: [0.85, 0.75, 0.45, 0.3, 0.25],
+  fog: [1, 1, 0.75, 0.4, 0.3],
+  air: [1, 1, 0.8, 0.5, 0.4],
+  glow: [1, 0.9, 0.55, 0.3, 0.22],
+  env: [1.8, 2, 4, 12, 12],
+};
+function weatherAt(h) {
+  let i = 0;
+  while (i < WX_H.length - 2 && h > WX_H[i + 1]) i++;
+  const t0 = Math.min(1, Math.max(0, (h - WX_H[i]) / (WX_H[i + 1] - WX_H[i]))), t = t0 * t0 * (3 - 2 * t0);
+  return Object.fromEntries(Object.entries(WX).map(([k, v]) => [k, v[i] + (v[i + 1] - v[i]) * t]));
+}
+// wetness before the world exists (set later, the world recaptures its light and re-bakes every probe): the hour's
+const startState = (() => { const v = timeOf(Q.get('time')) || TIMES.night; try { return skyState(v, { lat: 34, lon: 135, height: 20, tzHours: 9 }); } catch { return null; } })();
+const wx0 = weatherAt(startState ? startState.sun.elevation : -60);
+const wetQ = (v) => Math.round(v * 20) / 20;   // in steps of 0.05: a wetness change recaptures the light
+setWetness(Q.has('wet') ? +Q.get('wet') : wetQ(wx0.wet));
+setRain(Q.has('rain') ? +Q.get('rain') : (TIER.rain ?? 1) * wx0.rain);
 const world = createWorldRenderer({
   quality, canvas, width: W, height: H, preserveDrawingBuffer: true,
   place: { lat: 34, lon: 135, height: 20, tzHours: 9 },                                           // a generic mid-latitude coast, not a real city
   time: timeOf(Q.get('time')) || TIMES.night,
-  // the hour's look: deep blue shadows and magenta-cyan lights by night, a warm smog by day
-  grade: on('grade') && { nightAdapt: 0.4,
-    night: { exposure: -0.75, saturation: 1.16, contrast: 1.05, shadowTint: [0.9, 0.99, 1.16], hiTint: [1.07, 0.97, 1.05], black: 0.002 },
-    dusk: { exposure: 0.1, saturation: 1.12, shadowTint: [0.93, 0.98, 1.1], hiTint: [1.1, 0.98, 0.9] },
-    golden: { exposure: 0.75, saturation: 1.15 },
-    noon: { temperature: 0.8, tint: -0.04, saturation: 0.92, shadowTint: [1.0, 1.0, 0.95], hiTint: [1.08, 1.0, 0.84], exposure: 1.5 } },
-  sky: on('dusk') ? { dusk: { haze: 3, night: 0.45 } } : undefined,
-  lampPool: on('pool') ? { perCell: 32, ...(Q.has('captures') ? { captures: Q.get('captures') !== '0' } : {}) } : undefined,
-  clouds: 0.85, shadow: { center: [0, 2, -6], radius: 46 }, envProbe: [-2, 5, 6], envIntensity: 0.6,
-  fog: { groundDensity: 0.0045, height: 14, air: 0.0003, color: 1.3, glow: 1 },
+  // the hour's look, photographic: a neutral night (white street and shop light, coloured accents; the darks lifted
+  // a touch toward the sodium-grey of a cloud lit from below; highlights roll off to white through the AgX share),
+  // a dusk of warm light against cool shade, and a golden afternoon (warm highlights, cool open shade, a firm curve).
+  // Exposure (EV, on top of the world's own adaptation and post.exposure 0.5) is set so a mid-grey card in the
+  // street reads mid-grey: NOTES.md "Light by the hour" has the numbers measured
+  grade: on('grade') && { nightAdapt: 0.42, lampTint: [1.02, 1, 0.97],
+    night: { exposure: -0.65, temperature: 0.05, tint: 0.05, saturation: 0.88, contrast: 1.02, tonemapMix: 0.55, shadowTint: [0.98, 1, 1.03], hiTint: [1.02, 1, 0.97],
+      black: 0, curve: 0.1, punch: 0.15, clarity: 0.08, highlightWarmth: 0, lift: [0.0065, 0.006, 0.0056], gamma: 1.08 },
+    dusk: { exposure: 0.15, temperature: 0.05, tint: 0.08, saturation: 0.98, contrast: 1.0, tonemapMix: 0.45, shadowTint: [0.95, 1, 1.07], hiTint: [1.08, 1, 0.9],
+      black: 0.003, curve: 0.12, punch: 0.3, clarity: 0.12, highlightWarmth: 0.15, lift: [0.0015, 0.0015, 0.002] },
+    golden: { exposure: 0.7, temperature: 0.25, tint: 0.06, saturation: 1.04, contrast: 1.06, tonemapMix: 0.35, shadowTint: [0.95, 1, 1.07], hiTint: [1.08, 1, 0.9],
+      black: 0.008, curve: 0.2, punch: 0.35, clarity: 0.14, highlightWarmth: 0.25 },
+    noon: { exposure: 0.6, temperature: 0.12, tint: 0.03, saturation: 1.0, contrast: 1.05, tonemapMix: 0.35, shadowTint: [0.97, 1, 1.04], hiTint: [1.04, 1, 0.95],
+      black: 0.008, curve: 0.16, punch: 0.3, clarity: 0.1, highlightWarmth: 0.1 } },
+  sky: on('dusk') ? { dusk: { haze: 2.2, night: 0.45 } } : undefined,
+  lampPool: on('pool') ? { perCell: F('percell'), ...(Q.has('captures') ? { captures: Q.get('captures') !== '0' } : {}) } : undefined,
+  clouds: wx0.clouds, shadow: { center: [0, 2, -6], radius: 46 }, envProbe: [-2, 5, 6], envIntensity: 0.6 * wx0.env,
+  // the haze: by night a rain haze round the lamps; by day only distance (weatherAt scales it per hour). Its colour
+  // is the sky's (x1, not brighter: a brighter fog than the sky is what washed the day out)
+  fog: { groundDensity: 0.0045, height: 14, air: 0.0003, color: 1.0, glow: 1 },
   lighting,
   light2: on('vol') ? { ssr: false, bloom: false, ls: { slots: 4 }, vol: { lamps: 1.5, dustOut: 0.008, height: 9, lampDust: 0.05, haloR: 1.3, lampReach: 7, noise: 0.7 } } : undefined,
   post: {
-    exposure: 0.52, contrast: 1.06, saturation: 1.06, vignette: 0.32, grain: Q.get('grain') === '0' ? 0 : 0.014, bloom: 0.2, ao: 0.9,
+    // a neutral base (the grade does the hour's look): no extra contrast or colour; bloom only off true emitters, tight
+    exposure: 0.5, contrast: 1.0, saturation: 0.97, vignette: 0.26, grain: Q.get('grain') === '0' ? 0 : 0.014, bloom: 0.11, bloomRadius: 0.32, ao: 0.9,
     taa2: F('taa2') ? 1 : 0, motionBlur: F('mb') || 0, bloomPyramid: F('bloom2') ? 1 : 0, chroma: F('chroma') || 0, ...(F('upscale') && F('upscale') < 1 ? { upscale: F('upscale') } : {}),
     ...(F('lut') && !on('grade') ? { lut: lutTexture(lut), lutStrength: 1 } : {}),                    // the code-made LUT stands in when the grade is off
     godrays: on('godrays') ? 0.9 : 0, flare: on('flare') ? 0.8 : 0,
@@ -95,7 +144,7 @@ const world = createWorldRenderer({
 });
 
 // detail: how much optional dressing the modules build (crowds, traffic, balcony life, the far skyline): phones stay light
-const shared = { quality: on('shadows') ? quality : 'low', gi: !!lighting.gi, detail: Q.has('detail') ? +Q.get('detail') : { low: 0.4, medium: 0.8, high: 1 }[quality] ?? 1 };
+const shared = { quality: on('shadows') ? quality : 'low', tier: quality, gi: !!lighting.gi, detail: Q.has('detail') ? +Q.get('detail') : { low: 0.4, medium: 0.8, high: 1 }[quality] ?? 1 };
 const skip = (Q.get('skip') || '').split(',');                                                     // ?skip=aerial,grime: build without those modules (A/B timing)
 const built = await buildWorld(world, { plan, modules: modules.filter((m) => !skip.includes(m.name)), shared });
 for (let i = 0, n = +Q.get('lamps') || 0; i < n; i++) {                                           // ?lamps=N: the clustered-light test
@@ -116,15 +165,37 @@ relight();
 /** the hour: 'night' | 'dawn' | 'day' | 'dusk' | 'HH:MM'; eased over about a second, the probes bake again */
 let hour = TIMES[Q.get('time')] ? Q.get('time') : timeOf(Q.get('time')) ? Q.get('time') : 'night';
 const setHour = (t) => { const v = timeOf(t); if (!v) return hour; hour = t; world.setTime(v, { ease: true }); return hour; };
+// the weather follows the hour (weatherAt): eased each frame toward the Sun's elevation now; the fog's numbers are
+// scaled after the world writes them (onUpdate runs after writeFog), the wetness moves in 0.05 steps (each one
+// recaptures the image-based light), the rain and the cloud cover are uniforms
+const wxNow = { ...wx0 };
+const cloudU = world.sky.material.uniforms.uCloudCover;
+world.ctx.onUpdate(() => {
+  const h = world.state ? world.state.sun.elevation : -60, want = weatherAt(h);
+  for (const k in want) wxNow[k] += (want[k] - wxNow[k]) * 0.08;
+  if (!Q.has('rain')) setRain((TIER.rain ?? 1) * (wxNow.rain < 0.01 ? 0 : wxNow.rain));
+  if (!Q.has('wet')) { const w = wetQ(wxNow.wet); if (Math.abs(w - WET.uWet.value) > 0.01) setWetness(w); }
+  cloudU.value = wxNow.clouds;
+  world.scene.environmentIntensity = 0.6 * wxNow.env;
+  FOG.params[0] *= wxNow.fog; FOG.params[2] *= wxNow.air;
+  for (let i = 0; i < 3; i++) FOG.glow[i] *= wxNow.glow;
+});
 const volLamps = (shared.lamps || []).filter((l) => l.vol).map(({ light }, i) => ({ id: 'nd' + i, light, x: light.position.x, y: light.position.y, z: light.position.z, range: light.distance, power: 0, near: 0.5, col: [0, 0, 0] }));
-if (world.light2) addLampSource(world.scene, () => { for (const v of volLamps) { const l = v.light, k = l.intensity; v.power = k; v.col[0] = l.color.r * k; v.col[1] = l.color.g * k; v.col[2] = l.color.b * k; } return volLamps; });
+// (the rain-lit cones are kept near neutral: 65 % of each lamp's colour goes to its grey, so a coloured lamp's cone
+// reads as lit rain, not as coloured smoke)
+if (world.light2) addLampSource(world.scene, () => { for (const v of volLamps) { const l = v.light, k = l.intensity, g = (l.color.r + l.color.g + l.color.b) / 3; v.power = k; v.col[0] = (g + (l.color.r - g) * 0.35) * k; v.col[1] = (g + (l.color.g - g) * 0.35) * k; v.col[2] = (g + (l.color.b - g) * 0.35) * k; } return volLamps; });
 
 const rain = F('rain') > 0 ? addRain({ ...world.ctx, root: world.scene }, { count: quality === 'low' ? 3000 : 9000, box: [26, 16, 26], speed: 11, streak: 0.045, width: 0.0016, gain: 2.6 }) : null;
 const vfx = createVfx(world, { maxParticles: quality === 'low' ? 30000 : 90000 });
+// moon shadows (?moon=0|1): at low (phones) the moon casts none once the lamps are on (by night the street lamps
+// make the shadows that read; by day and at dusk the sun still casts). It saves the shadow map's draw (89 calls).
+if (!on('moon')) world.ctx.onUpdate(() => { world.sun.castShadow = world.G.uLampGain.value < 0.5; });
 const big = F('big') ? applyBigWorld(world, world.scene, String(F('big'))) : null;                // ?big=chunk,occ,lod: off by default, it does not pay in a block this small (NOTES.md)
 
 const { camera } = world;
-camera.aspect = W / H; camera.fov = 62; camera.near = 0.08; camera.far = 3000; camera.updateProjectionMatrix();
+// depth: near 0.1 (the view model at the sight still clears it) and far 1600 (the sky dome is 1000 m round the eye; the
+// farthest towers and traffic lanes are within 250 m): more depth resolution on the far facades than 0.08 / 3000
+camera.aspect = W / H; camera.fov = 62; camera.near = 0.1; camera.far = 1600; camera.updateProjectionMatrix();
 const spp = +Q.get('spp') || 4, hud = Q.get('hud') !== '0';
 let play, g = null, game = null;
 if (Q.has('world')) {   // the district alone: walk, fly, orbit (stills, the world check)
@@ -141,8 +212,23 @@ if (Q.has('world')) {   // the district alone: walk, fly, orbit (stills, the wor
   game.start(g);
   if (Q.has('start')) g.ui.begin();
 }
+// the frame budget (perf.js, NOTES.md "Frame budget"): the close-up props (modelled for a look from a metre: cans,
+// bottles, keys, bolts, goods) stay out of the wet street's mirror, with the view model (?mirrorall=1 puts them back);
+// the goods of each row of vending machines are drawn within 30 m (userData.ndFar); the robots' metal parts (joints, hubs, rods: robot-m) and their rifles are
+// left out of the mirror too (a puddle shows the shell's silhouette and the lit visor, not a 4 cm hub)
+const NO_MIRROR = /^(viewmodel|vending-(can|bottle|cup|box|pack|cap|spirals)|bar-props|relay-props|stall-goods|grime-props|clutter-props|shop-props|robot-m|robot-gun)$/;
+{ const far = new Map(); world.scene.traverse((o) => { if (o.userData.ndFar) { if (!far.has(o.userData.ndFar)) far.set(o.userData.ndFar, []); far.get(o.userData.ndFar).push(o); } });
+  for (const [d, list] of far) { const cull = distanceCull(list, d); world.ctx.onUpdate((t) => cull(camera, t)); } }
+// the pickups (ammunition and med kits: small boxes that spin and bob all over the district) are drawn within 45 m:
+// each was four draws a frame wherever it was (the scene, the velocity buffer as it spins, the mirror, the moon's map)
+if (g) {
+  const near = [];
+  for (const p of plan.pickups) g.game.entities.get(p.id)?.object?.traverse((m) => { if (m.isMesh) near.push(m); });
+  if (near.length) { const cull = distanceCull(near, 45); world.ctx.onUpdate((t) => cull(camera, t)); }
+}
+if (lighting.planar && Q.get('mirrorall') !== '1') mirrorLayer(world.scene, (o) => o.userData.mgClustered || NO_MIRROR.test(o.name));
 const v = plan.viewpoints.find((p) => p.name === Q.get('view'));
 if (v) play.place(v.eye, v.look, v.mode || (Q.has('world') ? Q.get('mode') || 'walk' : 'walk'));
 if (Q.has('world')) world.ctx.onUpdate(relight);
-window.__mirage = { world, built, play, g, game, vfx, rain, big, shared, setHour, relight, features: Object.fromEntries(Object.keys(TIER).map((k) => [k, F(k)])) };
+window.__mirage = { world, built, play, g, game, vfx, rain, big, shared, setHour, relight, weather: { WX, WX_H, now: wxNow, at: weatherAt }, features: Object.fromEntries(Object.keys(TIER).map((k) => [k, F(k)])) };
 window.__READY = true;

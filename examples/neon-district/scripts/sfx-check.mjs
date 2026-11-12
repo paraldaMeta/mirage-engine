@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Check: the guns' sounds (game/gunsound.js), measured instead of heard. Each sound is rendered in headless Chrome by
+// Check: the guns' sounds (game/gunsound.js: the engine's sound library under the game's names), measured instead of heard. Each sound is rendered in headless Chrome by
 // the same code the game runs, played through Web Audio (an OfflineAudioContext renders the buffer as the mixer would
 // get it), and its envelope and spectrum are measured:
 //   peak       near full scale (0.8-0.99) and no sample at or past 0.999 (no clipping)
@@ -10,20 +10,25 @@
 //              and the explosion lower than the carbine, the pistol brighter than the shotgun
 //   low        the share of the first 85 ms's energy under 200 Hz (the thump)
 //   variants   two variants of a shot differ (pitch, level, timing)
-// usage: node scripts/sfx-check.mjs        (no build needed: it serves the example's own folder)
+// usage: node scripts/sfx-check.mjs        (no build needed: it serves the repository's source)
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { launch, serve } from '../../../packages/tools/src/chrome.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const srv = await serve(path.join(here, '..'));
+const srv = await serve(path.join(here, '../../..'));   // the repository: the game's file imports the engine's sound library
 const b = await launch({ w: 320, h: 200, args: ['--autoplay-policy=no-user-gesture-required'] });
 const page = await b.newPage();
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
-await page.goto(`${srv.url}/NOTES.md`, { waitUntil: 'load' });
+// a blank page on the server's origin whose import map resolves the engine's package name to its source
+await page.setRequestInterception(true);
+page.on('request', (r) => (r.url().endsWith('/__sfx.html')
+  ? r.respond({ contentType: 'text/html', body: '<script type="importmap">{"imports":{"@miragekit/game/sounds":"/packages/game/src/sounds.js","@miragekit/assets/sounds":"/packages/assets/src/sounds/index.js"}}</script>' })
+  : r.continue()));
+await page.goto(`${srv.url}/__sfx.html`, { waitUntil: 'load' });
 const rows = await page.evaluate(async () => {
-  const { SOUNDS, ENVS } = await import('/game/gunsound.js');
+  const { SOUNDS, ENVS } = await import('/examples/neon-district/game/gunsound.js');
   const SR = 48000;
   function analyze(x) {
     let peak = 0, clip = 0;

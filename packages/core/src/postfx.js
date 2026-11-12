@@ -298,6 +298,9 @@ export class PostFX {
       }
       if (!en.proxy || en.proxy.geometry !== o.geometry) en.proxy = this._proxy(o, en, vm);
       if (o.isInstancedMesh) en.proxy.count = o.count;
+      // a skinned mesh that culls itself (frustumCulled with a bounding sphere: its own, or one it was given) is culled
+      // by the same sphere here: what the scene pass did not draw has no pixel to write a velocity to
+      if (o.isSkinnedMesh) { en.proxy.boundingSphere = o.boundingSphere; en.proxy.frustumCulled = o.frustumCulled && !!o.boundingSphere; }
       list.push(en.proxy); moved.push(o, en);
     });
     this.moved = list.length;   // how many objects had their own motion this frame (for the docs and the checks)

@@ -2,7 +2,7 @@
 // four loops (rain, a sign's hum, a vent's hiss, the score), given to the mixer with audio.add at the first gesture.
 // The guns, their mechanics, casings, impacts, the robots' rifles and the rest of the feel's sounds are layered
 // syntheses in gunsound.js: rendered offline, a buffer at a time over the first second or two after the first gesture
-// (about 1.3 s of work in all, a few ms a step, the carbine first), each handed to audio.add as it is done. Until a
+// (about 1.3 s of work in all, in the browser's idle time between frames, the carbine first), each handed to audio.add as it is done. Until a
 // gun's own buffers exist its shots fall back to `nd_shot` (the first carbine sound, kept below).
 import { SOUNDS, ORDER } from './gunsound.js';
 const TAU = Math.PI * 2;
@@ -21,6 +21,12 @@ export function createSfx(audio) {
       job.list.push(b);
       audio.add(job.name, job.list.length > 1 ? job.list.slice() : job.list[0]);
     }
+  }
+  // one idle slice after another until the queue is empty (setTimeout where requestIdleCallback is missing)
+  function idle() {
+    if (!queue?.length) return;
+    const go = (d) => { renderSome(Math.max(1, Math.min(8, d && d.timeRemaining ? d.timeRemaining() - 1 : 4))); idle(); };
+    if (typeof requestIdleCallback === 'function') requestIdleCallback(go, { timeout: 250 }); else setTimeout(go, 16);
   }
   function make() {
     const ctx = audio.ctx, SR = ctx.sampleRate;
@@ -91,7 +97,8 @@ export function createSfx(audio) {
   const has = (n) => !!audio.buffers?.[n];
   return {
     /** call once a step: builds the sounds when the mixer first exists (after the first gesture), then the guns' a few ms at a time */
-    poll() { if (!ready && audio.ctx && audio.buffers) make(); else if (queue?.length) renderSome(6); },
+    // (the guns' buffers are made in the browser's idle time, not inside a step: a step's few ms were a frame's few ms)
+    poll() { if (!ready && audio.ctx && audio.buffers) { make(); idle(); } },
     get ready() { return ready; },
     /** how many of the layered sounds are still to be made */
     get pending() { return queue ? queue.length : -1; },

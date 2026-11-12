@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { signTexture, decor } from './lib.js';
 import { detail } from './kit.js';
+import { materials, surfaceLib } from './materials.js';
 
 // a car's hull (nose along +x): a side profile pushed across with a chamfer, so its facets catch the signs
 function hullGeometry() {
@@ -27,7 +28,9 @@ export default {
       for (const dir of [1, -1]) for (let i = 0; i < n; i++) lanes.push({ L, ax, az, dx, dz, len, dir, phase: (i + (dir > 0 ? 0 : 0.5)) / n, y: L.y + (dir > 0 ? 0 : 1.6) + ((i * 7) % 3) * 0.5, side: dir * L.wide / 2, k: lanes.length });
     }
     const N = lanes.length;
-    const paint = mat.std({ color: 0xffffff, roughness: 0.28, metalness: 0.75 });
+    // car paint (the library's: a clear coat over a metallic base; the hulls' own colours ride on the instance colour)
+    const { surf, SURFACES } = surfaceLib(ctx);
+    const paint = surf(SURFACES.carPaint({ variant: 'metallic', color: [0.7, 0.7, 0.7] }));
     const hull = new THREE.InstancedMesh(hullGeometry(), paint, N);
     const head = new THREE.InstancedMesh(mergeGeometries([-1, 1].map((s) => new THREE.BoxGeometry(0.06, 0.08, 0.5).translate(2.3, -0.1, s * 0.5))), mat.glow([0.9, 0.95, 1.0], 26), N);
     const tail = new THREE.InstancedMesh(new THREE.BoxGeometry(0.06, 0.07, 1.6).translate(-2.34, 0.1, 0), mat.glow([1.0, 0.08, 0.06], 22), N);
@@ -63,8 +66,8 @@ export default {
     const T = plan.transport;
     if (T) {
       const ship = new THREE.Group(); ship.name = 'transport'; decor(ship);
-      const b = new geom.MeshBatch(), dark = mat.std({ color: new THREE.Color(0.04, 0.042, 0.05), roughness: 0.4, metalness: 0.8 });
-      const plate = mat.std({ color: new THREE.Color(0.16, 0.16, 0.17), roughness: 0.35, metalness: 0.85 });
+      const b = new geom.MeshBatch(), dark = materials(ctx).darkMetal;   // black powder coat
+      const plate = surf(SURFACES.aluminium({ variant: 'cast', color: [0.5, 0.51, 0.52] }), { size: 'small' });
       b.add(new geom.RoundedBoxGeometry(20, 3.2, 5.2, 2, 0.6), dark, geom.compose([0, 0, 0]));
       b.add(new geom.RoundedBoxGeometry(12, 1.6, 4.0, 2, 0.4), plate, geom.compose([-1.5, 2.1, 0]));
       b.add(new THREE.ConeGeometry(2.6, 5, 6).rotateZ(-Math.PI / 2), dark, geom.compose([12.4, -0.2, 0], [0, 0, 0], [1, 0.62, 1]));

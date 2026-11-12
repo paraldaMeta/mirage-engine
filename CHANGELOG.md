@@ -4,7 +4,142 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
 
 ## Unreleased
 
+**Licences: a new package, @miragekit/assets, under the Business Source License 1.1**
+- The engine stays MIT: core, world, play, game, net, editor, tools (systems, APIs, frameworks, tools). The library's
+  content moves to `@miragekit/assets` (`packages/assets`, BUSL-1.1, its LICENSE and README), and
+  `examples/neon-district` is under the same licence. Production use is free for an individual using it for
+  themselves, for non-commercial use and for organisations of up to three people; never to offer a competing engine,
+  asset library or content tool; each version becomes Apache-2.0 four years after its first public release (1.0.0:
+  2030-11-12); a commercial licence: an issue titled "Commercial license" or flytoheptameron@outlook.com. Root README
+  "Licences" and NOTICE say which directory is which. Versions already published on `main` under MIT (the first neon
+  district, its early props, cars, robots and gun sounds) stay MIT for those versions.
+- `@miragekit/assets/surfaces`: the 35 surface kinds (their tables, reference ranges, GLSL recipes), `METALS`, the
+  weathering decals; `SURFACES`, `SURFACE_KINDS`, `createSurfaces`, `registerSurfaces`. @miragekit/core keeps the
+  framework and gains a registry: `registerSurfaceKinds`, `registerSurfaceDecals`, `surfaceKinds()`,
+  `surfaceSpec()`; it no longer exports `SURFACES`, `SURFACE_KINDS` or `METALS` (import them from the library).
+- `@miragekit/assets/kits/cyber`: the cyber kit (was the world kit `kits/cyber`, gone from world) and the robot
+  rig (`humanoidMeshes`, `robotClips`, `CLIP_SPEED`, `createHound`, from the example).
+- `@miragekit/assets/sounds`: the 125 sounds (`SOUNDS`, `soundNames`, `renderSound`, `addSounds`, the gun renderers).
+  `@miragekit/game/sounds` is now the synthesis kit with `renderSoundDef`, `soundBuffers(ctx, def)`, `addSoundDefs`.
+- `@miragekit/assets/destruct`: the destructibles' classes, effects and break sounds (`DESTRUCT_MATERIALS`,
+  `DESTRUCT_EFFECTS`, `DESTRUCT_SOUNDS`, `addDestructSounds`), registered on import. @miragekit/game's
+  `createDestructibles` takes its table by `registerDestructData` and works alone with a plain `generic` class.
+- `@miragekit/assets/presets`: reserved. The pack check (`npm run test:pack`) checks eight packages: BUSL-1.1 with
+  its licence text for assets, MIT and none of the library's content in the others; the import check refuses an
+  import of the library from an MIT package's source. Checks moved with their data:
+  `packages/assets/{surfaces,cyber,sounds,destruct}.check.mjs`; core and game keep checks of the framework alone.
+  The neon district's scene (meshes, triangles, stills) and its sounds are unchanged.
+
+**Faster**
+- @miragekit/core: the WebGL commands are flushed to the GPU every 128 draws (`createWorldRenderer({ flushEvery })`,
+  0 = off) and before and after the scene pass. The browser otherwise sends a task's commands at its end, so the GPU
+  began a frame only once the CPU had built all of it and the two ran one after the other; flushed as it goes, the
+  GPU draws the first passes while the CPU builds the rest. The image is the same (a flush only sends). neon-district
+  at 1440 x 900, a frame to a 1-pixel read-back (scripts/measure.mjs): low 12.3-12.5 -> 9.8-9.9 ms, medium 16.4-17.3
+  -> 13.1-13.9, high 20.0-21.5 -> 17.5-18.4 in the alley, the street and on the roof (every 40 draws flushed too
+  often, every 400 too seldom). lighting-check counts the flushes.
+- @miragekit/core: post.taa2 / motionBlur's velocity pass culls a skinned mesh's stand-in by the mesh's own bounding
+  sphere when the mesh culls itself (frustumCulled with a sphere, its own or one it was given); before, every skinned
+  mesh was drawn into the velocity buffer wherever it stood. What the scene pass did not draw has no pixel there, so
+  the buffer is the same (a skinned mesh with frustumCulled false is drawn as before). neon-district: 33 draws and
+  40 k triangles a frame less at the street view, its sentinels off screen.
+- @miragekit/core: the clustered lamps' cached shadow tiles (`lighting.lights`) are no longer redrawn for a moving
+  `mgDynamic` object that casts nothing (no visible mesh under it with castShadow): it cannot change a tile. The frame
+  it stops casting still redraws the tiles near it, so its old shadow goes. neon-district's kites (which cast none
+  now) had one lamp's six shadow faces redrawn every frame.
+- @miragekit/core: the clustered lamps' shadow tiles keep their static casters apart from the moving ones
+  (`lighting.lights.split`, on by default; a second depth atlas of the same size). A tile redrawn because an
+  `mgDynamic` object moved in range copies the cached static tile back and draws only the moving objects over it (the
+  nearer distance wins), instead of every caster round the lamp in six faces; the static part is drawn again when the
+  tile is made or resized, the light moves or `invalidate()` is called. The tile is the same (lighting-check compares
+  it with a full redraw). A static object that moves without `mgDynamic` is now not refreshed by a mover's redraw
+  (call `invalidate()`, or `split: false`). neon-district: 160 draws and 262 k triangles a frame less at the street
+  view, medium, while its robots walk.
+- @miragekit/core: a batch of lamp shadow tiles updates the scene's world matrices once and draws its cube faces
+  with `matrixWorldAutoUpdate` off (every face's render() walked the whole scene graph again: six to twelve walks a
+  redraw), and with every static tile still good it walks only the moving objects for the casters (not the scene).
+  The same tiles.
+- @miragekit/core: the lamp pool's per-pixel loop (`lampPool`) reads a lamp's position and range first and skips it
+  when the pixel is out of reach before fetching the rest of its record (three texel fetches became one for most of
+  a cell's list: a cell lists every lamp whose sphere touches it); the wall and the eye fade are tested before the
+  falloff. The same light (the factors are the same, multiplied in another order).
+- @miragekit/tools: lighting-check's shadow-cache assertions run on moving frames (a still lays the atlas out afresh
+  since the stills fix, so "no redraw while nothing moves" failed on every still); it checks the split tile too.
+
+**Fixed**
+- @miragekit/core: stills depend less on the view drawn before them. The clustered lamps' shadow atlas (`lighting.lights`)
+  is laid out afresh on a still (tile sizes for this view alone, every tile drawn), and light2's lamp-shadow slots go
+  to the still's own best lamps (no 1.4x hysteresis). Moving frames are unchanged. neon-district's "after another
+  view" difference in `npm run test:determinism` went from 260 k to 18 k pixels at its street view (not yet zero).
+
 **New**
+- @miragekit/game: destructibles (`createDestructibles`, also `@miragekit/game/destruct`; experimental, opt-in,
+  `docs/destructibles.md`). Props register over what is already drawn (a mesh, one instance of an `InstancedMesh` or
+  `BatchedMesh`, a vertex range of a merged mesh) with a hit volume (box, sphere, capsule or the drawn bounds), a
+  material class (glass, paper, wood, cardboard, plastic, thin / heavy metal, ceramic, liquid, electronics, fabric),
+  health, armour per damage kind, value, tags and `protected`. `hit({ ray })` finds them nearest first in a hash grid
+  and lets bullets through thin classes with less damage; `blast()` has falloff and cover (solid world through the
+  physics ray, heavy props a quarter) and a `cover()` for the game's own entities. Staged responses are data (cracks
+  that grow, holes, dents, an early dented state, flicker), breaking shows a broken state (a shattered pane rim, a
+  split crate, a dented panel, a flat tyre), throws pooled instanced debris (ballistic, bounce, spin, lie flat, fade),
+  particles through the vfx, procedural sounds, and switches its lamp pool lamps, lights and glow off. Behaviours:
+  explosive, spillLiquid (`surfaceAt`: slippery, conductive), ventSteam / sprayWater (`visibility()` for AI), dropLoot,
+  alarm (noise events), fall (a sign drops and crushes), chain (bulb strings pop in turn), burn. Movers: knocked cans
+  and bottles roll and sleep, an instance moving as a pooled copy and back. Actors: a slump, `'casualty'`, `'panic'`.
+  Tally by class and tag, `snapshot / restore / reset` (about 100 bytes), deterministic by seed, fixed step with
+  interpolation, budgets by `detail`. With a game it steps with its systems and saves as its entity. Nothing is made
+  until a prop breaks; an empty registry draws the same pixels as none. Node: 900 props under 1000 rounds a second,
+  0.7 ms a frame, debris and marks at their caps, heap flat; Chrome demo `examples/demos/destruct` (a shooting range)
+  idle cost inside the run-to-run spread, 7.5 ms a frame under the stress. Checked by `packages/game/destruct.check.mjs`
+  (in `npm test`) and `examples/demos/destruct/destruct-check.mjs`.
+- @miragekit/game destructibles: a mover's moving copy has its own per-instance attributes (a label offset, a tint),
+  copied from the instance that moves (the copy shared the source's, the wrong length: a can knocked off a shelf read
+  another can's label, and past the source's count the attribute was out of range).
+- @miragekit/core: `world.lampPool.scale(i, k)` dims or switches off one pool lamp without a rebuild (one record is
+  rewritten; re-binning only when the set of lit lamps changes), `scaleOf(i)`, `lit` (lamps with power left).
+- @miragekit/game: `createUI`'s text is a table (`UI_STRINGS`, English, exported; experimental): `startGame(world,
+  { ui: { strings } })`, `createUI({ strings })` and, at run time, `ui.setStrings(table)` put the start card, pause
+  menu, panels, inventory, message button and touch buttons in another language (keys left out stay English; the
+  open menu re-renders). Nothing changes for a game that passes no table. `docs/ui.md`; checked by
+  `examples/demos/ui/ui-check.mjs --only menu`. examples/neon-district: Traditional Chinese, English and Japanese,
+  picked from the browser, switchable on the title and in the options (engine menu included), kept in the settings,
+  `?lang=en|zh|ja`; its three tables are checked against each other (`examples/neon-district/scripts/i18n-check.mjs`).
+- @miragekit/core: a surface library made in code (`SURFACES`, `SURFACE_KINDS`, `METALS`, `createSurfaces`,
+  `surfaceHooks`, `bakeSurface`, `bakeDecalAtlas`, `noiseTexture`; experimental; `docs/surfaces.md`): 35 kinds
+  (concrete cast / board-formed / painted / precast, asphalt fresh / worn / patched with road paint, paving, brick,
+  render, ceramic tile, corrugated, painted steel with layered chips and rust, stainless, galvanised, cast iron,
+  aluminium, chrome, raw metals by F0, powder coat, car paint with clear coat, glass with Fresnel, plastics, rubber,
+  fabric, paper, wood with growth rings, bamboo, leather, carbon fibre, glazed ceramic, roofing; neon, fluorescent,
+  LED panel, LCD, light box, paper lantern, water, oil sheen), each a tileable GLSL recipe with macro / meso /
+  micro variation and a distance LOD, defaults in measured albedo / F0 and roughness ranges, metalness 0 or 1. Two
+  paths behind one call: per pixel, or baked once on the GPU into a mipmapped, anisotropic texture set (seeded,
+  cached; a street's twelve kinds in 40-70 ms) sampled with a repetition breaker; baked costs 0.3-0.6 ms above a
+  plain material per 1440 x 900 screen against 0.5-4 ms per pixel (`mode: 'auto'` bakes where that pays). A live
+  layer on both: world-space macro variation, dirt by cavity / foot / top, run-off, edge wear from curvature or an
+  `edge` attribute, weathering decals by rule (rills, damp, leaks, stains, soot, cracks). Mappings `tri`, `wall`,
+  `ground`, `grain` (u along any direction projected into each face), `uv`; `space: 'object'`. Materials of a kind
+  that differ by numbers share a program. Checked by `packages/core/surfaces.check.mjs` (in `npm test`) and
+  `packages/tools/src/surfaces-check.mjs` (Chrome: compiles, ranges read back, baked == procedural, determinism,
+  programs, bake budget); demo `examples/demos/materials` with its gallery shooter, bench and calibration tool.
+- @miragekit/game: a sound library, `@miragekit/game/sounds` (experimental, opt-in subpath, docs/sounds.md): 125
+  sounds made in code, no audio files (243 variants, 22 loops) in seven categories: weapons (grown out of
+  examples/neon-district's gun sounds), interface, footsteps on ten more surfaces, ambience loops (rain, a city,
+  wind, a crowd, the sea, crickets, fire...), machines and science fiction, vehicles with the Doppler shift, nature.
+  `addSounds(audio, names)` gives them to `createAudio` (made at unlock at the device's rate), `renderSound(name,
+  rate, v)` returns the samples; the synthesis kit (layers, rooms, limiter, `one` / `fold`) is exported for sounds
+  of your own. Deterministic per name and variant. Rendering all of them takes about 4 s on one core; 36 KB
+  minified. examples/neon-district now plays its guns from it (same names; 24 of its 46 sounds byte-identical, the
+  other 22 differ only in their noise seed, which was the minified function's name; its Chrome measurements all
+  pass). Listen: `examples/demos/sounds`. Checked by `packages/game/sounds.check.mjs` (in `npm test`).
+- @miragekit/assets: the cyber kit, `@miragekit/assets/kits/cyber` (experimental, BUSL-1.1, assets README "The
+  cyber kit"): the street props of examples/neon-district as a library anyone can import. 94 exports,
+  all made in code (geometry, and one canvas atlas for every printed label; no model or image files): products and
+  shop goods, light fixtures, street furniture, three parked cars with rain, animated civilian robots, the robot
+  parts kit (bodies at three levels of detail, decals, materials, gaits and leg IK), the per-world surface library
+  wrapper (`surfaceLib`), what a builder records for destructibles (`recorder`, `track`, `trackLamps`), corrugated
+  sheet, worn paint, shop interiors behind glass, text atlases. The example now imports them; merged with the
+  example's newer cars, robots and props (their code at the kit's paths), its built scene (meshes, triangles and
+  three stills) is the same before and after. Checked by `packages/world/cyber.check.mjs` (in `npm test`).
 - @miragekit/core: the wet layer learns where water goes and how it looks in rain (ported from the rainy ship deck
   of the owner's Oman project, `withWet` options, all opt-in): `wear` (a GLSL float: ruts, a trodden path, joints,
   round drains; the water gathers there, `wearDepth` 0.016 m) and `shelter` (a number, a GLSL float or a `{ value }`
@@ -100,6 +235,18 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
   `unlock()`; afterwards at once. Returns the mixer.
 
 **Fixes**
+- @miragekit/play look: `play.look` (`{ sens, invert }`, default 1 / false: no change) applies a sensitivity and an
+  inverted vertical axis to every turn as it arrives; a game that rescaled the turn afterwards in its own tick met
+  the pitch clamp first, so with the axis inverted the view latched at +-1.45 (neon-district: "the view gets stuck
+  looking up"). Pointer-lock jumps (one delta of hundreds of px right on capture, or out of nothing: over 250 px and
+  6x the last) are dropped; a drag whose button came up outside the window ends; `play.yaw` / `play.pitch` refuse
+  NaN and the pitch keeps to +-1.45; `play.turn(dx, dy, k, source)` and `play.lastTurn` say what turned it. Checked
+  by `examples/neon-district/scripts/look-check.mjs` (Chrome, real input events).
+- @miragekit/game input: the right stick is read on standard-mapping pads only (a wheel or HID device listed as a
+  gamepad, axes 2 / 3 resting at -1 or +1, turned the view to the top by itself); a standard pad is preferred over
+  another device at index 0; a stick counts only once it has been seen at rest; a right stick held still off centre
+  while the mouse and keys are in use (a drifting pad on the desk) gets a dead zone past its reading.
+  `input.sticks` exposes what is read. Checked in `packages/game/check.mjs`.
 - @miragekit/core vfx: when the scene clock goes back (`play.place()` sets it to 0), a particle pool's reset no longer
   draws into the state textures its pass still has bound (Chrome: "Feedback loop formed between Framebuffer and
   active Texture", 122 warnings in the new `vfx-check.mjs` case), a pool made after the clock had run no longer

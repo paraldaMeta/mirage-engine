@@ -8,10 +8,9 @@
 // stays solid (piers, shutters: they are walls); steps, awnings and signs are decor.
 import * as THREE from 'three';
 import { lamp } from './lib.js';
-import { materials } from './materials.js';
-import { corrugated, canopy, worn, interiorMaterial, textAtlas, atlasQuad, signRects, inFrontOfSign } from './kit.js';
-import { propKit } from './props-kit.js';
-import { acUnit } from './props-street.js';
+import { materials, surfaceLib } from './materials.js';
+import { corrugated, canopy, interiorMaterial, textAtlas, atlasQuad, signRects, inFrontOfSign } from './kit.js';
+import { propKit, recorder, track, acUnit } from '@miragekit/assets/kits/cyber';
 
 const NAMES = [
   ['珍寶電器', 'DENKI'], ['金魚茶室'], ['喫茶 夜', 'KISSA'], ['24H 便利', 'コンビニ'], ['鍵匠 LOCKS'], ['眼鏡 OPTIC'], ['涼茶舖'],
@@ -26,19 +25,15 @@ export function shopFronts(ctx, fx, shops) {
   const W = 2.92, H = 2.45;
   const P = propKit(ctx), pb = new geom.MeshBatch();   // close-up props (props-*.js): AC units, the doors' wired glass
   // ---- materials (shared by every bay)
-  const shutterMats = ['vec3(0.36, 0.37, 0.39)', 'vec3(0.42, 0.1, 0.07)', 'vec3(0.08, 0.3, 0.3)', 'vec3(0.5, 0.36, 0.08)', 'vec3(0.24, 0.27, 0.33)']
-    .map((c, i) => mat.std({ roughness: 0.5, metalness: 0.55, side: THREE.DoubleSide }, worn(c, { rows: 0.38, chip: [0.45, 0.7, 0.55, 0.6, 0.4][i], rust: [0.5, 0.8, 0.6, 0.7, 0.45][i] })));
-  const frameMat = mat.std({ roughness: 0.6, metalness: 0.3 }, worn('vec3(0.11, 0.115, 0.12)', { rows: 1.4, chip: 0.35, rust: 0.35 }));
-  const awnings = [['vec3(0.5, 0.06, 0.05)', 'vec3(0.6, 0.58, 0.5)'], ['vec3(0.05, 0.25, 0.22)', 'vec3(0.55, 0.52, 0.45)'], ['vec3(0.55, 0.38, 0.04)', 'vec3(0.06, 0.06, 0.06)'], ['vec3(0.12, 0.16, 0.35)', 'vec3(0.5, 0.5, 0.48)']]
-    .map(([a, c]) => mat.std({ roughness: 0.62, side: THREE.DoubleSide }, {
-      fragmentDecl: 'float ndH;',
-      albedo: `{ vec3 p = mgWorldPos; float u = abs(normalize(mgWorldNormal).x) > 0.5 ? p.z : p.x; float s = step(0.5, fract(u / 0.5));
-        float dirt = mgFbm3(p * vec3(1.5, 4.0, 1.5), 3); ndH = 0.5 + 0.5 * sin(u * 25.1);
-        diffuseColor.rgb *= mix(${a}, ${c}, s) * (0.7 + 0.4 * dirt) * (1.0 - 0.35 * smoothstep(0.3, 0.9, mgFbm3(p * vec3(4.0, 0.6, 0.6) + 3.0, 3))); }`,
-      normal: 'normal = mgBump(normal, ndH, 0.002);',
-    }));
+  // (surfaces from the engine's library: painted steel shutters and frames, chipped to primer and steel, rust run down
+  // from the slats; striped canvas awnings; dirty shop glass, docs/surfaces.md)
+  const { painted, surf, lib, SURFACES } = surfaceLib(ctx);
+  const shutterMats = [[0.36, 0.37, 0.39], [0.42, 0.1, 0.07], [0.08, 0.3, 0.3], [0.5, 0.36, 0.08], [0.24, 0.27, 0.33]].map((c) => painted(c, { side: THREE.DoubleSide }));
+  const frameMat = painted([0.11, 0.115, 0.12], { variant: 'panels', size: 'small' });
+  const awnings = [[[0.5, 0.06, 0.05], [0.6, 0.58, 0.5]], [[0.05, 0.25, 0.22], [0.55, 0.52, 0.45]], [[0.55, 0.38, 0.04], [0.06, 0.06, 0.06]], [[0.12, 0.16, 0.35], [0.5, 0.5, 0.48]]]
+    .map(([a, c]) => surf(SURFACES.fabric({ variant: 'canvas', color: a, stripe: c, stripeWidth: 0.25, age: 0.6 }), { size: 'small', mapping: 'grain', grain: [1, 0, 0], params: { side: THREE.DoubleSide } }));
   const interior = interiorMaterial(ctx, { W, H }), clinic = interiorMaterial(ctx, { W, H, kind: 'clinic' });
-  const darkGlass = mat.std({ color: new THREE.Color(0.01, 0.012, 0.015), roughness: 0.08, metalness: 0.2 });
+  const darkGlass = lib.material(SURFACES.glass({ variant: 'tinted', color: [0.05, 0.06, 0.065], opacity: 0.85 }));
   // ---- names: one atlas for every light box
   const labels = NAMES.map((n, i) => ({ text: n, style: i % 4 === 3 ? 'neon' : 'box', bg: BOX[i % BOX.length], color: ['#ff4fa0', '#2fe0ff', '#ffb347', '#7dff9a'][i % 4], w: 512, h: 96 }));
   labels.push({ text: ['義體診所 · CLINIC 24'], style: 'box', bg: '#e9fbff', ink: '#05343a', w: 512, h: 96 });
@@ -47,8 +42,10 @@ export function shopFronts(ctx, fx, shops) {
   const signs = new geom.MeshBatch(), glass = new geom.MeshBatch(), insides = new geom.MeshBatch(), b = new geom.MeshBatch();   // b: solid, flat on the walls (no shadows: nothing to cast)
   const bevel = (bt, m, size, p, r = 0.025) => bt.add(new geom.RoundedBoxGeometry(size[0], size[1], size[2], 1, r), m, p);
   const shutterGeo = new Map(), shutter = (h) => { const k = h.toFixed(2); if (!shutterGeo.has(k)) shutterGeo.set(k, corrugated(W, h, { pitch: 0.085, depth: 0.022, ribs: 'h' })); return shutterGeo.get(k); };
-  let open = 0, nameAt = 0;
+  let open = 0, nameAt = 0, bay = 0;
+  const rec = recorder(ctx);   // destructibles: shop windows, the light boxes, the AC units (game/destruct.js)
   for (const [x, z, out] of shops) {
+    bay++;
     const cx = x + 2.1, yaw = out > 0 ? 0 : Math.PI, m = geom.compose([cx, K, z], [0, yaw, 0]);
     const at = (p, r = [0, 0, 0]) => m.clone().multiply(geom.compose(p, r));
     const isClinic = clinicAt && Math.abs(cx - clinicAt[0]) < 1.5 && Math.abs(z - clinicAt[1]) < 0.5;
@@ -58,18 +55,21 @@ export function shopFronts(ctx, fx, shops) {
     bevel(b, frameMat, [3.5, 0.5, 0.26], at([0, 2.92 + 0.25, 0.13]), 0.035);
     if (kind === 'open') {
       insides.add(new THREE.PlaneGeometry(W, H), isClinic ? clinic : interior, at([0, 0.05 + H / 2, 0.012]));
-      glass.add(new THREE.PlaneGeometry(W, H), M.glass, at([0, 0.05 + H / 2, 0.05]));
+      const gr = track(glass, () => glass.add(new THREE.PlaneGeometry(W, H), M.glassDirty, at([0, 0.05 + H / 2, 0.05])));
+      rec.add({ id: 'shop-glass-' + bay, fam: 'shop-glass', box: { center: new THREE.Vector3(0, 0.05 + H / 2, 0.05).applyMatrix4(m).toArray(), half: [W / 2, H / 2, 0.006], yaw }, parts: [[glass, gr, 'draw']] });
       fx.add(new THREE.BoxGeometry(0.05, H, 0.06), M.blackMetal, at([-0.45, 0.05 + H / 2, 0.06]));        // the door's frame
       fx.add(new THREE.BoxGeometry(W, 0.05, 0.06), M.blackMetal, at([0, 2.1, 0.06]));
       const hs = isClinic ? 0.35 : Q.range(0.35, 0.95);
       b.add(shutter(hs), shutterMats[Q.int(0, 4)], at([0, 2.5 - hs, 0.07]));
       fx.add(new THREE.BoxGeometry(W + 0.02, 0.07, 0.07), M.darkMetal, at([0, 2.5 - hs, 0.1]));             // the shutter's bottom bar
       fx.add(new geom.RoundedBoxGeometry(3.3, 0.12, 0.4, 2, 0.03), M.concrete, at([0, 0.06, 0.2]));         // the step
-      const tint = isClinic ? 0x8ff6ff : [0xffb070, 0x9fd0ff, 0xff8ac0, 0xa0ffc0][Math.floor(Q.next() * 4)];
-      lamp(ctx, { pos: new THREE.Vector3(0, 1.9, 0.9).applyMatrix4(m).toArray(), color: tint, intensity: 4, range: 4.5, normal: [0, 0, out], back: 0.9 });
+      const tint = isClinic ? 0xe6f4ff : [0xffcf96, 0xeef3ff, 0xfff0dc, 0xffd9a8][Math.floor(Q.next() * 4)];
+      lamp(ctx, { pos: new THREE.Vector3(0, 1.9, 0.9).applyMatrix4(m).toArray(), color: tint, intensity: 5, range: 5.5, normal: [0, 0, out], back: 0.9 });
       open++;
     } else if (kind === 'shut') {
-      b.add(shutter(2.8), shutterMats[Q.int(0, 4)], at([0, 0.02, 0.03]));
+      const sr = track(b, () => b.add(shutter(2.8), shutterMats[Q.int(0, 4)], at([0, 0.02, 0.03])));
+      // a rocket blows a hole look into it (destruct.js pushes its ribs in round the blast and scorches it)
+      rec.add({ id: 'shutter-' + bay, fam: 'shutter', box: { center: new THREE.Vector3(0, 1.42, 0.05).applyMatrix4(m).toArray(), half: [1.46, 1.4, 0.05], yaw }, parts: [[b, sr, 'shutter']] });
       bevel(b, frameMat, [3.2, 0.42, 0.34], at([0, 2.95, 0.17]), 0.04);                                      // the roller's housing
       fx.add(new THREE.BoxGeometry(W + 0.02, 0.08, 0.08), M.darkMetal, at([0, 0.06, 0.07]));
       for (const s of [-1, 1]) fx.add(new THREE.BoxGeometry(0.06, 2.8, 0.09), M.darkMetal, at([s * 1.47, 1.42, 0.05]));
@@ -81,13 +81,15 @@ export function shopFronts(ctx, fx, shops) {
       P.put(pb, new geom.RoundedBoxGeometry(0.52, 0.37, 0.02, 1, 0.006), P.mats.metal, at([0.5, 1.75, 0.075]), [0.08, 0.08, 0.085]);
       for (let k = 1; k < 5; k++) P.put(pb, new THREE.BoxGeometry(0.004, 0.31, 0.004), P.mats.metal, at([0.5 - 0.23 + k * 0.092, 1.75, 0.088]), [0.3, 0.3, 0.3]);
       for (let k = 1; k < 4; k++) P.put(pb, new THREE.BoxGeometry(0.46, 0.004, 0.004), P.mats.metal, at([0.5, 1.75 - 0.155 + k * 0.0775, 0.088]), [0.3, 0.3, 0.3]);
-      fx.add(new THREE.BoxGeometry(1.2, 0.04, 0.05), M.neon[Q.pick(['cyan', 'amber', 'pink', 'white'])], at([0.5, 2.38, 0.1]));
+      const tint = Q.pick(['cyan', 'amber', 'pink', 'white']), nr = track(fx, () => fx.add(new THREE.BoxGeometry(1.2, 0.04, 0.05), M.neon[tint], at([0.5, 2.38, 0.1])));
+      rec.add({ id: 'shop-neon-' + bay, fam: 'neon', color: tint, box: { center: new THREE.Vector3(0.5, 2.38, 0.1).applyMatrix4(m).toArray(), half: [0.6, 0.025, 0.03], yaw }, parts: [[fx, nr, 'draw']] });
       fx.add(new geom.RoundedBoxGeometry(0.16, 0.24, 0.05, 2, 0.015), M.steel, at([-0.3, 1.35, 0.04]));   // an intercom
     }
     // the name over it (an open shop always, the others sometimes); the clinic's own
     if (kind === 'open' || Q.chance(0.4)) {
       const i = isClinic ? labels.length - 1 : (nameAt++ % NAMES.length);
-      signs.add(atlasQuad(2.9, 0.42, atlas.rect(i)), signMat, at([0, 3.17, 0.265]));
+      const sr = track(signs, () => signs.add(atlasQuad(2.9, 0.42, atlas.rect(i)), signMat, at([0, 3.17, 0.265])));
+      rec.add({ id: 'shop-name-' + bay, fam: 'lightbox', box: { center: new THREE.Vector3(0, 3.17, 0.2).applyMatrix4(m).toArray(), half: [1.45, 0.22, 0.07], yaw }, parts: [[signs, sr, 'draw']] });
     }
     // an awning over most open shops
     if (kind !== 'door' && (kind === 'open' ? Q.chance(0.75) : Q.chance(0.3))) {
@@ -97,13 +99,17 @@ export function shopFronts(ctx, fx, shops) {
       for (const s of [-1, 1]) fx.add(new THREE.CylinderGeometry(0.012, 0.012, Math.hypot(d, 0.6), 5), M.darkMetal, at([s * 1.55, 2.86 + 0.08, 0.27 + d / 2], [Math.atan2(d, 0.6), 0, 0]));
     }
     // wall plant above: an AC unit, a conduit (not in front of a sign)
-    if (Q.chance(0.6)) { const ax = cx + Q.range(-1.4, 1.4), ay = K + Q.range(3.6, 4.0); acUnit(P, pb, geom, geom.compose([ax, ay, z - out * 0.04], [0, yaw, 0]), [0.55, 0.56, 0.54]); }
+    if (Q.chance(0.6)) {
+      const ax = cx + Q.range(-1.4, 1.4), ay = K + Q.range(3.6, 4.0), am = geom.compose([ax, ay, z - out * 0.04], [0, yaw, 0]);
+      acUnit(P, pb, geom, am, [0.55, 0.56, 0.54]);
+      rec.add({ id: 'ac-' + bay, fam: 'ac', box: { center: new THREE.Vector3(0, 0, 0.24).applyMatrix4(am).toArray(), half: [0.45, 0.3, 0.2], yaw } });
+    }
     const px = x + Q.range(0.1, 0.5);
     if (!inFrontOfSign(signsOnWalls, { plane: z, nx: 0, nz: out, along: px, y0: K, y1: K + 9 })) fx.cylinder(M.darkMetal, 0.045, 0.045, 9, [px, K + 4.5, z + out * 0.07], [0, 0, 0], 8);
   }
-  const s = signs.finish({ name: 'shop-names', castShadow: false }), gl = glass.finish({ name: 'shop-glass', castShadow: false }), ins = insides.finish({ name: 'shop-interiors', castShadow: false });
+  const s = rec.finished(signs, signs.finish({ name: 'shop-names', castShadow: false })), gl = rec.finished(glass, glass.finish({ name: 'shop-glass', castShadow: false })), ins = insides.finish({ name: 'shop-interiors', castShadow: false });
   for (const o of [s, gl, ins]) o.traverse((c) => { c.userData.collide = false; c.receiveShadow = false; });
-  root.add(s, gl, ins, b.finish({ name: 'shopfronts', castShadow: false }));
+  root.add(s, gl, ins, rec.finished(b, b.finish({ name: 'shopfronts', castShadow: false })));
   const pr = pb.finish({ name: 'shop-props', castShadow: false }); pr.traverse((c) => { c.userData.collide = false; }); root.add(pr);
   return { open };
 }

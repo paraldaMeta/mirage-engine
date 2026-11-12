@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "description": "Mirage flagship example: a small first-person shooter in a rain-wet cyberpunk district at night. Clustered neon, SSR on wet streets, probe GI and reflection probes indoors, volumetric lamps, GPU particles, navgrid enemies with an animation controller, checkpoints, keyboard / gamepad / touch.",
-  "license": "MIT",
+  "license": "BUSL-1.1",
   "type": "module",
   "scripts": {
     "dev": "vite --port 5194 --strictPort",
@@ -16,6 +16,7 @@
     "package": "node ../../packages/tools/src/package.mjs ."
   },
   "dependencies": {
+    "@miragekit/assets": "1.0.0",
     "@miragekit/core": "1.0.0",
     "@miragekit/game": "1.0.0",
     "@miragekit/play": "1.0.0",

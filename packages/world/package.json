@@ -16,19 +16,55 @@
   "main": "./src/index.js",
   "types": "./src/index.d.ts",
   "exports": {
-    ".": { "types": "./src/index.d.ts", "default": "./src/index.js" },
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    },
     "./plan.schema.json": "./plan.schema.json",
-    "./kits/fur": { "types": "./src/kits/fur.d.ts", "default": "./src/kits/fur.js" },
-    "./kits/rain": { "types": "./src/kits/rain.d.ts", "default": "./src/kits/rain.js" },
-    "./kits/splat": { "types": "./src/kits/splat.d.ts", "default": "./src/kits/splat.js" },
-    "./kits/terrain": { "types": "./src/kits/terrain.d.ts", "default": "./src/kits/terrain.js" },
-    "./kits/vegetation": { "types": "./src/kits/vegetation.d.ts", "default": "./src/kits/vegetation.js" },
-    "./kits/water": { "types": "./src/kits/water.d.ts", "default": "./src/kits/water.js" },
-    "./loader": { "types": "./src/loader.d.ts", "default": "./src/loader.js" },
-    "./partition": { "types": "./src/partition.d.ts", "default": "./src/partition.js" },
-    "./plan": { "types": "./src/plan.d.ts", "default": "./src/plan.js" },
-    "./plan-validation": { "types": "./src/plan-validation.d.ts", "default": "./src/plan-validation.js" },
-    "./stream": { "types": "./src/stream.d.ts", "default": "./src/stream.js" },
+    "./kits/fur": {
+      "types": "./src/kits/fur.d.ts",
+      "default": "./src/kits/fur.js"
+    },
+    "./kits/rain": {
+      "types": "./src/kits/rain.d.ts",
+      "default": "./src/kits/rain.js"
+    },
+    "./kits/splat": {
+      "types": "./src/kits/splat.d.ts",
+      "default": "./src/kits/splat.js"
+    },
+    "./kits/terrain": {
+      "types": "./src/kits/terrain.d.ts",
+      "default": "./src/kits/terrain.js"
+    },
+    "./kits/vegetation": {
+      "types": "./src/kits/vegetation.d.ts",
+      "default": "./src/kits/vegetation.js"
+    },
+    "./kits/water": {
+      "types": "./src/kits/water.d.ts",
+      "default": "./src/kits/water.js"
+    },
+    "./loader": {
+      "types": "./src/loader.d.ts",
+      "default": "./src/loader.js"
+    },
+    "./partition": {
+      "types": "./src/partition.d.ts",
+      "default": "./src/partition.js"
+    },
+    "./plan": {
+      "types": "./src/plan.d.ts",
+      "default": "./src/plan.js"
+    },
+    "./plan-validation": {
+      "types": "./src/plan-validation.d.ts",
+      "default": "./src/plan-validation.js"
+    },
+    "./stream": {
+      "types": "./src/stream.d.ts",
+      "default": "./src/stream.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [

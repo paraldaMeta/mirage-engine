@@ -122,6 +122,8 @@ export function createAmmo({ world, game, plan, weapon, player, vfx, sfx, lamps,
   }
   const api = {
     state: 'ok', update, nearest, cells, crates,
+    /** a cell of n units at `at` (on the ground under it): a vending machine's spilt stock (destruct.js) */
+    drop,
     start(g) { grid = g; },
     /** once a display frame */
     draw(yaw) { overlay.ammo(api.state, target, yaw); },

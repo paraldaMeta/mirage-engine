@@ -15,8 +15,11 @@ listed is internal and cannot be imported from an installed package. `npm test` 
 that is not listed (`scripts/check-imports.mjs`, over source, examples and docs) and on a `.d.ts` that declares
 other value names than its module exports (`scripts/check-types.mjs`). The subpaths a world normally needs:
 
+- the synthesis kit `@miragekit/game/sounds` ([sounds.md](sounds.md));
 - the world kits `@miragekit/world/kits/vegetation`, `/kits/terrain`, `/kits/water`, `/kits/rain`, `/kits/splat` and
-  `/kits/fur` (experimental), documented in the world README;
+  `/kits/fur`, documented in the world README;
+- the library's content, `@miragekit/assets/surfaces`, `/kits/cyber`, `/sounds`, `/destruct` (Business Source License
+  1.1, not MIT: the last section below);
 - `@miragekit/core/rng`, `@miragekit/core/geom`, `@miragekit/world/plan`;
 - `@miragekit/core/export` (`exportWorld`, experimental: [export.md](export.md)), `@miragekit/core/assets`
   ([import.md](import.md)) and `@miragekit/core/ktx2` (`createKTX2Loader(renderer, { transcoderPath, workers })`,
@@ -72,6 +75,10 @@ count of stable and experimental exports, and how a name is promoted: [STABILITY
 | `renderHeight(name, und, swipe)` | experimental | GLSL declaring a hand-applied render's height (m), faded with distance |
 | `renderShade(name)` | experimental | `output` hook snippet: shade the render's hollows |
 | `withWet(hooks, options)` | experimental | wet surfaces on a hooks object: damp → soaked → standing water (puddles), run-off streaks, a damp band at the ground, rain rings; options `porosity`, `ground`, `band`, `puddles`, `height`, `heightMid`, `heightScale`, `wear`, `wearDepth`, `shelter`, `rim`, `ripples`, `specAA` |
+| `registerSurfaceKinds({ kinds, glsl, liveGlsl })`, `registerSurfaceDecals({ glsl, fragment, uniforms })` | experimental | the surface framework's registry ([surfaces.md](surfaces.md)): a kind is a table entry (numbers, packing, reference ranges, optional program pieces) and a GLSL recipe; the library's 35 are `@miragekit/assets/surfaces` |
+| `surfaceKinds()`, `surfaceSpec(kind, options)` | experimental | the registered kinds' facts; a spec of a registered kind |
+| `createSurfaces(world, { mode, size, anisotropy })` | experimental | `{ material(spec, options), hooks, bake, stats, dispose }`: `mode` `'auto'` (default) \| `'baked'` \| `'procedural'`; mappings `tri` / `wall` / `ground` / `grain` / `uv`, `space: 'object'`, `wet`, `decals`, asphalt `paint` |
+| `surfaceHooks(spec, options)`, `bakeSurface(renderer, spec, options)`, `bakeDecalAtlas(renderer)`, `noiseTexture()` | experimental | the parts: hooks without a library, a set baked by hand, the weathering decal atlas, the runtime layer's noise |
 | `setWetness(level)` | experimental | wetness 0 (off: the wet code not compiled; crossing 0 recompiles the opted-in materials) .. 1 (full puddles); page-global |
 | `setRain(intensity)` | experimental | rain 0 .. 1: ripples on standing water and the rain kit's streak density; page-global |
 | `WET` | experimental | the wetness's page-global uniforms (`uWet`, `uRain`) |
@@ -279,7 +286,8 @@ Gaussian splats, `@miragekit/world/kits/splat` (opt-in subpath, world README "Ga
 | `ACTIONS` | stable | the action names |
 | `createAudio({ volumes })` | stable | Web Audio buses and the procedural sounds; `add(name, sound)` for your own (a buffer, variants, or a factory of the context), before or after `unlock()` |
 | `SURFACES` | stable | footstep surfaces: `stone`, `gravel`, `grass`, `wood` |
-| `createUI(opts)` | experimental | the HTML overlay (HUD, menus, touch controls) |
+| `createUI(opts)` | experimental | the HTML overlay (HUD, menus, touch controls); `opts.strings` / `ui.setStrings(table)`: its text in another language (`docs/ui.md`) |
+| `UI_STRINGS` | experimental | `createUI`'s text table in English: the keys a game's table may set |
 | `PAD` | experimental | default gamepad buttons per action |
 | `loadRapier()` | experimental | load the Rapier WASM ahead of `createPhysics` |
 | `createPhysicsKit(phys, { hz, maxSteps, interpolate, layers, profile })` | experimental | the physics kit (docs/physics.md): rigid bodies with box / ball / capsule / hull / mesh / compound colliders, materials, layers, CCD, sensors, contact events with impulse, ray / shape casts and overlaps, fixed step with interpolation, state hash; opt-in, `createPhysics` unchanged |
@@ -321,6 +329,18 @@ Gaussian splats, `@miragekit/world/kits/splat` (opt-in subpath, world README "Ga
 | `createWorldUI({ kit, camera })` | experimental | labels, markers and health bars anchored to 3D points, with occlusion and distance fade |
 | `createCanvasUI({ description })` | experimental | a widget panel drawn into a texture, for screens in the world and XR |
 | `createKitUI(opts)` | experimental | `createUI`'s overlay rebuilt on the toolkit: pass as `startGame`'s `ui` |
+| `createDestructibles(target, options)` | experimental | destructibles (docs/destructibles.md): props over meshes, instances, batched ids or merged ranges that crack, dent, shatter, spill, burn, fall and explode; `hit` (rays with penetration), `blast` (falloff, cover), staged material classes, pooled debris and marks, lamps out, behaviours, movers, actors, tally, snapshot / restore; opt-in, nothing made until something breaks |
+| `registerDestructData({ materials, effects, fallback, addSounds })`, `destructData()` | experimental | the class table registries are made from (`@miragekit/assets/destruct` registers the library's on import; without it: a `generic` class and an `actor`, no effects, no sounds) |
+| `DAMAGE_KINDS` | experimental | `bullet`, `pellet`, `blast`, `melee`, `emp`, `fire` |
+| `BROKEN_STATES` | experimental | broken-state geometry in a unit box: a shattered pane rim, a split crate, a dented panel, a flat tyre |
+
+The synthesis kit, `@miragekit/game/sounds` (opt-in subpath, [sounds.md](sounds.md)): sounds made in code from
+definitions `{ n, loop?, render(sampleRate, v) }`. Every export is experimental.
+
+| export | stability | what it is |
+|---|---|---|
+| `renderSoundDef(def, sampleRate, variant)`, `soundBuffers(ctx, def)`, `addSoundDefs(audio, { name: def }, { prefix })` | experimental | one variant as a Float32Array; every variant as AudioBuffers; give definitions to `createAudio` (made at unlock) |
+| `makeRng`, `hash`, `biquad`, `chain`, `env`, `noiseLayer`, `thumpLayer`, `modesLayer`, `toneLayer`, `ROOMS`, `room`, `master`, `one`, `fold`, `click`, `scrape`, `TAU` | experimental | the synthesis kit, for sounds of your own |
 
 ## @miragekit/net
 
@@ -389,3 +409,63 @@ Command-line tools (no JS entry point). Stable: `mirage-playtest` (scenario form
 `mirage-package`, `mirage-snap`, `mirage-deploy`. Experimental: `mirage-walktest`, `mirage-perf`, `mirage-e2e` (runs the `examples/` of the current folder or `--root`),
 `mirage-gpu-load`, `mirage-still-pop`, `mirage-xr-stereo-check` (both eyes of an emulated session against the desktop frame, interaction, locomotion, AR), `mirage-xr-check` (WebXR in an emulated Quest 3; repository checks; some expect this repository's `examples/`). `mirage-ship` (web, PWA and wrapper scaffolds; `mirage-desktop-check` runs an Electron scaffold or its packaged app and checks it over DevTools; with the subpaths `@miragekit/core/platform`, `@miragekit/core/byte-targets` and `@miragekit/game/platform`: `docs/platforms.md`). The tools
 need Chrome: `$CHROME`, or the usual install place on macOS, Linux and Windows.
+
+## @miragekit/assets
+
+**Business Source License 1.1, not MIT** ([packages/assets/LICENSE](../packages/assets/LICENSE)): the library's
+content, which plugs into the MIT systems above. Sub-paths only (no root entry); `/presets` is reserved (empty).
+
+### The surface recipes: `@miragekit/assets/surfaces`
+
+Registered with core's framework on import ([surfaces.md](surfaces.md)). Every export is experimental.
+
+| export | stability | what it is |
+|---|---|---|
+| `SURFACES.<kind>(options)`, `SURFACE_KINDS`, `METALS` | experimental | 35 kinds (27 bakeable, 8 per pixel: emissive and liquid), each a GLSL recipe plus numbers in measured ranges; the F0 of common metals |
+| `createSurfaces(world, options)` | experimental | core's `createSurfaces` with these recipes registered |
+| `registerSurfaces(framework)`, `KIND_GLSL`, `LIVE_GLSL` | experimental | register the kinds and the weathering decals with a framework (done on import); the recipes' GLSL |
+
+### The sound library: `@miragekit/assets/sounds`
+
+125 sounds made in code on game's synthesis kit ([sounds.md](sounds.md)). Every export is experimental.
+
+| export | stability | what it is |
+|---|---|---|
+| `SOUNDS`, `SOUND_CATEGORIES`, `SOUND_SPACES`, `GUNS` | experimental | the sounds by name (`{ cat, n, loop, desc, render(sampleRate, v) }`), the seven categories, the three spaces a gun is heard in, the guns |
+| `soundNames(cat)`, `renderSound(name, sampleRate, variant)` | experimental | the names of a category (or all); one variant as a Float32Array |
+| `soundBuffers(ctx, name)`, `addSounds(audio, names, { prefix })` | experimental | every variant as AudioBuffers; give sounds to `createAudio` (made at unlock) |
+| `renderShot`, `renderGatlingLoop`, `renderGatlingTail`, `renderRocketLaunch`, `renderExplosion` | experimental | the weapons' renderers with their arguments (gun, space, variant) |
+
+### The destructibles' classes: `@miragekit/assets/destruct`
+
+Registered with game's destructibles on import ([destructibles.md](destructibles.md)). Every export is experimental.
+
+| export | stability | what it is |
+|---|---|---|
+| `DESTRUCT_MATERIALS` | experimental | the material classes as data: health, armour per damage kind, pierce, stages, debris, effects, sound, value |
+| `DESTRUCT_EFFECTS` | experimental | the particle effects (vfx JSON) the destructibles use: glitter, dust, sparks, a short circuit, spray, splash, blast, steam, water, fire |
+| `DESTRUCT_SOUNDS`, `destructSoundFactories()`, `addDestructSounds(audio)` | experimental | the break sound sets (`dx_break_<name>`), made in code; add them to a `createAudio` mixer |
+| `registerDestruct(register)` | experimental | register the table with the system (done on import) |
+
+### The cyber kit: `@miragekit/assets/kits/cyber`
+
+Street props for a dense neon city, cars, civilian robots and the robot parts kit, all made in code (geometry, and
+labels drawn into a canvas); assets README "The cyber kit". Every export is experimental.
+
+| export | stability | what it is |
+|---|---|---|
+| `propKit(ctx)` | experimental | the shared label atlas and its six materials (`paint`, `metal`, `glow`, `lantern`, `clear`, `product`); `put(batch, geometry, material, matrix, color, rect)`, `instanced(geometry, base, items)`, `R` (cells), `texture`, `names`; cached on `ctx.shared.props` |
+| `uvRect`, `tint`, `uvByHeight`, `hex` | experimental | geometry helpers: fit uv into a cell, a vertex colour, uv by height and angle, linear RGB from a CSS colour |
+| `recorder(ctx)`, `track(batch, fn)`, `trackLamps(ctx, fn)`, `breakables(ctx)`, `breakablesLamp`, `markBatch`, `sinceMark` | experimental | what a builder records for the destructibles: the vertex ranges each prop adds to a merged batch, resolved to draw handles once it is finished, and its lamps |
+| `surfaceLib(ctx)` | experimental | the surface library per world (cached on `ctx.shared.surf`): bake sizes by quality and role, `surf(spec, options, { post, decl })`, `painted(rgb)`, `shade(kind, rgb)` |
+| `canGeo`, `bottleGeo`, `wineGeo`, `cupGeo`, `boxGeo`, `packGeo`, `capsuleGeo`, `spiralGeo`, `glassGeo`, `bowlGeo`, `jarGeo` | experimental | product shapes with their uv laid out for an atlas cell |
+| `spiritBottle`, `tumbler`, `bowls`, `pot`, `noodleBasket`, `riceCooker`, `chopsticks`, `skewers`, `stool`, `goodsBox`, `jar`, `goodsRack`, `gasBottle`, `extinguisher` | experimental | counter and shop goods: `(P, batch, geom, matrix, ...)` |
+| `paperLantern`, `bulbString`, `streetLamp`, `bulkhead`, `tubeFixture`, `floodlight`, `beacon`, `signalHead` | experimental | light fixtures (the visible fitting; the light is the host's) |
+| `bin`, `crate`, `bag`, `cardboard`, `acUnit`, `junctionBox`, `bollard`, `jersey`, `newsBox`, `bench` | experimental | street furniture: `(P, batch, geom, matrix, ...)` |
+| `parkedCars(ctx, P, batch, list, proxyBox, { lamp })`, `carMaterials(ctx)`, `CAR_DESIGNS` | experimental | three designs of an invented marque in brushed steel, pearlescent paint and tinted glass, with rain |
+| `rainBeads(hooks, options)` | experimental | rain beads, runs and a film as material hooks (inside core's `withWet`) |
+| `buildMachines(ctx, spec)`, `machineUnits(group)` | experimental | civilian robots (domestic humanoids with a real gait, umbrellas in the rain, rail and pedestal vendors, a robot-dog courier, a floor scrubber, a notice totem, a broken one), animated; returns `{ group, update(t), count, tris, units() }` |
+| `humanoid`, `quadruped`, `quadrupedDims`, `humanoidRig`, `part`, `mergeParts`, `moved`, `tf`, `ext`, `drum`, `link`, `cover`, `cable`, `decal`, `decalTexture`, `decalUV`, `COL`, `JOINTS`, `LEN`, `robotMaterials(world)`, `robotSurfaces(world)` | experimental | the robot parts kit: bodies as parts per bone at three levels of detail, decals, powder-coat and metal materials |
+| `GAITS`, `bipedLegs`, `trotLegs`, `legIK` | experimental | gaits: a biped's and a quadruped's legs at a phase, two-bone IK |
+| `humanoidMeshes`, `robotClips`, `CLIP_SPEED`, `createHound` | experimental | the rig: a humanoid skinned rigidly to @miragekit/play's bones, idle / walk / run clips with root motion, a robot dog posed in code |
+| `corrugated`, `canopy`, `WORN_DECL`, `worn`, `interiorMaterial`, `textAtlas`, `atlasQuad` | experimental | corrugated sheet, canopies, worn painted metal hooks, shop interiors behind glass (interior mapping), text atlases |

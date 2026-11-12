@@ -51,7 +51,7 @@ const CSS = `
 .ndt .ndt-guns i small{position:absolute;left:2px;top:0;font:600 7px/1 ui-monospace,monospace;opacity:.8}
 .ndt .ndt-guns i.cur{border-color:#fff;background:#19d8ff66;box-shadow:0 0 6px #19d8ff}
 .ndt .ndt-guns i.locked{opacity:.35;border-style:dashed}
-.ndt .ndt-use{border-radius:26px;display:flex;align-items:center;gap:8px;padding:0 16px 0 6px;max-width:200px;border-color:#ffd34a;color:#fff3c8;background:#1a1404d8;opacity:max(var(--o),.9);font:600 12px/1.25 system-ui,-apple-system,"PingFang TC","Noto Sans TC",sans-serif;letter-spacing:.01em;text-align:left}
+.ndt .ndt-use{border-radius:26px;display:flex;align-items:center;gap:8px;padding:0 16px 0 6px;max-width:200px;border-color:#ffd34a;color:#fff3c8;background:#1a1404d8;opacity:max(var(--o),.9);font:600 12px/1.25 system-ui,-apple-system,var(--nd-cjk,"PingFang TC"),sans-serif;letter-spacing:.01em;text-align:left}
 .ndt .ndt-use i{flex:none;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:#ffd34a;color:#1a1404}
 .ndt .ndt-use i svg{width:62%;height:62%}
 .ndt .ndt-use span{overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
@@ -70,7 +70,7 @@ body.nd-touch .mg-hud{right:auto;left:max(12px,env(safe-area-inset-left));top:ma
 body.nd-touch .mg-obj{font-size:12px;line-height:1.3;padding:5px 9px}
 body.nd-touch .mg-obj b{font-size:10px}
 body.nd-touch .mg-items li{font-size:11px;padding:3px 7px}
-body.nd-touch .mg-toast{top:34%;font-size:15px}
+body.nd-touch .mg-toast{top:calc(var(--ndt-zone-t,34%) + 8px);left:calc(50% + (var(--ndt-band-l,0px) - var(--ndt-band-r,0px)) / 2);width:max-content;max-width:calc(100vw - var(--ndt-band-l,0px) - var(--ndt-band-r,0px));font-size:14px;line-height:1.3}
 body.nd-touch .mirage-hud{display:none!important}
 body.nd-touch .ndx-bar{display:none!important}
 `;
@@ -118,6 +118,10 @@ const LAYOUT = [
   ['menu', 'tr', 82, 30, 21],
 ];
 const STICK = { a: 100, b: 96, r: 56 }, USE = { a: 268, b: 205, h: 46 }, GUNS = { b: 6 }, EDGE = 10;
+// the stick's zone (where a thumb that lands starts the floating stick): the lower left, at most ZONE.w px wide and
+// ZONE.h px tall from the safe corner (on a tablet the thumb does not reach further), and never more than a share of
+// the screen. Nothing informational is drawn there or under a button: the HUD keeps to the band between (--ndt-*).
+const ZONE = { w: 300, h: 330, fw: 0.37, fh: 0.6 };
 const KIT = ['hack', 'dash', 'grenade', 'over'], ARMS_IDS = ['sidearm', 'carbine', 'shotgun', 'rocket', 'gatling'];
 const TAP_S = 0.22, TAP_PX = 14;   // a quick tap: shorter than this and moved less than this toggles AIM / LEAN
 
@@ -130,7 +134,7 @@ const TAP_S = 0.22, TAP_PX = 14;   // a quick tap: shorter than this and moved l
  */
 export function createTouch({ T, input, opts, parent, on, ready, paused, onDispose, kit = null, weapon = null }) {
   if (!document.getElementById('ndt-css')) { const s = document.createElement('style'); s.id = 'ndt-css'; s.textContent = CSS; document.head.appendChild(s); }
-  const L = T.touch;
+  const L = T.touch;   // a live branch (text.js swaps its strings in place)
   const layer = document.createElement('div'); layer.className = 'ndt';
   const inner = (id) => (id === 'leanL' ? '<small>L</small>' : id === 'leanR' ? '<small>R</small>' : id === 'hack' ? '<i><u></u><u></u><u></u></i><em></em>' : KIT.includes(id) ? '<b></b>' : '');
   const cls = (id) => (id === 'fire' || id === 'fireL' ? 'fire' : id === 'hack' ? 'kit hack' : id === 'over' ? 'kit over' : KIT.includes(id) ? 'kit' : '');
@@ -147,6 +151,7 @@ export function createTouch({ T, input, opts, parent, on, ready, paused, onDispo
   const ptrs = new Map();   // pointer id -> { role, x, y, x0, y0, t0 }
   const st = { fire: 0, fireL: 0, aimHold: false, aimLatch: false, leanHold: 0, leanLatch: 0, locked: false, armed: false, slow: 1 };
   let k = 1, W = 0, H = 0, safe = { l: 0, r: 0, t: 0, b: 0 }, rest = [0, 0], R = STICK.r, baseAt = null, useLabel = null;
+  const zone = { r: 0, t: 0 };
   const vibe = typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function';
 
   // ---- layout: from the viewport, the safe area and the player's size setting; again on resize and on a setting
@@ -155,7 +160,7 @@ export function createTouch({ T, input, opts, parent, on, ready, paused, onDispo
     W = innerWidth; H = innerHeight;
     const cs = getComputedStyle(probe);
     safe = { t: parseFloat(cs.paddingTop) || 0, r: parseFloat(cs.paddingRight) || 0, b: parseFloat(cs.paddingBottom) || 0, l: parseFloat(cs.paddingLeft) || 0 };
-    k = (+opts.tScale || 1) * Math.min(1.15, Math.max(0.72, Math.min(H / 390, W / 760)));
+    k = (+opts.tScale || 1) * Math.min(1, Math.max(0.72, Math.min(H / 390, W / 760)));
     const right = W - Math.max(EDGE, safe.r), left = Math.max(EDGE, safe.l), bottom = H - Math.max(EDGE, safe.b), top = Math.max(EDGE, safe.t);
     for (const [id, side, a, b, r] of LAYOUT) {
       const cx = side === 'l' ? left + a * k : right - a * k, cy = side === 'tr' ? top + b * k : bottom - b * k;
@@ -165,6 +170,12 @@ export function createTouch({ T, input, opts, parent, on, ready, paused, onDispo
     const u = B.use; u.style.right = `${(W - right + USE.a * k).toFixed(1)}px`; u.style.top = `${(bottom - USE.b * k - USE.h / 2).toFixed(1)}px`; u.style.height = `${USE.h}px`;
     const gs = B.guns, gw = gs.offsetWidth || 162; gs.style.left = `${((W - gw) / 2).toFixed(1)}px`; gs.style.top = `${(H - Math.max(EDGE * 0.6, safe.b) - GUNS.b - 26).toFixed(1)}px`;
     R = STICK.r * k; rest = [left + STICK.a * k, bottom - STICK.b * k];
+    zone.r = Math.min(W * ZONE.fw, left + ZONE.w * k); zone.t = Math.max(H * (1 - ZONE.fh), bottom - ZONE.h * k);
+    // the free band for the HUD: right of the stick's zone, left of the right-hand cluster (the kit column and FIRE)
+    let clusterL = W;
+    for (const [id, side, a, , r] of LAYOUT) if (side === 'r' && !B[id].hidden) clusterL = Math.min(clusterL, right - a * k - r * k);
+    const root = document.documentElement.style;
+    root.setProperty('--ndt-band-l', `${Math.ceil(zone.r + 6)}px`); root.setProperty('--ndt-band-r', `${Math.ceil(W - clusterL + 6)}px`); root.setProperty('--ndt-zone-t', `${Math.floor(zone.t)}px`);
     if (!baseAt) showBase(rest);
     layer.style.setProperty('--o', String(+opts.tOpacity || 0.7));
   }
@@ -179,13 +190,13 @@ export function createTouch({ T, input, opts, parent, on, ready, paused, onDispo
   const stopMenu = (e) => e.preventDefault();
   document.addEventListener('contextmenu', stopMenu);
   document.addEventListener('gesturestart', stopMenu);   // Safari's pinch
-  onDispose?.(() => { removeEventListener('resize', relayout); document.removeEventListener('contextmenu', stopMenu); document.removeEventListener('gesturestart', stopMenu); layer.remove(); document.body.classList.remove('nd-touch'); });
+  onDispose?.(() => { for (const v of ['--ndt-band-l', '--ndt-band-r', '--ndt-zone-t']) document.documentElement.style.removeProperty(v); removeEventListener('resize', relayout); document.removeEventListener('contextmenu', stopMenu); document.removeEventListener('gesturestart', stopMenu); layer.remove(); document.body.classList.remove('nd-touch'); });
 
   // ---- the stick
-  const inStickZone = (x, y) => x < W * 0.42 && y > H * 0.36;
+  const inStickZone = (x, y) => x < zone.r && y > zone.t;
   function stickDown(p) {
     if (st.locked) unlock();
-    baseAt = [Math.min(Math.max(p.x, Math.max(EDGE, safe.l) + R), W * 0.42 - R * 0.3), Math.min(Math.max(p.y, H * 0.36 + R), H - Math.max(EDGE, safe.b) - R)];
+    baseAt = [Math.min(Math.max(p.x, Math.max(EDGE, safe.l) + R), Math.max(zone.r - R * 0.3, Math.max(EDGE, safe.l) + R)), Math.min(Math.max(p.y, zone.t + R), H - Math.max(EDGE, safe.b) - R)];
     showBase(baseAt); base.classList.add('live');
     stickMove(p);
   }
@@ -328,6 +339,13 @@ export function createTouch({ T, input, opts, parent, on, ready, paused, onDispo
     },
     /** a short buzz where the phone has one (a hit taken, an empty magazine) */
     buzz(pattern) { if (vibe) try { navigator.vibrate(pattern); } catch { /* not allowed before a gesture */ } },
+    /** the language changed: the buttons' names for screen readers */
+    relang() {
+      for (const [id, el] of Object.entries(B)) if (L[id]) el.setAttribute('aria-label', L[id]);
+      B.guns.setAttribute('aria-label', L.guns); useLabel = null;
+    },
+    /** the stick's zone: [left, top, right, bottom] in CSS px (where a thumb starts the floating stick) */
+    zone() { return [0, zone.t, zone.r, H]; },
     /** the rectangles of every control on screen, for the check: [name, left, top, right, bottom] */
     rects() {
       const out = [];

@@ -27,7 +27,7 @@ export function createInput({ target = globalThis, bindings = DEFAULT_BINDINGS, 
   const touch = { x: 0, z: 0, look: [0, 0] };
   let padPrev = [], pad = null, capturing = null, enabled = true;
   const inp = {
-    bindings: structuredClone(bindings), source: 'keyboard', pad: null,
+    bindings: structuredClone(bindings), source: 'keyboard', pad: null, lookSource: '',
     get enabled() { return enabled; },
     set enabled(v) { if (life.disposed) return; if (v && !enabled) inp.spend(); enabled = !!v; },
     /** ignore what is held now (and `code`, a key being pressed right now) until it is released */
@@ -47,27 +47,37 @@ export function createInput({ target = globalThis, bindings = DEFAULT_BINDINGS, 
     move() {
       if (!inp.enabled) return { x: 0, z: 0 };
       let x = inp.down('right') - inp.down('left') + touch.x, z = inp.down('forward') - inp.down('back') + touch.z;
-      if (pad) { const [ax, ay] = stick(pad.axes[0], pad.axes[1]); x += ax; z -= ay; }
+      if (pad) { const [ax, ay] = sticks.left; x += ax; z -= ay; }
       const l = Math.hypot(x, z);
       return l > 1 ? { x: x / l, z: z / l } : { x, z };
     },
     look(dt) {
       let dx = touch.look[0], dy = touch.look[1];
+      inp.lookSource = dx || dy ? 'touch' : '';
       touch.look = [0, 0];
-      if (pad && inp.enabled) { const [ax, ay] = stick(pad.axes[2], pad.axes[3]); dx += ax * Math.abs(ax) * LOOK_SPEED * dt; dy += ay * Math.abs(ay) * LOOK_SPEED * dt; }
+      if (pad && inp.enabled) {
+        const [ax, ay] = sticks.right;
+        if (ax || ay) { dx += ax * Math.abs(ax) * LOOK_SPEED * dt; dy += ay * Math.abs(ay) * LOOK_SPEED * dt; inp.lookSource = 'gamepad'; }
+      }
       return [dx, dy];
     },
+    /** the pad's sticks after the dead zone, the rest check and the drift guard (see readSticks): { left, right } */
+    get sticks() { return sticks; },
     poll() {
       if (life.disposed) return;
       edges.clear();
       for (const a of queued) edges.add(a);
       queued.clear();
       const pads = globalThis.navigator && navigator.getGamepads ? [...navigator.getGamepads()].filter(Boolean) : [];
-      pad = inp.pad = pads.find((p) => p.connected !== false) || null;
+      // a game pad with the standard mapping first: a wheel, a joystick or a HID device the browser also lists as a
+      // gamepad (often at index 0) must not hide it
+      const live = pads.filter((p) => p.connected !== false);
+      pad = inp.pad = live.find((p) => p.mapping === 'standard') || live[0] || null;
+      readSticks(pad);
       if (pad) {
         const now = pad.buttons.map((b) => b.pressed || b.value > 0.5);
         now.forEach((p, i) => { if (!p) spent.delete('pad' + i); if (p && !padPrev[i]) { edges.add('pad' + i); inp.source = 'gamepad'; for (const [a, l] of Object.entries(PAD)) if (l.includes(i)) edges.add(a); } });
-        if (Math.hypot(pad.axes[0] || 0, pad.axes[1] || 0) > 0.5) inp.source = 'gamepad';
+        if (Math.hypot(...sticks.left) > 0.5) inp.source = 'gamepad';
         padPrev = now;
       }
       if (!inp.enabled) for (const a of ['jump', 'interact']) edges.delete(a);
@@ -107,6 +117,42 @@ export function createInput({ target = globalThis, bindings = DEFAULT_BINDINGS, 
     },
     clear() { keys.clear(); held.clear(); spent.clear(); edges.clear(); queued.clear(); touch.x = touch.z = 0; touch.look = [0, 0]; },
   };
+  // ---- the pad's sticks. Not every "gamepad" is one: Chrome and Safari list wheels, joysticks, 3D mice and other HID
+  // devices too (mapping ''), and on those axes 2 / 3 are often triggers or pedals resting at -1 or +1, which read as
+  // the right stick pushed fully up: the view climbed to the top and stayed there. So:
+  //   - the right stick (the look) is read on standard-mapping pads only;
+  //   - a stick counts only once it has been seen at rest (inside the dead zone) since the pad appeared: one pinned
+  //     from the start (a trigger axis, a broken stick) never turns or walks;
+  //   - drift: a right stick held still off centre (between the dead zone and 0.5) for 1.5 s while the mouse or the
+  //     keyboard is in use is a pad lying on the desk; its dead zone grows past that reading until it is back at rest.
+  const ZERO = Object.freeze([0, 0]);
+  let sticks = { left: ZERO, right: ZERO }, padKey = '', deskAt = -1e9;
+  const armed = { left: false, right: false }, drift = { x: 0, y: 0, since: 0, floor: 0 };
+  function readSticks(p) {
+    if (!p) { sticks = { left: ZERO, right: ZERO }; padKey = ''; return; }
+    const key = p.index + ':' + p.id;
+    if (key !== padKey) { padKey = key; armed.left = armed.right = false; drift.since = drift.floor = 0; }
+    const one = (side, x = 0, y = 0, floor = 0) => {
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return ZERO;
+      const l = Math.hypot(x, y);
+      if (l < deadzone) { armed[side] = true; return ZERO; }
+      if (!armed[side] || (floor && l < floor)) return ZERO;
+      return stick(x, y);
+    };
+    const left = one('left', p.axes[0], p.axes[1]);
+    let right = ZERO;
+    if (p.mapping === 'standard') {
+      const x = p.axes[2] || 0, y = p.axes[3] || 0, l = Math.hypot(x, y), now = performance.now();
+      if (l < deadzone) drift.floor = 0;
+      if (l > deadzone && l < 0.5 && Math.abs(x - drift.x) < 0.02 && Math.abs(y - drift.y) < 0.02) {
+        if (!drift.since) drift.since = now;
+        if (now - drift.since > 1500 && now - deskAt < 1500) drift.floor = Math.max(drift.floor, l + 0.08);
+      } else { drift.since = 0; drift.x = x; drift.y = y; }
+      right = one('right', x, y, drift.floor);
+    }
+    sticks = { left, right };
+  }
+  if (target.addEventListener) for (const ev of ['mousemove', 'mousedown', 'keydown']) life.listen(target, ev, () => { deskAt = performance.now(); }, { passive: true });
   const padDown = (a) => !!(inp.enabled && pad && PAD[a] && PAD[a].some((i) => pad.buttons[i] && !spent.has('pad' + i) && (pad.buttons[i].pressed || pad.buttons[i].value > 0.5)));
   const stick = (x = 0, y = 0) => { const l = Math.hypot(x, y); if (l < deadzone) return [0, 0]; const k = Math.min(1, (l - deadzone) / (1 - deadzone)) / l; return [x * k, y * k]; };
   const inField = (e) => !!(e.target && (e.target.isContentEditable || /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName || '')));

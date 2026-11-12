@@ -5,7 +5,8 @@
 // whoever installs the package. Also fails when
 //   - an export map still carries a wildcard, or lists a target that does not exist,
 //   - a package's src/ reaches into another package's src/ with a relative path (it must go through the name),
-//   - a typed module (src/x.js with src/x.d.ts) is listed without its `types` condition.
+//   - a typed module (src/x.js with src/x.d.ts) is listed without its `types` condition,
+//   - an MIT package's src/ imports @miragekit/assets (the BUSL-1.1 library).
 // @miragekit/tools has no export map (it is a set of commands): there a subpath must simply be an existing file.
 //   usage: node scripts/check-imports.mjs            exit 1 with every offending file:line
 //          import { scan, exported } from './check-imports.mjs'   (the checks call these with fixtures)
@@ -16,7 +17,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TEXT = /\.(js|mjs|cjs|ts|mts|html|md|json)$/;
-const SPEC = /@miragekit\/(core|world|play|game|net|editor|tools)\/([A-Za-z0-9_.\-/]*[A-Za-z0-9_])/g;
+const SPEC = /@miragekit\/(core|world|play|game|net|editor|tools|assets)\/([A-Za-z0-9_.\-/]*[A-Za-z0-9_])/g;
 
 /** { name: { exports, dir } } for every package under packages/ */
 export function readPackages(root = ROOT) {
@@ -44,6 +45,8 @@ export function scan(text, file, pkgs) {
     for (const m of l.matchAll(SPEC)) {
       const sub = m[2].replace(/\.$/, '');
       if (!exported(pkgs[m[1]], sub)) bad.push({ line: i + 1, text: `@miragekit/${m[1]}/${sub} is not in the export map of @miragekit/${m[1]}` });
+      // the MIT packages never depend on the BUSL library (its content plugs into them, not the other way round)
+      if (own && own[1] !== 'assets' && m[1] === 'assets' && !/^\s*(\/\/|\*)/.test(l) && /\bfrom\s*['"]|import\s*\(\s*['"]/.test(l)) bad.push({ line: i + 1, text: `an MIT package imports @miragekit/assets (BUSL-1.1)` });
     }
     if (own) for (const m of l.matchAll(/(?:from|import)\s*\(?\s*['"]((?:\.\.\/)+)([a-z]+)\/src\//g)) {
       if (m[1] === '../../' && m[2] !== own[1] && pkgs[m[2]]) bad.push({ line: i + 1, text: `relative import into packages/${m[2]}/src: import '@miragekit/${m[2]}' instead` });

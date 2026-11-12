@@ -28,8 +28,8 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
   const flash = new THREE.PointLight(0xffb060, 0, 11, 2); root.add(flash);
   world.lighting?.addLight(flash);
   // a fill light that travels with the gun so its form reads on a dark street, and a cooler rim from below-left
-  const fill = new THREE.PointLight(0xb8e2ff, 0, 2.4, 2); root.add(fill);
-  const rim = new THREE.PointLight(0xff6ac8, 0, 1.6, 2); root.add(rim);
+  const fill = new THREE.PointLight(0xdde6ee, 0, 2.4, 2); root.add(fill);
+  const rim = new THREE.PointLight(0xffe6d2, 0, 1.6, 2); root.add(rim);
   world.lighting?.addLight(fill); world.lighting?.addLight(rim);
 
   // ---- per-gun rounds; S is the state of the gun in hand (S.mag / S.reserve read and write the current gun's)
@@ -46,6 +46,9 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
     spin: 0, heat: 0, vent: false, firing: false, switching: null, autoReload: 0, tuck: 0, swayX: 0, swayY: 0, shake: 0, flinchP: 0, flinchY: 0, dip: 0, pumpT: 0, slideT: 0, magOutAt: 0, reloadSaid: 0,
   };
   let play = null, grid = null, rnd = 0x1234567, unlocked = false, refillAt = -1e9;
+  // the comfort values (feel.js COMFORT), read where they act; without them (opts {}) the old feel, factor 1
+  const cv = (key, d, lo, hi) => { const v = +opts[key]; return opts[key] !== undefined && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d; };
+  const C = { shake: () => cv('shake', 1, 0, 1.5), bob: () => cv('bob', 1, 0, 1.5), punch: () => cv('punch', 1, 0, 1), roll: () => cv('roll', 1, 0, 1), kick: () => cv('kick', 1, 0.4, 1), settle: () => cv('settle', 1, 1, 2.5) };
   const R = () => ((rnd = (Math.imul(rnd ^ (rnd >>> 15), 0x2c1b3c6d) ^ (rnd << 7)) >>> 0) / 4294967296);
   const fwd = new THREE.Vector3(), mz = new THREE.Vector3(), right = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), tmp = new THREE.Vector3();
   const flags = (k, d = 1) => { game.flags[k] = (game.flags[k] || 0) + d; };   // test counters: written straight (no 'flag' event a round)
@@ -120,14 +123,23 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
     if (/glass|window|pane/i.test(hit.object.name + (m.name || ''))) return 'glass';
     return (m.metalness ?? 0) > 0.5 ? 'metal' : 'concrete';
   }
-  /** one ray: the world, then whoever stands in front of it */
-  function cast(d, range) {
-    const o = camera.position.toArray(), dv = d.toArray();
-    const hit = physics.ray(o, dv, range, player.collider());
+  /** one ray: the world, then whoever stands in front of it; with a damage, the props on the way first (destruct.js:
+   *  thin ones let the round through with less, a civilian or a crate stops it): k is what is left for the robot */
+  function cast(d, range, dmg = 0, pellets = 1) {
+    const o = camera.position.toArray(), dv = d.toArray(), P = api.props;
+    const hit = P ? P.worldRay(o, dv, range) : physics.ray(o, dv, range, player.collider());   // (the props' proxies stepped over: the props answer for themselves)
     const wt = hit ? hit.distance : range;
-    const eh = targets.rayHit(o, dv, wt);
-    const t = eh ? eh.t : wt;
-    return { o, d: dv, hit: eh ? null : hit, eh, t, end: [o[0] + dv[0] * t, o[1] + dv[1] * t, o[2] + dv[2] * t] };
+    let eh = targets.rayHit(o, dv, wt), k = 1, impact = null, stop = -1;
+    if (P && dmg > 0) {
+      const pr = P.shoot(o, dv, eh ? eh.t : wt, dmg, pellets, A.id);
+      if (pr.count) {
+        const h = pr.hits[Math.min(pr.count, pr.hits.length) - 1];
+        impact = { cls: h.class, point: h.point.slice(), normal: h.normal.slice(), actor: !!h.item.actor };
+        if (pr.stopped === 'item') { stop = h.t; eh = null; } else k = pr.frac;
+      }
+    }
+    const t = eh ? eh.t : stop >= 0 ? stop : wt;
+    return { o, d: dv, hit: eh || stop >= 0 ? null : hit, eh, t, k, impact, end: [o[0] + dv[0] * t, o[1] + dv[1] * t, o[2] + dv[2] * t] };
   }
   const RANK = { hit: 0, head: 1, shield: 2, kill: 3 };
   function shoot() {
@@ -140,13 +152,13 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
       const sp = spread(), pellets = A.pellets || 1, results = new Map();
       let mark = null, decals = 0;
       for (let k = 0; k < pellets; k++) {
-        const r = cast(aimDir(sp, tmp.clone()), A.range);
+        const r = cast(aimDir(sp, tmp.clone()), A.range, A.damage, pellets);
         if (!A.tracer?.every || n % A.tracer.every === 0) if (k < 4 || R() < 0.4) vfx.beam({ from: mz.toArray(), to: r.end, width: A.tracer.width, color: A.tracer.color, intensity: 4, life: A.tracer.life });
         if (r.eh) {
           const eh = r.eh, fall = A.falloff ? (eh.t < A.falloff[0] ? 1 : eh.t > A.falloff[1] ? A.falloff[2] : 1 - (1 - A.falloff[2]) * (eh.t - A.falloff[0]) / (A.falloff[1] - A.falloff[0])) : 1;
           const info = { ...eh, shieldK: A.shieldK && eh.t < A.shieldRange ? A.shieldK : 1 };
           stats.lastHead = !!eh.head;
-          const killed = eh.owner.damage(eh.e, A.damage * fall, eh.head, eh.point, r.d, info), kind = killed ? 'kill' : eh.part ? 'shield' : eh.head ? 'head' : 'hit';
+          const killed = eh.owner.damage(eh.e, A.damage * fall * r.k, eh.head, eh.point, r.d, info), kind = killed ? 'kill' : eh.part ? 'shield' : eh.head ? 'head' : 'hit';
           stats.hits += pellets > 1 ? 1 / pellets : 1; if (eh.head && pellets === 1) stats.heads++;
           const was = results.get(eh.e);
           if (!was || RANK[kind] > RANK[was.kind]) results.set(eh.e, { kind, point: eh.point, eh });
@@ -158,6 +170,9 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
           if (decals++ < (pellets > 1 ? 3 : 1)) vfx.decal({ position: [r.end[0] + nrm[0] * 0.02, r.end[1] + nrm[1] * 0.02, r.end[2] + nrm[2] * 0.02], normal: nrm, size: (pellets > 1 ? 0.09 : 0.16) + R() * 0.06, depth: 0.2, pattern: 'scorch', life: 25, fade: 4, opacity: 0.85 });
           if (k < 2 && R() < 0.7) say('nd_imp_' + surfaceOf(h), { at: r.end, gain: 0.55, ref: 3, rate: 0.95 + R() * 0.1 });
         }
+        // a prop it went into or through: the impact by what it is made of (its particles are the props' own)
+        if (r.impact && k < 2 && (A.id !== 'gatling' || n % 3 === 0)) say(api.props.impactSound(r.impact.cls), { at: r.impact.point, gain: 0.5, ref: 3, rate: 0.95 + R() * 0.1 });
+        if (r.impact?.actor) mark = mark || 'hit';
       }
       for (const { kind, point } of results.values()) {
         sfx.play(kind === 'kill' ? 'nd_kill' : kind === 'shield' ? 'nd_shieldhit' : kind === 'head' ? 'nd_head' : 'nd_hit', { gain: kind === 'kill' ? 0.8 : 0.55 });
@@ -173,12 +188,17 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
     }
     targets.noise(player.feet, A.id === 'shotgun' || A.id === 'rocket' ? 34 : 26);
     // recoil: a climb that rises through a burst, the gun's side pattern, a little noise; most of it comes back
-    const P = A.recoil, k = (1 - 0.35 * S.ads) * (S.boost ? 0.85 : 1);
+    // comfort (feel.js): `kick` is the camera's share of the climb, what it gives up goes to the gun model's kick
+    const cam = C.kick(), P = A.recoil, k = (1 - 0.35 * S.ads) * (S.boost ? 0.85 : 1) * cam;
     // (the climb a burst has piled up is capped: without that a long burst, the gatling's above all, walked the view
     // up to the vertical and pinned it there for as long as the trigger was held)
-    const climb = Math.min(P.climb * (1 + Math.min(n, 10) * P.ramp) * k, Math.max(0, (P.cap ?? 0.2) - S.debtP)), side = (P.side[n % P.side.length] * P.climb * 0.7 + (R() - 0.5) * P.rand) * k;
-    play.pitch = Math.min(1.45, play.pitch + climb); play.yaw += side; S.debtP += climb; S.debtY += side;
-    S.kick = Math.min(1.6, S.kick + 1); S.roll = Math.min(1.5, S.roll + 1); S.rollSign = R() < 0.5 ? -1 : 1; S.fovPunch = Math.min(P.fov * 1.6, S.fovPunch + P.fov);
+    const climb = Math.min(P.climb * (1 + Math.min(n, 10) * P.ramp) * k, Math.max(0, (P.cap ?? 0.2) * cam - S.debtP)), side = (P.side[n % P.side.length] * P.climb * 0.7 + (R() - 0.5) * P.rand) * k;
+    // the debt is what the view actually climbed: at the top of the clamp a climb that did not happen is not paid back
+    // (it pulled the view below where the player had put it)
+    const was = play.pitch;
+    play.pitch = Math.min(1.45, was + climb); play.yaw += side; S.debtP += Math.max(0, play.pitch - was); S.debtY += side;
+    const punch = C.punch();
+    S.kick = Math.min(1.6 + (1 - cam), S.kick + 1 + 0.8 * (1 - cam)); S.roll = Math.min(1.5, S.roll + 1); S.rollSign = R() < 0.5 ? -1 : 1; S.fovPunch = Math.min(P.fov * 1.6 * punch, S.fovPunch + P.fov * punch);
     S.bloom = Math.min(A.spread.max, S.bloom + A.spread.bloom); S.flashT = 0.04;
     flash.distance = A.flash.gain > 30 ? 14 : 10;
     S.shake = Math.min(3, S.shake + P.shake);
@@ -253,7 +273,9 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
       r.t += dt;
       const s = r.vel.map((v) => v * dt), len = Math.hypot(...s), dir = s.map((v) => v / (len || 1));
       const hit = physics.ray(r.pos, dir, len + 0.05, player.collider()), eh = targets.rayHit(r.pos, dir, hit ? hit.distance : len + 0.05) || near(r.pos);
-      if (eh) { explode(eh.point, dir, eh); r.live = false; }
+      const ph = api.props && r.t > 0.03 ? api.props.touch(r.pos, dir, eh ? eh.t ?? len : hit ? hit.distance : len + 0.05) : null;   // a prop in the way (a car, a machine, a civilian)
+      if (ph) { explode(ph.point, dir, null); r.live = false; }
+      else if (eh) { explode(eh.point, dir, eh); r.live = false; }
       else if (hit) { explode([hit.point[0] + hit.normal[0] * 0.25, hit.point[1] + hit.normal[1] * 0.25, hit.point[2] + hit.normal[2] * 0.25], dir, null, hit.normal); r.live = false; }
       else if (r.t > 4) { explode(r.pos.slice(), dir); r.live = false; }
       else { for (let k = 0; k < 3; k++) r.pos[k] += s[k]; r.o.position.set(...r.pos); }
@@ -290,6 +312,8 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
     // the player is not spared
     const pf = [player.feet[0], player.feet[1] + 1, player.feet[2]], dp = Math.hypot(pf[0] - p[0], pf[1] - p[1], pf[2] - p[2]);
     if (dp < r) { const self = dmg * ARM.rocket.selfK * (1 - dp / r) * (assist ? 0.15 : 1); if (self > 0.5) { player.hurt(self, p); flags('selfDamage', Math.round(self)); } }
+    // the props in reach: the rocket's blast is wider and harder on them than on the robots (it throws, folds, dents)
+    if (api.props) { const res = api.props.blast(p, r, dmg); let br = 0; for (const x of res) if (x.item.broken) br++; if (br) flags('rocketProps', br); }
     if (hits) hud.hit(kills ? 'kill' : 'hit');
     if (kills) feel?.kill();
     const dc = camera.position.distanceTo(tmp.set(...p));
@@ -326,7 +350,8 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
     S.jab = 0.6; S.cool = Math.max(S.cool, 0.45);
     fwd.set(Math.cos(play.pitch) * Math.cos(play.yaw), Math.sin(play.pitch), Math.cos(play.pitch) * Math.sin(play.yaw));
     const o = camera.position.toArray(), d = fwd.toArray(), eh = targets.rayHit(o, d, 2.3);
-    say(eh ? 'nd_imp_armour' : 'nd_impact', { gain: eh ? 0.9 : 0.35, rate: eh ? 0.8 : 0.5 });
+    const pm = !eh && api.props ? api.props.melee(o, d) : null;   // no robot within reach: a prop (a crate, a pane, a can)
+    say(eh ? 'nd_imp_armour' : pm?.count ? api.props.impactSound(pm.hits[0].class) : 'nd_impact', { gain: eh || pm?.count ? 0.9 : 0.35, rate: eh ? 0.8 : 0.5 });
     if (eh) { stats.lastHead = false; stats.meleeNow = true; const killed = eh.owner.damage(eh.e, 85, false, eh.point, d, { ...eh, melee: true }); stats.meleeNow = false; hud.hit(killed ? 'kill' : 'hit'); S.shake += 0.6; feel?.hit(0.5); stats.melee = (stats.melee || 0) + 1; if (killed) feel?.kill(); }
     return true;
   }
@@ -355,15 +380,18 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
     stepReload(dt);
     stepGatling(dt, alive);
     const edge = S.fire && !S.fireWas; S.fireWas = S.fire;
+    // a press a moment before a semi-automatic is ready again (in the rate's last tenth of a second) is kept until it
+    // is, not dropped: taps as fast as the rate lost about one in five to the step they happened to land on
+    S.queued = edge && !A.auto && S.cool > 0 && S.cool < 0.1 ? S.cool + 0.05 : Math.max(0, (S.queued || 0) - dt);
     if (alive) {
       if (S.wantReload) { reload(); S.wantReload = false; }
       if (S.autoReload > 0 && (S.autoReload -= dt) <= 0) { S.autoReload = 0; if (S.mag === 0) reload(); }
       // the shotgun: the trigger stops a reload (a shell in the tube is enough)
       if (edge && A.shellByShell && S.reloading > 0 && S.mag > 0) { S.reloading = 0; S.reloadStep = ''; S.pumpT = 0.4; say('nd_pump', { gain: 0.6 }); S.cool = 0.32; }
       const ready = !S.switching && S.reloading <= 0 && S.draw <= 0.08 && S.cool <= 0;
-      if (S.fire && ready) {
+      if ((S.fire || S.queued > 0) && ready) {
         if (A.id === 'gatling' && (S.vent || S.spin < 0.95)) { if (S.vent && edge) say('nd_dry_heavy', { gain: 0.5 }); }
-        else if (S.mag > 0) { if (A.auto || edge || S.sinceShot >= A.hold) shoot(); }
+        else if (S.mag > 0) { if (A.auto || edge || S.queued > 0 || S.sinceShot >= A.hold) { shoot(); S.queued = 0; } }
         else if (edge || A.auto) { S.cool = 0.3; if (!reload()) { say(A.dry, { gain: 0.6 }); feel?.empty(); } }
       }
     }
@@ -376,7 +404,8 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
     S.kick = Math.max(0, S.kick - dt * 9); S.roll = Math.max(0, S.roll - dt * 8); S.fovPunch = Math.max(0, S.fovPunch - dt * 30 * Math.max(1, S.fovPunch)); S.flashT -= dt; S.jab = Math.max(0, S.jab - dt);
     S.pumpT = Math.max(0, S.pumpT - dt); S.slideT = Math.max(0, S.slideT - dt);
     if (A.id === 'shotgun' && S.pumpT > 0 && S.pumpT < 0.38 && S.pumpT + dt >= 0.38 && S.sinceShot < 0.6) { say('nd_pump', { gain: 0.6 }); eject('hull'); }
-    S.shake *= Math.exp(-dt * 7); S.flinchP *= Math.exp(-dt * 10); S.flinchY *= Math.exp(-dt * 10); S.dip *= Math.exp(-dt * 9);
+    const st = C.settle();   // comfort: the shake, the flinch and the dip die away `settle` times as fast
+    S.shake *= Math.exp(-dt * 7 * st); S.flinchP *= Math.exp(-dt * 10 * st); S.flinchY *= Math.exp(-dt * 10 * st); S.dip *= Math.exp(-dt * 9 * st);
     const sprinting = player.speed > 4.4 && !S.fire && !S.aim && S.reloading <= 0 ? 1 : 0;
     S.sprint += (sprinting - S.sprint) * Math.min(1, dt * 8);
     S.walked += player.speed * dt;
@@ -385,7 +414,7 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
   }
 
   // ---- before every sub-frame: the lens, the camera's offsets (once a frame), the view model on the camera
-  const left = { pos: new THREE.Vector3(1e9, 0, 0), q: new THREE.Quaternion() };
+  const left = { pos: new THREE.Vector3(1e9, 0, 0), q: new THREE.Quaternion() }, UP = new THREE.Vector3(0, 1, 0);
   let clock = 0;
   function pose(dt) {
     if (!play) return;
@@ -396,11 +425,13 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
     S.lean += (S.wantLean - S.lean) * Math.min(1, dt * 9);
     // the camera's offsets go on once a frame: play writes the camera every frame, so a camera that is not where these
     // left it is a new frame (a frame's later sub-frames find it where they left it)
-    const k = Math.min(1.5, opts.shake ?? 1), bobK = Math.min(player.speed / 3.4, 1.5) * (1 - 0.8 * S.ads) * Math.min(1, k + 0.25), ph = S.walked * 2.3;
+    // comfort: the shake's strength, the bob's (it used to follow the shake setting), the roll's share
+    const k = C.shake(), rl = C.roll(), bobK = Math.min(player.speed / 3.4, 1.5) * (1 - 0.8 * S.ads) * C.bob(), ph = S.walked * 2.3;
     const sh = S.shake * 0.0055 * k, t = clock;
-    const offY = -Math.abs(Math.cos(ph)) * 0.022 * bobK - player.crouch * 0.6 - S.dip;
+    S.bobY = -Math.abs(Math.cos(ph)) * 0.022 * bobK;   // (kept for the measurements: scripts/motion-check.mjs)
+    const offY = S.bobY - player.crouch * 0.6 - S.dip;
     const pitch = (Math.sin(t * 41) + Math.sin(t * 67 + 1.3)) * sh + S.flinchP, yaw = (Math.sin(t * 37 + 0.7) + Math.sin(t * 59 + 2.1)) * sh * 0.8 + S.flinchY;
-    const roll = -S.lean * 0.13 + Math.sin(ph) * 0.004 * bobK + S.roll * A.recoil.roll * S.rollSign * k * 0.35 + (Math.sin(t * 29) * sh * 0.6);
+    const roll = -S.lean * 0.13 + rl * (Math.sin(ph) * 0.004 * bobK + S.roll * A.recoil.roll * S.rollSign * k * 0.35 + Math.sin(t * 29) * sh * 0.6);
     const any = Math.abs(offY) + Math.abs(S.lean) + Math.abs(pitch) + Math.abs(yaw) + Math.abs(roll) > 1e-5;
     if (any && !(camera.position.equals(left.pos) && camera.quaternion.equals(left.q))) {
       right.set(1, 0, 0).applyQuaternion(camera.quaternion); right.y = 0; right.normalize();
@@ -410,7 +441,9 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
         reach = Math.min(0.42, side ? Math.max(0, side.distance - 0.22) : 0.42);
       }
       camera.position.addScaledVector(right, S.lean * reach); camera.position.y += offY;
-      camera.rotateY(yaw); camera.rotateX(pitch); camera.rotateZ(roll); camera.updateMatrixWorld();
+      // the yaw offset turns about the world's vertical (about the camera's own, on a view pitched up or down, it tilted
+      // the horizon), the pitch about the camera's level right axis: only `roll` rolls the view
+      camera.rotateOnWorldAxis(UP, yaw); camera.rotateX(pitch); camera.rotateZ(roll); camera.updateMatrixWorld();
       left.pos.copy(camera.position); left.q.copy(camera.quaternion);
     }
     holder.position.copy(camera.position); holder.quaternion.copy(camera.quaternion);
@@ -449,7 +482,7 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
     const rk = lampRoom();
     fill.position.copy(holder.position).addScaledVector(fwd.set(-0.16, 0.18, 0.04).applyQuaternion(holder.quaternion), 1);
     rim.position.copy(holder.position).addScaledVector(fwd.set(0.3, -0.25, -0.25).applyQuaternion(holder.quaternion), 1);
-    fill.intensity = 1.1 * rk; rim.intensity = 0.35 * rk;
+    fill.intensity = 0.5 * rk; rim.intensity = 0.18 * rk;
     flash.position.copy(mz);
     flash.intensity = S.flashT > 0 ? A.flash.gain * rk * (0.7 + 0.3 * R()) * (1 - 0.5 * S.ads) : 0;
   }
@@ -462,6 +495,8 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
   function fill1(id, units) { const a = ARM[id], w = W[id], n = Math.min(a.max - w.reserve, Math.max(1, Math.round(units * a.per))); w.reserve += n; return n; }
   const api = {
     S, holder, models, reload, update, melee, select, cycle, spread, W, ARMS, eject,
+    /** the breakable props (destruct.js, set by index.js): rounds, blasts and the stock go through them */
+    props: null,
     get id() { return cur; }, get arm() { return A; }, get switchingTo() { return S.switching?.to || null; }, get unlocked() { return unlocked; },
     start(p) { play = p; grid = p.grid; S.lastYaw = S.markY = p.yaw; S.lastPitch = S.markP = p.pitch; },
     /** units of ammunition to the gun in hand (or the emptiest that takes them); all: half as much to the others too.
@@ -489,12 +524,12 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
     /** the low-health / hurt feel on the camera: a flinch away from where the hit came from */
     flinch(from, k = 1) {
       if (!play) return;
-      const m = Math.min(1.5, opts.shake ?? 1);
+      const m = C.shake();
       let side = 0;
       if (from) { const a = Math.atan2(from[2] - player.feet[2], from[0] - player.feet[0]); side = Math.sin(a - play.yaw); }
       S.flinchP += 0.035 * k * m; S.flinchY += -side * 0.03 * k * m; S.shake = Math.min(3, S.shake + 0.5 * k);
     },
-    land(v) { S.dip = Math.min(0.16, S.dip + v * 0.012); S.shake += Math.min(0.8, v * 0.05); },
+    land(v) { const b = Math.max(0.4, Math.min(1, C.bob() + 0.3)); S.dip = Math.min(0.16 * b, S.dip + v * 0.012 * b); S.shake += Math.min(0.8, v * 0.05); },
     addShake(k) { S.shake = Math.min(4, S.shake + k); },
     save: () => ({ cur, arms: Object.fromEntries(ORDER.map((id) => [id, { mag: W[id].mag, reserve: W[id].reserve === Infinity ? -1 : W[id].reserve, owned: W[id].owned }])), mag: W.carbine.mag, reserve: W.carbine.reserve }),
     load(s) {

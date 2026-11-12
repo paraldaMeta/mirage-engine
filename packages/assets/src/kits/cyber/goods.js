@@ -1,10 +1,10 @@
-// props-goods: the things on counters and shelves (not a module): bottles with glass, liquid at a level, a label and a
+// Mirage original code. kit/cyber's counter and shelf goods: bottles with glass, liquid at a level, a label and a
 // cap; tumblers; bowls in stacks; pots with lids and handles; noodle baskets on long handles; a rice cooker; a
 // chopstick holder; skewers on a grill; a bar stool with a footrest; jars; boxes with printed faces; a goods rack
 // for a shop's pavement display. Each adds to a MeshBatch through the props kit, at a matrix `m` (its foot at y 0).
 import * as THREE from 'three';
-import { bowlGeo, glassGeo, jarGeo, boxGeo } from './props-shapes.js';
-import { uvByHeight } from './props-kit.js';
+import { bowlGeo, glassGeo, jarGeo, boxGeo } from './shapes.js';
+import { uvByHeight } from './kit.js';
 
 const lathe = (pts, seg) => { const g = new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(Math.max(r, 1e-4), y)), seg); g.computeVertexNormals(); return g; };
 const cache = new Map(), once = (k, f) => { if (!cache.has(k)) cache.set(k, f()); return cache.get(k); };
@@ -23,10 +23,10 @@ export function spiritBottle(P, bt, geom, m, { r = 0.04, h = 0.3, glass = [0.5, 
 }
 /** a tumbler / sake cup in clear glass */
 export const tumbler = (P, bt, geom, m, s = 1) => P.put(bt, once('tum', () => glassGeo(0.034, 0.09)), P.mats.clear, C(m, geom, [0, 0, 0], [0, 0, 0], s), [0.8, 0.85, 0.85]);
-/** a stack of n bowls (glazed: paint, glossy) */
+/** a stack of n bowls (glazed ceramic) */
 export function bowls(P, bt, geom, m, n = 4, color = [0.85, 0.82, 0.75], r = 0.085) {
-  for (let i = 0; i < n; i++) P.put(bt, once('bowl' + r, () => bowlGeo(r, r * 0.8, 12)), P.mats.paint, C(m, geom, [0, i * r * 0.28, 0]), color);
-  P.put(bt, once('bowlrim' + r, () => new THREE.TorusGeometry(r * 0.97, 0.004, 4, 20).rotateX(Math.PI / 2)), P.mats.paint, C(m, geom, [0, (n - 1) * r * 0.28 + r * 0.8, 0]), [0.5, 0.06, 0.04]);
+  for (let i = 0; i < n; i++) P.put(bt, once('bowl' + r, () => bowlGeo(r, r * 0.8, 12)), P.mats.ceramic, C(m, geom, [0, i * r * 0.28, 0]), color);
+  P.put(bt, once('bowlrim' + r, () => new THREE.TorusGeometry(r * 0.97, 0.004, 4, 20).rotateX(Math.PI / 2)), P.mats.ceramic, C(m, geom, [0, (n - 1) * r * 0.28 + r * 0.8, 0]), [0.5, 0.06, 0.04]);
 }
 /** a stock pot with a lid, two handles; r, h */
 export function pot(P, bt, geom, m, r = 0.2, h = 0.26, lid = true) {
@@ -94,4 +94,29 @@ export function goodsRack(P, bt, geom, m, seed = 0, w = 1.2) {
     }
   }
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) put(bt, new THREE.BoxGeometry(0.03, 0.9, 0.03), mats.metal, C(m, geom, [sx * (w / 2 - 0.02), 0.45, sz * 0.18 - 0.02]), [0.08, 0.08, 0.09]);
+}
+
+/** a stall's gas bottle (LPG, about 0.62 m): a welded steel body in worn blue-grey paint with a collar round the valve,
+ *  a foot ring, a printed danger band, a regulator and a hose to the grill */
+export function gasBottle(P, bt, geom, m) {
+  const { mats, put, R } = P;
+  put(bt, lathe([[0.12, 0], [0.145, 0.03], [0.15, 0.1], [0.15, 0.44], [0.13, 0.52], [0.07, 0.56], [0.03, 0.57]], 18), mats.paint, C(m, geom, [0, 0.03, 0]), [0.16, 0.24, 0.3]);
+  put(bt, new THREE.CylinderGeometry(0.13, 0.13, 0.035, 18, 1, true), mats.metal, C(m, geom, [0, 0.017, 0]), [0.2, 0.2, 0.21]);                     // the foot ring
+  put(bt, lathe([[0.075, 0], [0.08, 0.01], [0.08, 0.09], [0.075, 0.1]], 14), mats.metal, C(m, geom, [0, 0.55, 0]), [0.25, 0.27, 0.3]);             // the collar
+  put(bt, new THREE.CylinderGeometry(0.152, 0.152, 0.07, 18, 1, true, -1.2, 2.4), mats.paint, C(m, geom, [0, 0.33, 0]), [1, 1, 1], R.warn0);      // the band
+  put(bt, new THREE.CylinderGeometry(0.018, 0.022, 0.05, 8), mats.metal, C(m, geom, [0, 0.61, 0]), [0.7, 0.55, 0.2]);                              // the valve (brass)
+  put(bt, new geom.RoundedBoxGeometry(0.06, 0.04, 0.05, 1, 0.01), mats.metal, C(m, geom, [0.03, 0.64, 0]), [0.55, 0.56, 0.58]);                       // the regulator
+  put(bt, geom.taperedTube([[0.06, 0.64, 0], [0.16, 0.66, 0], [0.22, 0.5, -0.05], [0.24, 0.3, -0.1], [0.2, 0.75, -0.2]], [0.008, 0.008, 0.008, 0.008, 0.008], { radial: 5, segments: 16 }), mats.paint, m, [0.6, 0.1, 0.05]);
+}
+
+/** a fire extinguisher hanging on a wall bracket (back at z 0): a red cylinder, a black head and lever, a hose, a
+ *  printed label, the bracket */
+export function extinguisher(P, bt, geom, m) {
+  const { mats, put, R } = P, z = 0.085;
+  put(bt, lathe([[0.07, 0], [0.078, 0.015], [0.078, 0.42], [0.06, 0.47], [0.025, 0.49]], 16), mats.paint, C(m, geom, [0, 0, z]), [0.62, 0.04, 0.03]);
+  put(bt, new THREE.CylinderGeometry(0.0795, 0.0795, 0.14, 16, 1, true, -1.0, 2.0), mats.paint, C(m, geom, [0, 0.22, z]), [1, 1, 1], R.warn1);
+  put(bt, new geom.RoundedBoxGeometry(0.05, 0.06, 0.05, 1, 0.01), mats.paint, C(m, geom, [0, 0.52, z]), [0.03, 0.03, 0.03]);                        // the head
+  put(bt, new THREE.BoxGeometry(0.11, 0.012, 0.025), mats.metal, C(m, geom, [0.03, 0.56, z], [0, 0, -0.2]), [0.12, 0.12, 0.13]);                     // the lever
+  put(bt, geom.taperedTube([[0.02, 0.52, z + 0.02], [0.08, 0.5, z + 0.05], [0.1, 0.32, z + 0.07], [0.08, 0.16, z + 0.06]], [0.008, 0.008, 0.008, 0.01], { radial: 5, segments: 10 }), mats.paint, m, [0.03, 0.03, 0.03]);
+  put(bt, new THREE.BoxGeometry(0.1, 0.03, 0.09), mats.metal, C(m, geom, [0, 0.3, 0.045]), [0.2, 0.2, 0.22]);                                         // the bracket
 }

@@ -3,7 +3,9 @@
 //   node packages/tools/src/lighting-check.mjs examples/walled-garden/dist [examples/hello-courtyard/dist]
 // For each page, with ?csm=1&gi=1&probes=1&lights=64&lshadows=4: no console errors or shader-anchor warnings, the four shader
 // parts are in the compiled programs, the image is not black; clustered shading draws the same image as the plain
-// loop over all lights; shadow tiles are cached (no redraw while nothing moves, one when a lamp moves) and removing
+// loop over all lights; shadow tiles are cached (no redraw while nothing moves, one when a lamp moves; a moving
+// caster's redraw draws the movers over the cached static tile, the same tile a full redraw gives); the GL commands
+// are flushed every 128 draws (world.js flushEvery); removing
 // a lamp's shadow changes the image; the irradiance probes are baked and oriented (a red emitter put on +X, +Y, +Z
 // of a probe is read back from that side, not the opposite one); the reflection probe is parallax-corrected (a mirror
 // off the probe's centre shows a red marker that sits on the box's wall where the mirrored ray ends).
@@ -42,11 +44,8 @@ try {
         }
         // the shadow cache
         for (let i = 0; i < 6; i++) grab();
-        const quiet = L.lights.info.redrawsLastFrame;
         const lamp = world.scene.children.find((o) => o.isPointLight && o.userData.mgClustered);
         const withShadow = grab();
-        lamp.position.x += 0.4; grab(); const afterMove = L.lights.info.redrawsLastFrame;
-        lamp.position.x -= 0.4; grab(); grab();
         const eye = lamp.position.clone().add({ x: 2.5, y: 0.6, z: 3 });
         play.place(eye.toArray(), lamp.position.toArray().map((v, i) => v - (i === 1 ? 1.2 : 0)), 'fly'); play.step(1 / 60);
         // a new static caster under the lamp: invalidate() redraws the cached tiles, its shadow lands on what is below
@@ -56,9 +55,28 @@ try {
         const s1 = grab();
         L.removeLight(lamp); L.addLight(lamp, { shadow: false }); const s0 = grab();
         L.removeLight(lamp); L.addLight(lamp, { shadow: true }); const s2 = grab();
+        // cached tiles, on moving frames (a still lays the atlas out afresh and draws every tile, so that it repeats)
+        const stepM = () => { play.step(1 / 60); play.render({ moving: true }); };
+        for (let i = 0; i < 6; i++) stepM();
+        const quiet = L.lights.info.redrawsLastFrame;
+        lamp.position.x += 0.4; stepM(); const afterMove = L.lights.info.redrawsLastFrame;
+        lamp.position.x -= 0.4; stepM(); stepM();
+        // a moving caster (mgDynamic) beside the static one: the split tile (the cached static casters, the mover drawn
+        // over them) is the image a full redraw gives, and the redraw it causes draws only the mover
+        const mov = new THREE.Group(); mov.userData.mgDynamic = true; world.scene.add(mov);
+        const mb = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.6, 0.3), new THREE.MeshStandardMaterial({ color: 0x888888 })); mb.castShadow = true; mov.add(mb);
+        mov.position.copy(lamp.position); mov.position.x += 0.5; mov.position.y -= 1.2; for (let i = 0; i < 3; i++) stepM();
+        const mo0 = L.lights.info.movingOnly; mov.position.x += 0.1; stepM(); const movingOnly = L.lights.info.movingOnly - mo0;
+        // stills: every tile drawn afresh, split (the static casters, then the mover over them) and whole; two of each,
+        // so the page's own frame-to-frame change is known
+        const sp = grab(), sp2 = grab();
+        L.lights.cfg.split = false; L.lights.invalidate(); const full = grab(), full2 = grab(); L.lights.cfg.split = true;
+        world.scene.remove(mov); L.lights.invalidate(); grab();
         world.scene.remove(blk); L.invalidate(); grab();
-        out.shadow = { quiet, afterMove, onOff: diff(s1, s0), backOn: diff(s1, s2), shadowed: L.lights.info.shadowed };
+        out.shadow = { quiet, afterMove, onOff: diff(s1, s0), backOn: diff(s1, s2), shadowed: L.lights.info.shadowed, split: { ...diff(sp2, full2), noise: diff(sp, sp2).mean + diff(full, full2).mean, movingOnly, movedDiff: diff(sp, s2) } };
         void withShadow;
+        // the periodic flush (world.js flushEvery): n draws (six moving frames) send their commands at least n / 128 times
+        { const info = world.renderer.info, f0 = gl.flush.bind(gl); let fl = 0; gl.flush = () => { fl++; f0(); }; info.autoReset = false; info.reset(); for (let i = 0; i < 6; i++) { play.step(1 / 60); play.render({ moving: true }); } out.flush = { draws: info.render.calls, flushes: fl }; info.autoReset = true; gl.flush = f0; }
         // probes
         const gi = L.gi;
         out.gi = { ...gi.info };
@@ -123,6 +141,10 @@ try {
       if (r.shadow.afterMove !== 1) bad.push('a moved lamp redrew ' + r.shadow.afterMove + ' tiles, expected 1');
       if (!(r.shadow.onOff.mean > 0.02)) bad.push('a lamp\'s shadow changes nothing: ' + JSON.stringify(r.shadow.onOff));
       if (r.shadow.backOn.mean > 0.02 + 0.1 * r.shadow.onOff.mean) bad.push('shadow back on differs: ' + JSON.stringify(r.shadow.backOn));   // a re-added lamp may get another tile size
+      if (r.shadow.split.mean > 0.02 + 1.5 * r.shadow.split.noise) bad.push('the split shadow tile (static cached, the mover over it) differs from a full redraw: ' + JSON.stringify(r.shadow.split));
+      if (r.flush.flushes < Math.floor(r.flush.draws / 128)) bad.push('the commands are not flushed every 128 draws: ' + JSON.stringify(r.flush));
+      if (r.shadow.split.movingOnly < 1) bad.push('a moving caster redrew the static casters too: ' + JSON.stringify(r.shadow.split));
+      if (!(r.shadow.split.movedDiff.mean > 0.005)) bad.push('the moving caster casts no shadow: ' + JSON.stringify(r.shadow.split));
       if (!(r.probe.captures >= 3)) bad.push('reflection probe not captured again: ' + JSON.stringify(r.probe));
       if (!r.probe.sides.some((x) => x.ok)) bad.push('the mirror does not show the marker on the box wall (parallax): ' + JSON.stringify(r.probe.sides));
       if (!(r.gi.probes > 0) || r.gi.baked < r.gi.probes) bad.push('probes not baked: ' + JSON.stringify(r.gi));

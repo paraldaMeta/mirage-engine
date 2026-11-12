@@ -12,7 +12,7 @@ import { FXC } from './hack.js';
 
 const CD = { dash: 5, grenade: 12 }, DASH = { len: 5, time: 0.2, grace: 0.35 }, OVER = 8;
 
-export function createAbilities({ world, game, player, enemies, drones, vfx, sfx, physics, root, weapon, hack, overlay, onPop }) {
+export function createAbilities({ world, game, player, enemies, drones, vfx, sfx, physics, root, weapon, hack, overlay, onPop, opts = {} }) {
   const left = { dash: 0, grenade: 0 };
   const S = { charge: 0, over: 0, dashT: 0, dir: [0, 0], counts: { dash: 0, grenade: 0, over: 0 } };
   let g = null, play = null, input = null;
@@ -22,6 +22,8 @@ export function createAbilities({ world, game, player, enemies, drones, vfx, sfx
   let boomT = 0;
   const room = () => Math.pow(Math.max(world.gradeLook ? world.exposure * world.gradeLook.exposure : world.exposure, 1e-4), -0.9);
   const fwd = () => [Math.cos(play.yaw), Math.sin(play.yaw)];
+  // the screen's tint on a dash or the overdrive, at the comfort's flashes (feel.js): 1 as it was, 0.6 about a third
+  const tint = (k) => { const f = Number.isFinite(+opts.flashes) && opts.flashes !== undefined ? Math.max(0.2, Math.min(1, +opts.flashes)) : 1; return k * (f >= 1 ? 1 : f * f); };
 
   function dash() {
     const m = input ? input.move() : { x: 0, z: 0 }, f = fwd(), r = [-f[1], f[0]];
@@ -29,7 +31,7 @@ export function createAbilities({ world, game, player, enemies, drones, vfx, sfx
     const l = Math.hypot(x, z);
     if (l < 0.2) { x = f[0]; z = f[1]; } else { x /= l; z /= l; }
     S.dir = [x, z]; S.dashT = DASH.time; player.iframe = game.time + DASH.grace;
-    sfx.play('nd_dash', { gain: 0.8 }); overlay.flash('#9ff4ff', 0.18);
+    sfx.play('nd_dash', { gain: 0.8 }); overlay.flash('#9ff4ff', tint(0.18));
     vfx.burst(FXC.zap, [player.feet[0], player.feet[1] + 0.9, player.feet[2]], { scale: 0.7 });
     S.counts.dash++; game.set('dashes', S.counts.dash);
     return true;
@@ -50,7 +52,7 @@ export function createAbilities({ world, game, player, enemies, drones, vfx, sfx
   }
   function overdrive() {
     S.charge = 0; S.over = OVER; weapon.S.boost = true; hack.free = true;
-    sfx.play('nd_overdrive', { gain: 0.9 }); overlay.flash('#ff6ac8', 0.4);
+    sfx.play('nd_overdrive', { gain: 0.9 }); overlay.flash('#ff6ac8', tint(0.4));
     S.counts.over++; game.set('overdrives', S.counts.over);
     return true;
   }

@@ -4,12 +4,11 @@
 // barricades, yellow-and-black wayfinding painted on walls and floor, district numbers stencilled large, manhole
 // covers with a cast pattern. Bags, paint and cables are decor; the barricades and crates are solid.
 import * as THREE from 'three';
-import { materials } from './materials.js';
+import { WET } from '@miragekit/core';
+import { materials, surfaceLib } from './materials.js';
 import { decor } from './lib.js';
-import { detail, thin, worn, textAtlas, atlasQuad } from './kit.js';
-import { propKit } from './props-kit.js';
-import { beacon } from './props-lights.js';
-import { junctionBox, bag as sack, crate } from './props-street.js';
+import { detail, thin, textAtlas, atlasQuad } from './kit.js';
+import { propKit, recorder, track, markBatch, sinceMark, beacon, junctionBox, bag as sack, crate } from '@miragekit/assets/kits/cyber';
 
 export default {
   name: 'grime',
@@ -17,6 +16,7 @@ export default {
     const { geom, root, plan, mat, R } = ctx, M = materials(ctx), G = plan.grime || {}, K = plan.levels.kerb, D = detail(ctx);
     const b = new geom.MeshBatch(), fx = new geom.MeshBatch(), Q = R.fork('grime'), P = propKit(ctx), pb = new geom.MeshBatch();
     const [ax0, , ax1] = plan.alley.rect;
+    const rec = recorder(ctx);   // destructibles (game/destruct.js): water pipes, bags, crates, barricades
 
     // ---- cable bundles across the alley: four to six cables each, one junction box at each wall
     for (const [z, y, n] of G.alleyCables || []) {
@@ -31,7 +31,8 @@ export default {
       }
     }
     // ---- a duct along the alley's west wall on brackets, pipes that end in elbows and drip
-    const duct = mat.std({ roughness: 0.4, metalness: 0.8 }, worn('vec3(0.42, 0.43, 0.44)', { rows: 1.2, chip: 0.25, rust: 0.5 }));
+    const { surf, SURFACES } = surfaceLib(ctx);
+    const duct = surf(SURFACES.galvanised({ variant: 'weathered' }), { mapping: 'grain', grain: [0, 0, 1], size: 'small' });   // galvanised duct, white rust
     if (G.duct) {
       const { x, side, z: [z0, z1], y } = G.duct;
       for (let z = z0; z < z1 - 0.1; z += 2.4) { fx.add(new geom.RoundedBoxGeometry(0.5, 0.42, Math.min(2.38, z1 - z), 2, 0.04), duct, geom.compose([x + side * 0.3, y, z + Math.min(2.38, z1 - z) / 2])); fx.box(M.blackMetal, [0.56, 0.06, 0.06], [x + side * 0.3, y + 0.24, z]); fx.box(M.blackMetal, [0.06, 0.5, 0.06], [x + side * 0.56, y, z]); }
@@ -40,6 +41,7 @@ export default {
     for (const [x, z, top, out] of G.dripPipes || []) {
       const ox = out[0], oz = out[1];
       fx.cylinder(M.darkMetal, 0.06, 0.06, top - 2.6, [x, 2.6 + (top - 2.6) / 2, z], [0, 0, 0], 8);
+      rec.add({ id: `waterpipe-${x}-${z}`, fam: 'waterpipe', box: { center: [x, 2.6 + 1.8, z], half: [0.07, 1.8, 0.07] }, out: [ox, 0, oz] });   // its reachable part
       fx.add(new THREE.TorusGeometry(0.18, 0.06, 6, 8, Math.PI / 2), M.darkMetal, geom.compose([x + ox * 0.18, 2.6, z + oz * 0.18], [0, Math.atan2(ox, oz) + Math.PI / 2, Math.PI]));
       fx.cylinder(M.darkMetal, 0.06, 0.06, 0.12, [x + ox * 0.3, 2.42, z + oz * 0.3], [0, 0, 0], 8);
       for (let k = 0; k < 3; k++) drips.push(geom.compose([x + ox * 0.3, 2.34, z + oz * 0.3 + k * 0.001]));
@@ -58,18 +60,24 @@ export default {
     // ---- rubbish: bags in a heap, crates (solid when big)
     for (const [x, z, y, n] of thin(ctx, G.heaps || [], 2)) {
       const H = R.fork('h' + x + z);
-      for (let i = 0; i < n; i++) sack(P, pb, geom, geom.compose([x + H.range(-0.6, 0.6), y + (i > 3 ? 0.28 : 0), z + H.range(-0.35, 0.35)], [H.range(-0.2, 0.2), H.range(0, 6), 0], [H.range(0.85, 1.15), H.range(0.8, 1.0), H.range(0.85, 1.1)]), i + 1, H.chance(0.75) ? [0.012, 0.012, 0.014] : [0.02, 0.05, 0.12]);
+      for (let i = 0; i < n; i++) {
+        const px = x + H.range(-0.6, 0.6), py = y + (i > 3 ? 0.28 : 0), pz = z + H.range(-0.35, 0.35), rx = H.range(-0.2, 0.2), ry = H.range(0, 6), s = [H.range(0.85, 1.15), H.range(0.8, 1.0), H.range(0.85, 1.1)];
+        const rg = track(pb, () => sack(P, pb, geom, geom.compose([px, py, pz], [rx, ry, 0], s), i + 1, H.chance(0.75) ? [0.012, 0.012, 0.014] : [0.02, 0.05, 0.12]));
+        rec.add({ id: `grime-bag-${x}-${z}-${i}`, fam: 'bag', box: { center: [px, py + 0.2 * s[1], pz], half: [0.3 * s[0], 0.2 * s[1], 0.3 * s[2]], yaw: ry }, parts: [[pb, rg, 'draw']] });
+      }
     }
     for (const [x, z, y, s, rot] of G.crates || []) {
-      crate(P, pb, geom, geom.compose([x, y, z], [0, rot, 0]), s, [0.12, 0.24, 0.16], Math.round(x) & 1);
+      const rg = track(pb, () => crate(P, pb, geom, geom.compose([x, y, z], [0, rot, 0]), s, [0.12, 0.24, 0.16], Math.round(x) & 1));
       const cp = new THREE.Mesh(new THREE.BoxGeometry(s * 1.2, s, s)); cp.applyMatrix4(geom.compose([x, y + s / 2, z], [0, rot, 0])); ctx.collider(cp);
+      rec.add({ id: `grime-crate-${x}-${z}`, fam: 'crate', box: { center: [x, y + s / 2, z], half: [s * 0.6, s / 2, s / 2], yaw: rot }, parts: [[pb, rg, 'draw']], proxies: [cp] });
     }
 
     // ---- puddles on the asphalt: a glassy film, shaped by noise (cut out, not blended: the planar mirror sees it)
     const puddle = mat.std({ color: new THREE.Color(0.006, 0.007, 0.009), roughness: 0.03, metalness: 0.0, polygonOffset: true, polygonOffsetFactor: -3 }, {
-      vertexDecl: 'varying vec2 ndUv;', vertexWorld: 'ndUv = uv;', fragmentDecl: 'varying vec2 ndUv;',
+      // (it dries with the hour's wetness: shrinks from its rim from 0.8 down and is gone under 0.35)
+      uniforms: { ndWet: WET.uWet }, vertexDecl: 'varying vec2 ndUv;', vertexWorld: 'ndUv = uv;', fragmentDecl: 'varying vec2 ndUv; uniform float ndWet;',
       albedo: `{ vec2 q = ndUv - 0.5; float r = length(q * vec2(1.0, 1.0)) + 0.18 * mgFbm2(mgWorldPos.xz * 1.3, 3) + 0.05 * mgFbm2(mgWorldPos.xz * 6.0, 2);
-        if (r > 0.42) discard; }`,
+        if (r > 0.42 * smoothstep(0.35, 0.8, ndWet)) discard; }`,
       roughness: 'roughnessFactor = 0.02;',
     });
     // (low has no mirror and no SSR: no puddle films there)
@@ -80,8 +88,12 @@ export default {
       const m = geom.compose([x, (z > 3.6 && z < 8.4) ? 0 : K, z], [0, rot, 0]), at = (p, r = [0, 0, 0]) => m.clone().multiply(geom.compose(p, r));
       for (const y of [0.55, 0.95]) b.add(new geom.RoundedBoxGeometry(1.6, 0.22, 0.04, 2, 0.015), M.yellow, at([0, y, 0.0]));
       for (const sx of [-0.7, 0.7]) for (const sz of [-1, 1]) fx.add(new THREE.BoxGeometry(0.05, 1.15, 0.05), M.darkMetal, at([sx, 0.55, sz * 0.18], [sz * 0.32, 0, 0]));
-      beacon(P, pb, geom, new THREE.Vector3(0, 1.065, 0).applyMatrix4(m).toArray(), [1.0, 0.55, 0.12], 3.5, 0.045);
+      const mk = markBatch(pb), bpos = new THREE.Vector3(0, 1.065, 0).applyMatrix4(m).toArray();
+      beacon(P, pb, geom, bpos, [1.0, 0.55, 0.12], 3.5, 0.045);
       const px = new THREE.Mesh(new THREE.BoxGeometry(1.7, 1.1, 0.5)); px.applyMatrix4(at([0, 0.55, 0])); ctx.collider(px);
+      // its boards take the rounds (marks, it holds); the beacon on top is a lamp that can be shot out
+      rec.add({ id: `barricade-${x}-${z}`, fam: 'barricade', box: { center: new THREE.Vector3(0, 0.75, 0).applyMatrix4(m).toArray(), half: [0.8, 0.3, 0.06], yaw: rot }, proxies: [px], keepProxies: true });
+      rec.add({ id: `beacon-${x}-${z}`, fam: 'beacon', sphere: { center: [bpos[0], bpos[1] + 0.07, bpos[2]], radius: 0.07 }, parts: [[pb, sinceMark(pb, mk).filter(([k]) => k === P.mats.glow.uuid + '+c'), 'glow']] });
     }
 
     // ---- wayfinding: yellow and black panels on the walls, chevrons and words on the floor, big stencilled numbers
@@ -104,13 +116,12 @@ export default {
     g.save(); g.beginPath(); g.arc(128, 128, 96, 0, 7); g.clip(); g.lineWidth = 5; for (let i = -12; i <= 12; i++) { g.beginPath(); g.moveTo(128 + i * 16 - 200, 0); g.lineTo(128 + i * 16 + 200, 256); g.stroke(); g.beginPath(); g.moveTo(128 + i * 16 + 200, 0); g.lineTo(128 + i * 16 - 200, 256); g.stroke(); } g.restore();
     g.fillStyle = '#444'; g.fillRect(58, 104, 140, 48); g.fillStyle = '#bbb'; g.font = '900 34px "PingFang TC", "Noto Sans TC", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('下水 07', 128, 129);
     const mtex = new THREE.CanvasTexture(mc); mtex.anisotropy = 8;
-    const manhole = mat.std({ map: mtex, roughness: 0.45, metalness: 0.9, color: new THREE.Color(0.12, 0.12, 0.13) }, {
-      normal: 'normal = mgBump(normal, texture2D(map, vMapUv).r, 0.03);',
-      roughness: 'roughnessFactor = mix(0.6, 0.25, texture2D(map, vMapUv).r);',
-    });
+    // cast iron (the library's): the raised pattern worn to bare iron by tyres and feet, the recesses rust and grime
+    const manhole = surf(SURFACES.castIron({ variant: 'plain', rust: 0.6 }), { mapping: 'ground', size: 'small', params: { map: mtex, color: new THREE.Color(1.6, 1.6, 1.6) } },
+      { post: '{ float hi = smoothstep(0.45, 0.65, texture2D(map, vMapUv).r); msM *= hi; msR = mix(0.85, msR, hi); }' });
     for (const [x, z] of G.manholes || []) fx.cylinder(manhole, 0.43, 0.43, 0.025, [x, 0.014, z], [0, Q.range(0, 6), 0], 28);
 
-    root.add(b.finish({ name: 'grime', castShadow: false }), decor(fx.finish({ name: 'grime-decor', castShadow: false })), decor(pb.finish({ name: 'grime-props', castShadow: false })));
+    root.add(b.finish({ name: 'grime', castShadow: false }), decor(fx.finish({ name: 'grime-decor', castShadow: false })), decor(rec.finished(pb, pb.finish({ name: 'grime-props', castShadow: false }))));
     return {};
   },
 };

@@ -21,6 +21,7 @@ export { createTextures, TEX_GLSL, TEX_RELIEF_GLSL, glslName } from './textures.
 export { createJobQueue, createLRU, createUploadBudget, textureBytes, objectBytes, texturesOf, disposeObject, watchLongTasks, nextFrame } from './stream.js';
 export { RELIEF, RELIEF_GLSL, RELIEF_LIGHT, setRelief, withRelief, renderHeight, renderShade } from './relief.js';
 export { WET, WET_GLSL, setWetness, setRain, withWet } from './wet.js';
+export { registerSurfaceKinds, registerSurfaceDecals, surfaceKinds, surfaceSpec, surfaceHooks, bakeSurface, bakeDecalAtlas, createSurfaces, noiseTexture } from './surfaces.js';
 export { createEnvLight } from './envlight.js';
 export { deviceProfile, pickQuality, QUALITY_LEVELS, QUALITY_KEY } from './device.js';
 export * as geom from './geom.js';

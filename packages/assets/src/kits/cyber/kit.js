@@ -1,4 +1,4 @@
-// props-kit: what the close-up props share (not a module itself). One canvas atlas for every printed thing a player
+// Mirage original code. kit/cyber's shared props kit (propKit(ctx), cached on ctx.shared.props). One canvas atlas for every printed thing a player
 // can read from a metre away (drink labels in English / Traditional Chinese / kana, price tags, stickers, warning
 // labels, stencils, number plates, menus, lantern paper, drive bays, keyboards, tyre walls), and five materials
 // that read it: painted / plastic (`paint`), metal (`metal`), lit (`glow`, intensity in the vertex colour, so one
@@ -8,6 +8,7 @@
 // colour, so a whole prop (and every prop of a module) merges into one draw per material.
 // All brands are invented.
 import * as THREE from 'three';
+import { surfaceLib } from './surface-lib.js';
 
 const FONT = '"PingFang TC", "Hiragino Sans", "Noto Sans TC", "Noto Sans JP", "Microsoft JhengHei", system-ui, sans-serif';
 
@@ -219,28 +220,40 @@ export const hex = (h, k = 1) => { const c = new THREE.Color(h); return [c.r * k
 export function propKit(ctx) {
   if (ctx.shared.props) return ctx.shared.props;
   const { mat } = ctx, A = buildAtlas(), map = A.texture;
-  const grime = {
-    fragmentDecl: 'float ndG;',
-    albedo: '{ ndG = mgFbm3(mgWorldPos * 2.7, 3); diffuseColor.rgb *= 0.78 + 0.34 * ndG; }',
-    roughness: 'roughnessFactor = clamp(roughnessFactor + 0.25 * (ndG - 0.5), 0.05, 1.0);',
-  };
+  // the surfaces under the vertex colours and the atlas (the library's, docs/surfaces.md): a near-white surface so the
+  // colour a part is painted keeps its albedo, and the surface adds the grain, the roughness and the wear.
+  //   paint    a satin coating (dielectric; steel at worn edges): painted sheet, boxes, frames
+  //   metal    bare steel whose F0 is the vertex colour; a part coloured darker than ~0.15 is not a dark metal (a
+  //            black mirror) but black powder coat: brackets, handles, bezels
+  //   plastic, cardboard, wood: the parts that are those (bins, crates, slats, boxes)
+  const { surf, shade, SURFACES } = surfaceLib(ctx);
+  const own = { params: { map, vertexColors: true }, size: 'small' };
+  const SPLIT = /* glsl */ `{ float vl = dot(vColor.rgb, vec3(0.2126, 0.7152, 0.0722)), d = 1.0 - smoothstep(0.1, 0.22, vl);
+    msAlb = mix(msAlb / 0.56, vec3(0.85), d); msM *= 1.0 - d; msR = mix(msR, 0.5, d); }`;
   const mats = {
-    paint: mat.std({ map, vertexColors: true, roughness: 0.55, metalness: 0.2 }, grime),
-    metal: mat.std({ map, vertexColors: true, roughness: 0.3, metalness: 0.9 }, grime),
+    paint: shade('coat', null, own),
+    metal: surf(SURFACES.metal({ metal: 'steel', variant: 'worn', roughness: 0.32 }), own, { post: SPLIT }),
+    plastic: shade('plastic', null, own),
+    cardboard: shade('board', null, own),
+    wood: shade('sawn', null, { ...own, mapping: 'grain', grain: [1, 0, 0] }),
+    concrete: surf(SURFACES.concrete({ variant: 'precast', panel: [2.4, 0.9], color: [0.82, 0.82, 0.8] }), own),
+    ceramic: surf(SURFACES.ceramic({ variant: 'glazed', color: [0.85, 0.85, 0.85], roughness: 0.08 }), own),
     glow: mat.patch(new THREE.MeshBasicMaterial({ map, vertexColors: true }), { output: 'outgoingLight *= max(uLampGain, 0.06);' }),
     // a lantern: brighter where the paper faces you (the light behind it), dimmer toward the outline
     lantern: mat.patch(new THREE.MeshBasicMaterial({ map, vertexColors: true }), {
       output: '{ vec3 V = normalize(cameraPosition - mgWorldPos); float f = abs(dot(V, normalize(mgWorldNormal))); outgoingLight *= (0.25 + 1.1 * f * f) * max(uLampGain, 0.08); }',
     }),
-    clear: mat.std({ map, vertexColors: true, roughness: 0.04, metalness: 0.1, transparent: true, opacity: 0.42, depthWrite: false }),
+    clear: mat.std({ map, vertexColors: true, roughness: 0.04, metalness: 0, transparent: true, opacity: 0.42, depthWrite: false }),
     // products: one instanced mesh per shape; ndLab moves each one's uv to its own label; lit by the machine inside
-    product: mat.std({ map, roughness: 0.32, metalness: 0.5 }, {
+    // (printed cans and cartons: dielectric, the print's gloss)
+    product: mat.std({ map, roughness: 0.35, metalness: 0 }, {
       vertexDecl: 'attribute vec2 ndLab;',
       vertexWorld: '#ifdef USE_MAP\n vMapUv += ndLab;\n#endif',
       emissive: 'totalEmissiveRadiance += diffuseColor.rgb * 0.5 * max(uLampGain, 0.3);',
     }),
   };
   for (const m of [mats.paint, mats.metal]) m.userData.surface = 'gravel';
+  mats.wood.userData.surface = 'wood';
   const R = A.rects;
   const put = (batch, geo, m, matrix = null, color = [1, 1, 1], rect = R.white) => {
     let g = geo.index ? geo.toNonIndexed() : geo.clone();
@@ -260,4 +273,49 @@ export function propKit(ctx) {
     return im;
   };
   return (ctx.shared.props = { R, mats, put, instanced, texture: map, names: { CAN, BOTTLE, BOX, PACK, CAPS, BAR_LABELS, LANTERN, GOODS } });
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// What a builder records for the game's destructibles (game/destruct.js, docs/destructibles-neon-district.md): per
+// prop its id, family, box, the vertex ranges it added to each merged batch (resolved to draw handles once the batch
+// is finished), its glowing ranges (dimmed, not hidden, when its light dies), its pool lamps and clustered lights, its
+// collider proxies. Nothing here costs a draw call: the ranges index the batches the module draws anyway.
+/** the shared list ({ list }), on ctx.shared.breakables */
+export const breakables = (ctx) => (ctx.shared.breakables ||= { list: [] });
+/** every material group's vertex count in a batch now */
+export function markBatch(batch) { const m = new Map(); for (const [k, e] of batch.groups) m.set(k, e.verts); return m; }
+/** the vertex ranges a batch gained since a mark: [[key, first, count]] */
+export function sinceMark(batch, m) { const out = []; for (const [k, e] of batch.groups) { const a = m.get(k) || 0; if (e.verts > a) out.push([k, a, e.verts - a]); } return out; }
+/** the ranges fn() adds to batch (the list; fn's own return value on .result) */
+export function track(batch, fn) { const m = markBatch(batch); const r = fn(); return Object.assign(sinceMark(batch, m), { result: r }); }
+/** a lamp several props share (a row of machines, a string of bulbs, a cart's lanterns): it goes out with the last */
+export const breakablesLamp = (ctx, group, lamps) => { (breakables(ctx).lampGroups ||= {})[group] = lamps; };
+/** the pool lamps (indices into ctx.shared.pool) and clustered lights fn() declares */
+export function trackLamps(ctx, fn) {
+  const p0 = (ctx.shared.pool || []).length, l0 = (ctx.shared.lamps || []).length;
+  const r = fn();
+  const pool = [], lights = [];
+  for (let i = p0; i < (ctx.shared.pool || []).length; i++) pool.push(i);
+  for (let i = l0; i < (ctx.shared.lamps || []).length; i++) lights.push(ctx.shared.lamps[i].light);
+  return { pool, lights, result: r };
+}
+/** a recorder for one module: rec.add(entry) with entry.parts [[batch, ranges, 'draw' | 'glow']]; rec.finished(batch,
+ *  group) after batch.finish() turns those ranges into { mesh, range } handles (entry.draw, entry.glow) */
+export function recorder(ctx) {
+  const B = breakables(ctx), open = B.list;   // (any module's entry: a builder may add to another module's batch)
+  return {
+    add(e) { e.draw ||= []; e.glow ||= []; e.parts ||= []; B.list.push(e); return e; },
+    finished(batch, group) {
+      const keys = [...batch.groups.keys()], meshes = new Map(), kids = [];
+      // finish() makes one mesh per material group in insertion order (a group over 2 M vertices would split: none does)
+      group.traverse((o) => { if (o.isMesh) kids.push(o); });
+      if (kids.length !== keys.length) { console.warn('destructibles: batch', group.name, 'was split; its props are not breakable'); return group; }
+      keys.forEach((k, i) => meshes.set(k, kids[i]));
+      for (const e of open) for (const [b, ranges, role] of e.parts) {
+        if (b !== batch) continue;
+        for (const [k, first, count] of ranges) if (meshes.has(k)) (e[role] ||= []).push({ mesh: meshes.get(k), range: [first, count] });
+      }
+      return group;
+    },
+  };
 }

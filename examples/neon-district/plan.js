@@ -144,6 +144,14 @@ export default {
     { id: 'w0', at: [24.5, FLOOR, -22], face: 0, zone: 'wave' },
     { id: 'w1', at: [20, FLOOR, -26], face: 0, zone: 'wave' },
     { id: 'w2', at: [16, FLOOR, -22], face: 0, zone: 'wave', kind: 'heavy' },
+    // hounds (robot dogs, enemies.js): a scout on the street's far side, a hauler with a turret and a scout on the
+    // plaza; a scout and a hauler kept for the holdout only (zone 'holdout': never woken in the mission; the holdout
+    // sends them from its third wave)
+    { id: 'h0', at: [9.5, 0, 8.6], face: 3.14, zone: 'street', kind: 'hound' },
+    { id: 'h1', at: [17, KERB, -10], face: 1.57, zone: 'plaza', kind: 'hauler' },
+    { id: 'h2', at: [24, KERB, -9.5], face: 3.14, zone: 'plaza', kind: 'hound' },
+    { id: 'h3', at: [22.5, FLOOR, -24.5], face: 0, zone: 'holdout', kind: 'hound' },
+    { id: 'h4', at: [13, FLOOR, -24], face: 0, zone: 'holdout', kind: 'hauler' },
   ],
   // kites: flying drones, where each hovers until it is woken ([x, y, z] in the air)
   drones: [

@@ -1,11 +1,11 @@
-// props-shapes: the small turned and folded shapes the props are made of (not a module). Each comes with its uv laid
+// Mirage original code. kit/cyber's product shapes: the small turned and folded shapes the props are made of. Each comes with its uv laid
 // out for the atlas cell family it prints from (props-kit.js), so a product can be instanced with a per-instance
 // label: a can (lathe: a domed base, the barrel, a necked shoulder, the rim, a recessed lid and a pull tab), a PET
 // bottle (lathe: base feet, a waisted body, shoulder, neck ring, a ribbed cap), a noodle cup, a carton or box, a
 // pillow snack pack, a capsule, a spiral feeder. Sizes in metres, standing on y = 0.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { uvByHeight, uvRect } from './props-kit.js';
+import { uvByHeight, uvRect } from './kit.js';
 
 const lathe = (pts, seg) => { const g = new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(Math.max(r, 1e-4), y)), seg); g.computeVertexNormals(); return g; };
 const fit = (g, r) => uvRect(g, r);

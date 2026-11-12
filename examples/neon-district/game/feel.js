@@ -3,6 +3,58 @@
 // nearly dead, a landing thump, and a hit-stop of a few hundredths of a second on a kill (the robots and the view
 // model hold still; the options turn it off). The options' strengths apply: opts.vibrate (0-1), opts.hitStop.
 // Nothing here can be felt in a headless browser: the calls are made and counted (stats), not verified on hardware.
+//
+// Comfort (NOTES.md "Comfort"): one setting, three presets, that set together everything that moves or flashes the
+// view without the player asking for it. The individual values stay settings of their own (a preset writes them;
+// changing one after makes the preset 'custom'):
+//   shake    0..1.5  screen shake (shots, hits, explosions, landings) and the view's flinch when hit
+//   bob      0..1.5  the walk's head bob (vertical; its sideways roll goes with `roll`) and the landing dip
+//   punch    0..1    the field-of-view punch a shot gives (degrees per shot = the gun's x punch; at 0.25 at most 1)
+//   roll     0..1    the camera's roll from recoil, the walk and the shake (the lean's tilt is the player's: it stays)
+//   kick     0.4..1  the camera's share of the recoil climb (the rest goes to the gun model and the crosshair)
+//   settle   1..2.5  how fast the shake, the flinch and the dip die away (2 = twice as fast as the old feel)
+//   hitStop  bool    the robots freeze for 55 ms on a kill
+//   blur     0..1    factor on the quality level's motion blur
+//   flashes  0.2..1  lightning, sparks, flickering signs, the dash / overdrive screen flash: below 1 they are smooth
+//                    (no per-tick random flicker) and dimmer; 1 is the old raw flicker
+// (The dash has no field-of-view warp or speed lines in any preset: a 0.2 s move and a faint tint.)
+// 'intense' is the feel as it was before the comfort pass, 'comfort' the default; prefers-reduced-motion picks
+// 'comfort' with the flashes down to 0.3.
+export const COMFORT = {
+  comfort: { shake: 0.45, bob: 0.35, punch: 0.25, roll: 0, kick: 0.6, settle: 2, hitStop: false, blur: 0, flashes: 0.6 },
+  standard: { shake: 0.75, bob: 0.7, punch: 0.6, roll: 0.5, kick: 0.85, settle: 1.4, hitStop: true, blur: 0.5, flashes: 0.8 },
+  intense: { shake: 1, bob: 1, punch: 1, roll: 1, kick: 1, settle: 1, hitStop: true, blur: 1, flashes: 1 },
+};
+export const COMFORT_KEYS = ['shake', 'bob', 'punch', 'roll', 'kick', 'settle', 'hitStop', 'blur', 'flashes'];
+/** the sliders' ranges, for the options panel: [key, min, max, step] (hitStop is a toggle) */
+export const COMFORT_RANGES = [['shake', 0, 1.5, 0.05], ['bob', 0, 1.5, 0.05], ['punch', 0, 1, 0.05], ['roll', 0, 1, 0.05], ['kick', 0.4, 1, 0.05], ['settle', 1, 2.5, 0.1], ['blur', 0, 1, 0.05], ['flashes', 0.2, 1, 0.05]];
+const num = (v, lo, hi, d) => { const x = typeof v === 'string' && v.trim() !== '' ? +v : v; return typeof x === 'number' && Number.isFinite(x) ? Math.min(hi, Math.max(lo, x)) : d; };
+const bool = (v, d) => (v === true || v === 'true' ? true : v === false || v === 'false' ? false : d);
+/** the comfort values of a preset name ('comfort' for anything unknown), reduced motion turning the flashes down */
+export function comfortPreset(name, reduced = false) {
+  const p = { ...(COMFORT[name] || COMFORT.comfort) };
+  if (reduced) p.flashes = Math.min(p.flashes, 0.3);
+  return p;
+}
+/** settings as kept (any shape: an old save, a hand-edited one, ?sens=abc) -> values the game can use. Settings
+ *  older than version 2 (before the comfort pass) keep the player's look and touch choices; the feel and the field
+ *  of view go to the new defaults. */
+export function cleanOptions(kept, { reduced = false, touch = false } = {}) {
+  const k = kept && typeof kept === 'object' ? kept : {}, old = !(k.v >= 2);
+  const fov0 = touch ? 62 : 75;   // vertical degrees: 75 is 107.5 horizontal at 16:9 (a phone held sideways, about 2.1:1, gets 105 from 62)
+  const o = {
+    v: 2, sens: num(k.sens, 0.1, 5, 1), invert: bool(k.invert, false), fov: old ? fov0 : num(k.fov, 50, 90, fov0),
+    tSens: num(k.tSens, 0.1, 5, 1), tOpacity: num(k.tOpacity, 0.1, 1, 0.7), tScale: num(k.tScale, 0.6, 1.5, 1), leftFire: bool(k.leftFire, true), sprintLock: bool(k.sprintLock, true),
+    vibrate: num(k.vibrate, 0, 1, 1), unlocked: bool(k.unlocked, false), comfort: old || !(k.comfort in COMFORT || k.comfort === 'custom') ? 'comfort' : k.comfort,
+  };
+  if (k.pops !== undefined) o.pops = bool(k.pops, true);
+  const base = comfortPreset(o.comfort === 'custom' ? 'comfort' : o.comfort, reduced);
+  for (const [key, lo, hi] of COMFORT_RANGES) o[key] = old || o.comfort !== 'custom' ? base[key] : num(k[key], lo, hi, base[key]);
+  o.hitStop = old || o.comfort !== 'custom' ? base.hitStop : bool(k.hitStop, base.hitStop);
+  for (const key of Object.keys(k)) if (!(key in o)) o[key] = k[key];   // whatever else the other parts keep there
+  return o;
+}
+
 export function createFeel({ opts, input, sfx, canvas, game }) {
   const stats = { rumbles: 0, buzzes: 0, beats: 0, stops: 0, lands: 0 };
   let lastRumble = 0, lastBuzz = 0, beatT = 0, stopT = 0, sat = 1;

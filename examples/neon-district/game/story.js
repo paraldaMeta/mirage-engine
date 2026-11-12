@@ -10,7 +10,8 @@
 //   banter       idle sentinels at their posts trade deadpan pairs when the player is within earshot and unseen
 //                (a subtitle over each speaker and the radio blip); state barks (alert, hurt, hacked, ...) in the
 //                same voice, at most one every 1.2 s, the nearest first
-//   hit words    comic words in the world on a head shot, a shield breaking, an EMP and an overload (opts.pops)
+//   hit words    comic words in the world on a head shot, a shield breaking, an EMP and an overload (opts.pops:
+//                off unless the player turns them on in the options)
 export function createStory({ game, enemies, hud, overlay, sfx, player, T, hack, opts, holdout }) {
   const X = T.xt, ST = X.story;
   let rnd = 0x1f83d9ab, stage = -1, banterT = 6, banterI = 0, barkGap = 0, twistT = -1, closeShown = false, coldDone = false;
@@ -28,7 +29,7 @@ export function createStory({ game, enemies, hud, overlay, sfx, player, T, hack,
   };
   const POP_KIND = { head: 'head', shield: 'shield', emp: 'emp', overload: 'overload' };
   /** a comic word (when the option is on) */
-  function pop(kind, pos) { if (opts.pops === false) return; overlay.pop(pick(X.pops[kind]), pos, POP_KIND[kind]); }
+  function pop(kind, pos, force = false) { if (opts.pops !== true && !force) return; overlay.pop(pick(X.pops[kind]), pos, POP_KIND[kind]); }
   enemies.on.pop = pop;
   // the handler's tag, by how far the route has gone
   const setStage = (n) => { if (n <= stage) return; stage = n; T.control = ST.labels[Math.min(n, ST.labels.length - 1)]; };
@@ -65,5 +66,7 @@ export function createStory({ game, enemies, hud, overlay, sfx, player, T, hack,
       if ((twistT > 4 && !document.querySelector('.mg-msg[open]')) || twistT > 30) { closeShown = true; overlay.card([ST.close], 12); game.set('closed', true); }
     }
   }
-  return { update, pop };
+  /** the language changed: the handler's tag of the stage reached, in the new table */
+  const relang = () => { if (stage >= 0) T.control = ST.labels[Math.min(stage, ST.labels.length - 1)]; };
+  return { update, pop, relang };
 }
