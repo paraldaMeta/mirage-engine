@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { NOISE_GLSL } from './noise.js';
 import { hash32 } from './rng.js';
 import { withWet } from './wet.js';
+import { withFlash } from './weather.js';
 import { MS_COMMON } from './surface-glsl.js';
 
 // ---------------------------------------------------------------------------
@@ -498,7 +499,8 @@ export function bakeDecalAtlas(renderer, size = 1024) {
  *   (tier 'low': every set at half its kind's size, a quarter of the memory; 'auto': baked, except
  *   the kinds cheaper per pixel than their taps: tile, stainless, chrome, metal, carPaint, rubber, bamboo, carbonFibre)
  *   material(spec, options)  a ready MeshStandard / MeshPhysical material (options: see surfaceHooks, plus wet: true |
- *                            withWet options, mode, size, and three material parameters in `params`)
+ *                            withWet options, flash: true | withFlash options (the lightning on a dry surface; a wet
+ *                            one has it), mode, size, and three material parameters in `params`)
  *   hooks(spec, options)     the hooks (baked on demand), to combine yourself
  *   bake(spec, size?)        the texture set (cached per kind, numbers and size)
  *   stats()                  { baked, ms, bytes, materials }
@@ -526,6 +528,7 @@ export function createSurfaces(world, { mode = 'auto', size = 0, anisotropy = 8,
     if (o.decals) extra.decalAtlas = (atlas ??= bakeDecalAtlas(renderer)).texture;
     let h = surfaceHooks(spec, { ...o, ...extra, mode: m });
     if (o.wet) h = withWet(h, { porosity: spec.porosity, height: 'msH', heightMid: 0.5, heightScale: Math.max(spec.depth, 0.004), ground: o.ground ?? 0, ...(o.wet === true ? {} : o.wet) });
+    else if (o.flash) h = withFlash(h, o.flash === true ? {} : o.flash);   // the lightning on a dry surface (wet ones have it)
     return h;
   };
   const material = (spec, o = {}) => {

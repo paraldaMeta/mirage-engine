@@ -505,6 +505,8 @@ export function setupDestruct({ ctx, shared, vfx, sfx, player, weapon, enemies, 
       game.set('civilians', score.civilians);
     } else { score.others++; game.set('civiliansOther', score.others); }
   });
+  // a cut steam pipe's jet: a lit plume along it too (modules/steam.js), over the library's particle jet
+  d.on('steam', (e) => { if (e.item?.entry?.fam === 'steampipe' || e.item?.entry?.fam === 'ac') shared.plumes?.jet(e.point, e.dir, e.duration); });
   d.on('panic', () => { game.flags.panics = (game.flags.panics || 0) + 1; });
   // a car alarm, a burst machine, a falling sign: the robots that are awake come to look (as the car hack's lure)
   d.on('noise', (e) => {
@@ -573,7 +575,7 @@ export function setupDestruct({ ctx, shared, vfx, sfx, player, weapon, enemies, 
   // ---- saves: the registry saves itself; the score and our own looks (a thrown scooter, a folded flap, a sunk car)
   // come back from the broken set
   let restoring = false;
-  d.on('reset', () => { anims.length = 0; for (const e of entries) proxyOn(e); for (const w of wrecks) w.h.stop(); wrecks.length = 0; for (const car of cars.values()) car.char?.set(1); for (const c of civ) { c.k = 0; c.at = null; c.cower = 0; c.cowerT = 0; c.last.clear(); } for (const car of cars.values()) { car.flat.clear(); car.reshape?.(); } darkList = []; groupLit(); for (const m of meds) { m.live = false; m.o.visible = false; } });
+  d.on('reset', () => { shared.plumes?.clear(); anims.length = 0; for (const e of entries) proxyOn(e); for (const w of wrecks) w.h.stop(); wrecks.length = 0; for (const car of cars.values()) car.char?.set(1); for (const c of civ) { c.k = 0; c.at = null; c.cower = 0; c.cowerT = 0; c.last.clear(); } for (const car of cars.values()) { car.flat.clear(); car.reshape?.(); } darkList = []; groupLit(); for (const m of meds) { m.live = false; m.o.visible = false; } });
   d.on('restore', () => { groupLit(); rezone(true); for (const car of cars.values()) if (car.body.broken) car.char.set(0.16); for (const it of d.items) if (it.broken && it.entry && GONE.has(it.entry.fam)) proxyOff(it.entry); });
   const restoreOf = d.restore;
   d.restore = (s) => { restoring = true; try { return restoreOf(s); } finally { restoring = false; } };

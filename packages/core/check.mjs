@@ -165,7 +165,7 @@ assert.deepEqual(dynamicResConfig({ target: 1000, min: 0, step: NaN }), { target
   const base = PR.plaster(undefined, { render: 0.009 }), frozen = JSON.stringify(base), wet = withWet(base, { porosity: 0.8, puddles: 0 });
   assert.equal(JSON.stringify(base), frozen, 'withWet does not touch its input');
   for (const k of ['albedo', 'normal', 'output']) assert.ok(wet[k].startsWith(base[k]), `wet keeps the ${k} hook first`);
-  assert.ok(wet.fragmentDecl.includes(RG) && wet.fragmentDecl.includes(WET_GLSL) && wet.fragmentDecl.endsWith(base.fragmentDecl), 'relief and wet GLSL together');
+  assert.ok(wet.fragmentDecl.includes(RG) && wet.fragmentDecl.includes(WET_GLSL) && wet.fragmentDecl.includes(base.fragmentDecl), 'relief and wet GLSL together');
   assert.ok('uRelief' in wet.uniforms && wet.uniforms.uWet === WET.uWet && wet.uniforms.uRain === WET.uRain && wet.uniforms.mgWetP.value.w === 0, 'relief and wet uniforms (wet by reference)');
   assert.ok(withWet({}, { height: 'mgS.h', heightMid: 0.55 }).metalness.includes('0.012 * ((mgS.h) - 0.55)'), 'height bias about its mean');
   const plane = new THREE.Object3D(), parent = new THREE.Group();

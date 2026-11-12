@@ -4,6 +4,31 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
 
 ## Unreleased
 
+**Weather: lightning that lights every wet surface, and a storm sky (opt-in)**
+- `createWorldRenderer({ flash: true | { intensity, color, bolt, boltGain } })` -> `world.flash` (`@miragekit/core`,
+  `@miragekit/core/weather`): one shared flash (`set(level, dir)`, `strike(from, to)`, `envelope(t, k)`; k below 1 is
+  one smooth pulse, for a comfort setting) that every `withWet` material lights as a cold diffuse light plus a sharp
+  specular glint and a broad mirrored cloud lobe, by the open sky's share (the wet layer's shelter); any other
+  Standard / Physical material takes it with `withFlash(hooks, { shelter })` or the surface framework's
+  `material(spec, { flash: true })`. A branching bolt mesh is drawn while the level is high. The code is compiled
+  only under the define `MG_FLASH`, set while a world with the option exists, so without it every program and every
+  picture is what it was. Check: `packages/core/weather.check.mjs`.
+- `createWorldRenderer({ sky: { storm: true | { glow, band, flash, speed } } })`: a low torn rain deck over the dome,
+  lit from below by the haze colour and from inside by the flash, curtains of rain and a bright horizon band; its weight
+  is `sky.material.uniforms.uStorm.value.x` (0 = the dome as before, the caller eases it with the rain).
+- `channelWater(world, { from, to, y, width, depth, water, speed, turbulence, foam, wall, bed })` (`@miragekit/core`,
+  `@miragekit/core/channel`): a straight open channel of running water. The surface traces its own cross-section in
+  the shader (no mirror pass): refraction onto the bed or a wall (caustics, the walls' shadow from the cross-section,
+  absorption), the opposite wall in its reflection, three's reflection elsewhere, advected ripples, rain rings, foam
+  below the inflow, lit by what three computed at the pixel (the shadowed sun, lamps, image-based light, the flash).
+  Returns the water mesh and the walls' and bed's geometry. Nothing changes without the call.
+- `createPlumes(world, { budget, slices, far })` (`@miragekit/core`, `@miragekit/core/plumes`): lit volumetric steam
+  and thin smoke, every plume one instance of camera-facing slices in a single draw, sorted, the nearest `budget`
+  within `far` drawn; single scattering of the key light (sun visibility given per plume), one lamp per plume and an
+  ambient fill. Nothing changes without the call. Check (both): `packages/core/channel.check.mjs`.
+- The channel water and the lightning re-implement techniques of the owner's Nizwa project (falaj water, qulzum
+  storm, incense smoke); no Nizwa engine code (its `src/core`) is included.
+
 **A view model in its own near plane (opt-in)**
 - `viewModelDepth(root, { near: 0.01 })` (`@miragekit/core`, `@miragekit/core/viewmodel`): every mesh under `root` is
   clipped at its own near plane and writes the camera's own depth (gl_FragDepth), so a gun held a few centimetres from

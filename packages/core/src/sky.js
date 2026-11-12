@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { NOISE_GLSL } from './noise.js';
 import { ATMO, ATMOSPHERE_GLSL } from './atmosphere.js';
 import { FOG } from './fog.js';
+import { FLASH } from './weather.js';
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 
 // ---------------------------------------------------------------------------
@@ -22,7 +23,25 @@ import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 //    (fog.js's in-scatter at infinity), instead of a black band;
 //  - altocumulus: puffy cells in coverage patches, self-shadowed toward the light, a fuller default cover (`cover`).
 // The air parts are baked into the direction tables with the rest (no per-pixel cost); the clouds are per pixel.
+//
+// The storm sky (opt-in: { sky: { storm: true | { ... } } }, the define MG_SKY_STORM) lays a low torn rain deck over
+// the dome by `uniforms.uStorm.value.x` (0 none: the dome as before; the caller eases it with the rain): dark masses
+// and paler thin parts lit from below by the city (the world's haze colour), fast scud, rain curtains hanging at the
+// horizon and a bright horizon band, and the lightning (weather.js FLASH) lighting the deck from inside, brightest
+// round the strike and in the thin parts. The technique follows the owner's Nizwa project (src/maps/qulzum-sea.js,
+// its dome), re-implemented on this sky's units.
 // ---------------------------------------------------------------------------
+
+/** The storm sky's settings: `glow` the deck's brightness x the haze colour, `band` the horizon band's, `flash` x the
+ *  lightning's light in the deck, `speed` the scud's drift (x the cloud layer's). */
+export const SKY_STORM_DEFAULTS = Object.freeze({ glow: 1.1, band: 1.7, flash: 0.5, speed: 6 });
+/** config.sky ({ storm: true | { glow, band, flash, speed } }) -> the storm sky's settings, or null (off). */
+export function skyStormConfig(c) {
+  if (!c || !c.storm) return null;
+  const o = c.storm === true ? {} : c.storm, D = SKY_STORM_DEFAULTS;
+  const n = (v, d, hi) => (Number.isFinite(v) ? Math.min(hi, Math.max(0, v)) : d);
+  return { glow: n(o.glow, D.glow, 20), band: n(o.band, D.band, 20), flash: n(o.flash, D.flash, 20), speed: n(o.speed, D.speed, 100) };
+}
 
 /** The dusk sky's settings: `haze` aerosol x the clear air's, `night` the night dome's brightness as seen (1 = as
  *  lit), `airglow` x the airglow's horizon brightening, `cover` the cloud cover when the world gives none. */
@@ -36,8 +55,17 @@ export function skyDuskConfig(c) {
   return { haze: n(o.haze, D.haze, 10), night: n(o.night, D.night, 1), airglow: n(o.airglow, D.airglow, 10), cover: n(o.cover, D.cover, 1) };
 }
 
-export function createSkyUniforms({ dusk } = {}) {
+export function createSkyUniforms({ dusk, storm } = {}) {
   const u = createBaseUniforms();
+  const St = skyStormConfig({ storm });
+  if (St) {
+    Object.assign(u, {
+      uStorm: { value: new THREE.Vector4(0, St.glow, St.band, St.flash) },   // x the weight (0 off .. 1), y glow, z band, w flash
+      uStormSpeed: { value: St.speed },
+      uStormBase: { value: new THREE.Color(0, 0, 0) },                        // the haze colour as the dome is drawn
+      uFlash: FLASH.uFlash, uFlashDir: FLASH.uFlashDir,
+    });
+  }
   const D = skyDuskConfig({ dusk });
   if (D) {
     Object.assign(u, {
@@ -187,6 +215,34 @@ float mgAcDensity(vec2 p){
   return clamp((cov * (puff + detail) - 0.36) * 2.6, 0.0, 1.0);
 }
 #endif
+#ifdef MG_SKY_STORM
+uniform vec4 uStorm;
+uniform float uStormSpeed;
+uniform vec3 uStormBase, uFlash, uFlashDir;
+// a low rain deck (500 m) over the dome: dark masses and paler thin parts lit from below by the city, scud drifting
+// faster than the deck, curtains of rain at the horizon, a bright horizon band, the lightning inside it
+vec3 mgStorm(vec3 d, vec3 col){
+  float y = max(d.y, 0.0);
+  vec2 p = d.xz / (y + 0.1) * 2.6 + uCloudOffset * uStormSpeed;
+  float c1 = mgFbm2(p * 0.45, 5) * 0.5 + 0.5;
+  float c2 = mgFbm2(p * 1.6 + uCloudOffset * uStormSpeed * 4.0 + c1 * 1.2, 4) * 0.5 + 0.5;
+  float dens = smoothstep(0.3, 0.78, c1 * 0.75 + c2 * 0.4);
+  // lit from below: the thin parts pale, the masses dark; the band at the horizon the brightest (the city's glow
+  // seen through the most air)
+  vec3 deck = uStormBase * uStorm.y * mix(1.25, 0.42, dens) * (0.85 + 0.3 * smoothstep(0.4, 0.8, c2));
+  float hz = exp(-y * 9.0);
+  deck = mix(deck, uStormBase * uStorm.z, hz * 0.85);
+  float az = atan(d.z, d.x);
+  float cur = smoothstep(0.4, 0.9, mgFbm2(vec2(az * 3.0, y * 2.0) + uCloudOffset * uStormSpeed * 2.0, 3) * 0.5 + 0.5);
+  deck *= 1.0 - cur * 0.3 * exp(-y * 5.0);
+  // the lightning lights the deck from inside: brightest round the strike, the thin parts glow the most
+  float ang = max(dot(d, normalize(uFlashDir)), 0.0);
+  float near = pow(ang, 24.0) * 2.2 + pow(ang, 4.0) * 0.45 + 0.08;
+  deck += uFlash * uStorm.w * near * (0.35 + 0.8 * (1.0 - dens) + 0.3 * c2);
+  // over the dome above the horizon (the ground's haze below it stays the world's)
+  return mix(col, deck, uStorm.x * smoothstep(-0.02, 0.02, d.y));
+}
+#endif
 void main(){
   vec3 d = normalize(vDir);
   vec3 L = normalize(uSunDir);
@@ -275,6 +331,9 @@ void main(){
     }
   }
 #endif
+#ifdef MG_SKY_STORM
+  if (uStorm.x > 0.0) col = mgStorm(d, col);
+#endif
   gl_FragColor = vec4(col, 1.0);
 }`;
 
@@ -287,13 +346,15 @@ export function createSky(uniforms) {
   });
   if (uniforms.tSkyCol && uniforms.tSkyCol.value) mat.defines = { MG_SKY_LUT: '' };
   if (uniforms.uDusk) mat.defines = { ...mat.defines, MG_SKY_DUSK: '' };
+  if (uniforms.uStorm) mat.defines = { ...mat.defines, MG_SKY_STORM: '' };
   const sky = new THREE.Mesh(new THREE.SphereGeometry(1000, 48, 24), mat);
   sky.name = 'sky';
   sky.frustumCulled = false;
   sky.renderOrder = 1000;   // after opaques: only uncovered pixels pay for the sky
-  const haze = uniforms.uHazeCol ? uniforms : null;
+  const haze = uniforms.uHazeCol ? uniforms : null, st = uniforms.uStormBase ? uniforms : null;
   sky.onBeforeRender = (r, s, cam) => {
     sky.position.setFromMatrixPosition(cam.matrixWorld); sky.updateMatrixWorld();
+    if (st && s.fog && s.fog.color) st.uStormBase.value.copy(s.fog.color);
     if (haze) { const f = s.fog, on = !!(f && f.isFogExp2 && f.density > 0); haze.uHazeDen.value = on ? f.density : 0; if (on) haze.uHazeCol.value.copy(f.color); }
   };
   return sky;

@@ -58,7 +58,7 @@ export default {
     // the west end: two towers either side of the street's line and a low deck between them (was one 30 m tower across
     // the street's end): the sight line west down the street stays open, so the late sun stands in the street's end
     { name: 'westcap', rect: [-42, -2, -34, 1.6], h: 30, style: 'glass' },
-    { name: 'westdeck', rect: [-42, 1.6, -34, 10.4], h: 2.6, style: 'concrete' },
+    { name: 'westdeck', rect: [-42, 1.6, -34, 10.4], h: 2.6, style: 'concrete', bare: true },   // bare roof: the late sun reaches the water channel (waterStrip) over it
     { name: 'westcapS', rect: [-42, 10.4, -34, 14], h: 30, style: 'glass', signs: [
       { face: 'e', at: 12.2, y: 13, w: 3.2, h: 10, text: '新城', color: 'pink', vertical: true } ] },
     { name: 'eastcap', rect: [34, -2, 42, 14], h: 32, style: 'panel', signs: [
@@ -122,10 +122,10 @@ export default {
   ],
   vents: [[-23.2, 0, 24], [-20.8, 0, 14.5], [-9, KERB, 9.2], [22, KERB, 2.9], [28.6, KERB, -12]],   // steam
   cover: [   // low concrete barriers and planters: [x, z, rotY, length]
-    [-12, 6.9, 0.2, 2.4], [-1.5, 4.6, -0.15, 2.4], [9.5, 7.2, 0.1, 2.4],
+    [-12, 6.9, 0.2, 2.4], [-1.5, 4.6, -0.15, 2.4], [9.5, 6.4, 0.1, 2.4],
     [11, -4, 1.57, 3], [24.5, -5.5, 1.57, 3], [12.5, -14, 0, 3], [23.5, -14.5, 0, 3], [18, -2.2, 0, 3.2],
   ],
-  // reserved for an open water channel (not built yet): the carriageway's south gutter, 0.5 m wide and 16 m long, in
+  // the open water channel (ground.js): the carriageway's south gutter, 0.5 m wide and 16 m long, in
   // full sun at the golden hour (main.js TIMES.day: the sun 5.6 deg up at bearing 272, down the street's axis over the
   // low west deck), seen from the street and the plaza's corner. Nothing is to stand on it (props, parked cars, colliders)
   waterStrip: { rect: [1.5, 7.85, 17.5, 8.35], y: 0 },

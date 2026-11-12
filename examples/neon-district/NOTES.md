@@ -956,6 +956,30 @@ Memory (the baked sets, `shared.surf.lib.stats()`, 31 sets, ~80 ms of bakes at l
 asphalt and the street walls, 512 for floors and sheet, 256 for props), medium 28 MB (512 / 256 / 256), low 8.6 MB
 (256 / 128 / 128). The decal atlas's 2 MB is in each.
 
+## Weather and water (from the owner's Nizwa: techniques re-implemented, no Nizwa engine code)
+
+- **Lightning** (core `world.flash`, `?flash=0` off): while it rains, a strike every 16-38 s 260-460 m out: a branching
+  bolt in the sky, one flash uniform that every wet material (ground, puddles, walls, cars) adds as a cold diffuse light
+  plus its glint (the bolt through the material's BRDF, the lit cloud as a broad lobe on smooth wet surfaces; sheltered
+  less), the storm deck lit from inside; thunder after the sound's travel time (0.15 s + distance / 343 m/s).
+  Comfort: `flashes` 1 is Nizwa's three pulses (leader, return stroke, re-strike) in 0.4 s; below 1 one smooth pulse
+  at that strength (comfort 0.6, reduced motion 0.3); `scripts/motion-check.mjs` gates it. Intensity 6 (main.js).
+- **Storm sky** (core `sky.storm`): a low torn deck lit from below by the haze colour, scud, rain curtains and a bright
+  horizon band, weighted by the rain (main.js: smoothstep(0.25, 0.9) of the hour's rain): dusk and day are unchanged.
+- **Steam** (`modules/steam.js`, core `createPlumes`): the vents, manholes and the two pots are lit sliced plumes (the
+  sun by a ray from each plume's foot, middle and top whenever the sun moves; the nearest lamp or sign; the haze's fill;
+  the wind's lean); a cut steam pipe (or an air conditioner) adds a jet for its duration. One draw; plumes drawn / slices:
+  low 4 / 10, medium 6 / 14, high 8 / 16, within 28 / 36 / 40 m.
+- **The water channel** (`ground.js`, core `channelWater`, plan.waterStrip): 0.5 m wide, 0.35 m deep, 12 cm of water at
+  0.55 m/s from a pipe at its east end to a grate at its west end; damp concrete walls, a 1 cm concrete lid round it. The
+  water traces the cross-section (Nizwa's falaj): refraction onto the bed (grit, silt; caustics; the walls' shadow from
+  the section), the opposite wall reflected, three's reflection elsewhere, advected ripples, rain rings, drift film,
+  foam below the inflow. A collider keeps the road's floor over it (the walk grid and the route are as they were).
+  For the late sun to reach it the west deck's roof is bare (plan.js `bare`): a plant room on it shaded the whole
+  strip (the physics rays of strip-check did not see it; the script now also casts through every drawn shadow caster),
+  and the barrier at x 9.5 stands at z 6.4 (was 7.2: its shadow lay along the channel).
+- Stills: `node scripts/weather.mjs` -> `out/weather/`.
+
 ## Light by the hour
 
 Main.js keeps the whole model in one place: `weatherAt(h)` (the Sun's elevation in degrees -> rain, wetness, cloud,
