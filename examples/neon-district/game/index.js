@@ -19,6 +19,7 @@ import { createFeel, COMFORT, COMFORT_KEYS, COMFORT_RANGES, comfortPreset, clean
 import { createEnemies } from './enemies.js';
 import { createDrones } from './drones.js';
 import { createTitle } from './title.js';
+import { createIntro, introSeen } from './intro.js';
 import { createTouch } from './touch.js';
 import { setupKit } from './kit.js';
 import { setupDestruct, shotTap } from './destruct.js';
@@ -542,7 +543,18 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
     onFrame: () => { play.turn(0, 0, 0); relight(); weapon.holder.visible = false; },
     // the pointer lock is asked for before the full screen: the full screen takes the click's user activation, and a
     // lock asked for after it in the same click was refused (the mouse did not look until a second click)
-    onDeploy: (ev) => { begin(); g.ui.begin(ev); enterFull(); } });
+    onDeploy: (ev) => deploy(ev, Q.get('intro') === '1' || (Q.get('intro') !== '0' && run.mode === 'mission' && !introSeen() && !navigator.webdriver)),   // (not for the automated checks)
+    onIntro: (ev) => deploy(ev, true) });
+  // ---- the map's introduction (intro.js): between DEPLOY and control, once by itself, again from the title (I)
+  const intro = createIntro({ T, world, game, enemies, onDispose, onFrame: () => { relight(); weapon.holder.visible = false; } });
+  function deploy(ev, withIntro) {
+    if (!withIntro) { begin(); g.ui.begin(ev); enterFull(); return; }
+    if (ev && ev.type === 'click' && !g.ui.touch) { try { Promise.resolve(canvas.requestPointerLock?.()).catch(() => {}); } catch { /* the first click locks */ } }
+    enterFull();
+    const roof = run.mode === 'holdout' ? plan.viewpoints.find((v) => v.name === 'roof') : null;
+    const end = roof ? { eye: roof.eye, look: [roof.look[0], roof.eye[1], roof.look[2]], behind: 7.6, lift: 30 } : { eye: plan.spawn.eye, look: [plan.spawn.look[0], plan.spawn.eye[1], plan.spawn.look[2]], behind: 9, lift: 26 };
+    intro.play(g, { ...end, vfov: () => weapon.S.fov }, () => { const y = play.yaw; begin(); play.yaw = y; play.pitch = 0; g.ui.begin(); });   // (the holdout's place() would turn the view to its look)
+  }
   onDispose(onLang((l) => { run.lang = l; }));
   /** the run as chosen: the difficulty's health on everyone, the holdout's roof or the mission's spawn */
   function begin() {
@@ -597,7 +609,7 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
   const cardLines = () => { const c = props.card(); return `\n\n${T.dx.props(c.bill)}\n${T.dx.civ(c.civilians, c.points)}\n${T.dx.remarks[c.remark]}`; };
 
   return {
-    player, weapon, enemies, drones, stats, hud, sfx, leaves, opts, toggleOptions, run, tune, title, holdout: H, kit, props, cardLines: () => cardLines(), switchLang, fullscreen: fs, text: T, get lang() { return lang; }, get touch() { return touch; },
+    player, weapon, enemies, drones, stats, hud, sfx, leaves, opts, toggleOptions, run, tune, title, intro, holdout: H, kit, props, cardLines: () => cardLines(), switchLang, fullscreen: fs, text: T, get lang() { return lang; }, get touch() { return touch; },
     comfort, applyOpts: applyLook,
     /** once startGame has made the character and play */
     start(game_) {

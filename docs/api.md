@@ -220,7 +220,7 @@ Gaussian splats, `@miragekit/world/kits/splat` (opt-in subpath, world README "Ga
 
 | export | stability | what it is |
 |---|---|---|
-| `createPlay(world, opts)` | stable | walk / fly / game view / orbit, input, still refinement; returns `play` (fields in the play README); experimental: the `reducedMotion` option and field (follows `prefers-reduced-motion`), `render({ transparent: true })` |
+| `createPlay(world, opts)` | stable | walk / fly / game view / orbit, input, still refinement; returns `play` (fields in the play README); experimental: the `reducedMotion` option and field (follows `prefers-reduced-motion`), `render({ transparent: true })`, `director` (opt-in host camera for cinematics: `(camera, dt) => ({ shadow })?` after each step; lens-shifted frusta bin the clustered lamps correctly) |
 | `createCharacter(world, { palette })` | experimental | the procedural traveller of the game view (rig, palette, locomotion); hosts can add its `root` to their own scene |
 | `mountWorld(opts)` | stable | build a world into a host page's own renderer (the embed API) |
 | `bakeWalkGrid(world, opts)` | stable | the walk grid baked from the geometry; `{ region, into }` (experimental) re-bakes only a region of an earlier grid in place |

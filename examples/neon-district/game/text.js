@@ -152,6 +152,20 @@ const EN = {
     civ: (n, p) => (n ? `Civilian casualties: ${n} (−${num(p)} points)` : 'Civilian casualties: none'),
     remarks: ['The district barely noticed you were here.', 'Someone will have to sweep up. It will not be you.', 'The insurers have been informed. They asked for your name.', 'The district has filed a complaint about you specifically.'],
   },
+  intro: {
+    kicker: 'SECTOR 07 · SURVEY', skip: 'SKIP', skipHint: 'Any key, click or tap', replay: 'REPLAY INTRO',
+    areas: {
+      street: ['KESTREL STREET', 'Sentinels stand on the carriageway between the parked cars. Keep to cover.'],
+      signs: ['THE NEON WALLS', "The block's signs and its old couplet, lit over the street."],
+      market: ['NIGHT MARKET', "Stalls under the plaza's west wall. An ammunition cell waits by the kerb."],
+      plaza: ['PLAZA 07', 'Wardens and hounds hold the monument. The relay is across it.'],
+      relay: ['THE RELAY', 'The pass opens its door. Servers inside, the stair to the roof.'],
+      roof: ['THE ROOF', 'Start the uplink and hold it. The last wave comes up the stairs.'],
+      rooftops: ['ABOVE THE ROOFS', 'Traffic lanes and the arcology over the block. Nothing up there is on your side.'],
+      channel: ['THE WATER CHANNEL', 'The south gutter runs open. In the late sun it shines its whole length.'],
+      alley: ['ALLEY 7-B', 'You start here. The relay pass is in the noodle bar on the street.'],
+    },
+  },
   corner: { quality: 'Quality (reloads the page)', saver: 'Power saver', idle: 'idle', levels: { low: 'low', medium: 'medium', high: 'high' } },
   // ---- the engine's own overlay (@miragekit/game createUI: the pause menu, its panels, the message button)
   engine: {
@@ -302,6 +316,20 @@ const ZH = {
     props: (v) => `財物損失：${num(v)} 信用點`,
     civ: (n, p) => (n ? `平民傷亡：${n}（扣 ${num(p)} 分）` : '平民傷亡：無'),
     remarks: ['這個街區幾乎沒發現你來過。', '總得有人來掃地。不會是你。', '已經通知保險公司了。他們問了你的名字。', '整個街區對你個人提出了申訴。'],
+  },
+  intro: {
+    kicker: '第七區 · 勘查', skip: '跳過', skipHint: '任意鍵、點擊或輕觸', replay: '重播開場',
+    areas: {
+      street: ['紅隼街', '哨兵站在停靠的車輛之間的車道上。貼著掩體前進。'],
+      signs: ['霓虹牆', '街區的招牌與那副老對聯，在街道上方亮著。'],
+      market: ['夜市', '廣場西牆下的攤位。路邊有一盒彈藥等著你。'],
+      plaza: ['七號廣場', '典獄官與機械犬守著紀念碑。中繼站就在對面。'],
+      relay: ['中繼站', '通行證能打開它的門。裡面是伺服器，還有通往屋頂的樓梯。'],
+      roof: ['屋頂', '啟動上行鏈路並守住它。最後一波會從樓梯上來。'],
+      rooftops: ['屋頂之上', '飛行車道與巨型建築壓在街區上空。上面沒有一個是自己人。'],
+      channel: ['水道', '南側的排水溝是敞開的。斜陽下，整條水道都會發亮。'],
+      alley: ['7-B 巷', '你從這裡出發。中繼通行證在街上的麵店裡。'],
+    },
   },
   corner: { quality: '畫質（會重新載入頁面）', saver: '省電模式', idle: '閒置', levels: { low: '低', medium: '中', high: '高' } },
   engine: {
@@ -454,6 +482,20 @@ const JA = {
     props: (v) => `器物損壊：${num(v)} クレジット`,
     civ: (n, p) => (n ? `民間人の被害：${n}（−${num(p)}点）` : '民間人の被害：なし'),
     remarks: ['街区はお前が来たことにほとんど気づいていない。', '誰かが掃除することになる。お前じゃない。', '保険会社には連絡済みだ。お前の名前を聞かれた。', '街区がお前個人を名指しで苦情を出した。'],
+  },
+  intro: {
+    kicker: 'セクター07 · 偵察', skip: 'スキップ', skipHint: '任意のキー・クリック・タップ', replay: 'イントロを再生',
+    areas: {
+      street: ['ケストレル通り', '停めた車のあいだの車道にセンチネルが立つ。遮蔽物を使え。'],
+      signs: ['ネオンの壁', '街区の看板と古い対句が、通りの上で光っている。'],
+      market: ['夜市', '広場の西壁の下に屋台が並ぶ。縁石のそばに弾薬がある。'],
+      plaza: ['広場07', 'ウォーデンとハウンドが記念碑を守る。リレーはその向こうだ。'],
+      relay: ['リレー', 'パスで扉が開く。中にはサーバー、屋上への階段。'],
+      roof: ['屋上', 'アップリンクを起動して守り抜け。最後のウェーブが階段を上がってくる。'],
+      rooftops: ['屋根の上', '街区の上を飛行レーンとアーコロジーが覆う。上に味方はいない。'],
+      channel: ['水路', '南の側溝は開渠だ。低い陽が差すと、その全長が光る。'],
+      alley: ['路地 7-B', 'ここから始まる。リレーパスは通りのラーメン屋にある。'],
+    },
   },
   corner: { quality: '画質（ページを再読み込み）', saver: '省電力', idle: '待機中', levels: { low: '低', medium: '中', high: '高' } },
   engine: {
