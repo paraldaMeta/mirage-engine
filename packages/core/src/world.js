@@ -193,6 +193,11 @@ export function createWorldRenderer(config = {}) {
     try { return fn(); } finally { w.z = z; }
   };
   const envLight = createEnvLight(renderer, { size: Q.envSize, fade: config.envFade ?? 1.5 });
+  // "no environment" for a capture's first pass is a black one of the real one's kind: a lit material with an environment is ONE
+  // program however dark it is, and one without is another (a first visit builds every program from nothing); black adds
+  // no light, so the image is the same
+  let blackEnv = null, blackGen = null;
+  const noEnv = () => blackEnv ??= (blackGen = new THREE.PMREMGenerator(renderer)).fromScene(new THREE.Scene(), 0, 0.1, 1500, { size: Q.envSize }).texture;
   // envState: 'instant' = recapture (two passes) before the next frame; 'fade' = one capture + cross-fade in tick();
   // 'instant2' = the second pass is still to do (a moving frame does the two passes in two frames, so neither stalls)
   let envState = 'instant', light = null, state = null, frameCounter = 0, exposure = 1, expTarget = 1;
@@ -256,7 +261,7 @@ export function createWorldRenderer(config = {}) {
     // change asks the caller to draw again
     const wv = wetVersion();
     if (wv.wet !== seenWet.wet || wv.rain !== seenWet.rain) {
-      if (wv.wet !== seenWet.wet && light) { scene.environment = null; envState = 'instant'; }
+      if (wv.wet !== seenWet.wet && light) { scene.environment = noEnv(); envState = 'instant'; }
       seenWet = wv; busy = true;
     }
     if (light && Math.abs(Math.log(expTarget / exposure)) > 1e-4) {
@@ -347,7 +352,7 @@ export function createWorldRenderer(config = {}) {
    *  frame and waits for the GPU (see warmUp); returns { warmMs } then. */
   async function prepare({ warm = false } = {}) {
     if (!light) setTime(time);
-    scene.environment = null;
+    scene.environment = noEnv();
     camera.updateMatrixWorld();
     // Programs are compiled here in parallel (KHR_parallel_shader_compile); any program the first frames need that
     // is not ready is compiled one after another on the main thread instead, ~50 ms each on a cold start. Two things
@@ -364,11 +369,7 @@ export function createWorldRenderer(config = {}) {
     // environment texture exist; the real capture below starts again from none.
     if (lighting) lighting.adopt();
     if (lampPool) lampPool.adopt();
-    await Promise.all([compile(), pipeline.compileAsync()]);
-    if (!envLight.texture) envLight.capture(scene, envProbe, { instant: true });
-    // the programs WITH the environment (the capture's second pass and every frame): compiled here in parallel;
-    // without this every lit material of a big world was linked one by one in the first capture
-    scene.environment = envLight.texture; await compile(); scene.environment = null;
+    await Promise.all([compile(), pipeline.compileAsync()]);   // (with the black environment: the programs of every capture pass and every frame)
     captureEnv(true);
     if (warm) return { warmMs: warmUp() };
   }
@@ -595,7 +596,7 @@ export function createWorldRenderer(config = {}) {
     updates = [];   // a disposed world holds no callback (and what they close over) alive
     if (flash) flash.dispose();
     if (lampPool) lampPool.dispose();   // before lighting: both chain scene.onBeforeRender
-    pipeline.dispose(); envLight.dispose(); skyLut.dispose(); if (lighting) lighting.dispose();
+    pipeline.dispose(); envLight.dispose(); blackGen?.dispose(); skyLut.dispose(); if (lighting) lighting.dispose();
     disposeAmbient(G);
     const mats = new Set();
     scene.traverse((o) => { o.geometry && o.geometry.dispose(); for (const m of [].concat(o.material || [])) mats.add(m); });
@@ -610,7 +611,7 @@ export function createWorldRenderer(config = {}) {
    *  the GPU is made again: the sky's air, the image-based light, the probe lighting; the histories start over */
   function contextRestored() {
     if (light) skyLut.bake();
-    scene.environment = null; envState = 'instant'; taaValid = false; pipeline.resetExposure(); pipeline.fx?.reset?.();
+    scene.environment = noEnv(); envState = 'instant'; taaValid = false; pipeline.resetExposure(); pipeline.fx?.reset?.();
     if (lighting) lighting.invalidate();
   }
 
