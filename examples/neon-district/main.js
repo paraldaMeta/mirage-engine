@@ -26,6 +26,7 @@ import modules from './modules/index.js';
 import { setupGame, objective, summary, VERSION, T } from './game/index.js';
 import { mirrorLayer, distanceCull, MIRROR_LAYER } from './perf.js';
 
+performance.mark('nd:eval');
 const Q = new URLSearchParams(location.search);
 const W = +Q.get('w') || innerWidth, H = +Q.get('h') || innerHeight;
 const canvas = document.querySelector('canvas');
@@ -150,10 +151,12 @@ const world = createWorldRenderer({
   },
 });
 
+performance.mark('nd:renderer');
 // detail: how much optional dressing the modules build (crowds, traffic, balcony life, the far skyline): phones stay light
 const shared = { quality: on('shadows') ? quality : 'low', tier: quality, gi: !!lighting.gi, detail: Q.has('detail') ? +Q.get('detail') : { low: 0.4, medium: 0.8, high: 1 }[quality] ?? 1 };
 const skip = (Q.get('skip') || '').split(',');                                                     // ?skip=aerial,grime: build without those modules (A/B timing)
 const built = await buildWorld(world, { plan, modules: modules.filter((m) => !skip.includes(m.name)), shared });
+performance.mark('nd:built');
 for (let i = 0, n = +Q.get('lamps') || 0; i < n; i++) {                                           // ?lamps=N: the clustered-light test
   const l = new THREE.PointLight(new THREE.Color().setHSL((i * 0.618) % 1, 0.8, 0.55), 6 * world.G.uLampGain.value, 7, 2);
   l.position.set(-32 + ((i * 7.3) % 64), 1.2 + (i % 5) * 0.7, 2.5 + ((i * 3.1) % 7)); world.scene.add(l); world.lighting.addLight(l);
@@ -252,4 +255,5 @@ const v = plan.viewpoints.find((p) => p.name === Q.get('view'));
 if (v) play.place(v.eye, v.look, v.mode || (Q.has('world') ? Q.get('mode') || 'walk' : 'walk'));
 if (Q.has('world')) world.ctx.onUpdate(relight);
 window.__mirage = { world, built, play, g, game, vfx, rain, big, shared, setHour, relight, weather: { WX, WX_H, now: wxNow, at: weatherAt }, features: Object.fromEntries(Object.keys(TIER).map((k) => [k, F(k)])) };
+performance.mark('nd:ready');
 window.__READY = true;
