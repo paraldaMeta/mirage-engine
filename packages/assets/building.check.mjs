@@ -2,7 +2,7 @@
 // batch, stands where its header says (on y = 0, inside its stated footprint), and house() gives the same house for
 // the same seed, a different one for another, with its door on the front. The look is examples/demos/building.
 import * as THREE from 'three';
-import * as K from './src/building.js';
+import * as K from './src/building/index.js';
 
 let fails = 0;
 const ok = (c, m) => { if (!c) { fails++; console.error('  FAIL ' + m); } };

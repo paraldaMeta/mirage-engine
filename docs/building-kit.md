@@ -1,11 +1,11 @@
 # Building kit
 
-Part of the asset library (`packages/assets`, licence: see that package; `src/building.js`): 29 parts that put
+Part of the asset library (`@miragekit/assets/building`, BSL: see that package's licence): 29 parts that put
 buildings together, five material styles, and `house()`, which builds a whole house from them. Everything is made in
 code: no models, no textures (the surfaces are core's procedural ones).
 
 ```js
-import { buildingMaterials, house, wallOpenings, stairs, roofGable } from '../packages/assets/src/building.js';   // @miragekit/assets/building once published
+import { buildingMaterials, house, wallOpenings, stairs, roofGable } from '@miragekit/assets/building';   // @miragekit/assets/building once published
 
 export default {
   name: 'square',
