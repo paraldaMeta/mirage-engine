@@ -594,9 +594,9 @@ MsS ms_paintedMetal(vec2 u){
     // the run hangs from the row above the pixel (it crosses the seam below a panel's lower row)
     float yA = q.y < 0.035 ? 0.035 : (q.y < s.y - 0.035 ? s.y - 0.035 : s.y + 0.035), rA = min(q.y - yA, 0.0);
     float bxl = bx + rA * (bk - 0.5) * 0.6;
-    float dw = min(length(vec2(bx, ry)), length(vec2(bxl * (1.0 + 2.5 * (-rA) / 0.05), rA * (0.12 + 0.2 * bk))))
+    float dw = min(2.2 * length(vec2(bx, ry)), length(vec2(bxl * (1.0 + 2.5 * (-rA) / 0.05), rA * (0.05 + 0.1 * bk))))
              * (0.5 + 1.1 * fract(bk * 13.7)) * (0.35 + 1.3 * (msFbm(msWarp(u, 14.0, 0.012) + 3.3, 12.0, 3) * 0.5 + 0.5)) * (0.7 + 0.6 * (msFbm(msWarp(u, 40.0, 0.004) + 1.1, 45.0, 2) * 0.5 + 0.5));
-    near = (1.0 - smoothstep(0.008, 0.045, dw)) * step(0.35, bh0(g.zw + floor(q.x / sp) * 0.137));
+    near = (1.0 - smoothstep(0.008, 0.045, dw)) * step(0.55, mgHash3(vec3(g.zw, floor(q.x / sp) + 0.5 * step(s.y * 0.5, q.y))).y);
   }
   // rust: patches at every scale (a 30 cm cluster, 5 cm islands, 1 cm specks), the edges warped and cut crisp; new
   // rust nucleates as many small spots round the patches that merge into them

@@ -268,11 +268,11 @@ vec3 ndGoods(vec2 p, float rowH, float seed, out float has){
       float pst = step(0.6, mgHash(vec2(floor(o.x / 0.62), seed * 3.0))) * step(0.1, pp.x) * step(pp.x, 0.9) * step(0.25, pp.y) * step(pp.y, 0.95);
       vec3 pc = mix(vec3(0.9, 0.85, 0.2), vec3(0.95, 0.25, 0.2), step(0.5, fract(seed * 9.0 + floor(o.x / 0.62) * 0.37)));
       pc = mix(pc, vec3(0.08), step(0.5, fract(pp.y / 0.09)) * step(abs(pp.x - 0.5), 0.3) * step(pp.y, 0.7));
-      col = mix(col, pc * (0.25 + 0.6 * tint), pst * 0.95);
+      col = mix(col, pc * (0.15 + 0.35 * tint), pst * 0.95);
       #ifdef ND_CLINIC
         col = mix(col, vec3(0.7, 0.85, 0.88) * (0.45 + 0.1 * sin(o.x * 3.0)), step(0.9, o.y) * step(o.y, 1.75) * 0.85);
       #endif
-      outgoingLight = col * (1.25 * max(uLampGain, 0.35));
+      outgoingLight = col * (0.42 * max(uLampGain, 0.35));   // (a lit room, not a light box: its walls stay below the street's signs)
     }`,
   });
 }
