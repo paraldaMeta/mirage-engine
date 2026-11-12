@@ -1,8 +1,8 @@
-// Mirage original code. Vehicles in the sound library (@miragekit/game/sounds): a car and a hover car passing (with
+// Mirage original code. Vehicles in the sound library (@miragekit/assets/sounds): a car and a hover car passing (with
 // the Doppler shift and the swell of distance), an electric car's whine and a petrol engine idling (loops), a horn,
 // a car alarm (loop), a far siren (loop), a train passing, tyres skidding. A pass is rendered from a path: the source
 // goes by at `speed` m/s, `miss` m from the listener; its pitch is f * c / (c - v_r) and its level 1 / distance.
-import { TAU, biquad, chain, noiseLayer, toneLayer, one, fold } from './synth.js';
+import { TAU, biquad, chain, noiseLayer, toneLayer, one, fold } from '@miragekit/game/sounds';
 
 const C = 343;
 /** per sample: { k (Doppler ratio), g (level, 1 at the closest point) } of a source passing at `speed`, closest at t0 */

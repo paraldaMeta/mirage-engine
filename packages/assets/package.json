@@ -15,6 +15,7 @@
   "type": "module",
   "exports": {
     "./kits/cyber": { "types": "./src/kits/cyber.d.ts", "default": "./src/kits/cyber.js" },
+    "./sounds": { "types": "./src/sounds/index.d.ts", "default": "./src/sounds/index.js" },
     "./presets": { "types": "./src/presets/index.d.ts", "default": "./src/presets/index.js" },
     "./surfaces": { "types": "./src/surfaces/index.d.ts", "default": "./src/surfaces/index.js" },
     "./package.json": "./package.json"
@@ -29,13 +30,14 @@
   ],
   "peerDependencies": {
     "three": ">=0.186.1 <0.187.0",
-    "@miragekit/core": "^1.0.0"
+    "@miragekit/core": "^1.0.0",
+    "@miragekit/game": "^1.0.0"
   },
   "engines": {
     "node": ">=22"
   },
   "scripts": {
-    "test": "node surfaces.check.mjs && node cyber.check.mjs"
+    "test": "node surfaces.check.mjs && node cyber.check.mjs && node sounds.check.mjs"
   },
   "author": "灰叔 Racso"
 }

@@ -1,9 +1,9 @@
-// The guns' sounds and the rest of the feel's: the engine's sound library (@miragekit/game/sounds, which grew out of
+// The guns' sounds and the rest of the feel's: the sound library (@miragekit/assets/sounds, which grew out of
 // this file) under the names the game has always used (nd_*). Rendered offline into sample buffers a few at a time
 // after the first gesture (sfx.js); scripts/sfx-check.mjs renders the same functions in headless Chrome and measures
 // them. Exports: ENVS, GUNS, SOUNDS (name -> { n: variants, render(SR, v) -> Float32Array, loop? }), ORDER,
 // renderSound().
-import { SOUNDS as LIB, SOUND_SPACES, GUNS as LIB_GUNS } from '@miragekit/game/sounds';
+import { SOUNDS as LIB, SOUND_SPACES, GUNS as LIB_GUNS } from '@miragekit/assets/sounds';
 
 export const ENVS = SOUND_SPACES;
 export const GUNS = LIB_GUNS;

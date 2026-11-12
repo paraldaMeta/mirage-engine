@@ -1,7 +1,7 @@
-// Mirage original code. Interface sounds of the sound library (@miragekit/game/sounds): clicks, hovers, confirm / deny,
+// Mirage original code. Interface sounds of the sound library (@miragekit/assets/sounds): clicks, hovers, confirm / deny,
 // notifications, menus opening and closing, key taps, a coin, a level-up, an error. Short (under a second), bright and
 // dry (no room), mastered to the same peak: set their level with the mixer's gain.
-import { biquad, noiseLayer, thumpLayer, modesLayer, toneLayer, one, click } from './synth.js';
+import { biquad, noiseLayer, thumpLayer, modesLayer, toneLayer, one, click } from '@miragekit/game/sounds';
 
 const BELL = [[1, 1], [2.76, 0.32], [5.4, 0.12]];   // a small bell's inharmonic partials
 const SQUARE = [[1, 1], [3, 0.33], [5, 0.2], [7, 0.14]];

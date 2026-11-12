@@ -1,8 +1,8 @@
-// Mirage original code. Machines and science fiction in the sound library (@miragekit/game/sounds): servos, robot
+// Mirage original code. Machines and science fiction in the sound library (@miragekit/assets/sounds): servos, robot
 // beeps and chatter, sliding and pneumatic doors, a lift's bell, a terminal booting, a keypad, a lock, a vending
 // machine dropping a can, power going down and up, an EMP, a shield taking a hit, a laser, a teleport, a scanner, a
 // hack, an alarm and a drone (loops). Made with the same layers as the weapons (synth.js).
-import { TAU, biquad, chain, noiseLayer, thumpLayer, modesLayer, toneLayer, one, fold, click, scrape } from './synth.js';
+import { TAU, biquad, chain, noiseLayer, thumpLayer, modesLayer, toneLayer, one, fold, click, scrape } from '@miragekit/game/sounds';
 
 function servo(o, SR, R, v) {   // a joint moving: a geared whine that rises and settles, a click at each end
   const f0 = 520 + v * 90, len = 0.28;

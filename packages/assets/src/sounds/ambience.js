@@ -1,9 +1,9 @@
-// Mirage original code. Ambience loops of the sound library (@miragekit/game/sounds): rain on a street and on a tin
+// Mirage original code. Ambience loops of the sound library (@miragekit/assets/sounds): rain on a street and on a tin
 // roof, a city's far traffic, wind with gusts, an empty room's tone, a neon sign's hum, a vent, a server room, a
 // crowd's murmur, the sea, a night of crickets, fire. Each is a few seconds of stereo-free mono folded into a seamless
 // loop (its end cross-faded into its start) at 0.7 of full scale: play them with audio.loop at a low gain, and layer
 // two or three for a place. Nothing in them repeats on a short cycle except what the loop's length implies.
-import { TAU, biquad, chain, noiseLayer, modesLayer, toneLayer, fold } from './synth.js';
+import { TAU, biquad, chain, noiseLayer, modesLayer, toneLayer, fold } from '@miragekit/game/sounds';
 
 /** band-limited noise for the whole buffer, its level shaped by gain(t) */
 function bed(o, SR, R, filter, gain) { for (let i = 0; i < o.length; i++) o[i] += filter(R() * 2 - 1) * gain(i / SR); }

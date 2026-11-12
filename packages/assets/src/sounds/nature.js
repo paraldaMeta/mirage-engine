@@ -1,8 +1,8 @@
-// Mirage original code. Nature in the sound library (@miragekit/game/sounds): thunder near and far, a water drip, a
+// Mirage original code. Nature in the sound library (@miragekit/assets/sounds): thunder near and far, a water drip, a
 // splash, a stone dropped into water, a gust of wind, a bird's call, branches cracking, a body of debris settling,
 // glass shattering, wood breaking, a heavy fall. One-shots; the loops of rain, wind, sea, crickets and fire are in
 // the ambience.
-import { biquad, chain, noiseLayer, thumpLayer, modesLayer, toneLayer, room, makeRng, hash, one } from './synth.js';
+import { biquad, chain, noiseLayer, thumpLayer, modesLayer, toneLayer, room, makeRng, hash, one } from '@miragekit/game/sounds';
 
 function thunder(o, SR, R, v, far) {
   // the crack (near only), then a rolling rumble: many low bursts of noise strewn over two seconds, under a long body

@@ -1,4 +1,4 @@
-// Mirage original code. The weapons of the sound library (@miragekit/game/sounds): guns, their mechanics, casings,
+// Mirage original code. The weapons of the sound library (@miragekit/assets/sounds): guns, their mechanics, casings,
 // impacts and blasts, synthesised offline into sample buffers. A shot is built from layers, the way a recorded gunshot
 // is made of parts:
 //   transient  a few ms of broadband noise through a high band: the supersonic snap
@@ -10,7 +10,7 @@
 // with late reflections off far facades, 'indoor' a short boxy room. Light saturation, then a look-ahead peak
 // limiter, so the summed layers never clip. Every sound has variants: about +-3 % pitch, +-1 dB and up to 1.5 ms of
 // jitter between layers. Grown out of examples/neon-district.
-import { TAU, makeRng, hash, biquad, chain, noiseLayer, thumpLayer, modesLayer, ROOMS as ROOM, room, master, one, click, scrape } from './synth.js';
+import { TAU, makeRng, hash, biquad, chain, noiseLayer, thumpLayer, modesLayer, ROOMS as ROOM, room, master, one, click, scrape } from '@miragekit/game/sounds';
 
 export const ENVS = ['alley', 'open', 'indoor'];
 export const GUNS = ['pistol', 'carbine', 'shotgun'];

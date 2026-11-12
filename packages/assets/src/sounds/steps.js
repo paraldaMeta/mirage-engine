@@ -1,9 +1,9 @@
-// Mirage original code. Footsteps of the sound library (@miragekit/game/sounds), for the surfaces the engine's own
+// Mirage original code. Footsteps of the sound library (@miragekit/assets/sounds), for the surfaces the engine's own
 // audio (stone, gravel, grass, wood) does not have: concrete, sheet metal, a steel grate, wet pavement, a puddle,
 // sand, snow, carpet, tiles, and a ladder rung. A step is a heel (a low thud), the sole rolling (a scuff of noise
 // shaped by the surface) and what the surface adds (a ring, a splash, a crunch). Four variants each, so a walk
 // does not repeat; the game picks one per step and may vary the rate a little.
-import { biquad, chain, noiseLayer, thumpLayer, modesLayer, one } from './synth.js';
+import { biquad, chain, noiseLayer, thumpLayer, modesLayer, one } from '@miragekit/game/sounds';
 
 const heel = (o, SR, v, f = 110, g = 0.7) => thumpLayer(o, SR, 0, f * (1 + v * 0.04), f * 0.55, 0.012, 0.001, 0.022, g);
 function concrete(o, SR, R, v) {

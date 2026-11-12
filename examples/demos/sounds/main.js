@@ -1,9 +1,9 @@
-// Demo: the sound library of @miragekit/game (docs/sounds.md), as a page to listen to. Every card renders its sound
+// Demo: the sound library, @miragekit/assets/sounds (BUSL-1.1; docs/sounds.md), as a page to listen to. Every card renders its sound
 // when clicked (renderSound at the device's sample rate) and plays it once; a loop plays until clicked again. The
 // numbers on a card pick a variant. Plain DOM and Web Audio: no three.js, no world.
 // URL: ?cat=weapon | ui | step | ambience | machine | vehicle | nature   ?q=<search>
 // Contract with tools: window.__sounds = { names, render(name, v) -> Float32Array, play(name, v) }, __READY.
-import { SOUNDS, SOUND_CATEGORIES, soundNames, renderSound } from '@miragekit/game/sounds';
+import { SOUNDS, SOUND_CATEGORIES, soundNames, renderSound } from '@miragekit/assets/sounds';
 
 const Q = new URLSearchParams(location.search);
 const LABEL = { weapon: 'Weapons', ui: 'Interface', step: 'Footsteps', ambience: 'Ambience (loops)', machine: 'Machines & sci-fi', vehicle: 'Vehicles', nature: 'Nature' };

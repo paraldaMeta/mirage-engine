@@ -24,7 +24,7 @@ page.on('pageerror', (e) => errors.push(e.message));
 // a blank page on the server's origin whose import map resolves the engine's package name to its source
 await page.setRequestInterception(true);
 page.on('request', (r) => (r.url().endsWith('/__sfx.html')
-  ? r.respond({ contentType: 'text/html', body: '<script type="importmap">{"imports":{"@miragekit/game/sounds":"/packages/game/src/sounds.js"}}</script>' })
+  ? r.respond({ contentType: 'text/html', body: '<script type="importmap">{"imports":{"@miragekit/game/sounds":"/packages/game/src/sounds.js","@miragekit/assets/sounds":"/packages/assets/src/sounds/index.js"}}</script>' })
   : r.continue()));
 await page.goto(`${srv.url}/__sfx.html`, { waitUntil: 'load' });
 const rows = await page.evaluate(async () => {
