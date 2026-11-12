@@ -434,7 +434,17 @@ MsS ms_tile(vec2 u){
   float edge = smoothstep(gw, gw + max(bev, 0.0008), de);
   float h = 0.55 * sqrt(edge) + 0.3 + dot(c, t2.xy - 0.5) * 0.08 - dot(c, c) * 0.05;
   float r = msA.a + 0.03 * msFbm(u, 25.0, 2);
-  if (V > 2.5) { r = msA.a; h += 0.02 * msFbm(u, 160.0, 2); }   // floor tiles: matte, a fine grit
+  if (V > 2.5) {
+    // floor tiles (terracotta, cement): hand-made: each tile a little dished and wavy, trowel swirls in the face (arcs of
+    // the float in tone and relief), waxed and worn to a patchy sheen, a fine grit
+    vec2 sw = msWarp(u + t.xy * 5.0, 2.5, 0.12);
+    float arc = pow(msRidge(sw, vec2(4.0, 11.0), 4), 5.0), arc2 = pow(msRidge(msWarp(u + 3.3, 4.0, 0.08), vec2(10.0, 5.0), 3), 6.0);
+    float blot = msFbm(u + t.zx * 3.0, 3.0, 3);
+    arc = max(arc, 0.7 * arc2);
+    glaze *= (0.88 + 0.3 * arc + 0.12 * blot) * (0.95 + 0.1 * t.z);
+    r = msA.a - 0.12 * smoothstep(0.3, 0.8, msFbm(u + 2.0, 1.5, 3) * 0.5 + 0.5) + 0.05 * arc;
+    h += 0.15 * arc + 0.25 * blot + 0.04 * msFbm(u, 160.0, 2);
+  }
   // crazing in old glaze
   if (msD.a > 0.0) {
     vec4 cz = msCell(u + t.xy, 30.0, 1.0);
