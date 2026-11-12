@@ -179,6 +179,14 @@ Model import, `@miragekit/core/assets` (opt-in subpath, [import.md](import.md)):
 | `viewModelDepth(root, { near, active })` | experimental | a first-person view model drawn with its own near plane (default 1 cm) while writing the camera's true depth, so parts that come toward the eye are not clipped; `active(on)` switches it per frame; returns `{ count, materials, active }` |
 | `viewModelShaders(vertexShader, fragmentShader, near)` | experimental | the shader rewrite `viewModelDepth` applies, for a custom material; `null` when the shaders cannot be patched |
 
+| `createFlash(world, settings)` | experimental | lightning: a flash envelope driving the shared flash uniforms, a bolt in the sky, `strike()`; used by `createWorldRenderer({ flash })` (`world.flash`) |
+| `flashConfig(option)`, `flashEnvelope(t, k)` | experimental | the flash option's defaults filled in; the three-pulse brightness of a strike at time `t` (scaled by `k`, e.g. a comfort setting) |
+| `withFlash(hooks, options)`, `enableFlash(on)`, `flashEnabled()` | experimental | material hooks that add the flash's cold light and wet glint (open-sky surfaces); the global switch the wet layer reads |
+| `FLASH`, `FLASH_GLSL`, `FLASH_LIGHT_GLSL` | experimental | the flash uniforms (`uFlash`, `uFlashDir`) and their GLSL, for custom materials |
+| `skyStormConfig(option)`, `SKY_STORM_DEFAULTS` | experimental | the storm cloud deck of `sky: { storm }` (torn clouds lit from inside by the flash, a bright horizon band) |
+| `channelWater(world, options)` | experimental | water in a straight open channel traced from its cross-section: refraction onto the bed, the opposite wall in the reflection, caustics, the walls' shadow, foam; returns the water mesh and the wall / bed geometry |
+| `createPlumes(world, { budget, slices, far })` | experimental | lit volumetric steam / smoke plumes, all in one instanced draw |
+
 ## @miragekit/world
 
 | export | stability | what it is |
