@@ -10,7 +10,7 @@
 import * as THREE from 'three';
 import { surfaceLib } from './surface-lib.js';
 
-const FONT = '"PingFang TC", "Hiragino Sans", "Noto Sans TC", "Noto Sans JP", "Microsoft JhengHei", system-ui, sans-serif';
+export const FONT = '"PingFang TC", "Hiragino Sans", "Noto Sans TC", "Noto Sans JP", "Microsoft JhengHei", system-ui, sans-serif';
 
 // ---------------------------------------------------------------------------------------------------------------
 // the atlas: cells packed in shelves, each drawn by a function (g, w, h)
@@ -215,6 +215,8 @@ export function uvByHeight(geo, y0, y1) {
 }
 
 export const hex = (h, k = 1) => { const c = new THREE.Color(h); return [c.r * k, c.g * k, c.b * k]; };
+export const lathe = (pts, seg) => { const g = new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(Math.max(r, 1e-4), y)), seg); g.computeVertexNormals(); return g; };
+export const C = (m, geom, p, r = [0, 0, 0], s = 1) => m.clone().multiply(geom.compose(p, r, s));
 
 /** The shared kit of this world: { R (atlas rects), mats, put(batch, geo, mat, matrix, color, rect) } */
 export function propKit(ctx) {

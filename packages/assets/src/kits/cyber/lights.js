@@ -6,10 +6,9 @@
 // end caps, hangers), a floodlight on a yoke, a rotating beacon, a signal head with hoods. Each adds to a MeshBatch
 // through the props kit (one draw per material for everything a module builds). Emissive parts are small and hot.
 import * as THREE from 'three';
-import { uvByHeight, track, markBatch, sinceMark } from './kit.js';
+import { uvByHeight, track, markBatch, sinceMark, lathe } from './kit.js';
 
 const LAQ = [0.04, 0.012, 0.01], IRON = [0.05, 0.05, 0.055];
-const lathe = (pts, seg) => { const g = new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(Math.max(r, 1e-4), y)), seg); g.computeVertexNormals(); return g; };
 const cache = new Map();
 const once = (k, f) => { if (!cache.has(k)) cache.set(k, f()); return cache.get(k); };
 
