@@ -93,6 +93,9 @@ export interface LightsSettings {
   tileMax: number; tileMin: number;
   /** Shadow tiles redrawn per frame at most. */
   perFrame: number;
+  /** Static casters cached apart from moving (mgDynamic) ones: a redraw for a moving object draws only the moving
+   *  objects over the cached static tile. Default true. */
+  split: boolean;
   /** Texels of depth bias. */
   bias: number;
 }

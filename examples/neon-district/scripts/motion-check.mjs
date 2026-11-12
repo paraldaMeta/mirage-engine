@@ -158,9 +158,15 @@ async function turnJitter(b, srv, hz, sens, extra = '') {
   }));
   await page.close();
   const rows = out.slice(5).map((r) => ({ t: r[0], h: Math.atan2(r[3], r[1]), px: r[20] }));
-  let unwrap = 0; const hs = [rows[0].h];
-  for (let i = 1; i < rows.length; i++) { let d = rows[i].h - rows[i - 1].h; d = Math.atan2(Math.sin(d), Math.cos(d)); unwrap += d; hs.push(rows[0].h + unwrap); }
+  // the heading is unwrapped against what the mouse had sent (not against the frame before): at 5000 px/s a frame
+  // that comes 114 ms late (sens 2.5; 285 ms at sens 1: a shader compiled as a new robot turns into view) turns the
+  // view more than half a circle, and unwrapping frame to frame then books whole turns as error (the 997 deg the
+  // check reported after the cars and robots went in: a measurement fault, the camera was on the mouse)
+  const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+  const hs = rows.map((r) => { const want = rows[0].h + (r.px - rows[0].px) * 0.0022 * sens; return want + wrap(r.h - want); });
   const err = rows.map((r, i) => (hs[i] - hs[0] - (r.px - rows[0].px) * 0.0022 * sens) * D);
+  const gap = rows.reduce((m, r, i) => (i ? Math.max(m, r.t - rows[i - 1].t) : m), 0);
+  if (process.env.VERBOSE) console.log(`turn ${hz} Hz, sens ${sens}: ${rows.length} frames, the longest gap ${gap.toFixed(0)} ms, largest error ${Math.max(...err.map(Math.abs)).toFixed(3)} deg`);
   const steps = []; for (let i = 1; i < rows.length; i++) { const dt = (rows[i].t - rows[i - 1].t) / 1000; if (dt > 0) steps.push((hs[i] - hs[i - 1]) / dt); }
   const mean = steps.reduce((a, v) => a + v, 0) / steps.length;
   return { err: rms(err), errMax: Math.max(...err.map(Math.abs)), spread: Math.abs(rms(steps.map((v) => v - mean)) / mean) * 100 };

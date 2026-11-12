@@ -24,9 +24,14 @@
 // 4 rotated hardware-filtered compares. A tile is CACHED: it is drawn again only when its light moved or changed,
 // its tile changed size, invalidate() was called, or a moving object (a top-level object with userData.mgDynamic)
 // moved within its range; at most `perFrame` lights are redrawn per frame, the most important first.
+// Static and moving casters are split (`split`, on by default): a second atlas keeps each tile with the static casters
+// alone (everything but the mgDynamic objects), drawn when the tile is (re)made, its light moved or invalidate() was
+// called; a redraw because something moved copies that tile back and draws only the moving objects in range over it
+// (the nearer distance wins), so a robot walking past a lamp costs its own few draws in six faces, not the street's.
 // Limits: casters are drawn with a distance material (instancing and skinning followed; alpha-tested cut-outs cast
-// as their whole card, wind sway is not followed); a spot light pays the same six faces as a point light; static
-// and moving casters share a tile (a light with something moving in range redraws all its casters).
+// as their whole card, wind sway is not followed); a spot light pays the same six faces as a point light; a static
+// object (not mgDynamic) that moves is not followed until invalidate() (with `split: false` a redraw for a moving
+// object also refreshed it).
 // ---------------------------------------------------------------------------
 import * as THREE from 'three';
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
@@ -40,6 +45,7 @@ export const LIGHTS_DEFAULTS = {
   atlas: 2048,       // px of the shadow atlas
   tileMax: 512, tileMin: 64,
   perFrame: 2,       // shadow tiles redrawn per frame
+  split: true,       // static casters cached apart from the moving ones (a second atlas: the size of the first's depth)
   bias: 1.5,         // texels of normal offset and depth bias
 };
 export const CLUSTER = { x: 16, y: 9, z: 24 };
@@ -188,7 +194,23 @@ ${OCT_DECODE}
 void main() { gl_FragDepth = clamp( textureLod( tCube, mgOctDec( vUv ), 0.0 ).r / uFar, 0.0, 1.0 ); gl_FragColor = vec4( 0.0 ); }`,
   });
   const quad = new FullScreenQuad(foldMat);
-  const info = { lights: 0, shadowed: 0, redraws: 0, redrawsLastFrame: 0, binMs: 0, indices: 0, clipped: 0, mode: 0, rows: 128 };
+  // split: the moving casters folded over the copied static tile (the nearer wins), and the copy itself
+  const foldMin = foldMat.clone(); foldMin.depthFunc = THREE.LessEqualDepth;
+  const copyMat = new THREE.ShaderMaterial({
+    uniforms: { tStat: { value: null }, uSize: { value: cfg.atlas } }, depthTest: true, depthFunc: THREE.AlwaysDepth, depthWrite: true, colorWrite: false,
+    vertexShader: 'void main(){ gl_Position = vec4( position.xy, 0.0, 1.0 ); }',
+    fragmentShader: 'uniform sampler2D tStat; uniform float uSize; void main() { gl_FragDepth = texelFetch( tStat, ivec2( gl_FragCoord.xy ), 0 ).r; gl_FragColor = vec4( 0.0 ); }',
+  });
+  let stat = null;   // the static casters' atlas (made on the first split redraw)
+  const statAtlas = () => {
+    if (stat) return stat;
+    const d = new THREE.DepthTexture(cfg.atlas, cfg.atlas, THREE.UnsignedShortType); d.minFilter = d.magFilter = THREE.NearestFilter;
+    stat = new THREE.WebGLRenderTarget(cfg.atlas, cfg.atlas, { depthTexture: d, depthBuffer: true, generateMipmaps: false, format: THREE.RedFormat, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter });
+    const saved = renderer.getRenderTarget(); renderer.setRenderTarget(stat); renderer.clear(false, true, false); renderer.setRenderTarget(saved);
+    copyMat.uniforms.tStat.value = d;
+    return stat;
+  };
+  const info = { lights: 0, shadowed: 0, redraws: 0, redrawsLastFrame: 0, movingOnly: 0, binMs: 0, indices: 0, clipped: 0, mode: 0, rows: 128 };
   const _v = new THREE.Vector3(), _d = new THREE.Vector3(), _t = new THREE.Vector3(), _c = new THREE.Color(), _vp = new THREE.Vector4();
   let viewCam = null, camKey = '', dirtyTex = true, allDirty = false;
   const dyn = new Map();   // dynamic root -> { e: Float32Array(16), c: Vector3, r }
@@ -197,7 +219,7 @@ void main() { gl_FragDepth = clamp( textureLod( tCube, mgOctDec( vUv ), 0.0 ).r 
     if (lights.length >= cfg.max || lights.some((l) => l.light === light)) return false;
     light.userData.mgClustered = true; light.userData.mgLayers = light.layers.mask;
     light.layers.set(30);   // no camera draws layer 30: three's light loop skips it from now on
-    lights.push({ light, shadow: !!o.shadow, tile: null, dirty: true, want: 0, last: new Float32Array(REC * 4), range: 0, imp: 0, pos: new THREE.Vector3() });
+    lights.push({ light, shadow: !!o.shadow, tile: null, dirty: true, stat: false, want: 0, last: new Float32Array(REC * 4), range: 0, imp: 0, pos: new THREE.Vector3() });
     dirtyTex = true; camKey = '';
     return true;
   }
@@ -234,7 +256,7 @@ void main() { gl_FragDepth = clamp( textureLod( tCube, mgOctDec( vUv ), 0.0 ).r 
       if (L.tile) rec.set([L.tile.xy[0], L.tile.xy[1], L.tile.s, 0], 16);
       let same = true, moved = false;
       for (let k = 0; k < rec.length; k++) if (rec[k] !== L.last[k]) { same = false; if (k < 4 || (k >= 8 && k < 13)) moved = true; }
-      if (!same || L.row !== i) { L.last.set(rec); data.set(rec, i * REC * 4); L.row = i; changed = true; if (moved) L.dirty = true; }   // row: a removal shifts the lights after it
+      if (!same || L.row !== i) { L.last.set(rec); data.set(rec, i * REC * 4); L.row = i; changed = true; if (moved) { L.dirty = true; L.stat = false; } }   // row: a removal shifts the lights after it
       L.range = range; L.pos.copy(_v);
     }
     return changed;
@@ -287,27 +309,57 @@ void main() { gl_FragDepth = clamp( textureLod( tCube, mgOctDec( vUv ), 0.0 ).r 
   }
   function drawShadows(list) {
     const saved = renderer.getRenderTarget(), auto = renderer.autoClear, xr = renderer.xr.enabled, a = renderer.getClearAlpha(), cc = renderer.getClearColor(new THREE.Color());
-    const om = scene.overrideMaterial, bg = scene.background, sm = renderer.shadowMap.enabled;
+    const om = scene.overrideMaterial, bg = scene.background, sm = renderer.shadowMap.enabled, mau = scene.matrixWorldAutoUpdate;
+    // the world matrices once for the batch: each cube face is a render() of the scene, and every render() walked the
+    // whole scene graph again for matrices nothing in the batch changes (six or twelve walks a redraw)
+    if (mau) { scene.updateMatrixWorld(); scene.matrixWorldAutoUpdate = false; }
     // only shadow casters are drawn: everything else is hidden for the batch (visibility, so children are kept: a
     // non-casting parent with casting children is rare; such children do not cast here)
-    const hidden = [];
-    scene.traverse((o) => { if ((o.isMesh || o.isPoints || o.isLine || o.isSprite) && !o.castShadow && o.visible) { o.visible = false; hidden.push(o); } });
+    // (split, with every static tile still good: only the movers are drawn, so only their subtrees are walked)
+    const hidden = [], hide = (o) => { if ((o.isMesh || o.isPoints || o.isLine || o.isSprite) && !o.castShadow && o.visible) { o.visible = false; hidden.push(o); } };
+    if (!cfg.split || list.some((L) => !L.stat)) scene.traverse(hide);
+    else for (const [o, d] of dyn) if (o.parent === scene && o.visible && d.casts) o.traverse(hide);
     renderer.xr.enabled = false; renderer.autoClear = true; renderer.shadowMap.enabled = false;
     scene.overrideMaterial = dist; scene.background = null;
     renderer.setClearColor(new THREE.Color(1e4, 0, 0), 1);
-    for (const L of list) {
+    // the cube of distances round L, folded into `target`'s tile (mat: replace, or keep the nearer)
+    const fold = (L, target, mat) => {
       const { rt, cam } = cubeFor(Math.max(32, L.tile.s >> 1));
       dist.uniforms.uP.value.copy(L.pos);
       for (const c of cam.children) { c.far = L.range; c.updateProjectionMatrix(); }
       cam.position.copy(L.pos); cam.update(renderer, scene);
-      foldMat.uniforms.tCube.value = rt.texture; foldMat.uniforms.uFar.value = L.range;
-      atlas.viewport.set(L.tile.xy[0], L.tile.xy[1], L.tile.s, L.tile.s); atlas.scissor.copy(atlas.viewport); atlas.scissorTest = true;
-      renderer.setRenderTarget(atlas);
-      renderer.autoClear = false; quad.render(renderer); renderer.autoClear = true;
+      mat.uniforms.tCube.value = rt.texture; mat.uniforms.uFar.value = L.range;
+      tileQuad(L, target, mat);
+    };
+    const tileQuad = (L, target, mat) => {
+      target.viewport.set(L.tile.xy[0], L.tile.xy[1], L.tile.s, L.tile.s); target.scissor.copy(target.viewport); target.scissorTest = true;
+      renderer.setRenderTarget(target);
+      quad.material = mat; renderer.autoClear = false; quad.render(renderer); renderer.autoClear = true; quad.material = foldMat;
+    };
+    // the moving objects (top-level, mgDynamic) that cast: hidden while the static casters are drawn
+    const movers = cfg.split ? [] : null;
+    if (movers) for (const [o, d] of dyn) if (o.parent === scene && o.visible && d.casts) movers.push([o, d]);
+    for (const [o] of movers || []) o.visible = false;
+    const split = [];
+    for (const L of list) {
+      if (!movers) { fold(L, atlas, foldMat); L.dirty = false; info.redraws++; continue; }
+      if (!L.stat) { fold(L, statAtlas(), foldMat); L.stat = true; } else info.movingOnly++;
+      tileQuad(L, atlas, copyMat);
+      if (movers.some(([, d]) => L.pos.distanceTo(d.c) < L.range + d.r)) split.push(L);
       L.dirty = false; info.redraws++;
     }
+    for (const [o] of movers || []) o.visible = true;
+    // then the moving casters alone, over the static tiles (every other top-level object hidden for the batch; the
+    // lights stay: a light missing from a render changes three's light state, and every lit material of the next
+    // render looks its program up again)
+    if (split.length) {
+      const off = [];
+      for (const o of scene.children) if (o.visible && !o.isLight && !movers.some(([m]) => m === o)) { o.visible = false; off.push(o); }
+      for (const L of split) fold(L, atlas, foldMin);
+      for (const o of off) o.visible = true;
+    }
     for (const o of hidden) o.visible = true;
-    scene.overrideMaterial = om; scene.background = bg; renderer.shadowMap.enabled = sm;
+    scene.overrideMaterial = om; scene.background = bg; renderer.shadowMap.enabled = sm; scene.matrixWorldAutoUpdate = mau;
     renderer.setClearColor(cc, a); renderer.setRenderTarget(saved); renderer.autoClear = auto; renderer.xr.enabled = xr;
   }
   // moving objects: a top-level object with userData.mgDynamic whose matrix changed dirties the lights it is near
@@ -353,13 +405,14 @@ void main() { gl_FragDepth = clamp( textureLod( tCube, mgOctDec( vUv ), 0.0 ).r 
       if (!L.tile || L.tile.s !== L.want) {
         let s = L.want, xy = null;
         while (s >= cfg.tileMin && !(xy = tiles.alloc(s))) s >>= 1;
-        if (xy) { if (L.tile) tiles.free(L.tile.s, L.tile.xy); L.tile = { s, xy }; L.dirty = true; dirtyTex = true; }
+        if (xy) { if (L.tile) tiles.free(L.tile.s, L.tile.xy); L.tile = { s, xy }; L.dirty = true; L.stat = false; dirtyTex = true; }
       }
     }
     info.shadowed = n;
     if (!n) return;
     trackDynamic();
     const todo = lights.filter((L) => L.tile && (L.dirty || allDirty) && L.last[4] + L.last[5] + L.last[6] > 0).sort((p, q) => q.imp - p.imp);
+    if (allDirty) for (const L of lights) L.stat = false;
     allDirty = false;
     for (const L of todo) L.dirty = true;
     const now = todo.slice(0, first || still ? todo.length : cfg.perFrame);
@@ -402,7 +455,8 @@ void main() { gl_FragDepth = clamp( textureLod( tCube, mgOctDec( vUv ), 0.0 ).r 
     dispose() {
       scene.onBeforeRender = chained;
       for (const L of lights.slice()) remove(L.light);
-      tex.dispose(); atlas.dispose(); depth.dispose(); dist.dispose(); foldMat.dispose(); quad.dispose();
+      tex.dispose(); atlas.dispose(); depth.dispose(); dist.dispose(); foldMat.dispose(); foldMin.dispose(); copyMat.dispose(); quad.dispose();
+      if (stat) { stat.depthTexture.dispose(); stat.dispose(); stat = null; }
       for (const c of cubes.values()) c.rt.dispose();
     },
   };

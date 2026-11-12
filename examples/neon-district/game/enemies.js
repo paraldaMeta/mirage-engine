@@ -14,7 +14,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { createRigModel, createAnimator, createNavGrid, createNavAgent, createNavCrowd, createSenses, solveLookAt, blend1d } from '@miragekit/play';
 import { FX } from './fx.js';
-import { robotMaterials, part, mergeParts, ext, tf, COL } from '../modules/robot-kit.js';
+import { robotMaterials, part, mergeParts, ext, tf, moved, COL } from '../modules/robot-kit.js';
 import { humanoidMeshes, robotClips, CLIP_SPEED, createHound } from './robot-rig.js';
 
 const q = (x, y, z) => new THREE.Quaternion().setFromEuler(new THREE.Euler(x, y, z)).toArray();
@@ -80,12 +80,24 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
   const rim = { value: new THREE.Vector3(0.05, 0.11, 0.14) };
   const mats = robotMaterials(world, { rim, key: 'enemies' });
   const shieldMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.0, 0.55, 0.08).multiplyScalar(1.6), transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+  // (additive, so the order of its faces does not matter: one pass, not three's back-then-front pair, which flips the
+  // material's side and looks its program up twice a draw)
+  shieldMat.forceSinglePass = true;
   const beamMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.7, 0.2, 1.0).multiplyScalar(4), transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false });
   // the warden's tell: one clustered lamp, put on whichever warden is winding up
   const tell = new THREE.PointLight(0xff3010, 0, 9, 2); world.scene.add(tell); world.lighting?.addLight(tell);
   /** hooks the rest of the game sets: env.dark(pos) 0..1, env.blind(from, to) (smoke), on.bark(e, key), on.pop(word, pos), on.dealt(amount) */
   const env = { dark: () => 0, blind: () => false, rim: 0 }, on = { bark: () => {}, pop: () => {}, dealt: () => {} };
   const visorMat = Object.fromEntries(Object.entries(KIND).map(([k, v]) => [k, mat.glow(v.visor, 7, { vertexColors: true })]));
+  // the same looks for the parts that are not skinned (the rifle, its muzzle, the shield's emitter and frame): three
+  // keeps one program per material and looks it up again whenever a material goes from a skinned mesh to a plain one,
+  // so sharing them cost a program lookup per robot per pass
+  const plain = robotMaterials(world, { rim, key: 'enemies-plain' });
+  const visorPlain = Object.fromEntries(Object.entries(KIND).map(([k, v]) => [k, mat.glow(v.visor, 7, { vertexColors: true })]));
+  // per kind a shell that also draws the lights (robot-kit's glow: its colour follows visorMat's, the flare and the
+  // jam's stutter included) and the rifle: a robot is two skinned meshes a pass (shell, metal), not five meshes
+  const glowU = Object.fromEntries(Object.keys(KIND).map((k) => [k, { value: new THREE.Color() }]));
+  const shellOf = Object.fromEntries(Object.keys(KIND).map((k) => [k, robotMaterials(world, { rim, key: 'enemies-' + k, glow: glowU[k] }).shell]));
   const extra = extraClips(), CLIPS = robotClips(), BLEND = [0, CLIP_SPEED.walk[0], CLIP_SPEED.run[0]], bw = new Float32Array(3);
   const list = [], byZone = {}, hounds = [];
   let nav = null, crowd = null, senses = null, rnd = 0x9e3779b9;
@@ -93,7 +105,8 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
   const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3();
 
   // the parts are the robot kit's (modules/robot-kit.js), skinned rigidly to the rig's bones (game/robot-rig.js):
-  // three meshes (shell, metal, lights) at each of three levels of detail, the geometry shared per kind
+  // two meshes (the shell with the lights and the rifle, the metal) at each of three levels of detail, the geometry
+  // shared per kind
   function build(def) {
     const kk = def.kind || 'grunt', K = KIND[kk];
     if (K.type === 'hound') return buildHound(def, K, kk);
@@ -106,27 +119,30 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
     // after the fall): without it every skinned part was drawn in every pass (each lamp's six shadow faces, the
     // mirror, the sun) wherever the robot stood
     const reach = new THREE.Sphere(new THREE.Vector3(0, 0.85, -0.25), 1.9);
+    // the rifle in the right hand, along the hand's own -X (the arm's axis): a receiver, a shroud, a magazine, a stock,
+    // an optic (the marksman: a long barrel, a scope and a folded bipod); the muzzle's tip lit. Skinned to the hand
+    // in the shell's mesh: its parts moved into the bind space (the hand's bind pose x the grip's offset)
+    const sniper = K.name === 'marksman', grip = new THREE.Matrix4().makeTranslation(-0.1, -0.02, 0.02), muzzle = [sniper ? -0.98 : -0.6, 0.03, 0];
+    const sk = rig.mesh.skeleton, toBind = new THREE.Matrix4().copy(rig.mesh.bindMatrixInverse).multiply(sk.boneInverses[names.indexOf('RightHand')].clone().invert()).multiply(grip);
+    const inHand = { RightHand: moved([...rifle(sniper), part(tf(new THREE.CylinderGeometry(0.012, 0.012, 0.012, 8).rotateZ(Math.PI / 2), muzzle), 'l', [1, 1, 1])], toBind) };
     const sets = [0, 1, 2].map((lod) => {
-      const g = humanoidMeshes(K.look, lod, kit, names);
-      return [['s', mats.shell], ['m', mats.metal], ['l', visorMat[kk]]].filter(([k]) => g[k]).map(([k, m]) => {
+      const g = humanoidMeshes(K.look, lod, kit, names, inHand, sniper ? 'rifle-long' : 'rifle');
+      return [['s', shellOf[kk]], ['m', mats.metal]].filter(([k]) => g[k]).map(([k, m]) => {
         const sm = new THREE.SkinnedMesh(g[k], m); sm.bind(rig.mesh.skeleton, rig.mesh.bindMatrix);
-        sm.boundingSphere = reach; sm.frustumCulled = true; sm.castShadow = k === 's'; sm.receiveShadow = true; sm.visible = lod === 0;
+        sm.boundingSphere = reach; sm.frustumCulled = true; sm.castShadow = k === 's' && lod < 2; sm.receiveShadow = true; sm.visible = lod === 0;   // (past 30 m no shadow, as the hounds: a far robot walking under a lamp no longer redraws its tile)
+        sm.name = 'robot-' + k;   // (main.js: the metal parts and the rifle stay out of the wet street's mirror)
         rig.root.add(sm); return sm;
       });
     });
-    // the rifle in the right hand, along the hand's own -X (the arm's axis): a receiver, a shroud, a magazine, a stock,
-    // an optic (the marksman: a long barrel, a scope and a folded bipod); the muzzle's tip lit
-    const gun = new THREE.Group(); B.RightHand.add(gun); gun.position.set(-0.1, -0.02, 0.02);
-    const sniper = K.name === 'marksman';
-    const gunMesh = new THREE.Mesh(rifle(sniper), mats.shell); gunMesh.castShadow = false; gun.add(gunMesh);
-    const tip = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.012, 8).rotateZ(Math.PI / 2), visorMat[kk]); tip.position.set(sniper ? -0.98 : -0.6, 0.03, 0); gun.add(tip);
+    // where the shots start (the muzzle, on the hand)
+    const tip = new THREE.Object3D(); B.RightHand.add(tip); tip.position.set(-0.1 + muzzle[0], -0.02 + muzzle[1], 0.02 + muzzle[2]);
     // the shield sentinel's kit: a curved energy shield carried in front, its emitter a lit node on the lower rim
     let shield = null, emitter = null, beam = null;
     if (K.name === 'shield') {
       shield = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 1.55, 16, 1, true, -0.62, 1.24).translate(0, 0, -0.9 + 0.62), shieldMat);
       shield.position.set(0, 1.12, 0); shield.rotation.y = 0; shield.renderOrder = 2; shield.userData.occlude = false; shield.castShadow = false;
-      emitter = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 8), visorMat.shield); emitter.position.set(0, 0.42, 0.63);
-      const frame = new THREE.Mesh(projector(), mats.shell); frame.position.set(0, 0.36, 0.6); frame.castShadow = false;
+      emitter = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 8), visorPlain.shield); emitter.position.set(0, 0.42, 0.63);
+      const frame = new THREE.Mesh(projector(), plain.shell); frame.position.set(0, 0.36, 0.6); frame.castShadow = false;
       rig.root.add(shield, emitter, frame);
     }
     // the marksman's tell: a beam from the muzzle to the player that tightens before the shot
@@ -167,6 +183,7 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
       maxHp: K.hp, stun: 0, jam: 0, shieldHp: K.shieldHp || 0, shieldOff: 0, charge: 0, barkT: 0, lureT: 0, sparkT: 0, lod: 0, leapT: 0, cool: 0,
     };
     e.rig.root.position.set(...e.pos); e.rig.root.rotation.y = e.yaw; e.rig.root.visible = e.active;   // the wave and the relay's two are not drawn until they are woken
+    onceAStep(e);
     game.add({ id: def.id, enemy: e, interact: { can: () => false, label: '', at: () => [e.pos[0], e.pos[1] + (K.type === 'hound' ? 0.8 : 1.2) * K.scale, e.pos[2]] },   // not usable: `at` lets tools look at it by id
       save: () => ({ hp: e.hp, dead: e.dead, pos: e.pos.map((v) => +v.toFixed(2)), yaw: +e.yaw.toFixed(2), active: e.active, shown: e.rig.root.visible }),
       load: (s) => restore(e, s) });
@@ -174,10 +191,20 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
     if (K.type === 'hound') hounds.push(e);
     return e;
   }
+  /** three updates a skeleton (its bone matrices and bone texture) once per render() call: a frame renders the scene,
+   *  the velocity buffer, the mirror and a lamp's six cube faces, so each robot's bones were computed and uploaded
+   *  several times a frame for one pose. The bones change only in a step (the animator, the root moved) or through
+   *  anim.update: the skeleton is updated once after each of those (e.boneV), whatever the passes */
+  function onceAStep(e) {
+    const sk = e.sets[0][0].skeleton, upd = sk.update.bind(sk), au = e.anim.update.bind(e.anim);
+    e.boneV = 1;
+    sk.update = () => { if (sk.ndV !== e.boneV) { sk.ndV = e.boneV; upd(); } };
+    e.anim.update = (dt) => { e.boneV++; return au(dt); };
+  }
   /** a hound (a robot dog, game/robot-rig.js): no rig, no animator; a stand-in for the animator's calls that poses
    *  the dog in code from its speed, the distance it covered, a crouch (the tell), a leap and a fall */
   function buildHound(def, K, kk) {
-    const dog = createHound({ style: K.style, mats, light: visorMat[kk] });
+    const dog = createHound({ style: K.style, mats: { shell: shellOf[kk], metal: mats.metal } });
     dog.root.scale.setScalar(K.scale); dog.model.scale.setScalar(1 / K.scale);
     const st = { speed: 0, dist: 0, crouch: 0, leap: 0, dead: 0, aim: 0 };
     const anim = { post: [], dt: 0,
@@ -190,7 +217,7 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
     anim.update(0);
     return e;
   }
-  /** the rifle's geometry (shell material, vertex colours): extruded profiles along -x, a shroud, a magazine, an optic */
+  /** the rifle's parts (shell slot, vertex colours): extruded profiles along -x, a shroud, a magazine, an optic */
   function rifle(sniper) {
     const k = [];
     const put = (g, c, p = [0, 0, 0], r = [0, 0, 0]) => k.push(part(tf(g, p, r), 's', c));
@@ -202,7 +229,7 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
     put(new RoundedBoxGeometry(0.1, 0.04, 0.035, 1, 0.01), COL.carbon, [-0.06, 0.08, 0]);
     put(new THREE.CylinderGeometry(sniper ? 0.024 : 0.016, sniper ? 0.024 : 0.016, sniper ? 0.22 : 0.06, 10).rotateZ(Math.PI / 2), COL.glass, [-0.06, sniper ? 0.11 : 0.105, 0]);
     if (sniper) for (const s of [-1, 1]) put(new THREE.CylinderGeometry(0.006, 0.005, 0.24, 5).rotateZ(Math.PI / 2 - 0.08), COL.graphite, [-0.72, -0.005, s * 0.018]);   // the bipod, folded along the barrel
-    return mergeParts(k);
+    return k;
   }
   /** the shield's projector on the lower rim: a rounded housing */
   function projector() { return mergeParts([part(new RoundedBoxGeometry(0.46, 0.06, 0.07, 2, 0.02), 's', COL.carbon), part(tf(new RoundedBoxGeometry(0.3, 0.02, 0.02, 1, 0.008), [0, 0.04, 0.01]), 's', COL.amber)]); }
@@ -220,7 +247,8 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
   function revive(e, at, hp = 1) {
     const p = (nav && nav.nearest(at, { snap: 2 })) || at.slice();
     calm(e);
-    Object.assign(e, { maxHp: e.K.hp * tune.hp * hp, hp: e.K.hp * tune.hp * hp, dead: false, deadT: 0, state: 'post', aim: 0, burst: 0, tele: 0, next: 1 + R() * 1.5, lastSeen: null, seenT: -1e9, shift: 0, wait: 0, t: 0, active: true, watch: 0, speed: 0 });
+    Object.assign(e, { maxHp: e.K.hp * tune.hp * hp, hp: e.K.hp * tune.hp * hp, dead: false, deadT: 0, state: 'post', aim: 0, burst: 0, tele: 0, next: 1 + R() * 1.5, lastSeen: null, seenT: -1e9, shift: 0, wait: 0, t: 0, active: true, watch: 0, speed: 0,
+      revived: !e.drill, wokeT: game.time, straggler: false, stray: null });
     if (e.agent) { e.agent.stop(); e.agent.walker.place(p); e.pos = e.agent.pos; e.agent.speed = e.agent.walker.body.walk = e.agent.walker.body.run = e.K.speed; crowd.remove(e.agent); crowd.add(e.agent); } else e.pos = p.slice();
     e.home = e.pos.slice();
     const r = e.rig.root; r.visible = true; r.position.set(...e.pos); r.rotation.y = e.yaw; r.scale.setScalar(e.K.scale);
@@ -265,7 +293,7 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
   function noise(pos, radius = 22) {
     for (const e of list) if (!e.dead && e.active && Math.hypot(e.pos[0] - pos[0], e.pos[2] - pos[2]) < radius && Math.abs(e.pos[1] - pos[1]) < 5) alert(e, pos, 0.15);
   }
-  function wake(zone, where) { for (const e of byZone[zone] || []) if (!e.dead) { e.active = true; e.rig.root.visible = true; if (where) alert(e, where, R() * 0.8); } }
+  function wake(zone, where) { for (const e of byZone[zone] || []) if (!e.dead) { e.active = true; e.rig.root.visible = true; e.wokeT = game.time; if (where) alert(e, where, R() * 0.8); } }
 
   // ---- what the city does to them (hack.js, abilities.js)
   /** stunned for t seconds (an EMP): no aim, no shot, the shield down, sparks */
@@ -484,6 +512,33 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
     return sees && dist < 9 ? p : null;
   }
   const firing = () => { let n = 0; for (const o of list) if (!o.dead && (o.burst > 0 || o.tele > 0)) n++; return n; };
+
+  // ---- stragglers: the mission must always be completable. The last wave (zone 'wave') and the holdout's waves
+  // (revived) must all go down for the uplink or the wave to end; a robot of theirs that lost the player used to
+  // search, give up and walk home to its post on the ground floor, where the player on the roof never saw it again.
+  // Now it goes where the player is instead (the uplink tells them); one unseen for STRAY_S is a straggler (marked
+  // through walls, kit.js) and runs to the player; one that cannot get there (no progress for STUCK_S while unseen)
+  // or is still unseen after GIVE_UP_S withdraws (out of play, counted down, no kill credit).
+  const STRAY_S = 14, STUCK_S = 12, GIVE_UP_S = 50;
+  const pressed = (e) => !e.drill && (e.def.zone === 'wave' || e.revived);
+  /** after the player: a search whose goal is where they stand (the nearest walkable point) */
+  function hunt2(e) {
+    e.lastSeen = player.feet.slice(); e.lureT = 0;
+    e.agent.speed = e.agent.walker.body.walk = e.agent.walker.body.run = e.K.speed;
+    e.agent.setGoal(nav.nearest(player.feet, { snap: 3 }) || e.lastSeen);
+  }
+  function straggle(e) {
+    if (!pressed(e) || player.dead || e.stun > 0) { e.straggler = false; return; }
+    const unseen = game.time - Math.max(e.seenT, e.wokeT ?? 0);
+    e.straggler = unseen > STRAY_S;
+    if (!e.straggler) { e.stray = null; return; }
+    // progress: how far it got toward the player since the mark
+    const d = Math.hypot(player.feet[0] - e.pos[0], player.feet[2] - e.pos[2]) + Math.abs(player.feet[1] - e.pos[1]) * 2;
+    if (!e.stray || d < e.stray.d - 1) e.stray = { d, t: game.time };
+    if ((e.state === 'search' || e.state === 'post') && (e.agent.arrived || !e.agent.path || e.t > 2)) { e.state = 'search'; e.t = 0; hunt2(e); }
+    if (unseen > GIVE_UP_S || game.time - e.stray.t > STUCK_S + (e.K.name === 'marksman' ? 8 : 0)) { withdrawn++; game.set('withdrawn', withdrawn); park(e); }
+  }
+  let withdrawn = 0;
   function think(e, dt) {
     const p = player.feet, dx = p[0] - e.pos[0], dz = p[2] - e.pos[2], dist = Math.hypot(dx, dz);
     e.t += dt;
@@ -499,6 +554,7 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
     switch (e.state) {
       case 'post': {   // stand, or walk the patrol
         if (sees) { alert(e, p); for (const o of byZone[e.def.zone] || []) if (o !== e) alert(o, p, 0.5 + R() * 0.6); break; }
+        if (pressed(e) && e.t > 2) { e.state = 'search'; e.t = 0; hunt2(e); break; }   // (the marksman's post too: see straggle)
         const pts = e.def.patrol;
         if (pts && (e.agent.arrived || !e.agent.path)) { if ((e.wait -= dt) <= 0) { const [x, z] = pts[e.patrolI++ % pts.length]; e.agent.speed = e.agent.walker.body.walk = e.agent.walker.body.run = 1.3; e.agent.setGoal([x, e.pos[1], z]); e.wait = 1.5 + R() * 2; } }
         break;
@@ -549,7 +605,10 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
       case 'search': {   // at the last place it knew: look round, then go home (a lure holds them there a while)
         if (sees) { e.state = 'fight'; e.t = 0; e.lureT = 0; bark(e, 'fight', 6); break; }
         if (e.lureT > 0) { e.lureT -= dt; if (e.agent.arrived || !e.agent.path) e.yaw += dt * 1.2; break; }
-        if (e.agent.arrived || !e.agent.path || e.t > 9) { if (e.t > 3) { e.state = 'post'; e.t = 0; e.agent.setGoal(e.home); } else e.yaw += dt * 1.6; }
+        if (e.agent.arrived || !e.agent.path || e.t > 9) {
+          if (e.t > 3 && pressed(e)) { e.t = 0; hunt2(e); }   // a wave's robot does not go home: it goes where the player is
+          else if (e.t > 3) { e.state = 'post'; e.t = 0; e.agent.setGoal(e.home); } else e.yaw += dt * 1.6;
+        }
         break;
       }
     }
@@ -589,12 +648,13 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
     let moved = false;
     senses.update(dt);
     let seen = false;
-    for (const e of list) if (!e.dead && e.active) { think(e, dt); if (e.state === 'fight' && game.time - e.seenT < 0.1) seen = true; }
+    for (const e of list) if (!e.dead && e.active) { think(e, dt); straggle(e); if (e.state === 'fight' && game.time - e.seenT < 0.1) seen = true; }
     player.exposed = seen ? player.exposed + dt : Math.max(0, player.exposed - dt * 2);
     crowd.update(dt);
     let teller = null, tellD = 1e9;
     for (const e of list) {
       const rootObj = e.rig.root;
+      e.boneV++;   // (the root may move this step: its bones' world matrices with it)
       const kit = !e.dead && rootObj.visible && e.shieldOff <= 0 && e.stun <= 0;
       if (e.shield) { e.shield.visible = kit; e.emitter.visible = kit; }
       if (e.beam) e.beam.visible = false;
@@ -648,6 +708,7 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
       let hot = 0, jammed = 0;
       for (const e of list) if (!e.dead && e.K === KIND[k]) { if (e.tele > 0 || e.charge > 0) hot = 1; if (e.jam > 0 || e.stun > 0) jammed = 1; }
       visorMat[k].color.setRGB(...KIND[k].visor).multiplyScalar(7 * (1 + 2.2 * hot * (0.6 + 0.4 * Math.sin(game.time * 40))) * (jammed && Math.sin(game.time * 23) > 0.3 ? 0.15 : 1));
+      visorPlain[k].color.copy(visorMat[k].color); glowU[k].value.copy(visorMat[k].color);
     }
     rim.value.set(0.05, 0.11, 0.14).multiplyScalar(1 + 5 * env.rim);
     return moved;

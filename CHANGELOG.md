@@ -5,6 +5,13 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
 ## Unreleased
 
 **Faster**
+- @miragekit/core: the WebGL commands are flushed to the GPU every 128 draws (`createWorldRenderer({ flushEvery })`,
+  0 = off) and before and after the scene pass. The browser otherwise sends a task's commands at its end, so the GPU
+  began a frame only once the CPU had built all of it and the two ran one after the other; flushed as it goes, the
+  GPU draws the first passes while the CPU builds the rest. The image is the same (a flush only sends). neon-district
+  at 1440 x 900, a frame to a 1-pixel read-back (scripts/measure.mjs): low 12.3-12.5 -> 9.8-9.9 ms, medium 16.4-17.3
+  -> 13.1-13.9, high 20.0-21.5 -> 17.5-18.4 in the alley, the street and on the roof (every 40 draws flushed too
+  often, every 400 too seldom). lighting-check counts the flushes.
 - @miragekit/core: post.taa2 / motionBlur's velocity pass culls a skinned mesh's stand-in by the mesh's own bounding
   sphere when the mesh culls itself (frustumCulled with a sphere, its own or one it was given); before, every skinned
   mesh was drawn into the velocity buffer wherever it stood. What the scene pass did not draw has no pixel there, so
@@ -14,6 +21,24 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
   `mgDynamic` object that casts nothing (no visible mesh under it with castShadow): it cannot change a tile. The frame
   it stops casting still redraws the tiles near it, so its old shadow goes. neon-district's kites (which cast none
   now) had one lamp's six shadow faces redrawn every frame.
+- @miragekit/core: the clustered lamps' shadow tiles keep their static casters apart from the moving ones
+  (`lighting.lights.split`, on by default; a second depth atlas of the same size). A tile redrawn because an
+  `mgDynamic` object moved in range copies the cached static tile back and draws only the moving objects over it (the
+  nearer distance wins), instead of every caster round the lamp in six faces; the static part is drawn again when the
+  tile is made or resized, the light moves or `invalidate()` is called. The tile is the same (lighting-check compares
+  it with a full redraw). A static object that moves without `mgDynamic` is now not refreshed by a mover's redraw
+  (call `invalidate()`, or `split: false`). neon-district: 160 draws and 262 k triangles a frame less at the street
+  view, medium, while its robots walk.
+- @miragekit/core: a batch of lamp shadow tiles updates the scene's world matrices once and draws its cube faces
+  with `matrixWorldAutoUpdate` off (every face's render() walked the whole scene graph again: six to twelve walks a
+  redraw), and with every static tile still good it walks only the moving objects for the casters (not the scene).
+  The same tiles.
+- @miragekit/core: the lamp pool's per-pixel loop (`lampPool`) reads a lamp's position and range first and skips it
+  when the pixel is out of reach before fetching the rest of its record (three texel fetches became one for most of
+  a cell's list: a cell lists every lamp whose sphere touches it); the wall and the eye fade are tested before the
+  falloff. The same light (the factors are the same, multiplied in another order).
+- @miragekit/tools: lighting-check's shadow-cache assertions run on moving frames (a still lays the atlas out afresh
+  since the stills fix, so "no redraw while nothing moves" failed on every still); it checks the split tile too.
 
 **Fixed**
 - @miragekit/core: stills depend less on the view drawn before them. The clustered lamps' shadow atlas (`lighting.lights`)

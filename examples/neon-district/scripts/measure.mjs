@@ -3,7 +3,7 @@
 //   node scripts/measure.mjs [dist] [--w 1440 --h 900] [--rounds 6] [--frames 40] [--ab] [--out out/measure.json]
 //   [--vs other-dist] [--only game]: the same variants of another build too, in the same rounds (before / after on a
 //   machine that is not quiet: both see the same load), its rows marked `vs`; --only keeps the variants whose name
-//   starts with that
+//   starts with that (several: 'game, medium;world, medium')
 // Every variant is its own page in one Chrome; the rounds go round-robin over the pages (A/B interleaved), so a
 // busy moment on the machine lands on every variant alike. In a round each view is walked for `frames` moving
 // (temporal AA) frames with a slow pan, driven synchronously (step + render + a 1-pixel readback: the GPU work is
@@ -29,7 +29,7 @@ const variants = args.includes('--ab') ? [{ name: 'world, high', query: 'world=1
   ...['low', 'medium', 'high'].map((q) => ({ name: `game, ${q}`, query: `start=1&assist=1&quality=${q}` })),
   ...['low', 'medium', 'high'].map((q) => ({ name: `world, ${q}`, query: `world=1&ui=0&quality=${q}` })),
 ];
-if (flag('only')) variants.splice(0, variants.length, ...variants.filter((v) => v.name.startsWith(flag('only'))));
+if (flag('only')) variants.splice(0, variants.length, ...variants.filter((v) => flag('only').split(';').some((o) => v.name.startsWith(o))));
 if (vs) variants.splice(0, variants.length, ...variants.flatMap((v) => [{ ...v, vs: true, name: 'vs ' + v.name }, v]));
 const srv = await serve(dist), srv2 = vs ? await serve(vs) : null, browser = await launch({ w: W, h: H, args: ['--autoplay-policy=no-user-gesture-required'] });
 const pages = [];

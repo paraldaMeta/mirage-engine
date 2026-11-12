@@ -200,10 +200,14 @@ light count is data: adding a lamp compiles nothing. Captures and orthographic c
 Shadows: one depth atlas (2048 px). A light with `{ shadow: true }` gets a square tile, 64-512 px by its size on
 screen (buddy allocator, hysteresis), holding distance per direction in an octahedral layout, read with 4 rotated
 hardware compares. Tiles are cached: redrawn only when the light moved, its tile changed size, `invalidate()` was
-called, or a `userData.mgDynamic` root moved within range; at most `perFrame` (2) per frame.
+called, or a `userData.mgDynamic` root moved within range; at most `perFrame` (2) per frame. Static and moving
+casters are kept apart (`split`, default true): a second atlas holds each tile with the static casters alone; a redraw
+because a mover moved copies that back and draws only the movers in range over it (the nearer distance wins), so a
+robot walking past a lamp costs its own draws, not the street's. The static part is drawn again when the tile is made
+or resized, the light moved, or `invalidate()` was called.
 
-Limits: a spot light pays the same six cube faces as a point light. Static and moving casters share a tile (no
-separate static layer: a light with a mover in range redraws all its casters). Alpha-tested cut-outs cast as their
+Limits: a spot light pays the same six cube faces as a point light. A static object that moves without
+`mgDynamic` is not followed until `invalidate()` (or `split: false`). Alpha-tested cut-outs cast as their
 whole card. A cell keeps at most `perCell` (64) lights; `world.lighting.lights.info.clipped` counts drops.
 `perCell: 0` removes the limit: the index texture grows to what the frame needs, and the result is the plain loop's
 (hello-courtyard `?lights=100&time=20:30`, two views, 4 spp: bit-identical to `&cluster=0`; with `&percell=64` the

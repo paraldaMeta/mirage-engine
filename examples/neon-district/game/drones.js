@@ -11,9 +11,21 @@ import { FX } from './fx.js';
 
 const EYE = { kite: [1.0, 0.55, 0.1], mender: [0.25, 1.0, 0.45], turned: [0.2, 0.9, 1.0] };
 
+const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _p = new THREE.Vector3(), _s = new THREE.Vector3(1, 1, 1), _y = new THREE.Vector3(0, 1, 0);
+/** the rotors a step on (all four the same way, as before), their instances written */
+function spin(r, da) {
+  r.a += da;
+  r.hubs.forEach(([x, z], i) => r.mesh.setMatrixAt(i, _m.compose(_p.set(x, 0.04, z), _q.setFromAxisAngle(_y, r.a + i * 0.7), _s)));
+  r.mesh.instanceMatrix.needsUpdate = true;
+  if (!r.mesh.boundingSphere) r.mesh.computeBoundingSphere();
+}
+
 export function createDrones({ world, game, physics, plan, vfx, sfx, player, assist, onDispose, tune = { dmg: 1, hp: 1, acc: 1 } }) {
   const { mat } = world;
   const shell = mat.std({ color: new THREE.Color(0.06, 0.065, 0.08), roughness: 0.35, metalness: 0.85 });
+  // (the rotors' own copy: they are instanced, and a material moving between an instanced and a plain mesh has its
+  // program looked up again by three at every switch)
+  const rotorMat = mat.std({ color: new THREE.Color(0.06, 0.065, 0.08), roughness: 0.35, metalness: 0.85 });
   const list = [], byZone = {};
   let grid = null, rnd = 0x7f4a7c15;
   const R = () => ((rnd = (Math.imul(rnd ^ (rnd >>> 15), 0x2c1b3c6d) ^ (rnd << 7)) >>> 0) / 4294967296);
@@ -33,12 +45,15 @@ export function createDrones({ world, game, physics, plan, vfx, sfx, player, ass
     const bake = (k, geo, p = [0, 0, 0], r = [0, 0, 0]) => parts[k].push(geo.applyMatrix4(new THREE.Matrix4().compose(new THREE.Vector3(...p), new THREE.Quaternion().setFromEuler(new THREE.Euler(...r)), new THREE.Vector3(1, 1, 1))));
     bake('shell', new THREE.SphereGeometry(0.2, 18, 12).scale(1, 0.72, 1.25));
     bake('eye', new THREE.SphereGeometry(0.07, 12, 8), [0, -0.03, 0.22]);
-    const rotors = [];
-    for (const [x, z] of [[-0.34, 0.2], [0.34, 0.2], [-0.34, -0.24], [0.34, -0.24]]) {
+    // the four rotors: one instanced mesh (one draw, not four), each instance turned on its own hub every step
+    const hubs = [[-0.34, 0.2], [0.34, 0.2], [-0.34, -0.24], [0.34, -0.24]];
+    for (const [x, z] of hubs) {
       bake('shell', new THREE.TorusGeometry(0.13, 0.014, 6, 20), [x, 0.03, z], [Math.PI / 2, 0, 0]);
       bake('shell', new THREE.BoxGeometry(Math.abs(x) - 0.08, 0.02, 0.03), [x / 2, 0.01, z * 0.8]);
-      rotors.push(add(new THREE.BoxGeometry(0.24, 0.006, 0.02), shell, [x, 0.04, z]));
     }
+    const rotor = new THREE.InstancedMesh(new THREE.BoxGeometry(0.24, 0.006, 0.02), rotorMat, 4); rotor.castShadow = false; rotor.userData.occlude = false; o.add(rotor);
+    const rotors = { mesh: rotor, hubs, a: list.length * 1.3 };   // (not R(): the kites' random sequence stays as it was)
+    spin(rotors, 0);
     if (kind === 'mender') bake('eye', new THREE.TorusGeometry(0.16, 0.012, 6, 24), [0, -0.17, 0], [Math.PI / 2, 0, 0]);   // the mender's ring
     else bake('eye', new THREE.BoxGeometry(0.04, 0.02, 0.12), [0, -0.14, -0.05]);
     // no shadow: a 0.4 m body 5-11 m up casts a blob nobody sees, and a moving caster near a shadowed lamp redraws that
@@ -61,7 +76,18 @@ export function createDrones({ world, game, physics, plan, vfx, sfx, player, ass
   const head = [0, 0, 0];
   const sees = (e) => { head[0] = player.feet[0]; head[1] = player.feet[1] + player.height * 0.85; head[2] = player.feet[2]; return gridRay(grid, e.pos, head, 0.25) === 1; };
   const clear = (a, b) => gridRay(grid, a, b, 0.25) === 1;
-  function wake(zone) { for (const e of byZone[zone] || []) if (!e.dead) { e.active = true; e.o.visible = true; } }
+  function wake(zone) { for (const e of byZone[zone] || []) if (!e.dead) { e.active = true; e.o.visible = true; e.wokeT = game.time; } }
+  // stragglers (as the sentinels', enemies.js): a kite of the last wave or of a holdout wave that has not had the player
+  // in sight for STRAY_S is marked (kit.js); one still unseen after GIVE_UP_S (caught behind a wall it cannot fly
+  // round) withdraws, so the wave can end
+  const STRAY_S = 14, GIVE_UP_S = 40;
+  let withdrawn = 0;
+  function straggle(e) {
+    if (!(e.def.zone === 'wave' || e.revived) || player.dead || e.turned > 0) { e.straggler = false; return; }
+    const unseen = game.time - Math.max(e.seenT, e.wokeT ?? 0);
+    e.straggler = unseen > STRAY_S;
+    if (unseen > GIVE_UP_S) { withdrawn++; game.set('kitesWithdrawn', withdrawn); park(e); }
+  }
   function die(e) {
     e.dead = true; e.deadT = 0; e.vy = 1.5; e.turned = 0; e.target = null;
     vfx.burst(FX.down, e.pos, { scale: 0.7 });
@@ -164,7 +190,7 @@ export function createDrones({ world, game, physics, plan, vfx, sfx, player, ass
         e.o.position.set(p[0], p[1], p[2]);
         continue;
       }
-      for (const r of e.rotors) r.rotation.y += dt * (e.stun > 0 ? 8 : 60);
+      spin(e.rotors, dt * (e.stun > 0 ? 8 : 60));
       if (e.grip > 0) { e.grip -= dt; e.vel = [0, 0, 0]; e.tele = 0; paint(e, Math.sin(game.time * 30) > 0 ? 1.5 : 0.4); continue; }   // a hack has hold of it: it hangs where it is
       if (e.stun > 0) {   // stunned: it sags and drifts, its eye stutters
         e.stun -= dt; e.vel[1] = -0.4;
@@ -181,6 +207,7 @@ export function createDrones({ world, game, physics, plan, vfx, sfx, player, ass
       }
       const dx = player.feet[0] - p[0], dz = player.feet[2] - p[2], dist = Math.hypot(dx, dz), reach = 1 - 0.6 * env.dark(player.feet);
       if (!e.active) { if (dist < 24 * reach && !player.dead && sees(e)) e.active = true; else { e.o.position.y = p[1] + Math.sin(game.time * 1.3 + e.ang) * 0.06; continue; } }
+      if (e.kind === 'mender') { if (dist < 30 && sees(e)) e.seenT = game.time; straggle(e); if (e.dead) continue; }
       if (e.kind === 'mender') { mend(e, dt); e.o.position.set(p[0], p[1], p[2]); paint(e, 1 + 0.5 * Math.sin(game.time * 6)); continue; }
       // the place it wants: on a slow orbit round the player, above head height
       e.ang += dt * 0.35;
@@ -190,6 +217,9 @@ export function createDrones({ world, game, physics, plan, vfx, sfx, player, ass
       e.o.position.set(p[0], p[1], p[2]); e.o.rotation.set(Math.min(0.5, sp * 0.06), e.yaw, 0);
       // one bolt at a time, after the eye flares
       const can = !player.dead && dist < 22 * reach && sees(e);
+      if (can || (dist < 9 && sees(e))) e.seenT = game.time;
+      straggle(e);
+      if (e.dead) continue;
       if (e.tele > 0) {
         hot = 1;
         if ((e.tele -= dt) <= 0) {
@@ -211,7 +241,8 @@ export function createDrones({ world, game, physics, plan, vfx, sfx, player, ass
   }
   /** a fallen (or parked) kite in the air again at `at`, awake (the holdout's waves); hp: a factor over the difficulty's */
   function revive(e, at, hp = 1) {
-    Object.assign(e, { maxHp: HP[e.kind] * tune.hp * hp, hp: HP[e.kind] * tune.hp * hp, dead: false, deadT: 0, active: true, pos: at.slice(), vel: [0, 0, 0], vy: 0, tele: 0, next: 1.5 + R() * 2, ang: R() * 6.28, turned: 0, stun: 0, target: null, burnt: false });
+    Object.assign(e, { maxHp: HP[e.kind] * tune.hp * hp, hp: HP[e.kind] * tune.hp * hp, dead: false, deadT: 0, active: true, pos: at.slice(), vel: [0, 0, 0], vy: 0, tele: 0, next: 1.5 + R() * 2, ang: R() * 6.28, turned: 0, stun: 0, target: null, burnt: false,
+      revived: !e.drill, wokeT: game.time, seenT: -1e9, straggler: false });
     paint(e); e.o.visible = true; e.o.position.set(...at); e.o.rotation.set(0, 0, 0);
     return e;
   }

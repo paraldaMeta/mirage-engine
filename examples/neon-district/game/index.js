@@ -152,6 +152,13 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
     if (drill && (e.code === 'KeyJ' || e.code === 'KeyK')) {
       const en = enemies.list.find((x) => x.id === (e.code === 'KeyJ' ? 'g11' : 'g1')), d = e.code === 'KeyJ' ? 8 : 4, at = [player.feet[0] + Math.cos(play.yaw) * d, player.feet[1], player.feet[2] + Math.sin(play.yaw) * d];
       en.yaw = Math.atan2(player.feet[0] - at[0], player.feet[2] - at[2]); enemies.revive(en, at, 1); en.drill = true; if (e.code === 'KeyK') enemies.stun(en, 4); game.set('drills', (game.flags.drills || 0) + 1);
+    }
+    // U: the street's kite 5 m ahead and 1.3 m over the eye, held still for 3 s (a hack's target); L: an ammo cell 2.5 m ahead
+    if (drill && (e.code === 'KeyU' || e.code === 'KeyL')) {
+      const d = e.code === 'KeyU' ? 5 : 2.5, at = [player.feet[0] + Math.cos(play.yaw) * d, player.feet[1], player.feet[2] + Math.sin(play.yaw) * d];
+      if (e.code === 'KeyU') { const k = drones.list.find((x) => x.id === 'd0'); k.drill = true; at[1] += player.height + 1.3; drones.revive(k, at, 1); k.grip = 3; }
+      else kit.ammo.drop(at, 24);
+      game.set('drills', (game.flags.drills || 0) + 1);
     } });
   listen(window, 'wheel', (e) => { if (!live() || hud.optionsOpen || performance.now() - wheelT < 120 || Math.abs(e.deltaY) < 1) return; wheelT = performance.now(); weapon.cycle(e.deltaY > 0 ? 1 : -1); }, { passive: true });
   listen(window, 'keydown', (e) => { if (e.code === 'KeyT' && !e.repeat && live()) { const order = ['night', 'dawn', 'day', 'dusk'], next = order[(order.indexOf(hour()) + 1) % 4]; setHour(next); game.ui.toast(T.hours[next]); }
@@ -523,7 +530,9 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
     optionsOpen: () => hud.optionsOpen, onOptions: toggleOptions,
     onChange: (k, v) => { if (k === 'lang') { switchLang(v); return; } if (k === 'difficulty') Object.assign(tune, TUNE[v]); if (k === 'hour') setHour(v); saveRun(); },
     onFrame: () => { play.turn(0, 0, 0); relight(); weapon.holder.visible = false; },
-    onDeploy: (ev) => { enterFull(); begin(); g.ui.begin(ev); } });
+    // the pointer lock is asked for before the full screen: the full screen takes the click's user activation, and a
+    // lock asked for after it in the same click was refused (the mouse did not look until a second click)
+    onDeploy: (ev) => { begin(); g.ui.begin(ev); enterFull(); } });
   onDispose(onLang((l) => { run.lang = l; }));
   /** the run as chosen: the difficulty's health on everyone, the holdout's roof or the mission's spawn */
   function begin() {
@@ -594,7 +603,12 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
       if (menu) menuWatch.observe(menu, { childList: true, subtree: true, attributes: true, attributeFilter: ['open'] });
       if (Q.has('start')) {   // the tests: straight in (main.js starts the overlay); full screen on the first click or tap
         begin();
-        const first = () => { removeEventListener('pointerdown', first, true); enterFull(); };
+        // (the pointer lock first, in the same click: the full screen takes the click's activation, see onDeploy)
+        const first = (e) => {
+          removeEventListener('pointerdown', first, true);
+          if (e.pointerType === 'mouse' && e.target === canvas && !touch && document.pointerLockElement !== canvas) { try { Promise.resolve(canvas.requestPointerLock?.()).catch(() => {}); } catch { /* the next click locks */ } }
+          enterFull();
+        };
         addEventListener('pointerdown', first, true); onDispose(() => removeEventListener('pointerdown', first, true));
       }
       // a tool's still (mirage-snap, the determinism check: ?ui=0): the game waits paused and no title flies the camera

@@ -694,7 +694,13 @@ export class Pipeline {
     if (this.clearColor == null) r.setClearColor(0x000000, 1);
     else r.setClearColor((this._cc || (this._cc = new THREE.Color())).setRGB(this.clearColor, this.clearColor, this.clearColor), 1);   // renderTransparent
     r.clear(true, true, false);
+    // the passes before it (the mirror, the G-buffer, the shadow maps) and the scene itself are flushed to the GPU
+    // here, so it starts on them while the CPU still builds the post-processing chain (without a flush the browser
+    // sends the commands at the end of the task, and the GPU begins the frame only after the CPU has finished it)
+    const gl = r.getContext();
+    gl.flush();
     r.render(scene, camera);
+    gl.flush();
     if (this.screen) this.screen.after(this, camera);
     if (this.planar) this.planar.after();
     if (l2) l2.lamps.done();

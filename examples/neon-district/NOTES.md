@@ -17,11 +17,13 @@ node examples/neon-district/scripts/weaponshots.mjs                    # every g
 node examples/neon-district/scripts/sfx-check.mjs                      # the guns' sounds measured (envelope, tail per room, spectrum): no build needed
 ```
 
-The playtest takes about ten minutes: it plays the route (177 steps: every wall, door and stair on it, the hacks, the abilities, the ammunition, the
+The playtest takes about ten minutes: it plays the route (179 steps: every wall, door and stair on it, the hacks, the abilities, the ammunition, the
 fights, the pass, the relay door, the uplink and its wave; and the guns: the 0 unlock, a rocket into a shield
 sentinel (a splash kill that breaks its shield), the shotgun on a sentinel up close (both stood in front of the player
 by the test hook `?drill=1` at the spawn, before the route: J the street's shield sentinel 8 m ahead, K a sentinel
-4 m ahead, so they do not depend on where the route's robots happen to be; the second stunned, neither drops a cell), before the uplink
+4 m ahead, so they do not depend on where the route's robots happen to be; the second stunned, neither drops a cell;
+on the route U stations the street's kite 5 m ahead and over the eye, held still for 3 s, for the hack, then K a
+stunned sentinel beside it for the kite to hunt, and L drops an ammo cell 2.5 m ahead for take-the-cell), before the uplink
 completes the gatling sweeps the wave, then on
 the roof every slot fired, the sidearm past its magazine and on, the gatling spun up until it overheats) and a view
 with rain never comes to rest, which the tool waits for before each of its 24 screenshots.
@@ -309,6 +311,13 @@ showed the turn unscaled and the next caught up (up to 3.8 deg off at 120 Hz, th
 (16-27 ms a frame on a fast laptop) is the performance pass's, not this one's: below 60 fps the turn still lands on
 the frame, but each frame is a bigger step.
 
+**The first click** (found when the check failed with "997 deg" after the full-screen pass): DEPLOY, and the first
+click of a `?start=1` page, asked for full screen before the pointer lock. Full screen takes the click's user
+activation, so the lock was refused and the mouse did not look until a second click; the check's one click never
+locked, the camera never turned, and its frame-to-frame unwrap of the heading booked whole turns as error. The lock
+is now asked for first (`game/index.js`), and the check unwraps the heading against what the mouse sent (a frame that
+comes late no longer reads as a turn).
+
 **Not measured, and cannot be:** whether anyone feels better. Nobody can feel motion sickness in a headless browser;
 the presets follow the usual advice (a wide enough field of view, no camera roll the player did not cause, little
 bob, short and small shake, no flicker), and the numbers above say only that the motion is smaller and shorter.
@@ -338,7 +347,9 @@ arrives; the pad's right stick is read on standard-mapping pads only, a stick co
 pad lying on the desk gets its own dead zone; pointer-lock jumps are dropped; `play.pitch` / `yaw` refuse NaN; the
 kept settings are cleaned (NaN, strings, out of range); the recoil books only the climb that happened. Without the
 inverted look and without a pad nothing reproduced on the mouse or on touch; which of these the owner met is not
-known. `?debug=look` shows the pitch (game and camera), the last turn's device and size, dropped jumps, the pad as
+known. (The look-check's later "down -0.297, want -0.3" at sensitivity 2.5 was the same first click as in "Comfort":
+at 2.5 a look to the top is one stroke, the stroke came before the pointer was locked and was lost, so "up" never
+reached the top; the threshold was not the problem.) `?debug=look` shows the pitch (game and camera), the last turn's device and size, dropped jumps, the pad as
 the browser reports it and as the game reads it, the fingers down and the camera offsets: a screenshot of it when
 the view sticks says which.
 
@@ -360,6 +371,17 @@ Its menu picks, before DEPLOY:
   enemies' health (1.3, 1.6) and their accuracy (1.15, 1.35; the cap on a shot's chance rises with it). `?assist=1`
   works on top of any of them.
 - **Time.** Night, dusk or day, through `setHour` (the options' slider gives any other hour).
+
+**The last wave can always be finished.** The uplink completes only when every robot of its wave is down, and a
+holdout wave ends the same way. A wave sentinel that lost the player used to search, give up and walk home to its post
+on the relay's ground floor, where nobody on the roof saw it again (the playtest's `uplink-complete` failed with 17
+kills and no `done`). Now a robot of the last wave or of a holdout wave never goes home: it goes where the player is;
+one unseen for 14 s is a straggler, marked through walls like the overdrive's marks, and runs to the player; one that
+makes no progress for 12 s while unseen, or is still unseen after 50 s, withdraws (out of play, counted down, no kill:
+`flags.withdrawn`). Kites of those waves likewise (marked after 14 s unseen, withdrawn after 40 s:
+`flags.kitesWithdrawn`). `node scripts/uplink-check.mjs` fast-forwards it: a wave sentinel far off on the street comes
+and fights the player, marked on the way; one pinned in a corner and a kite pinned under the roof withdraw and the
+uplink completes 40.5 s after it started (the build before fails both).
 
 Mode, difficulty and the title's hour are kept with the player's settings (`game.settings.ndRun`), and shown on the
 HUD's tally and the end card. For tests, `?mode=holdout` and `?difficulty=hard|brutal` set them for one visit;
@@ -551,6 +573,105 @@ of it and visibly darkens the street, so both stay). Scaled to the quiet run of 
 25-27, low 12.4-13.3 ms) that is about 17.5-18.5 at medium, 20-21.5 at high and 11.5-13 at low; the brackets' low
 ends (rounds the other jobs disturbed least) are 15.2-16.6 at medium, 18.6-19.7 at high and 11.1-11.8 at low in the
 alley, the street and on the roof. So high is about at its 20 ms, medium near its 16, low over its 10.
+
+### After the realism pass (robots, civilians, cars)
+
+The realism pass put the game back over budget (quiet machine, `measure.mjs --rounds 5`: low 9.7-12.4, medium
+14.2-17.7, high 16.5-21.7 ms against 10 / 16 / 20; the world alone 5.9-10.3 / 10.2-14.3 / 13.5-19.4). What a frame drew
+at street west, before and after this pass (`node scripts/passes.mjs <unminified build> --variants game:medium,...`:
+`renderer.info` per top-level render() and per shadow-map update, grouped by the code that asked, averaged over 12
+moving frames; `--objects N` lists them by object):
+
+| pass (draws / triangles a frame) | game, medium before | game, medium after | world, medium | game, high before | game, high after |
+|---|---|---|---|---|---|
+| the scene | 490 / 506 k | 431 / 502 k | 332 / 446 k | 490 / 520 k | 431 / 514 k |
+| SSR G-buffer (high, every frame) + the mirror (every 3rd frame), per frame | 175 / 123 k | 151 / 120 k | 123 / 106 k | 492 / 547 k | 435 / 541 k |
+| their shadow maps | 23 / 27 k | 22 / 26 k | 18 / 22 k | 40 / 48 k | 37 / 46 k |
+| one lamp's shadow tile, six faces, redrawn every frame while a robot walks | 160 / 262 k | 2 / 7 k (+2 quads) | 0 | 160 / 262 k | 2 / 7 k |
+| the velocity buffer (moving objects) | 119 / 50 k | 61 / 48 k | 0 | 119 / 50 k | 61 / 48 k |
+| the moon's map | 49 / 60 k | 46 / 57 k | 37 / 43 k | 83 / 101 k | 75 / 96 k |
+| **all** (without post's ~33 quads) | **1050 / 1028 k** | **748 / 759 k** | **543 / 615 k** | **1423 / 1528 k** | **1081 / 1252 k** |
+
+The CPU profile (`node scripts/cpu-profile.mjs <unminified build> --quality medium --incl .`: the DevTools sampling
+profiler over the measured frames) said where a frame went: at medium the CPU built the frame in 6.3 ms (game logic
+0.7, render() 5.7) and then waited 11.6 ms for the GPU (the 1-pixel read-back), against 4.0 + 12.2 for the world
+alone; the game's extra was CPU (draws, uniform uploads, program lookups, skeleton updates), not pixels. And the GPU
+only started on a frame once the CPU had finished building it: Chrome sends a task's WebGL commands to the GPU process
+when the task ends. What changed, each with what it saved (`scripts/ablate.mjs` hides a part and pairs its frames
+with the frames before it; `measure.mjs --vs <the build before>` interleaves two builds; both on a quiet machine):
+
+- **Flush as it goes** (core, `createWorldRenderer({ flushEvery: 128 })`, CHANGELOG): the commands go to the GPU every
+  128 draws and around the scene pass, so the GPU draws the shadow maps and the first of the scene while the CPU
+  builds the rest. Medium 16.4-17.3 -> 13.1-13.9 ms, low 12.3-12.5 -> 9.8-9.9, high 20.0-21.5 -> 17.5-18.4 at the
+  alley, the street and the roof (every 40 draws flushed too often: -2.2 at low; every 400 too seldom: -1.3). The
+  image is the same. This is most of the win.
+- **Static and moving casters apart** (core, `lighting.lights.split`, CHANGELOG): a lamp tile redrawn because a robot
+  walked past it copies the cached static tile back and draws only the movers over it: 160 draws and 262 k triangles
+  a frame -> 2 and 7 k. A batch also walks the scene graph once for matrices (it was once per cube face), and only
+  the movers' subtrees for casters. (Its first commit hid the sun in that pass: three's light state then changed
+  twice a frame and every lit material looked its program up again, 157 lookups a frame; the next commit keeps the
+  lights: 37, as the world alone. `node scripts/program-churn.mjs` counts them per material.)
+- **Robots: two skinned meshes, not five** (`robot-kit` glow in the shell, `robot-rig` bySlot, `enemies.js`): the
+  lights are drawn by the shell's material (a vertex with ndR -1 is unlit glow, one shell material per kind carries the
+  visor's colour), the rifle and its muzzle are skinned to the right hand in the shell's mesh; the hounds 3 -> 2. A
+  robot's skeleton is updated once after each step (three updated it in every render() call: scene, velocity, mirror,
+  six cube faces). The rifle, the shield's emitter and frame have their own plain materials and the additive shield
+  is one pass (a material moving between a skinned and a plain mesh, and a DoubleSide transparent one, made three look
+  its program up again at every switch). Robots' metal parts stay out of the mirror; past 30 m a sentinel casts no
+  shadow (as the hounds: a far robot under a lamp no longer redraws its tile). Together about 1 ms at medium (hiding
+  every robot and civilian saved 2.7 ms before, 1.5 after).
+- **Near level** (`robot-kit`): sentinel 6220 / 3604 / 1480 -> 4906 / 3356 / 1364 triangles (near / middle / far),
+  warden 6130 -> 4978, civilian 3928 / 2610 / 1368 -> 3532 / 2442 / 1252, scout 3136 -> 2656, the shield and mast kits
+  about 5.04 k: the lathes' zero-area pole triangles dropped (nothing drawn changes), an actuator's face as two caps
+  (the barrel between them was inside the housing), drums under 5 cm 8-sided near, fingers open tubes closed at the
+  tip, cables 5 x 4, the chest, hips, head and bellows a step coarser near (`node scripts/robot-tris.mjs`).
+- **Kites**: the four rotors are one instanced mesh with its own material (6 meshes -> 3).
+- **Pickups** are drawn within 45 m (each spinning box was four draws a frame wherever it was).
+- **The lamp pool's loop** (core, CHANGELOG) skips a lamp out of a pixel's reach after one texel fetch, not three.
+
+Not done, and why:
+- **The lamp pool at low** is no longer the floor: `node scripts/pool-ab.mjs --quality low` (the pool's settings at
+  run time, paired, with stills) found switching it off saves 1.4-1.5 ms of 12 (it was a quarter of the frame), and
+  fewer lamps per cell nothing measurable (perCell 3: -0.1 ms; the lists average 8 lamps a cell): the cost is the
+  loop's presence in the shader, not its length. The flush brought low under 10 without touching it.
+- **The cars' wheels have no LOD**: they are merged with the cars' bodies into one mesh per material for the three
+  cars, so a level of detail per car needs its own meshes, about 20 more draws a frame (scene, moon, mirror,
+  G-buffer) to save some 20-40 k triangles a pass; on this GPU the draws cost more than the triangles.
+- **Civilians beyond 35 m** keep their far level (1.25 k): hiding every civilian saves 0.2-0.4 ms; an impostor level
+  was not worth its risk.
+- **"17 texture units"** at high did not reproduce, in the build before this pass or after, at night, dusk or day,
+  with the camera at 1.5 m from the pedestrians, the courier and the vendors (the lighting pass changed the units);
+  the world's surface materials sit at exactly 16 active samplers (no margin).
+
+Measured (M4 Pro, 1440 x 900, `measure.mjs --vs <the build before> --rounds 3 --frames 30`, interleaved; the game rows
+at 08:57 after the flush, load average 2.7; the world rows at 08:32 before the flush, load 2.5: quiet enough that the
+build before reproduced the quiet table above within 0.5 ms; the world with the flush was not measured on a quiet
+machine: a later run was spoiled by another job on the GPU):
+
+| variant | alley | street west | bar inside | plaza | roof vista | calls, triangles (street) |
+|---|---|---|---|---|---|---|
+| vs game, low | 12.3 [12.2-12.5] | 12.5 [12.4-12.7] | 9.4 [9.3-9.9] | 11.0 [10.8-11.1] | 12.2 [12.0-12.2] | 457, 449 k |
+| game, low | 9.8 [9.7-9.8] | 9.9 [9.8-10.0] | 8.4 [8.3-8.9] | 9.0 [8.8-9.1] | 9.7 [9.5-9.8] | 447, 449 k |
+| vs game, medium | 16.4 [16.1-16.5] | 17.3 [17.2-17.5] | 12.8 [12.6-13.1] | 15.5 [15.0-15.6] | 16.1 [16.1-16.2] | 1085, 991 k |
+| game, medium | 13.1 [12.9-13.2] | 13.9 [13.8-13.9] | 12.4 [12.0-12.9] | 12.2 [12.2-12.6] | 13.0 [12.9-13.1] | 1055, 991 k |
+| vs game, high | 20.0 [19.8-20.1] | 21.5 [21.0-21.9] | 15.6 [15.4-16.0] | 18.4 [18.1-18.6] | 19.6 [19.5-20.3] | 1453, 1505 k |
+| game, high | 17.5 [17.3-17.7] | 18.4 [18.0-18.5] | 14.3 [13.9-14.4] | 15.9 [15.6-16.5] | 16.8 [16.8-16.8] | 1408, 1504 k |
+| world, low (no flush) | 10.2 [10.1-10.5] | 10.5 [10.4-10.7] | 6.0 [5.9-6.3] | 8.8 [8.7-8.9] | 9.8 [9.7-10.1] | 344, 400 k |
+| world, medium (no flush) | 13.4 [12.9-13.8] | 14.7 [14.6-15.1] | 10.3 [10.2-10.6] | 11.9 [11.8-12.3] | 13.2 [12.9-13.3] | 802, 829 k |
+| world, high (no flush) | 18.5 [18.1-18.9] | 20.2 [20.0-20.3] | 13.8 [13.7-14.1] | 16.7 [16.4-16.8] | 18.3 [17.8-18.6] | 1068, 1282 k |
+
+(`vs game` there is the build just before the flush, with the other changes already in: against the realism build the
+game rows at 08:32 were medium 17.1 / 18.0 / 14.0 / 16.2 / 17.3 -> 16.7 / 17.2 / 12.8 / 15.3 / 16.0, high 21.2 / 22.1 /
+16.6 / 19.4 / 20.9 -> 19.8 / 21.1 / 15.5 / 18.4 / 19.5, low unchanged.) Every view is inside its target: low <= 10
+(by 0.1-0.3 ms at the alley, the street and the roof: little margin), medium <= 16, high <= 20. The playtest's
+frame-cost view (medium, 1280 x 720): 16.55-16.67 ms before the flush (17.4-18.5 for the realism build), not yet
+re-measured on a quiet machine with it.
+
+The tiers are unchanged (same features, same resolution, the mirror still every 3rd frame). The close-ups at 1.5 m
+(`node scripts/realism.mjs --only robots,civ,cars --match ... --dist <the build before>`: a sentinel, a hound, the
+civilians, each car's front and rear wheel) and the timeshots (seven cameras, night, dusk, day, high) are the same
+before and after, but for two things on the sentinels: the rifle's muzzle tip now glows (its glow material had vertex
+colours and the geometry none: it drew black) and the rifle, now in the shell's mesh, takes the body's shadow.
 
 ## Image stability
 
@@ -1038,8 +1159,9 @@ invented (KORVID SYSTEMS, MIRU HOME, QUADRA, KESTREL MOTOR WORKS). `node scripts
   tool rail, a ring-light head), `home` (the civilians: light shells, fabric boots over the joints, a dark face
   plate); kits: `shield` (chest and shoulder plates, an emitter on the left forearm, chevrons), `mast` (the marksman's
   sensor mast). `quadruped(style)`: `scout`, `hauler` (a turret on a yoke), `courier` (a parcel box). Triangles
-  (near / middle / far): sentinel 6.2 k / 3.6 k / 1.5 k, warden 6.1 / 3.4 / 1.6 k, home 3.9 / 2.6 / 1.4 k, scout 3.2 /
-  1.8 / 1.3 k, hauler 3.5 / 2.0 / 1.5 k; the enemies switch at 12 and 30 m with hysteresis;
+  (near / middle / far; `node scripts/robot-tris.mjs`): sentinel 4.9 k / 3.4 k / 1.4 k (6.2 / 3.6 / 1.5 before the frame
+  budget pass), warden 5.0 / 3.3 / 1.5 k, home 3.5 / 2.4 / 1.3 k, scout 2.7 / 1.7 / 1.3 k, hauler 3.0 / 1.9 / 1.5 k;
+  the enemies switch at 12 and 30 m with hysteresis;
 - gait: `bipedLegs(phase, gait)`: the stance foot is fixed on the ground and moves back under the hip at exactly the
   gait's speed, rolled over the heel at strike and over the toe at push-off; the hip is as high as the stance leg's
   reach allows (a compass bob), the knees stay bent (robots walk crouched); two-bone IK (`legIK`) for the angles.
@@ -1047,8 +1169,9 @@ invented (KORVID SYSTEMS, MIRU HOME, QUADRA, KESTREL MOTOR WORKS). `node scripts
   the clips' travel equal to the ground covered (`speedParam`), so the feet do not slide. `trotLegs` for the dogs
   (diagonal pairs, knees back), driven by the distance travelled.
 
-**Enemies** keep every behaviour, hit volume and API: three skinned meshes per robot (shell, metal, lights) at each of
-three levels, one fixed bounding sphere for all, the rig's own body not drawn; only the shell casts shadows. Lights
+**Enemies** keep every behaviour, hit volume and API: two skinned meshes per robot at each of three levels (the shell,
+which also draws the lights, as glow, and the rifle skinned to the right hand; the metal: "Frame budget"), one fixed
+bounding sphere for all, the rig's own body not drawn; only the shell casts shadows, and only within 30 m. Lights
 are red or amber (the grunt red, the warden red-orange, the shield amber, the marksman red; the hounds orange-red);
 the dim rim outline as before. **Hounds** (`plan.enemies` `h0`-`h4`: a scout on the street, a hauler and a scout on
 the plaza; a scout and a hauler in zone `holdout`, never woken in the mission: in the last wave they kept the uplink
@@ -1098,8 +1221,7 @@ faceted lofts (the coupe's surfaces are smooth only between its stations), the t
 profile, the interiors are simple; the wheels have no LOD. Lighting is another agent's: at night and in the shade
 under a car (the wheels at 0.7 m) the forms are still dark; the stills were judged at dusk. The day is not yet dry
 (the rain still falls at `time=day`), so the cars' water spots are only seen once the lighting pass dries the day.
-At high quality the batched civilians' materials still need one texture unit more than the GPU has (the old
-machines did too: `THREE.WebGLTextures: Trying to use 17 texture units` at high, none at medium).
+(The "17 texture units" warning at high no longer reproduces: "Frame budget".)
 
 **Measured** (`node scripts/measure.mjs --vs <the build before> --only game --rounds 2 --frames 30`, M4 Pro, 1440 x 900,
 both builds in the same rounds, other agents' jobs on the machine; `vs` = before):
@@ -1115,9 +1237,8 @@ both builds in the same rounds, other agents' jobs on the machine; `vs` = before
 
 The pass costs 0.7-1.2 ms at medium and 1-2 ms at high, +30 draws and +270 k (medium) / +380 k (high) triangles a frame
 at street west: the near robots (6 k each, three passes), the civilians' near and middle levels (2.6-3.9 k each, no
-shadows) and the cars' wheels (48-segment tyres, no LOD). Not yet won back: medium is over its 16 ms there. The next
-steps would be a fourth, cheaper civilian level for the middle distance, LOD on the car wheels, and dropping the
-robots' metal mesh from the mirror pass.
+shadows) and the cars' wheels (48-segment tyres, no LOD). Won back, and more, by the frame budget pass ("Frame
+budget", "After the realism pass").
 
 ## Destructibles (things break when shot)
 
