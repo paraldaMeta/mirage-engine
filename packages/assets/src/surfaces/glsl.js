@@ -1008,9 +1008,12 @@ MsS ms_fabric(vec2 u){
   float crumple = msFbm(msWarp(u + 2.0, 12.0, 0.01), 9.0, 5);
   vec4 cr = msCell(msWarp(u + 6.0, 5.0, 0.02), 4.0, 1.0);
   float crease = msLine((cr.y - cr.x) * msT / msP(4.0) * 0.5, 0.0012) * smoothstep(0.5, 0.8, msFbm(u + 1.0, 2.0, 2) * 0.5 + 0.5);
-  float h = mix(0.5, 0.2 + 0.6 * wh, k) * 0.62 + 0.3 * (crumple * 0.5 + 0.5) + 0.05 * fuzz + 0.04 * slub - 0.2 * crease;
-  col *= (1.0 - 0.18 * crease) * (0.94 + 0.12 * (crumple * 0.5 + 0.5));
-  float r = msA.a + 0.04 * fuzz + 0.06 * (1.0 - wh) * k;
+  // what survives when the threads are below a pixel: bundles of threads lying a little higher or lower (streaks a few
+  // threads wide, both ways: a woven cloth's coarse grain), so the cloth still reads woven and matte from metres away
+  float bun = msFbm2(u + 1.7, vec2(1.5, 0.2 / p), 3) * 0.5 + msFbm2(u + 3.9, vec2(0.2 / p, 1.5), 3) * 0.5;
+  float h = mix(0.5, 0.2 + 0.6 * wh, k) * 0.9 + 0.5 * (crumple * 0.5 + 0.5) + 0.05 * fuzz + 0.04 * slub - 0.2 * crease + 0.6 * bun - 0.2;
+  col *= (1.0 - 0.18 * crease) * (0.92 + 0.16 * (crumple * 0.5 + 0.5)) * (1.0 + 0.1 * bun);
+  float r = msA.a + 0.04 * fuzz + 0.06 * (1.0 - wh) * k + 0.04 * (1.0 - k);
   float ao = mix(1.0, 0.82 + 0.18 * wh, k) * (1.0 - 0.3 * crease);
   if (V > 0.5 && V < 1.5) {
     // tarpaulin: a PVC coat over a coarse scrim: the grid shows faintly through, glossier
