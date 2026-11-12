@@ -2,7 +2,7 @@
 // Stills for the realism pass (robots, cars, civilians): each subject posed and shot from several sides, at night,
 // dusk and day. The enemies are taken out of play (inactive), put in a line on the street and posed by hand (a
 // walk at a phase, the aim, a hound's trot, crouch and leap); the civilians and the cars are shot where they stand.
-//   node scripts/realism.mjs [--only robots|cars|civ|compare] [--time dusk,night,day] [--out out/realism] [--game 1]
+//   node scripts/realism.mjs [--only robots|cars|civ|compare] [--time dusk,night,day] [--out out/realism] [--game 1] [--dist <build>]
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -52,7 +52,7 @@ for (const [u, d, h, look] of [['pedestrian-0', 1.5, 1.2, 0.85], ['pedestrian-2'
 // ---- the comparison: a sentinel posed beside a civilian
 SHOTS.compare.push({ name: 'compare-sentinel-civilian', ids: ['g1'], place: [['g1', 'civ', 0]], pose: 'idle', civ: true });
 
-const srv = await serve(path.join(here, '../dist')), b = await launch({ w: W, h: H });
+const srv = await serve(path.resolve(flag('dist', path.join(here, '../dist')))), b = await launch({ w: W, h: H });   // --dist: another build (before / after)
 let n = 0;
 for (const time of times) {
   const game = only.some((o) => o === 'robots' || o === 'compare') || flag('game', '0') === '1';

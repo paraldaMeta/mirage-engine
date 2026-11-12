@@ -129,7 +129,7 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
       const g = humanoidMeshes(K.look, lod, kit, names, inHand, sniper ? 'rifle-long' : 'rifle');
       return [['s', shellOf[kk]], ['m', mats.metal]].filter(([k]) => g[k]).map(([k, m]) => {
         const sm = new THREE.SkinnedMesh(g[k], m); sm.bind(rig.mesh.skeleton, rig.mesh.bindMatrix);
-        sm.boundingSphere = reach; sm.frustumCulled = true; sm.castShadow = k === 's'; sm.receiveShadow = true; sm.visible = lod === 0;
+        sm.boundingSphere = reach; sm.frustumCulled = true; sm.castShadow = k === 's' && lod < 2; sm.receiveShadow = true; sm.visible = lod === 0;   // (past 30 m no shadow, as the hounds: a far robot walking under a lamp no longer redraws its tile)
         sm.name = 'robot-' + k;   // (main.js: the metal parts and the rifle stay out of the wet street's mirror)
         rig.root.add(sm); return sm;
       });
