@@ -733,7 +733,11 @@ The hotspot: the plaza camera, 1.0 % of pixels over 12 by day (0.3 % at night, t
 band round RELAY·7 on the relay's south face. Cause: z-fighting. The relay's roof slab ran out to the walls' outer
 faces, coplanar with the fascia over the door, the north and the west wall from 3.6 to 6 m: concrete and roofing
 traded pixels every frame. Fix: the slab inside the walls (`modules/relay.js`). Crop sd 2.32 -> 0.42, p99 27.0 ->
-1.65 (high, day). Seen and left: specular sparkle on the alley's thin downpipes and brackets (crop sd 0.6, p99 4.6)
+1.65 (high, day). The plaza camera, motion-compensated residual / pixels over 12, before -> after: night 0.502 /
+0.31 % -> 0.375 / 0.01 %, dusk 0.540 / 0.39 % -> 0.379 / 0.01 %, day 0.705 / 1.02 % -> 0.378 / 0.03 % (the day's
+light changed too); the other five cameras within 0.01 of before at every hour. The view model (`--mode gun`, high,
+night, real time, the whole frame): walking 2.20 / 3.33 % -> 1.53 / 1.77 %, aiming and walking 2.56 / 3.49 % -> 1.38 /
+1.19 %, standing and aiming unchanged (0.43 / 0.08 %, 0.41-0.50 / 0.05 %). Seen and left: specular sparkle on the alley's thin downpipes and brackets (crop sd 0.6, p99 4.6)
 and the cables across the street (sub-pixel lines under the TAA jitter); both are band-limiting work (a minimum
 width or a roughness floor for thin geometry), not z-fighting.
 
