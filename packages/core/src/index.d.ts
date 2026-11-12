@@ -1,7 +1,7 @@
 // Mirage original code. Techniques informed by Golden Temple by Leon Lin (MIT) — see NOTICE.
 export { createWorldRenderer } from './world.js';
 export { createEnv, GOLDEN, dirFromElevAz, elevAzOf, WIND_GLSL } from './env.js';
-export { createSky, createSkyUniforms, createSkyLut, SKY_DUSK_DEFAULTS, skyDuskConfig } from './sky.js';
+export { createSky, createSkyUniforms, createSkyLut, SKY_DUSK_DEFAULTS, skyDuskConfig, SKY_STORM_DEFAULTS, skyStormConfig } from './sky.js';
 export { ATMO, ATMOSPHERE_GLSL, transmit, transmitAtGround, scatter, skyLightAt } from './atmosphere.js';
 export { installFog, FOG } from './fog.js';
 export { skyState, lightAt, gradeConfig, gradeAt, GRADE_PRESETS } from './daynight.js';
@@ -22,6 +22,7 @@ export { createTextures, TEX_GLSL, TEX_RELIEF_GLSL, glslName } from './textures.
 export { createJobQueue, createLRU, createUploadBudget, textureBytes, objectBytes, texturesOf, disposeObject, watchLongTasks, nextFrame } from './stream.js';
 export { RELIEF, RELIEF_GLSL, RELIEF_LIGHT, setRelief, withRelief, renderHeight, renderShade } from './relief.js';
 export { WET, WET_GLSL, setWetness, setRain, withWet } from './wet.js';
+export { FLASH, FLASH_GLSL, FLASH_LIGHT_GLSL, enableFlash, flashEnabled, withFlash, flashConfig, flashEnvelope, createFlash } from './weather.js';
 export { registerSurfaceKinds, registerSurfaceDecals, surfaceKinds, surfaceSpec, surfaceHooks, bakeSurface, bakeDecalAtlas, createSurfaces, noiseTexture } from './surfaces.js';
 export { createEnvLight } from './envlight.js';
 export { deviceProfile, pickQuality, QUALITY_LEVELS, QUALITY_KEY } from './device.js';
@@ -32,7 +33,8 @@ export * as geom from './geom.js';
 
 export type { WorldRenderer, WorldRendererOptions, WorldContext, RenderFrameOptions, ConvergeResult, RenderCamera, ShadowRegion, AmbientVolume, XYZ } from './world.js';
 export type { EnvironmentUniforms } from './env.js';
-export type { SkyUniforms, SkyOption, SkyDuskOption, SkyDuskSettings } from './sky.js';
+export type { SkyUniforms, SkyOption, SkyDuskOption, SkyDuskSettings, SkyStormOption, SkyStormSettings } from './sky.js';
+export type { Flash, FlashOption, FlashSettings, WithFlashOptions } from './weather.js';
 export type { SkyTime, SkyState, LightState, FixedSun, CalendarTime, GradeLook, GradeLookPreset, GradeSettings, GradeOption, GradeOptionObject } from './daynight.js';
 export type { Place, AstronomicalSky, SunPosition, MoonPosition } from './sky-time.js';
 export type { PostSettings } from './post.js';

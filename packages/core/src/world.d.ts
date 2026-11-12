@@ -12,6 +12,7 @@ import type { SkyTime, SkyState, LightState, GradeOption, GradeSettings } from '
 import type { Place } from './sky-time.js';
 import type { Quality, DeviceProfile } from './device.js';
 import type { SkyOption } from './sky.js';
+import type { FlashOption, Flash } from './weather.js';
 
 export type XYZ = readonly [number, number, number];
 export type RenderCamera = THREE.PerspectiveCamera | THREE.OrthographicCamera;
@@ -49,6 +50,9 @@ export interface WorldRendererOptions {
   /** Every lamp lights its surroundings, beyond the few real PointLights (off by default): a clustered pool of lamps
    *  shaded in the lit materials, filled with `world.lampPool.set(...)`. */
   lampPool?: LampPoolOption;
+  /** Lightning (off by default): `world.flash` lights the wet (withWet) and withFlash materials, the storm sky and a
+   *  bolt mesh (weather.js). Without it no program changes. */
+  flash?: FlashOption;
   /** Reduced motion from the start (off by default; @miragekit/play follows prefers-reduced-motion): see setReducedMotion. */
   reducedMotion?: boolean | Partial<ReducedMotionSettings>;
 }
@@ -103,6 +107,8 @@ export interface WorldRenderer {
   lighting: Lighting | null;
   /** The lamp pool of the `lampPool` option, null when off. */
   lampPool: LampPool | null;
+  /** The lightning of the `flash` option, null when off. */
+  flash: Flash | null;
   /** Null before setTime(), prepare() or the first renderFrame(). */
   readonly light: LightState | null; readonly state: SkyState | null; readonly exposure: number;
   setTime(time: SkyTime, options?: { ease?: boolean }): LightState;

@@ -1,5 +1,6 @@
 // Mirage original code.
 import * as THREE from 'three';
+import { withFlash } from './weather.js';
 
 // ---------------------------------------------------------------------------
 // Optional wet surfaces, puddles and rain ripples. Nothing here is compiled into a material unless it opts in with
@@ -35,6 +36,8 @@ import * as THREE from 'three';
 // normal once the wet layer and the ripples have bent it (patch()'s own AA steps aside while wet). Ripples: rings
 // from cell-hashed drops in two cell sizes, as many as the rain is heavy, in world space, on uTime only (stills fix it).
 // Applies to Standard / Physical materials (it edits roughnessFactor and metalnessFactor's hook).
+// The lightning (weather.js) comes with it: a wet material is lit by world.flash where its shelter lets the sky in
+// (while wet: the flash's code sits inside MG_WET too).
 // ponytail: the two uniforms are shared by every world on the page, like the relief's.
 // ---------------------------------------------------------------------------
 
@@ -262,7 +265,9 @@ export function withWet(hIn = {}, { porosity = 0.6, ground = 0, band = 0.3, pudd
     // patch() hands over the material: MG_WET follows setWetness from now on
     attach: (m) => { pruneSync(false); wetMats.add(new WeakRef(m)); syncWet(m); if (h.attach) h.attach(m); },
   };
-  Object.defineProperty(out, '__wetBase', { value: h, enumerable: false });   // not in JSON: the program key ignores it
-  Object.defineProperty(out, '__wetOptions', { value: { porosity, ground, band, puddles, height, heightMid, heightScale, wear, wearDepth, shelter, rim, ripples, specAA: aaK }, enumerable: false });
-  return out;
+  // the lightning (weather.js, opt-in): every wet material takes the flash, its shelter as the wet layer's
+  const res = h.__flash ? out : withFlash(out, { open: `1.0 - ${shel}`, inside: 'MG_WET' });
+  Object.defineProperty(res, '__wetBase', { value: h, enumerable: false });   // not in JSON: the program key ignores it
+  Object.defineProperty(res, '__wetOptions', { value: { porosity, ground, band, puddles, height, heightMid, heightScale, wear, wearDepth, shelter, rim, ripples, specAA: aaK }, enumerable: false });
+  return res;
 }

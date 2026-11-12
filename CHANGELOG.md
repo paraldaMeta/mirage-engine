@@ -4,6 +4,19 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
 
 ## Unreleased
 
+**Weather: lightning that lights every wet surface, and a storm sky (opt-in)**
+- `createWorldRenderer({ flash: true | { intensity, color, bolt, boltGain } })` -> `world.flash` (`@miragekit/core`,
+  `@miragekit/core/weather`): one shared flash (`set(level, dir)`, `strike(from, to)`, `envelope(t, k)`; k below 1 is
+  one smooth pulse, for a comfort setting) that every `withWet` material lights as a cold diffuse light plus a sharp
+  specular glint and a broad mirrored cloud lobe, by the open sky's share (the wet layer's shelter); any other
+  Standard / Physical material takes it with `withFlash(hooks, { shelter })` or the surface framework's
+  `material(spec, { flash: true })`. A branching bolt mesh is drawn while the level is high. The code is compiled
+  only under the define `MG_FLASH`, set while a world with the option exists, so without it every program and every
+  picture is what it was. Check: `packages/core/weather.check.mjs`.
+- `createWorldRenderer({ sky: { storm: true | { glow, band, flash, speed } } })`: a low torn rain deck over the dome,
+  lit from below by the haze colour and from inside by the flash, curtains of rain and a bright horizon band; its weight
+  is `sky.material.uniforms.uStorm.value.x` (0 = the dome as before, the caller eases it with the rain).
+
 **A view model in its own near plane (opt-in)**
 - `viewModelDepth(root, { near: 0.01 })` (`@miragekit/core`, `@miragekit/core/viewmodel`): every mesh under `root` is
   clipped at its own near plane and writes the camera's own depth (gl_FragDepth), so a gun held a few centimetres from
