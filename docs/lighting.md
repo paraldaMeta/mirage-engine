@@ -88,7 +88,7 @@ contact shadow.
 octahedral) and the mean / mean-squared distance to the scene per direction (16 x 16); everything is one
 half-float atlas. Baked on the GPU at load from the scene itself (a 32 px cube of the lit scene and a cube of
 distances per probe, folded by a full-screen pass); each pass over the volume sees the probes baked so far and so
-adds a bounce (`bounces`, default 2). When the time of day moves, probes are re-baked `perFrame` (2) per frame.
+adds a bounce (`bounces`, default 2). When the time of day moves, probes are re-baked `perFrame` (2) per frame, or, with `budget: ms`, as many steps (a face of a probe's cube) as fit in that many ms (no frame stalls). `lazy: true` does the first bake the same way, in frames, instead of inside `prepare()`: the world shows at once and `lighting.busy` is true until the volume is done.
 In the material the image-based diffuse light is replaced inside the box by the 8 surrounding probes, weighted
 trilinearly, by facing, and by visibility (Chebyshev's bound from the two distance moments), which is what keeps
 light from leaking through a wall thicker than the bias. Image-based specular is scaled by probe light / sky light,

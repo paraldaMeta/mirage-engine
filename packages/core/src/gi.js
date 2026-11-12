@@ -33,6 +33,8 @@ export const GI_DEFAULTS = {
   bounces: 2,       // passes over the volume at load (each one adds a bounce)
   cube: 32,         // px of a probe's capture cube face
   perFrame: 2,      // probes re-baked per frame after the time of day changed
+  budget: 0,        // ms of probe work per frame instead of perFrame (0: perFrame probes); a probe is drawn a face at a time, so no frame stalls
+  lazy: false,      // the first bake runs in frames (with `budget`) instead of inside prepare(): the world shows at once, `busy` until it is done
   intensity: 1,     // scale of the probe light
   fade: 0.75,       // m at the box faces over which it blends to the image-based light
   bias: 0.25,       // share of the spacing the lookup is pushed off the surface (normal and view)
@@ -175,7 +177,7 @@ void main() {
     mgGiB: { value: new THREE.Vector4(1 / g.width, 1 / g.height, g.irrH, 0) },
   };
   const info = { probes: g.probes, counts: g.counts, atlas: [g.width, g.height], bakeMs: 0, baked: 0, pending: 0 };
-  let haveDist = false, queue = [], cursor = 0;
+  let haveDist = false, queue = [], cursor = 0, cur = null;
   const _clear = new THREE.Color();
 
   function fold(material, c, vis) {
@@ -186,27 +188,51 @@ void main() {
     quad.render(renderer);
   }
   // one probe, inside a capture scope (world: sky without discs, stars and dynamic objects hidden, sun shadow frozen)
-  function bakeProbe(i, distances) {
+  // faces a..b-1 of a cube camera, drawn as CubeCamera.update draws them (mipmaps made with the last face)
+  function cubeFaces(cc, a, b, mips) {
+    if (cc.parent === null) cc.updateMatrixWorld();
+    if (cc.coordinateSystem !== renderer.coordinateSystem) { cc.coordinateSystem = renderer.coordinateSystem; cc.updateCoordinateSystem(); }
+    const tex = cc.renderTarget.texture, rev = renderer.state.buffers.depth.getReversed();
+    for (let f = a; f < b; f++) {
+      tex.generateMipmaps = f === 5 ? mips : false;
+      renderer.setRenderTarget(cc.renderTarget, f, cc.activeMipmapLevel);
+      if (rev && renderer.autoClear === false) renderer.clearDepth();
+      renderer.render(scene, cc.children[f]);
+    }
+    tex.generateMipmaps = mips; tex.needsPMREMUpdate = true;
+  }
+  // one piece of a probe's bake, with the renderer's state put back after it
+  function piece(fn) {
+    const savedRT = renderer.getRenderTarget(), face = renderer.getActiveCubeFace(), lvl = renderer.getActiveMipmapLevel(), auto = renderer.autoClear, xr = renderer.xr.enabled;
+    renderer.xr.enabled = false; renderer.autoClear = true;
+    try { fn(); } finally { renderer.setRenderTarget(savedRT, face, lvl); renderer.autoClear = auto; renderer.xr.enabled = xr; }
+  }
+  // one probe as steps (a face of the distance cube, a face of the lit cube, the folds): the caller runs them in one go
+  // (bake) or a few a frame (frame); the drawing is the same either way
+  function* probeSteps(i, distances) {
     const c = giCell(g, i);
     const p = [0, 1, 2].map((k) => cfg.min[k] + c[k] * g.step[k]);
-    const savedRT = renderer.getRenderTarget(), auto = renderer.autoClear, xr = renderer.xr.enabled;
-    renderer.xr.enabled = false; renderer.autoClear = true;
     if (distances) {
-      const a = renderer.getClearAlpha(); renderer.getClearColor(_clear);
-      renderer.setClearColor(new THREE.Color(1e4, 0, 0), 1);
-      const om = scene.overrideMaterial, bg = scene.background;
-      scene.overrideMaterial = distMat; scene.background = null; distMat.uniforms.uP.value.fromArray(p);
-      w.skyVisible(false);
-      dcam.position.fromArray(p); dcam.update(renderer, scene);
-      w.skyVisible(true);
-      scene.overrideMaterial = om; scene.background = bg; renderer.setClearColor(_clear, a);
-      fold(visMat, c, true);
+      for (let f = 0; f < 6; f++) {
+        piece(() => {
+          const a = renderer.getClearAlpha(); renderer.getClearColor(_clear);
+          renderer.setClearColor(new THREE.Color(1e4, 0, 0), 1);
+          const om = scene.overrideMaterial, bg = scene.background;
+          scene.overrideMaterial = distMat; scene.background = null; distMat.uniforms.uP.value.fromArray(p);
+          w.skyVisible(false);
+          dcam.position.fromArray(p); cubeFaces(dcam, f, f + 1, false);
+          w.skyVisible(true);
+          scene.overrideMaterial = om; scene.background = bg; renderer.setClearColor(_clear, a);
+        });
+        yield;
+      }
+      piece(() => fold(visMat, c, true));
     }
-    cam.position.fromArray(p); cam.update(renderer, scene);
-    fold(irrMat, c, false);
-    renderer.setRenderTarget(savedRT); renderer.autoClear = auto; renderer.xr.enabled = xr;
+    for (let f = 0; f < 6; f++) { piece(() => { cam.position.fromArray(p); cubeFaces(cam, f, f + 1, true); }); yield; }
+    piece(() => fold(irrMat, c, false));
     info.baked++;
   }
+  function bakeProbe(i, distances) { for (const step of probeSteps(i, distances)) void step; }
   function run(list, distances) { if (list.length) w.capture(() => { for (const i of list) bakeProbe(i, distances); }); }
 
   /** bake the whole volume now: `bounces` passes (distances once) */
@@ -219,16 +245,44 @@ void main() {
       renderer.setRenderTarget(atlas); renderer.setClearColor(0x000000, 0); renderer.clear(); renderer.setRenderTarget(saved); renderer.setClearColor(_clear, a);
     }
     for (let b = 0; b < Math.max(1, bounces); b++) { run(all, !haveDist); haveDist = true; }
-    queue = []; info.pending = 0;
+    queue = []; cur = null; info.pending = 0;
     info.bakeMs = Math.round(performance.now() - t0);
     return info;
   }
+  /** the first bake, in frames: the atlas starts empty (the light of the sky alone), then `bounces` passes, distances in the first */
+  function bakeLater() {
+    U.mgGiA.value.x = cfg.intensity;
+    const saved = renderer.getRenderTarget(), a = renderer.getClearAlpha(); renderer.getClearColor(_clear);
+    atlas.scissorTest = false; atlas.viewport.set(0, 0, g.width, g.height);
+    renderer.setRenderTarget(atlas); renderer.setClearColor(0x000000, 0); renderer.clear(); renderer.setRenderTarget(saved); renderer.setClearColor(_clear, a);
+    cur = null; queue = [];
+    for (let r = 0; r < Math.max(1, cfg.bounces); r++) for (let i = 0; i < g.probes; i++) queue.push({ i, d: r === 0 });
+    info.pending = queue.length;
+  }
   /** queue `rounds` passes over the volume, done perFrame probes at a time by frame() */
   function rebake(rounds = cfg.bounces, distances = false) {
-    if (!haveDist) return bake();
+    if (!haveDist) return cfg.lazy ? bakeLater() : bake();
     if (distances) haveDist = false;
-    queue = [];
-    for (let r = 0; r < rounds; r++) for (let i = 0; i < g.probes; i++) queue.push((cursor + i) % g.probes);
+    cur = null; queue = [];
+    for (let r = 0; r < rounds; r++) for (let i = 0; i < g.probes; i++) queue.push(cfg.budget ? { i: (cursor + i) % g.probes, d: !haveDist } : (cursor + i) % g.probes);
+    info.pending = queue.length;
+  }
+  // frame(), with a budget: draw probes' steps until cfg.budget ms have gone (at least one step)
+  function slice(spent) {
+    if (!queue.length && !cur) return;
+    const t0 = performance.now(), budget = Math.max(cfg.budget - spent, 0);
+    if (budget <= 0 && spent > 0) return;   // the frame already paid for a recapture
+    w.capture(() => {
+      do {
+        if (!cur) {
+          const e = queue.shift();
+          if (!e) break;
+          cursor = (e.i + 1) % g.probes; cur = probeSteps(e.i, e.d);
+        }
+        if (cur.next().done) cur = null;
+      } while (performance.now() - t0 < budget);
+    });
+    if (!queue.length && !cur) haveDist = true;
     info.pending = queue.length;
   }
   const part = {
@@ -249,9 +303,10 @@ void main() {
   };
   return {
     cfg, grid: g, part, uniforms: U, info, atlas, bake, rebake,
-    get busy() { return queue.length > 0; },
+    get busy() { return queue.length > 0 || !!cur; },
     /** per frame: re-bake a few probes while a re-bake is queued */
-    frame() {
+    frame(camera, dt, still, spent = 0) {
+      if (cfg.budget) return slice(spent);
       if (!queue.length) return;
       const list = queue.splice(0, cfg.perFrame);
       cursor = (list[list.length - 1] + 1) % g.probes;
@@ -259,7 +314,7 @@ void main() {
       if (!queue.length) haveDist = true;
       info.pending = queue.length;
     },
-    envCaptured() { if (!haveDist) bake(); else rebake(); },
+    envCaptured() { if (!haveDist) { if (cfg.lazy) bakeLater(); else bake(); } else rebake(); },
     invalidate() { rebake(cfg.bounces, true); },
     /** read one probe's irradiance for a direction (tests, debugging): [r, g, b] */
     read(i, dir) {

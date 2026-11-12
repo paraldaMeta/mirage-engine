@@ -5,10 +5,15 @@
   <link rel="icon" href="data:,">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Mirage · neon-district</title>
-  <style>html, body { margin: 0; height: 100%; background: #000; overflow: hidden; overscroll-behavior: none; -webkit-text-size-adjust: 100%; } canvas { display: block; }</style>
+  <style>html, body { margin: 0; height: 100%; background: #000; overflow: hidden; overscroll-behavior: none; -webkit-text-size-adjust: 100%; } canvas { display: block; }
+    #boot { position: fixed; inset: 0; display: grid; place-items: center; text-align: center; color: #e8eef4; font: 15px/1.5 system-ui, sans-serif; background: #000; z-index: 5 }
+    #boot h1 { font-weight: 600; letter-spacing: .06em; margin: 0 0 6px; font-size: 28px } #boot p { margin: 0; opacity: .6 }</style>
 </head>
 <body>
   <canvas></canvas>
+  <!-- shown at once, while the code and the world load; main.js removes it when the title is up -->
+  <div id="boot"><div><h1>NEON DISTRICT</h1><p>loading</p></div></div>
+  <script>if (/^(zh|ja)/.test(new URLSearchParams(location.search).get('lang') || navigator.language)) { const z = /^zh/.test(new URLSearchParams(location.search).get('lang') || navigator.language); document.querySelector('#boot h1').textContent = z ? '霓虹街區' : 'ネオン街区'; document.querySelector('#boot p').textContent = '…'; }</script>
   <script type="module" src="./main.js"></script>
 </body>
 </html>

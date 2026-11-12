@@ -20,13 +20,14 @@ import { applyBigWorld } from '@miragekit/core/bigworld';
 import { buildWorld } from '@miragekit/world';
 import { addRain } from '@miragekit/world/kits/rain';
 import { createPlay } from '@miragekit/play';
-import { startGame } from '@miragekit/game';
+import { startGame, loadRapier } from '@miragekit/game';
 import plan from './plan.js';
 import modules from './modules/index.js';
 import { setupGame, objective, summary, VERSION, T } from './game/index.js';
 import { mirrorLayer, distanceCull, MIRROR_LAYER } from './perf.js';
 
 performance.mark('nd:eval');
+if (!location.search.includes('world=')) loadRapier().catch(() => {});   // the wasm compiles while the world builds (createPhysics shares this promise)
 const Q = new URLSearchParams(location.search);
 const W = +Q.get('w') || innerWidth, H = +Q.get('h') || innerHeight;
 const canvas = document.querySelector('canvas');
@@ -66,7 +67,9 @@ const lighting = {
   // (it draws one layer: everything but the view model and the close-up props, perf.js)
   planar: on('planar') && { y: 0, scale: 0.5, roughMax: 0.4, every: Math.max(1, Math.round(F('planar'))), ...(Q.get('mirrorall') === '1' ? {} : { layers: [MIRROR_LAYER] }) },
   csm: on('csm') && { cascades: 3, stagger: true },
-  gi: on('gi') && { min: [bar[0], 0, bar[1]], max: [bar[2], plan.bar.height, bar[3]], spacing: 1.3, fade: 0.5 },
+  gi: on('gi') && { min: [bar[0], 0, bar[1]], max: [bar[2], plan.bar.height, bar[3]], spacing: 1.3, fade: 0.5,
+    // the probes bake in frames, not before the first one (about 13 s of the start): 60 ms a frame behind the title, 20 once a player starts
+    budget: 60, lazy: true },
   probes: on('probes') && [
     { min: [bar[0], 0, bar[1]], max: [bar[2], plan.bar.height, bar[3]], fade: 0.5 },
     { min: [room[0], 0, room[1]], max: [room[2], plan.relay.height, room[3]], fade: 0.5 },
@@ -234,6 +237,10 @@ if (Q.has('world')) {   // the district alone: walk, fly, orbit (stills, the wor
   // the opening: a ray through the physics world toward it
   shared.shafts?.setSee((from, dir, max) => !!g.physics.ray(from, dir, max));
   game.start(g);
+  const gi = world.lighting?.gi;
+  if (gi && !Q.has('start')) g.game.on('start', () => { gi.cfg.budget = 20; });   // a player's first bake is gentler; ?start=1 (automation) keeps the fast one
+  performance.mark('nd:title');
+  document.getElementById('boot')?.remove();
   if (Q.has('start')) g.ui.begin();
 }
 // the frame budget (perf.js, NOTES.md "Frame budget"): the close-up props (modelled for a look from a metre: cans,
@@ -255,5 +262,9 @@ const v = plan.viewpoints.find((p) => p.name === Q.get('view'));
 if (v) play.place(v.eye, v.look, v.mode || (Q.has('world') ? Q.get('mode') || 'walk' : 'walk'));
 if (Q.has('world')) world.ctx.onUpdate(relight);
 window.__mirage = { world, built, play, g, game, vfx, rain, big, shared, setHour, relight, weather: { WX, WX_H, now: wxNow, at: weatherAt }, features: Object.fromEntries(Object.keys(TIER).map((k) => [k, F(k)])) };
+document.getElementById('boot')?.remove();
+// ready = the light is baked too (the stills and the checks wait for it); the title and the game are up before that
+while (world.lighting?.busy) await new Promise((r) => setTimeout(r, 50));
+if (world.lighting?.gi) world.lighting.gi.cfg.budget = 20;   // later re-bakes (the hour) take 20 ms a frame at most
 performance.mark('nd:ready');
 window.__READY = true;
