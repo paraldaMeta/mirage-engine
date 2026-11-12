@@ -1,0 +1,34 @@
+{
+  "name": "@miragekit/assets",
+  "version": "1.0.0",
+  "description": "Mirage asset library: the content made in code that plugs into the engine's systems. Surface recipes (35 kinds of physically plausible materials, weathering decals), the cyber kit (a dense neon city's street props, parked cars, civilian robots and the robot parts kit), a sound library (125 sounds) and the destructibles' material classes. Business Source License 1.1.",
+  "license": "BUSL-1.1",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/paraldaMeta/mirage-engine.git",
+    "directory": "packages/assets"
+  },
+  "homepage": "https://github.com/paraldaMeta/mirage-engine/tree/main/packages/assets#readme",
+  "bugs": {
+    "url": "https://github.com/paraldaMeta/mirage-engine/issues"
+  },
+  "type": "module",
+  "exports": {
+    "./presets": { "types": "./src/presets/index.d.ts", "default": "./src/presets/index.js" },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "peerDependencies": {
+    "three": ">=0.186.1 <0.187.0",
+    "@miragekit/core": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "author": "灰叔 Racso"
+}

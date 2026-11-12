@@ -14,7 +14,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const PKGS = ['core', 'world', 'play', 'game', 'net', 'editor'];
+const PKGS = ['core', 'world', 'play', 'game', 'net', 'editor', 'assets'];
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /** docs/api.md as { '@miragekit/core': [{ head, level, text }] }: the table rows that carry a stability cell. */
@@ -45,9 +45,12 @@ export async function report() {
   const rows = apiRows(fs.readFileSync(path.join(ROOT, 'docs/api.md'), 'utf8')), out = [];
   for (const p of PKGS) {
     const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'packages', p, 'package.json'), 'utf8'));
-    const main = pkg.exports['.'], entry = typeof main === 'string' ? main : main.import || main.default;
-    const mod = await import(pathToFileURL(path.join(ROOT, 'packages', p, entry)));
-    const r = { name: pkg.name, version: pkg.version, subpaths: Object.keys(pkg.exports).length - 1, stable: [], experimental: [], unclassified: [] };
+    // the root entry's names; a package with sub-paths only (@miragekit/assets): every sub-path's names
+    const ent = (t) => (typeof t === 'string' ? t : t.import || t.default);
+    const entries = pkg.exports['.'] ? [ent(pkg.exports['.'])] : Object.entries(pkg.exports).filter(([k]) => k !== './package.json').map(([, t]) => ent(t));
+    const mod = {};
+    for (const e of entries) Object.assign(mod, await import(pathToFileURL(path.join(ROOT, 'packages', p, e))));
+    const r = { name: pkg.name, version: pkg.version, subpaths: Object.keys(pkg.exports).length - (pkg.exports['.'] ? 1 : 0), stable: [], experimental: [], unclassified: [] };
     for (const k of Object.keys(mod).sort()) r[classify(k, pkg.name, rows) || 'unclassified'].push(k);
     out.push(r);
   }

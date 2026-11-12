@@ -6,13 +6,22 @@
 // - every export map target (and its types) ships; the root entry declares its types
 //   (the export maps are explicit allow-lists; scripts/check-imports.mjs checks every import against them)
 // - every name a package's index exports is described in docs/api.md
+// - licences: @miragekit/assets is BUSL-1.1 with the Business Source License text in its tarball; every other package
+//   is MIT and its tarball carries none of the library's content (no import of @miragekit/assets, no recipe, kit,
+//   sound table or material-class data: CONTENT below names a marker of each)
+//   PACK_FILES=1 lists every tarball's files
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const PKGS = ['core', 'world', 'play', 'game', 'tools', 'net', 'editor'];
+const PKGS = ['core', 'world', 'play', 'game', 'tools', 'net', 'editor', 'assets'];
+const BUSL = new Set(['assets']);
+// a marker of each part of the library: a surface recipe, the decal masks, the cyber kit, the robot kit, the sound
+// tables, the destructibles' classes, an import of the library
+const CONTENT = [/MsS ms_concrete\(/, /float msDecalScatter\(/, /export function parkedCars\(/, /export function humanoid\(/, /export const WEAPON_SOUNDS\b/,
+  /export const UI_SOUNDS\b/, /export const DESTRUCT_MATERIALS\b/, /from ['"]@miragekit\/assets/];
 const read = (f) => JSON.parse(fs.readFileSync(path.join(ROOT, f), 'utf8'));
 const root = read('package.json');
 const three = read('node_modules/three/package.json').version;
@@ -37,7 +46,15 @@ for (const name of PKGS) {
   const [packed] = JSON.parse(execFileSync('npm', ['pack', '--dry-run', '--json', '--ignore-scripts'], { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }));
   const files = new Set(packed.files.map((f) => f.path));
   for (const f of ['package.json', 'README.md', 'LICENSE']) if (!files.has(f)) bad.push(`${at} the tarball has no ${f}`);
-  if (pkg.license !== 'MIT') bad.push(`${at} licence is ${pkg.license}`);
+  const busl = BUSL.has(name), licence = fs.existsSync(path.join(dir, 'LICENSE')) ? fs.readFileSync(path.join(dir, 'LICENSE'), 'utf8') : '';
+  if (pkg.license !== (busl ? 'BUSL-1.1' : 'MIT')) bad.push(`${at} licence is ${pkg.license}`);
+  if (busl && !/^Business Source License 1\.1$/m.test(licence)) bad.push(`${at} LICENSE is not the Business Source License 1.1`);
+  if (!busl && !/^MIT License$/m.test(licence)) bad.push(`${at} LICENSE is not the MIT licence`);
+  if (!busl) for (const f of files) {
+    if (!/\.(js|mjs|cjs|ts)$/.test(f)) continue;
+    const text = fs.readFileSync(path.join(dir, f), 'utf8'), hit = CONTENT.find((re) => re.test(text));
+    if (hit) bad.push(`${at} ${f} carries library content (${hit}): it belongs in @miragekit/assets`);
+  }
   if (pkg.repository?.directory !== `packages/${name}` || !pkg.repository?.url) bad.push(`${at} repository { url, directory: "packages/${name}" } missing`);
   if (!pkg.homepage) bad.push(`${at} homepage missing`);
   if (!pkg.bugs?.url) bad.push(`${at} bugs.url missing`);
@@ -60,7 +77,8 @@ for (const name of PKGS) {
     const missing = Object.keys(mod).filter((k) => !new RegExp('`' + k + '[`(.\\s]').test(api));
     if (missing.length) bad.push(`${at} exports not described in docs/api.md: ${missing.join(', ')}`);
   }
-  console.log(`  ${pkg.name}@${pkg.version}: ${files.size} files, ${(packed.size / 1024).toFixed(1)} kB packed`);
+  console.log(`  ${pkg.name}@${pkg.version} (${pkg.license}): ${files.size} files, ${(packed.size / 1024).toFixed(1)} kB packed`);
+  if (process.env.PACK_FILES) console.log('    ' + [...files].sort().join('\n    '));
 }
 if (bad.length) { console.error('package check: FAIL\n  ' + bad.join('\n  ')); process.exit(1); }
 console.log(`package check: ok (${PKGS.length} packages, three ${three})`);

@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TEXT = /\.(js|mjs|cjs|ts|mts|html|md|json)$/;
-const SPEC = /@miragekit\/(core|world|play|game|net|editor|tools)\/([A-Za-z0-9_.\-/]*[A-Za-z0-9_])/g;
+const SPEC = /@miragekit\/(core|world|play|game|net|editor|tools|assets)\/([A-Za-z0-9_.\-/]*[A-Za-z0-9_])/g;
 
 /** { name: { exports, dir } } for every package under packages/ */
 export function readPackages(root = ROOT) {
