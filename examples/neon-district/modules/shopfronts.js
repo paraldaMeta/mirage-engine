@@ -78,7 +78,7 @@ export function shopFronts(ctx, fx, shops) {
       fx.add(new THREE.BoxGeometry(W, 2.75, 0.04), frameMat, at([0, 1.4, 0.01]));
       b.add(new geom.RoundedBoxGeometry(1.1, 2.3, 0.08, 2, 0.02), darkGlass, at([0.5, 1.15, 0.04]));
       P.put(pb, new THREE.PlaneGeometry(0.46, 0.31), P.mats.glow, at([0.5, 1.75, 0.085]), [1.0, 0.72, 0.42]);   // the door's wired glass, lit from inside
-      P.put(pb, new geom.RoundedBoxGeometry(0.52, 0.37, 0.02, 1, 0.006), P.mats.metal, at([0.5, 1.75, 0.075]), [0.08, 0.08, 0.085]);
+      P.put(pb, new geom.RoundedBoxGeometry(0.52, 0.37, 0.016, 1, 0.006), P.mats.metal, at([0.5, 1.75, 0.075]), [0.08, 0.08, 0.085]);   // (front face at 0.083: 2 mm behind the glass at 0.085, they were coplanar and z-fought: a stipple at the pane's foot)
       for (let k = 1; k < 5; k++) P.put(pb, new THREE.BoxGeometry(0.004, 0.31, 0.004), P.mats.metal, at([0.5 - 0.23 + k * 0.092, 1.75, 0.088]), [0.3, 0.3, 0.3]);
       for (let k = 1; k < 4; k++) P.put(pb, new THREE.BoxGeometry(0.46, 0.004, 0.004), P.mats.metal, at([0.5, 1.75 - 0.155 + k * 0.0775, 0.088]), [0.3, 0.3, 0.3]);
       const tint = Q.pick(['cyan', 'amber', 'pink', 'white']), nr = track(fx, () => fx.add(new THREE.BoxGeometry(1.2, 0.04, 0.05), M.neon[tint], at([0.5, 2.38, 0.1])));
