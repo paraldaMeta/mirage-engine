@@ -1,4 +1,4 @@
-// props-street: street furniture for a close look (not a module). Each adds to a MeshBatch through the props kit,
+// Mirage original code. kit/cyber's street furniture for a close look. Each adds to a MeshBatch through the props kit,
 // at matrix `m` (its foot at y 0, its front toward +z): a bin (tapered body, a liner folded over the rim, a hinged
 // lid), a slatted crate with a stencil, a rubbish bag (a lumpy sack with a knotted top), a cardboard box with flaps
 // and tape, an AC unit (casing, a fan behind a round grille, brackets, its pipes), a junction box (door, hinges,
@@ -7,7 +7,7 @@
 // The colliding volumes stay where their modules put them; these are drawn as decor.
 import * as THREE from 'three';
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
-import { hex } from './props-kit.js';
+import { hex } from './kit.js';
 
 const lathe = (pts, seg) => { const g = new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(Math.max(r, 1e-4), y)), seg); g.computeVertexNormals(); return g; };
 const cache = new Map(), once = (k, f) => { if (!cache.has(k)) cache.set(k, f()); return cache.get(k); };

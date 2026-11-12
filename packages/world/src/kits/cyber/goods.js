@@ -1,10 +1,10 @@
-// props-goods: the things on counters and shelves (not a module): bottles with glass, liquid at a level, a label and a
+// Mirage original code. kit/cyber's counter and shelf goods: bottles with glass, liquid at a level, a label and a
 // cap; tumblers; bowls in stacks; pots with lids and handles; noodle baskets on long handles; a rice cooker; a
 // chopstick holder; skewers on a grill; a bar stool with a footrest; jars; boxes with printed faces; a goods rack
 // for a shop's pavement display. Each adds to a MeshBatch through the props kit, at a matrix `m` (its foot at y 0).
 import * as THREE from 'three';
-import { bowlGeo, glassGeo, jarGeo, boxGeo } from './props-shapes.js';
-import { uvByHeight } from './props-kit.js';
+import { bowlGeo, glassGeo, jarGeo, boxGeo } from './shapes.js';
+import { uvByHeight } from './kit.js';
 
 const lathe = (pts, seg) => { const g = new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(Math.max(r, 1e-4), y)), seg); g.computeVertexNormals(); return g; };
 const cache = new Map(), once = (k, f) => { if (!cache.has(k)) cache.set(k, f()); return cache.get(k); };

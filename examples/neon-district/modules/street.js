@@ -7,10 +7,7 @@ import * as THREE from 'three';
 import { materials } from './materials.js';
 import { lamp, decor } from './lib.js';
 import { shopFronts } from './shopfronts.js';
-import { propKit, recorder, track, trackLamps, breakablesLamp } from './props-kit.js';
-import { streetLamp, bulbString } from './props-lights.js';
-import { jersey, bollard, crate } from './props-street.js';
-import { parkedCars } from './cars.js';
+import { propKit, recorder, track, trackLamps, breakablesLamp, streetLamp, bulbString, jersey, bollard, crate, parkedCars } from '@miragekit/world/kits/cyber';
 
 export default {
   name: 'street',
@@ -51,7 +48,7 @@ export default {
 
     // ---- parked cars (cars.js): three designs, the scene's material showcase; each keeps the old car's volume
     const carBox = (size, matrix) => { const c = new THREE.Mesh(new THREE.BoxGeometry(...size)); c.applyMatrix4(matrix); ctx.collider(c); return c; };
-    const cars = parkedCars(ctx, P, pb, plan.cars, carBox);
+    const cars = parkedCars(ctx, P, pb, plan.cars, carBox, { lamp });
 
     // ---- shop fronts along both pavements (shopfronts.js): open shops, shutters, doors, awnings, wall plant
     const S = plan.street.rect, shops = [];

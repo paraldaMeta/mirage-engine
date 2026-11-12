@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import { materials, holoMaterial } from './materials.js';
 import { lamp, decor } from './lib.js';
-import { propKit, recorder, track, trackLamps } from './props-kit.js';
+import { propKit, recorder, track, trackLamps } from '@miragekit/world/kits/cyber';
 
 export default {
   name: 'plaza',

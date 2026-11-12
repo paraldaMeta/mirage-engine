@@ -22,7 +22,7 @@
 // Saves: the registry is the game's 'destructibles' entity; 'destructScore' keeps whose casualties were whose.
 import * as THREE from 'three';
 import { createDestructibles } from '@miragekit/game';
-import { machineUnits } from '../modules/machines.js';
+import { machineUnits } from '@miragekit/world/kits/cyber';
 
 /** the price of each family (the end card's property damage); civilians cost the most by far */
 export const PRICE = {

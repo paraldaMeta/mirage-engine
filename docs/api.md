@@ -15,8 +15,9 @@ listed is internal and cannot be imported from an installed package. `npm test` 
 that is not listed (`scripts/check-imports.mjs`, over source, examples and docs) and on a `.d.ts` that declares
 other value names than its module exports (`scripts/check-types.mjs`). The subpaths a world normally needs:
 
-- the world kits `@miragekit/world/kits/vegetation`, `/kits/terrain`, `/kits/water`, `/kits/rain`, `/kits/splat` and
-  `/kits/fur` (experimental), documented in the world README;
+- the sound library `@miragekit/game/sounds` ([sounds.md](sounds.md));
+- the world kits `@miragekit/world/kits/vegetation`, `/kits/terrain`, `/kits/water`, `/kits/rain`, `/kits/splat`,
+  `/kits/fur` and `/kits/cyber` (experimental), documented in the world README;
 - `@miragekit/core/rng`, `@miragekit/core/geom`, `@miragekit/world/plan`;
 - `@miragekit/core/export` (`exportWorld`, experimental: [export.md](export.md)), `@miragekit/core/assets`
   ([import.md](import.md)) and `@miragekit/core/ktx2` (`createKTX2Loader(renderer, { transcoderPath, workers })`,
@@ -191,6 +192,22 @@ Model import, `@miragekit/core/assets` (opt-in subpath, [import.md](import.md)):
 The module interface (`name`, `build`, `finalize`, `anchors`, `ambientVolumes`, and the `ctx` fields) is stable;
 see [world-protocol.md](world-protocol.md).
 
+The cyber kit, `@miragekit/world/kits/cyber` (opt-in subpath, world README "The cyber kit"): street props for a dense
+neon city, all made in code (geometry, and labels drawn into a canvas). Every export is experimental.
+
+| export | stability | what it is |
+|---|---|---|
+| `propKit(ctx)` | experimental | the shared label atlas and its six materials (`paint`, `metal`, `glow`, `lantern`, `clear`, `product`); `put(batch, geometry, material, matrix, color, rect)`, `instanced(geometry, base, items)`, `R` (cells), `texture`, `names`; cached on `ctx.shared.props` |
+| `uvRect`, `tint`, `uvByHeight`, `hex` | experimental | geometry helpers: fit uv into a cell, a vertex colour, uv by height and angle, linear RGB from a CSS colour |
+| `canGeo`, `bottleGeo`, `wineGeo`, `cupGeo`, `boxGeo`, `packGeo`, `capsuleGeo`, `spiralGeo`, `glassGeo`, `bowlGeo`, `jarGeo` | experimental | product shapes with their uv laid out for an atlas cell |
+| `spiritBottle`, `tumbler`, `bowls`, `pot`, `noodleBasket`, `riceCooker`, `chopsticks`, `skewers`, `stool`, `goodsBox`, `jar`, `goodsRack` | experimental | counter and shop goods: `(P, batch, geom, matrix, ...)` |
+| `paperLantern`, `bulbString`, `streetLamp`, `bulkhead`, `tubeFixture`, `floodlight`, `beacon`, `signalHead` | experimental | light fixtures (the visible fitting; the light is the host's) |
+| `bin`, `crate`, `bag`, `cardboard`, `acUnit`, `junctionBox`, `bollard`, `jersey`, `newsBox`, `bench` | experimental | street furniture: `(P, batch, geom, matrix, ...)` |
+| `parkedCars(ctx, P, batch, list, proxyBox, { lamp })`, `carMaterials(ctx)`, `CAR_DESIGNS` | experimental | three designs of an invented marque in brushed steel, pearlescent paint and tinted glass, with rain |
+| `rainBeads(hooks, options)` | experimental | rain beads, runs and a film as material hooks (inside core's `withWet`) |
+| `buildMachines(ctx, spec)`, `FACES`, `androidParts(lod)`, `androidFace(face, lod)` | experimental | civilian robots (androids, vendors, couriers, sweepers, notice totems, broken ones), animated; returns `{ group, update(t), count, tris }` |
+| `corrugated`, `canopy`, `WORN_DECL`, `worn`, `interiorMaterial`, `textAtlas`, `atlasQuad` | experimental | corrugated sheet, canopies, worn painted metal hooks, shop interiors behind glass (interior mapping), text atlases |
+
 Gaussian splats, `@miragekit/world/kits/splat` (opt-in subpath, world README "Gaussian splats"):
 
 | export | stability | what it is |
@@ -332,6 +349,17 @@ Gaussian splats, `@miragekit/world/kits/splat` (opt-in subpath, world README "Ga
 | `DESTRUCT_SOUNDS` | experimental | the break sound sets (`dx_break_<name>`), made in code |
 | `addDestructSounds(audio)` | experimental | add the destructibles' procedural sounds to a `createAudio` mixer |
 | `BROKEN_STATES` | experimental | broken-state geometry in a unit box: a shattered pane rim, a split crate, a dented panel, a flat tyre |
+
+The sound library, `@miragekit/game/sounds` (opt-in subpath, [sounds.md](sounds.md)): 125 sounds made in code. Every
+export is experimental.
+
+| export | stability | what it is |
+|---|---|---|
+| `SOUNDS`, `SOUND_CATEGORIES`, `SOUND_SPACES`, `GUNS` | experimental | the sounds by name (`{ cat, n, loop, desc, render(sampleRate, v) }`), the seven categories, the three spaces a gun is heard in, the guns |
+| `soundNames(cat)`, `renderSound(name, sampleRate, variant)` | experimental | the names of a category (or all); one variant as a Float32Array |
+| `soundBuffers(ctx, name)`, `addSounds(audio, names, { prefix })` | experimental | every variant as AudioBuffers; give sounds to `createAudio` (made at unlock) |
+| `makeRng`, `hash`, `biquad`, `chain`, `env`, `noiseLayer`, `thumpLayer`, `modesLayer`, `toneLayer`, `ROOMS`, `room`, `master`, `one`, `fold`, `click`, `scrape` | experimental | the synthesis kit, for sounds of your own |
+| `renderShot`, `renderGatlingLoop`, `renderGatlingTail`, `renderRocketLaunch`, `renderExplosion` | experimental | the weapons' renderers with their arguments (gun, space, variant) |
 
 ## @miragekit/net
 

@@ -29,6 +29,7 @@
     "./physics": { "types": "./src/physics.d.ts", "default": "./src/physics.js" },
     "./platform": { "types": "./src/platform.d.ts", "default": "./src/platform.js" },
     "./simulation": { "types": "./src/simulation.d.ts", "default": "./src/simulation.js" },
+    "./sounds": { "types": "./src/sounds.d.ts", "default": "./src/sounds.js" },
     "./start": { "types": "./src/start.d.ts", "default": "./src/start.js" },
     "./ui": { "types": "./src/ui.d.ts", "default": "./src/ui.js" },
     "./ui-canvas": { "types": "./src/ui-canvas.d.ts", "default": "./src/ui-canvas.js" },
@@ -71,7 +72,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "node check.mjs && node audio-check.mjs && node ui.check.mjs && node platform.check.mjs && node physics.check.mjs && node destruct.check.mjs"
+    "test": "node check.mjs && node audio-check.mjs && node ui.check.mjs && node platform.check.mjs && node physics.check.mjs && node destruct.check.mjs && node sounds.check.mjs"
   },
   "author": "灰叔 Racso",
   "types": "./src/index.d.ts"

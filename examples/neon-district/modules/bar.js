@@ -6,9 +6,7 @@
 import * as THREE from 'three';
 import { materials } from './materials.js';
 import { lamp, slab, decor } from './lib.js';
-import { propKit, recorder, track, trackLamps, breakablesLamp } from './props-kit.js';
-import { paperLantern, tubeFixture } from './props-lights.js';
-import { spiritBottle, tumbler, bowls, pot, noodleBasket, riceCooker, chopsticks, stool } from './props-goods.js';
+import { propKit, recorder, track, trackLamps, breakablesLamp, paperLantern, tubeFixture, spiritBottle, tumbler, bowls, pot, noodleBasket, riceCooker, chopsticks, stool } from '@miragekit/world/kits/cyber';
 import { detail } from './kit.js';
 
 export default {

@@ -14,7 +14,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { createRigModel, createAnimator, createNavGrid, createNavAgent, createNavCrowd, createSenses, solveLookAt, blend1d } from '@miragekit/play';
 import { FX } from './fx.js';
-import { robotMaterials, part, mergeParts, ext, tf, moved, COL } from '../modules/robot-kit.js';
+import { robotMaterials, part, mergeParts, ext, tf, moved, COL } from '@miragekit/world/kits/cyber';
 import { humanoidMeshes, robotClips, CLIP_SPEED, createHound } from './robot-rig.js';
 
 const q = (x, y, z) => new THREE.Quaternion().setFromEuler(new THREE.Euler(x, y, z)).toArray();

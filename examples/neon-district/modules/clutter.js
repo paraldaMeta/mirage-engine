@@ -6,9 +6,7 @@
 import * as THREE from 'three';
 import { materials, surfaceLib } from './materials.js';
 import { lamp, decor } from './lib.js';
-import { propKit, recorder, track, markBatch, sinceMark, trackLamps, breakablesLamp } from './props-kit.js';
-import { paperLantern, signalHead } from './props-lights.js';
-import { bin, bag as sack, cardboard, newsBox } from './props-street.js';
+import { propKit, recorder, track, markBatch, sinceMark, trackLamps, breakablesLamp, paperLantern, signalHead, bin, bag as sack, cardboard, newsBox } from '@miragekit/world/kits/cyber';
 
 export default {
   name: 'clutter',

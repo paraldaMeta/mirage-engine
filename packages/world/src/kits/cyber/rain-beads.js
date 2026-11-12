@@ -1,4 +1,4 @@
-// rain-beads: rain on a smooth object's surface, as material hooks (not a module). rainBeads(hooks, options) returns
+// Mirage original code. kit/cyber's rain on a smooth object's surface, as material hooks. rainBeads(hooks, options) returns
 // the hooks with beads and runs added (compose it inside withWet, which then adds its wet film on top):
 //  - beads: two sizes of hashed drops in world space (1.4 cm and 0.6 cm cells), each a lens: its normal bends out
 //    from the centre (so every bead carries its own small highlight of each lamp and sign) and its roughness drops

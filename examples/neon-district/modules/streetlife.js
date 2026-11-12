@@ -12,10 +12,7 @@ import * as THREE from 'three';
 import { materials, surfaceLib } from './materials.js';
 import { lamp, decor, signTexture } from './lib.js';
 import { detail, thin, corrugated, textAtlas, atlasQuad } from './kit.js';
-import { buildMachines } from './machines.js';
-import { propKit, recorder, track, trackLamps, breakablesLamp } from './props-kit.js';
-import { paperLantern } from './props-lights.js';
-import { spiritBottle, jar, pot, skewers, bowls, chopsticks, riceCooker, gasBottle, extinguisher } from './props-goods.js';
+import { buildMachines, propKit, recorder, track, trackLamps, breakablesLamp, paperLantern, spiritBottle, jar, pot, skewers, bowls, chopsticks, riceCooker, gasBottle, extinguisher } from '@miragekit/world/kits/cyber';
 
 export default {
   name: 'streetlife',

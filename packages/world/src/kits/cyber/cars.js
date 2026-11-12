@@ -1,4 +1,6 @@
-// cars: the three parked cars of plan.cars, as the scene's material showcase (built by street.js, not a module).
+// Mirage original code. kit/cyber's parked cars, a material showcase: parkedCars(ctx, P, batch, [[x, z, rotY]...],
+// proxyBox(size, matrix, rotY), { lamp(ctx, { pos, color, intensity, range }) }) returns their anchors; `lamp` is how
+// the host lights the under-glow and the tail light (none without it), `proxyBox` its collision volume per car.
 // Three designs of an invented marque, KESTREL MOTOR WORKS (no real badges or names), proportioned from real
 // vehicles of their kind and scaled to the old cars' footprint (4.7 x 1.9 m):
 //  - 0 the KMW "Slab": an angular electric pickup of flat brushed-steel planes meeting at hard creases, a wedge
@@ -21,10 +23,9 @@
 // The game reads only the anchors (pos, rotY) and the car's volume: each keeps the old car's collision boxes and lamps.
 import * as THREE from 'three';
 import { withWet, SURFACES, WET } from '@miragekit/core';
-import { lamp } from './lib.js';
 import { rainBeads } from './rain-beads.js';
 import { surfaceLib } from './robot-kit.js';
-import { recorder, markBatch, sinceMark, trackLamps } from './props-kit.js';
+import { recorder, markBatch, sinceMark, trackLamps } from './kit.js';
 
 const HP = Math.PI / 2, TAU = Math.PI * 2;
 // ---------------------------------------------------------------------------------------------------------------
@@ -75,7 +76,7 @@ const v2 = (pts) => pts.map(([a, b]) => new THREE.Vector2(a, b));
 
 // ---- the three designs: the upper body's stations (each ring's last point is where the lower body meets it), the
 // glass bands [i0, i1, s0, s1], the lower body (clearance, half width), the wheels, the lights
-const DESIGNS = [
+export const CAR_DESIGNS = [
   { // the Slab: ~5.7 x 2.0 x 1.8 m in life; here 4.7 x 1.9 x 1.56
     name: 'slab', flat: true, clear: 0.26, hw: 0.95, nose: 2.35, tail: -2.35,
     // reference (in life / here at 0.81): L 5.8 / 4.7, W 2.0 / 1.9 (the footprint), H 1.8 / 1.48, wheelbase 3.81 / 3.12,
@@ -110,7 +111,7 @@ const DESIGNS = [
 const GLOW = [[0.1, 0.85, 1.0], [1.0, 0.16, 0.5], [1.0, 0.6, 0.2]];
 
 // ---------------------------------------------------------------------------------------------------------------
-function carMaterials(ctx) {
+export function carMaterials(ctx) {
   if (ctx.shared.carMats) return ctx.shared.carMats;
   const { mat } = ctx, lib = surfaceLib(ctx);
   const H = (spec, o = {}) => lib.hooks(spec, { space: 'object', ...o });
@@ -163,7 +164,7 @@ function dropMaterial(mat) {
 }
 
 /** Build the cars into `pb` (the street's props batch: number plates) and their own batch; returns the anchors */
-export function parkedCars(ctx, P, pb, list, proxyBox) {
+export function parkedCars(ctx, P, pb, list, proxyBox = () => {}, { lamp = () => null } = {}) {
   const { geom, root } = ctx, CM = carMaterials(ctx), { mats, put, R } = P;
   const cb = new geom.MeshBatch(), sb = new geom.MeshBatch();   // cb: the bodies (cast shadows); sb: small parts (none)
   const anchors = [];
@@ -172,7 +173,7 @@ export function parkedCars(ctx, P, pb, list, proxyBox) {
   // (a flat tyre lowers that corner: destruct.js moves the car's vertices, glass apart)
   const rec = recorder(ctx), glassKey = CM.glass.uuid + '+c', tyreKey = CM.tyre.uuid + '+c';
   list.forEach(([x, z, rot], ci) => {
-    const Dz = DESIGNS[ci % DESIGNS.length], m = geom.compose([x, 0, z], [0, rot, 0]), at = (p, r = [0, 0, 0], s = 1) => m.clone().multiply(geom.compose(p, r, s));
+    const Dz = CAR_DESIGNS[ci % CAR_DESIGNS.length], m = geom.compose([x, 0, z], [0, rot, 0]), at = (p, r = [0, 0, 0], s = 1) => m.clone().multiply(geom.compose(p, r, s));
     const body = Dz.name === 'slab' ? CM.steel : Dz.name === 'vane' ? CM.pearl : CM.amber, st = Dz.st, last = st.length - 1, W = Dz.wheel;
     const add = (b, g, mt, mm, c = [1, 1, 1]) => b.add(col(g, c), mt, mm);
     const glassOf = (i0, s0) => Dz.glass.some(([g0, g1, a, b]) => i0 >= g0 && i0 < g1 && s0 >= a && s0 < b);

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Triangles of the robot kit's bodies per level of detail (NOTES.md "Frame budget"): node scripts/robot-tris.mjs
-import { humanoid, quadruped } from '../modules/robot-kit.js';
+import { humanoid, quadruped } from '@miragekit/world/kits/cyber';
 
 const t = (l) => l.reduce((s, p) => s + p.g.attributes.position.count / 3, 0);
 for (const [style, kit] of [['sentinel', {}], ['sentinel', { shield: true }], ['sentinel', { mast: true }], ['warden', {}], ['home', {}]]) {

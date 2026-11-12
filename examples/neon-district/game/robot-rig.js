@@ -7,7 +7,7 @@
 //   createHound     a robot dog on its own skeleton (a body, four legs of two links, a turret's yaw), skinned the same
 //                   way; posed in code each frame: a trot from the distance travelled, a crouch, a leap, a fall
 import * as THREE from 'three';
-import { humanoid, humanoidRig, quadruped, quadrupedDims, mergeParts, moved, bipedLegs, trotLegs, legIK, GAITS, LEN } from '../modules/robot-kit.js';
+import { humanoid, humanoidRig, quadruped, quadrupedDims, mergeParts, moved, bipedLegs, trotLegs, legIK, GAITS, LEN } from '@miragekit/world/kits/cyber';
 
 const TAU = Math.PI * 2, ARM_DOWN = 1.32;
 const X = new THREE.Vector3(1, 0, 0), Y = new THREE.Vector3(0, 1, 0), Z = new THREE.Vector3(0, 0, 1);

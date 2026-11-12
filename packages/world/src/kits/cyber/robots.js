@@ -1,4 +1,4 @@
-// machines: the district's civilian robots, for streetlife.js (not a module itself). Built from the robot kit
+// Mirage original code. kit/cyber's civilian robots: buildMachines(ctx, spec). Built from the robot kit
 // (robot-kit.js) like the sentinels, but nothing like them: light shells (white, pale grey), black joints under fabric
 // boots, a dark glass face plate with a soft white or blue status light, no weapons; the sentinels are carbon black
 // with red and amber sensors.

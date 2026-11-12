@@ -95,6 +95,25 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
   that differ by numbers share a program. Checked by `packages/core/surfaces.check.mjs` (in `npm test`) and
   `packages/tools/src/surfaces-check.mjs` (Chrome: compiles, ranges read back, baked == procedural, determinism,
   programs, bake budget); demo `examples/demos/materials` with its gallery shooter, bench and calibration tool.
+- @miragekit/game: a sound library, `@miragekit/game/sounds` (experimental, opt-in subpath, docs/sounds.md): 125
+  sounds made in code, no audio files (243 variants, 22 loops) in seven categories: weapons (grown out of
+  examples/neon-district's gun sounds), interface, footsteps on ten more surfaces, ambience loops (rain, a city,
+  wind, a crowd, the sea, crickets, fire...), machines and science fiction, vehicles with the Doppler shift, nature.
+  `addSounds(audio, names)` gives them to `createAudio` (made at unlock at the device's rate), `renderSound(name,
+  rate, v)` returns the samples; the synthesis kit (layers, rooms, limiter, `one` / `fold`) is exported for sounds
+  of your own. Deterministic per name and variant. Rendering all of them takes about 4 s on one core; 36 KB
+  minified. examples/neon-district now plays its guns from it (same names; 24 of its 46 sounds byte-identical, the
+  other 22 differ only in their noise seed, which was the minified function's name; its Chrome measurements all
+  pass). Listen: `examples/demos/sounds`. Checked by `packages/game/sounds.check.mjs` (in `npm test`).
+- @miragekit/world: the cyber kit, `@miragekit/world/kits/cyber` (experimental, opt-in subpath, world README "The
+  cyber kit"): the street props of examples/neon-district as a library anyone can import. 94 exports,
+  all made in code (geometry, and one canvas atlas for every printed label; no model or image files): products and
+  shop goods, light fixtures, street furniture, three parked cars with rain, animated civilian robots, the robot
+  parts kit (bodies at three levels of detail, decals, materials, gaits and leg IK), the per-world surface library
+  wrapper (`surfaceLib`), what a builder records for destructibles (`recorder`, `track`, `trackLamps`), corrugated
+  sheet, worn paint, shop interiors behind glass, text atlases. The example now imports them; merged with the
+  example's newer cars, robots and props (their code at the kit's paths), its built scene (meshes, triangles and
+  three stills) is the same before and after. Checked by `packages/world/cyber.check.mjs` (in `npm test`).
 - @miragekit/core: the wet layer learns where water goes and how it looks in rain (ported from the rainy ship deck
   of the owner's Oman project, `withWet` options, all opt-in): `wear` (a GLSL float: ruts, a trodden path, joints,
   round drains; the water gathers there, `wearDepth` 0.016 m) and `shelter` (a number, a GLSL float or a `{ value }`

@@ -1,4 +1,4 @@
-// robot-kit: the parts every robot in the district is assembled from (not a module). Used by the enemies
+// Mirage original code. kit/cyber's robot kit: the parts every robot in the district is assembled from (not a module). Used by the enemies
 // (game/enemies.js, skinned on @miragekit/play's rig), the civilians (machines.js, batched and posed in code) and the
 // robot dogs (enemy hounds, the civilian courier).
 //   materials  shell: the library's powder coat (dielectric; worn edges show steel; object space so the texture rides
