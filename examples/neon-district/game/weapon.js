@@ -380,15 +380,18 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
     stepReload(dt);
     stepGatling(dt, alive);
     const edge = S.fire && !S.fireWas; S.fireWas = S.fire;
+    // a press a moment before a semi-automatic is ready again (in the rate's last tenth of a second) is kept until it
+    // is, not dropped: taps as fast as the rate lost about one in five to the step they happened to land on
+    S.queued = edge && !A.auto && S.cool > 0 && S.cool < 0.1 ? S.cool + 0.05 : Math.max(0, (S.queued || 0) - dt);
     if (alive) {
       if (S.wantReload) { reload(); S.wantReload = false; }
       if (S.autoReload > 0 && (S.autoReload -= dt) <= 0) { S.autoReload = 0; if (S.mag === 0) reload(); }
       // the shotgun: the trigger stops a reload (a shell in the tube is enough)
       if (edge && A.shellByShell && S.reloading > 0 && S.mag > 0) { S.reloading = 0; S.reloadStep = ''; S.pumpT = 0.4; say('nd_pump', { gain: 0.6 }); S.cool = 0.32; }
       const ready = !S.switching && S.reloading <= 0 && S.draw <= 0.08 && S.cool <= 0;
-      if (S.fire && ready) {
+      if ((S.fire || S.queued > 0) && ready) {
         if (A.id === 'gatling' && (S.vent || S.spin < 0.95)) { if (S.vent && edge) say('nd_dry_heavy', { gain: 0.5 }); }
-        else if (S.mag > 0) { if (A.auto || edge || S.sinceShot >= A.hold) shoot(); }
+        else if (S.mag > 0) { if (A.auto || edge || S.queued > 0 || S.sinceShot >= A.hold) { shoot(); S.queued = 0; } }
         else if (edge || A.auto) { S.cool = 0.3; if (!reload()) { say(A.dry, { gain: 0.6 }); feel?.empty(); } }
       }
     }
