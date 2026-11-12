@@ -1414,8 +1414,8 @@ MsS ms_roofing(vec2 u){
       vec4 pb = msCell(msWarp(u + float(i) * 3.1, f * 0.5, 0.15 / f), f, 1.0);
       float on = step(1.0 - share, pb.z) * msLod(1.0 / f);
       float st = (1.0 - smoothstep(0.3 + 0.1 * pb.w, 0.42 + 0.1 * pb.w, pb.x)) * on, dome = sqrt(max(1.0 - pb.x * pb.x * 5.0, 0.0));
-      vec3 rk = pb.w < 0.45 ? vec3(0.95, 0.92, 0.88) : pb.w < 0.7 ? vec3(1.25, 0.95, 0.65) : pb.w < 0.85 ? vec3(1.7, 1.6, 1.5) : vec3(0.45);
-      col = mix(col, msA.rgb * rk * (0.8 + 0.3 * fract(pb.z * 13.0)) * (0.85 + 0.3 * dome), st);
+      vec3 rk = pb.w < 0.45 ? vec3(0.85, 0.82, 0.78) : pb.w < 0.7 ? vec3(1.02, 0.82, 0.58) : pb.w < 0.85 ? vec3(1.0, 0.97, 0.92) : vec3(0.45);
+      col = mix(col, msA.rgb * rk * (0.75 + 0.25 * fract(pb.z * 13.0)) * (0.85 + 0.2 * dome), st);
       h = mix(h, 0.35 + 0.6 * dome * (1.0 - 0.3 * float(i)), st); r = mix(r, 0.7 + 0.15 * fract(pb.w * 7.0), st);
       ao *= 1.0 - 0.3 * on * (1.0 - smoothstep(0.42, 0.6, pb.x)) * (1.0 - st);   // the shadowed rim round each stone
     }
