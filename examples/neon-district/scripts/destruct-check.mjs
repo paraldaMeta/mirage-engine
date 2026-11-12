@@ -73,7 +73,10 @@ const luminance = async (w = 0.4, h = 0.4) => {
     return s / (d.length / 4) / 255;
   }, b64, w, h);
 };
-const reset = () => ev(() => { const { d, G, P } = window.__dx; clearInterval(window.__calm); window.__calm = null; d.reset(); P.resetScore(); G.player.hp = 100; G.player.dead = false; window.__dx.events.length = 0 });
+// (each part starts with the district's robots and kites out of play: the lamps shot out and the blasts wake them, and
+// the street's robots shooting the player at the stall while the gas went off could kill him: the death message then
+// pauses the game and every later timed part stalls. A part that wants a robot revives its own.)
+const reset = () => ev(() => { const { d, G, P } = window.__dx; clearInterval(window.__calm); window.__calm = null; d.reset(); P.resetScore(); for (const e of G.enemies.list) G.enemies.park(e); for (const e of G.drones.list) G.drones.park(e); G.player.hp = 100; G.player.dead = false; window.__dx.events.length = 0 });
 
 
 // ---- registration
