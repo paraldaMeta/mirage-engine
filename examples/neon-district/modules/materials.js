@@ -141,7 +141,7 @@ export function materials(ctx) {
   // the dark structural metal: black powder coat (a dielectric with a satin sheen, steel at worn edges), not a black
   // mirror; blackMetal is the same set a shade darker (a tint: no second bake)
   const POWDER = SURFACES.powderCoat({ variant: 'powder', color: [0.045, 0.047, 0.052] });
-  const SHEET = (color) => SURFACES.corrugated({ variant: 'painted', color, pitch: 0.22, profile: 'box', rust: 0.35, chips: 0.3 });
+  const SHEET = (color) => SURFACES.corrugated({ variant: 'painted', color, pitch: 0.22, profile: 'box', rust: 0.35, chips: 0.3, gravity: [-1, 0], stencil: 1, dents: 0.5 });   // (grain 'y': u up, the fall down u)
   const CONCRETE = SURFACES.concrete({ variant: 'cast', panel: [2.4, 1.2], tieSpacing: 0.6, age: 0.6 });
   const SHEET_DECALS = { rills: { top: 2.6, length: 1.1, density: 0.5 }, leaks: { spacing: 1.52 } };
   const M = {

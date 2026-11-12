@@ -450,8 +450,22 @@ MsS ms_tile(vec2 u){
 }`,
 
   // A: paint rgb, roughness   B: pitch, sheet width, fixing spacing, profile (0 sine, 1 box)   C: rust amount, chips, white rust, -
-  // D: gravity in the surface plane (xy: an axis, [0, -1] = down v), -, -
+  // D: gravity in the surface plane (xy: an axis, [0, -1] = down v), stencil, dents
   corrugated: /* glsl */ `
+// a seven-segment digit (the shape of a cheap stencil set), p in the digit's cell (x 0..1, y 0..1.7): the distance
+float msSegDigit(vec2 p, int d){
+  int m = d == 0 ? 63 : d == 1 ? 6 : d == 2 ? 91 : d == 3 ? 79 : d == 4 ? 102 : d == 5 ? 109 : d == 6 ? 125 : d == 7 ? 7 : d == 8 ? 127 : 111;
+  float e = 1e3;
+  vec2 hs = vec2(0.36, 0.11), vs = vec2(0.11, 0.33);
+  if ((m & 1) != 0) e = min(e, msBox(p - vec2(0.5, 1.6), hs, 0.02));
+  if ((m & 2) != 0) e = min(e, msBox(p - vec2(0.9, 1.22), vs, 0.02));
+  if ((m & 4) != 0) e = min(e, msBox(p - vec2(0.9, 0.48), vs, 0.02));
+  if ((m & 8) != 0) e = min(e, msBox(p - vec2(0.5, 0.1), hs, 0.02));
+  if ((m & 16) != 0) e = min(e, msBox(p - vec2(0.1, 0.48), vs, 0.02));
+  if ((m & 32) != 0) e = min(e, msBox(p - vec2(0.1, 1.22), vs, 0.02));
+  if ((m & 64) != 0) e = min(e, msBox(p - vec2(0.5, 0.85), hs, 0.02));
+  return e;
+}
 MsS ms_corrugated(vec2 u){
   float V = msX.z;
   float pitch = msSnap(msB.x), x = u.x / pitch, fx = fract(x);
@@ -526,9 +540,30 @@ MsS ms_corrugated(vec2 u){
     float ghost = msCut(msFbm(u + 7.0, 2.0, 3) * 0.5 + 0.5 + 0.05 * fine, 0.62, 0.006);
     col = mix(col, msA.rgb * 0.7, ghost * 0.85); r = mix(0.86 + 0.06 * scale_, 0.7, ghost);
   }
+  // a stencilled code sprayed on each sheet (three digits, 12 cm high, upright whichever way the ribs run), its paint
+  // thin and worn where it has weathered
+  if (msD.z > 0.0 && V < 1.5) {
+    vec2 sq = vec2(mod(c - msT * 0.31, msT), mod(-a - msT * 0.42, msT)) / 0.07;      // the code's frame: x across, y up
+    vec3 sh = mgHash3(vec3(msSeed, 3.0, 7.0));
+    float e = 1e3;
+    for (int i = 0; i < 3; i++) e = min(e, msSegDigit(sq - vec2(1.35 * float(i), 0.0), int(floor(fract(sh.x * 7.3 + float(i) * 0.37) * 10.0))));
+    float ink = (1.0 - smoothstep(-0.02, 0.03 + msFP / 0.07, e)) * msCut(msFbm(u + 4.0, 30.0, 3) * 0.5 + 0.5 + 0.25 * msD.z, 0.42, 0.04) * (1.0 - smoothstep(0.0, 0.01, -prof + 0.15));
+    vec3 inkC = sh.y < 0.6 ? vec3(0.62, 0.6, 0.55) : sh.y < 0.85 ? vec3(0.55, 0.4, 0.04) : vec3(0.03);
+    col = mix(col, inkC * (0.9 + 0.1 * fine), ink * 0.92); r = mix(r, 0.75, ink); met *= 1.0 - ink;
+  }
+  // dents: a few knocks per sheet 6..20 cm across, the ribs pressed flat in them, a crease of chipped paint at the rim
+  float dentH = 0.0;
+  if (msD.w > 0.0) {
+    vec4 dn = msCell(u + 2.9, 3.0, 1.0);
+    float rad = 0.25 + 0.3 * dn.w;
+    float dent = (1.0 - smoothstep(rad * 0.4, rad, dn.x)) * step(1.0 - 0.45 * msD.w, dn.z);
+    dentH = dent;
+    float rim = msLine(dn.x - rad * 0.85, 0.04) * step(1.0 - 0.45 * msD.w, dn.z);
+    col = mix(col, col * 0.85, rim * 0.5); r += 0.05 * rim;
+  }
   vec2 pit = msSpeck(u + 5.0, 200.0, 0.4, 0.5, 4.0);
   float rustAmt = V < 0.5 ? 0.0 : 1.0 - smoothstep(0.0, 0.6, abs(r - 0.86) * 10.0);
-  float h = prof * 0.9 + 0.04 * fine + 0.06 * fix - 0.04 * pit.x * rustAmt;
+  float h = mix(prof * 0.9, 0.2 + prof * 0.4, dentH) + 0.04 * fine + 0.06 * fix - 0.04 * pit.x * rustAmt;
   col *= 1.0 - 0.35 * lap;
   col = mix(col, vec3(0.5, 0.5, 0.52), fix * 0.6);
   float ao = 1.0 - 0.25 * valley - 0.3 * lap;
@@ -553,7 +588,14 @@ MsS ms_paintedMetal(vec2 u){
     // the bloom round a fixing: ragged (its radius pushed by noise), drawn out below it (what runs off), not round
     // every fixing
     float ry = abs(q.y - 0.035) < abs(q.y - (s.y - 0.035)) ? q.y - 0.035 : q.y - (s.y - 0.035);
-    float dw = length(vec2(bx * (1.0 + 2.0 * max(-ry, 0.0) / 0.05), ry * (ry < 0.0 ? 0.3 : 1.0))) * (0.55 + 1.1 * (msFbm(msWarp(u, 40.0, 0.004) + 3.3, 35.0, 3) * 0.5 + 0.5));
+    // (lobed, not round: the radius pushed by a coarse warped noise as well as a fine one, each bloom its own lean and
+    // length of run below)
+    float bk = bh0(g.zw + floor(q.x / sp) * 0.271);
+    // the run hangs from the row above the pixel (it crosses the seam below a panel's lower row)
+    float yA = q.y < 0.035 ? 0.035 : (q.y < s.y - 0.035 ? s.y - 0.035 : s.y + 0.035), rA = min(q.y - yA, 0.0);
+    float bxl = bx + rA * (bk - 0.5) * 0.6;
+    float dw = min(length(vec2(bx, ry)), length(vec2(bxl * (1.0 + 2.5 * (-rA) / 0.05), rA * (0.12 + 0.2 * bk))))
+             * (0.5 + 1.1 * fract(bk * 13.7)) * (0.35 + 1.3 * (msFbm(msWarp(u, 14.0, 0.012) + 3.3, 12.0, 3) * 0.5 + 0.5)) * (0.7 + 0.6 * (msFbm(msWarp(u, 40.0, 0.004) + 1.1, 45.0, 2) * 0.5 + 0.5));
     near = (1.0 - smoothstep(0.008, 0.045, dw)) * step(0.35, bh0(g.zw + floor(q.x / sp) * 0.137));
   }
   // rust: patches at every scale (a 30 cm cluster, 5 cm islands, 1 cm specks), the edges warped and cut crisp; new
