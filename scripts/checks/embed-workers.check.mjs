@@ -87,7 +87,7 @@ assert.equal(scriptCloses('var a="</script>"'), false, 'a closing tag in the tex
   const out = path.join(ex, 'out.html');
   const pkg = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../packages/tools/src/package.mjs');
   let log = '';
-  try { log = execFileSync(process.execPath, [pkg, ex, '--out', out], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }); }
+  try { log = execFileSync(process.execPath, [pkg, ex, '--out', out, '--no-gzip'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }); }
   catch (e) { assert.fail('packaging a page with a worker failed: ' + String(e.stderr || e.message).slice(0, 600)); }
   if (fs.existsSync(out)) {
     const html = fs.readFileSync(out, 'utf8');
