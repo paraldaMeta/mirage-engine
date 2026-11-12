@@ -27,6 +27,7 @@
 import * as THREE from 'three';
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 import { OCT_DECODE } from './inject.js';
+import { FLASH } from './weather.js';
 
 export const GI_DEFAULTS = {
   spacing: 1.5,     // m between probes (or counts: [nx, ny, nz])
@@ -34,6 +35,7 @@ export const GI_DEFAULTS = {
   cube: 32,         // px of a probe's capture cube face
   perFrame: 2,      // probes re-baked per frame after the time of day changed
   budget: 0,        // ms of probe work per frame instead of perFrame (0: perFrame probes); a probe is drawn a face at a time, so no frame stalls
+  scope: null,      // (fn, first) => void: wraps each step of the bake; `first` is true for the first bake (a lazy one runs in frames: the caller can hold the state the world had before its first frame)
   lazy: false,      // the first bake runs in frames (with `budget`) instead of inside prepare(): the world shows at once, `busy` until it is done
   intensity: 1,     // scale of the probe light
   fade: 0.75,       // m at the box faces over which it blends to the image-based light
@@ -177,7 +179,7 @@ void main() {
     mgGiB: { value: new THREE.Vector4(1 / g.width, 1 / g.height, g.irrH, 0) },
   };
   const info = { probes: g.probes, counts: g.counts, atlas: [g.width, g.height], bakeMs: 0, baked: 0, pending: 0 };
-  let haveDist = false, queue = [], cursor = 0, cur = null;
+  let haveDist = false, queue = [], cursor = 0, cur = null, initial = false;
   const _clear = new THREE.Color();
 
   function fold(material, c, vis) {
@@ -204,8 +206,10 @@ void main() {
   // one piece of a probe's bake, with the renderer's state put back after it
   function piece(fn) {
     const savedRT = renderer.getRenderTarget(), face = renderer.getActiveCubeFace(), lvl = renderer.getActiveMipmapLevel(), auto = renderer.autoClear, xr = renderer.xr.enabled;
-    renderer.xr.enabled = false; renderer.autoClear = true;
-    try { fn(); } finally { renderer.setRenderTarget(savedRT, face, lvl); renderer.autoClear = auto; renderer.xr.enabled = xr; }
+    // a lightning flash in the middle of a bake would be baked into the volume: the probes see the world without one
+    const fl = FLASH.uFlash.value.clone();
+    renderer.xr.enabled = false; renderer.autoClear = true; FLASH.uFlash.value.set(0, 0, 0);
+    try { if (cfg.scope) cfg.scope(fn, initial); else fn(); } finally { renderer.setRenderTarget(savedRT, face, lvl); renderer.autoClear = auto; renderer.xr.enabled = xr; FLASH.uFlash.value.copy(fl); }
   }
   // one probe as steps (a face of the distance cube, a face of the lit cube, the folds): the caller runs them in one go
   // (bake) or a few a frame (frame); the drawing is the same either way
@@ -255,7 +259,7 @@ void main() {
     const saved = renderer.getRenderTarget(), a = renderer.getClearAlpha(); renderer.getClearColor(_clear);
     atlas.scissorTest = false; atlas.viewport.set(0, 0, g.width, g.height);
     renderer.setRenderTarget(atlas); renderer.setClearColor(0x000000, 0); renderer.clear(); renderer.setRenderTarget(saved); renderer.setClearColor(_clear, a);
-    cur = null; queue = [];
+    cur = null; queue = []; initial = true;
     for (let r = 0; r < Math.max(1, cfg.bounces); r++) for (let i = 0; i < g.probes; i++) queue.push({ i, d: r === 0 });
     info.pending = queue.length;
   }
@@ -264,7 +268,7 @@ void main() {
     if (!haveDist) return cfg.lazy ? bakeLater() : bake();
     if (distances) haveDist = false;
     cur = null; queue = [];
-    for (let r = 0; r < rounds; r++) for (let i = 0; i < g.probes; i++) queue.push(cfg.budget ? { i: (cursor + i) % g.probes, d: !haveDist } : (cursor + i) % g.probes);
+    for (let r = 0; r < rounds; r++) for (let i = 0; i < g.probes; i++) queue.push({ i: (cursor + i) % g.probes, d: !haveDist });
     info.pending = queue.length;
   }
   // frame(), with a budget: draw probes' steps until cfg.budget ms have gone (at least one step)
@@ -282,7 +286,7 @@ void main() {
         if (cur.next().done) cur = null;
       } while (performance.now() - t0 < budget);
     });
-    if (!queue.length && !cur) haveDist = true;
+    if (!queue.length && !cur) { haveDist = true; initial = false; }
     info.pending = queue.length;
   }
   const part = {
@@ -308,7 +312,7 @@ void main() {
     frame(camera, dt, still, spent = 0) {
       if (cfg.budget) return slice(spent);
       if (!queue.length) return;
-      const list = queue.splice(0, cfg.perFrame);
+      const list = queue.splice(0, cfg.perFrame).map((e) => e.i);
       cursor = (list[list.length - 1] + 1) % g.probes;
       run(list, !haveDist);
       if (!queue.length) haveDist = true;

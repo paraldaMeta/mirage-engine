@@ -59,6 +59,10 @@ const lut = makeLut(([r, g, b]) => {
 const TIMES = { night: { day: '2026-10-26', time: '23:10' }, dawn: { day: '2026-10-26', time: '06:20' }, day: { day: '2026-09-10', time: '17:44' }, dusk: { day: '2026-10-26', time: '17:04' } };
 const timeOf = (t) => TIMES[t] || (/^\d{1,2}:\d{2}$/.test(t || '') ? { day: '2026-09-10', time: t } : null);
 const bar = plan.bar.rect, room = plan.relay.room;
+// the first bake used to run before the world's first frame, with the storm sky not yet eased in (uStorm 0): the lazy one,
+// run in frames, holds that state, so the light in the bar is what it was
+let stormU0 = null;
+const bakeScope = (fn, first) => { const u = first && stormU0; if (!u) return fn(); const x = u.value.x; u.value.x = 0; try { fn(); } finally { u.value.x = x; } };
 const lighting = {
   bounce: on('bounce') && { spacing: 2 },                                                          // by day: light off the sunlit side of the street into the shade
   lights: { perCell: 0, perFrame: 1 },                                                            // clustered lamps, exact lists; one shadow tile redrawn a frame (sentinels walking past lamps)
@@ -69,7 +73,7 @@ const lighting = {
   csm: on('csm') && { cascades: 3, stagger: true },
   gi: on('gi') && { min: [bar[0], 0, bar[1]], max: [bar[2], plan.bar.height, bar[3]], spacing: 1.3, fade: 0.5,
     // the probes bake in frames, not before the first one (about 13 s of the start): 60 ms a frame behind the title, 20 once a player starts
-    budget: 60, lazy: true },
+    ...(Q.get('lazybake') === '0' ? {} : { budget: 60, lazy: true, scope: bakeScope }) },   // ?lazybake=0: bake in prepare(), as before
   probes: on('probes') && [
     { min: [bar[0], 0, bar[1]], max: [bar[2], plan.bar.height, bar[3]], fade: 0.5 },
     { min: [room[0], 0, room[1]], max: [room[2], plan.relay.height, room[3]], fade: 0.5 },
@@ -183,6 +187,7 @@ const setHour = (t) => { const v = timeOf(t); if (!v) return hour; hour = t; wor
 // recaptures the image-based light), the rain and the cloud cover are uniforms
 const wxNow = { ...wx0 };
 const cloudU = world.sky.material.uniforms.uCloudCover, stormU = world.sky.material.uniforms.uStorm;
+stormU0 = stormU || null;
 world.ctx.onUpdate(() => {
   const h = world.state ? world.state.sun.elevation : -60, want = weatherAt(h);
   for (const k in want) wxNow[k] += (want[k] - wxNow[k]) * 0.08;
