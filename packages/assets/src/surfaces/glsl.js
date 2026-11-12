@@ -21,8 +21,12 @@ MsS ms_concrete(vec2 u){
   vec4 pc = msCell(u + 0.008 * vec2(msFbm(u, 60.0, 2), msFbm(u + 2.0, 60.0, 2)), 26.0, 1.0);
   float big = step(0.96, pc.w);
   float pr = mix(0.06 + 0.12 * pc.w * pc.w, 0.22 + 0.2 * fract(pc.w * 17.0), big);
-  float on = step(1.0 - (0.05 + 0.6 * dens) * (big > 0.5 ? 1.6 : 1.0), pc.z);
+  float on = step(1.0 - (0.015 + 0.75 * dens * dens) * (big > 0.5 ? 1.6 : 1.0), pc.z);
   float pore = (1.0 - smoothstep(pr * 0.65, pr, pc.x)) * on * msLod(0.01);
+  // a second, coarser set (5..12 mm) only where the vibration was worst: they come in nests, not on a grid
+  vec4 pc2 = msCell(msWarp(u + 3.3, 30.0, 0.01), 9.0, 1.0);
+  float nest = (1.0 - smoothstep(0.12 + 0.1 * pc2.w, 0.2 + 0.12 * pc2.w, pc2.x)) * step(0.55, dens) * step(0.6, pc2.z) * msLod(0.02);
+  pore = max(pore, nest);
   float prim = (1.0 - smoothstep(pr, pr * 1.6, pc.x)) * on * msLod(0.02) - pore;
   vec2 pin = msSpeck(u + 8.0, 300.0, 0.08 + 0.2 * dens, 0.4, 1.0);
   pore = max(pore, pin.x * 0.6);
@@ -34,7 +38,9 @@ MsS ms_concrete(vec2 u){
   // water marks: darker tide-edged blotches (the form's release agent and the cure), a few paler bleached ones
   float wm = msFbm(msWarp(u + 2.0, 3.0, 0.05), 1.8, 4);
   float blot = smoothstep(0.15, 0.4, wm) * (0.6 + 0.4 * smoothstep(0.38, 0.42, wm));
-  vec3 col = base * (0.86 + 0.32 * m1 + 0.18 * cl + 0.09 * m2 + 0.07 * sand) * mix(vec3(1.0), vec3(1.03, 1.0, 0.95), 0.5 + 0.5 * m1) * (1.0 - 0.2 * blot);
+  // and the dirt a wall gathers: grime streaks down from the pour lines, darker blotches you see from across the street
+  float grime = smoothstep(0.1, 0.6, msFbm2(u + 2.2, vec2(5.0, 0.7), 3) * 0.5 + 0.5 + 0.3 * m1) * msW.x;
+  vec3 col = base * (0.86 + 0.34 * m1 + 0.2 * cl + 0.09 * m2 + 0.07 * sand) * mix(vec3(1.0), vec3(1.03, 1.0, 0.95), 0.5 + 0.5 * m1) * (1.0 - 0.3 * blot) * (1.0 - 0.28 * grime);
   col = mix(col, base * (0.62 + 0.75 * ag.w) * vec3(1.05, 1.0, 0.93), agg * 0.75);
   col *= (1.0 + 0.1 * prim) * (1.0 - 0.5 * pore);
   // relief: the pour's slow waves (the form bowed under the pressure), the sand skin, the voids cut into it
