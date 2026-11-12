@@ -4,6 +4,13 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
 
 ## Unreleased
 
+**A view model in its own near plane (opt-in)**
+- `viewModelDepth(root, { near: 0.01 })` (`@miragekit/core`, `@miragekit/core/viewmodel`): every mesh under `root` is
+  clipped at its own near plane and writes the camera's own depth (gl_FragDepth), so a gun held a few centimetres from
+  the eye is no longer cut by the camera's near plane and the post passes see true depths. The velocity pass draws
+  such meshes with the same near plane (`userData.mgViewModelNear`). Nothing changes without the call. Check:
+  `packages/core/viewmodel.check.mjs`.
+
 **Licences: a new package, @miragekit/assets, under the Business Source License 1.1**
 - The engine stays MIT: core, world, play, game, net, editor, tools (systems, APIs, frameworks, tools). The library's
   content moves to `@miragekit/assets` (`packages/assets`, BUSL-1.1, its LICENSE and README), and

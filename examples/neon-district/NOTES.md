@@ -720,6 +720,49 @@ look). The rest of what the metric sees is the TAA's neighbourhood clip on geome
 The single file (`npm run package -w neon-district`): **3.53 MB (3,702,149 bytes)**, against the site's 5 MB budget. All of it is
 code (Rapier's WASM is 2.2 MB of it); there are no assets.
 
+## The view model's flicker
+
+The owner saw the gun and the gloved hands flicker in play. Causes found in the code, and fixed at the cause:
+
+1. **The near plane cut the gun.** The camera's near plane went from 0.08 to 0.1 m in the far-field pass (depth
+   resolution on the far facades). The carbine aims at 12 cm from the eye (the sight, the receiver and the left cuff
+   nearer still), it kicks 4 cm back toward the eye and the tuck at a wall pulls it 20 cm back: those parts crossed
+   the plane as the gun swayed, bobbed and kicked and were cut on and off (a hole into the mesh). Now the view model
+   has its own near plane (1 cm) in the camera's depth range: core `viewModelDepth` (opt-in, `@miragekit/core/viewmodel`)
+   keeps the camera's x, y, w and TAA jitter, clips at 1 cm and writes the camera's own depth (gl_FragDepth), so AO,
+   the velocity buffer and the TAA's nearest-depth tap see the gun where it is and a wall in front still hides it.
+   The scene's near plane stays at 0.1.
+2. **Motion vectors.** The velocity pass (core `postfx.js`) draws the gun with its own matrix of the last frame, so its
+   velocity was already camera-relative; it now clips the gun at the same 1 cm plane and compares depths by view
+   distance there (what lay between 1 cm and the camera's near plane had a camera-motion velocity).
+3. **The gun's steel was the world's**: `M.steel` maps its brushed grain in world space, so on a gun that moves with
+   the eye the grain slid over the bolts, the barrel and the rail every frame. The gun has its own brushed steel in
+   object space now (`viewmodels.js`), and its own neon strips (the signs' `M.neon` would have taken the near-plane
+   patch with them).
+4. Not causes (read and ruled out): the fill and rim lights are clustered lamps with exact per-cell lists (perCell 0)
+   and steady intensity; the gun casts no shadow (castShadow false: the lamp tiles and the sun map hide it); the
+   muzzle lamp flickers per shot by design; the mirror never draws the gun (its layer).
+
+Measured (`scripts/gun-flicker.mjs`: the game at the spawn, carbine, rain off, 60 frames per run, real time; per
+pixel of the gun: the temporal sd of luma and the RMS of its second difference, 0..255; `iso` draws the gun alone on
+black; before = 49c5106). The sd also carries the auto exposure's drift after a jump; the second difference does not.
+
+| tier | run | sd before | sd after | sd p95 before / after | 2nd diff before / after |
+|---|---|---|---|---|---|
+| high | aim (scene) | 2.02 | 0.73 | 4.92 / 2.00 | 0.84 / 0.59 |
+| high | still (scene) | 1.17 | 1.10 | 4.11 / 3.09 | 0.66 / 0.64 |
+| medium | aim (scene) | 0.90 | 0.80 | 2.51 / 2.24 | 0.62 / 0.60 |
+| medium | still (iso) | 2.31 | 0.70 | 9.32 / 1.54 | 1.05 / 0.56 |
+| low | aim (scene) | 0.89 | 1.00 | 2.87 / 3.03 | 0.66 / 0.65 |
+
+Aiming, the nearest ribs of the rail and the back of the sight were missing before (crops:
+`out/nizwa-light/gun-dist-base/` and `gun-dist-gun/`, `gun-<tier>-night-scene-aim.png`). Walking and firing, the
+metric is dominated by the gun's own bob and the muzzle flash (in both builds alike). Headless at 60 Hz the flicker
+the owner saw does not reproduce as a large number at the spawn; the near-plane cut is visible in the stills.
+The low tier's temporal AA (`taa2` off) reprojects every pixel as if it were fixed in the world: on a gun that
+turns with the eye its history is rejected by the neighbourhood clip while turning. Not changed (low keeps the depth
+reprojection for cost).
+
 ## Below a commercial shooter, and why
 
 - **Geometry and materials.** Buildings are still boxes with a window grid in the shader; what dresses them
@@ -736,8 +779,8 @@ code (Rapier's WASM is 2.2 MB of it); there are no assets.
   are screen space: what is off screen falls back to two box probes or the sky. The probe volume covers one room.
   The volumetric pass scatters 8 lamps. There is no ray tracing and no path-traced reference.
 - **Weapon feel.** Five guns (one projectile), no penetration, no animation of the fingers (the hands move as a whole:
-  the reload, the pump); the view model is in the world's depth range and pulls back from walls instead of having its
-  own.
+  the reload, the pump); the view model is in the world's depth range (its own 1 cm near plane, core
+  `viewModelDepth`) and pulls back from walls instead of being drawn over them.
 - **Sound.** Everything is synthesised; the guns are layered and put in the room the player stands in, but there is
   no recorded material and no occlusion, and nobody has listened to it critically (see The arsenal).
 - **Movement.** Crouching lowers the eye and slows the walk but the body's collider keeps its height; there is no
@@ -750,7 +793,9 @@ code (Rapier's WASM is 2.2 MB of it); there are no assets.
    and `startGame` does not pass `animate` on. The game calls `play.turn(0, 0, 0)` every tick to keep rain, effects
    and screens running.
 2. **No weapon layer.** The view model is an ordinary object placed from the camera before every sub-frame
-   (`world.ctx.onUpdate`); it comes back from walls (a short ray) instead of being drawn in its own depth range.
+   (`world.ctx.onUpdate`); it comes back from walls (a short ray) instead of being drawn over them. Since the
+   flicker pass it has its own near plane (core `viewModelDepth`, 1 cm, the camera's depth written): see "The view
+   model's flicker".
 3. **The field of view of a game is fixed at 62°.** `startGame` does not pass `fov` to play; aiming sets the
    camera's lens in `world.ctx.onUpdate`, after play wrote its own.
 4. **The action map has no fire / aim / reload and no mouse buttons.** The game listens for them itself, so the

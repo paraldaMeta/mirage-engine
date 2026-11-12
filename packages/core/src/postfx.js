@@ -179,7 +179,7 @@ export function lensDirtMask({ width = 512, height = 256, seed = 7 } = {}) {
 // carries its clip position now and one frame ago (both unjittered). There is no depth buffer to test against, so
 // the fragment keeps itself only where the scene's depth is its own (cut-outs and occluders stay untouched).
 const VEL_VS = /* glsl */ `
-uniform mat4 uPrevModel, uCurVP, uPrevVP; varying vec4 vC, vP;
+uniform mat4 uPrevModel, uCurVP, uPrevVP; uniform float uVmNear; varying vec4 vC, vP;
 #include <skinning_pars_vertex>
 #ifdef USE_SKINNING
 uniform highp sampler2D tPrevBones;
@@ -203,12 +203,18 @@ void main(){
   wc = modelMatrix * wc; wp = uPrevModel * wp;
   vC = uCurVP * wc; vP = uPrevVP * wp;
   gl_Position = projectionMatrix * viewMatrix * wc;
+  // a view model (viewmodel.js) clips at its own near plane here too
+  if (uVmNear > 0.0 && projectionMatrix[2][3] < -0.5) {
+    float p10 = projectionMatrix[2][2], p14 = projectionMatrix[3][2], f = p14 / (p10 + 1.0), n = min(p14 / (p10 - 1.0), uVmNear);
+    gl_Position.z = (f + n) / (f - n) * gl_Position.w - 2.0 * f * n / (f - n);
+  }
 }`;
 const VEL_FS = /* glsl */ `
-uniform sampler2D tDepth; uniform vec2 uMax; uniform vec3 uNF; varying vec4 vC, vP;
+uniform sampler2D tDepth; uniform vec2 uMax; uniform vec3 uNF; uniform float uVmNear; varying vec4 vC, vP;
 float lin(float d){ return uNF.z > 0.5 ? uNF.x + d * (uNF.y - uNF.x) : uNF.x * uNF.y / (uNF.y - d * (uNF.y - uNF.x)); }
 void main(){
-  float a = lin(gl_FragCoord.z), b = lin(texture2D(tDepth, gl_FragCoord.xy / uMax).x);
+  // a view model wrote the camera's depth clamped to its near plane (viewmodel.js): compare the view distance so
+  float a = uVmNear > 0.0 && uNF.z < 0.5 ? max(vC.w, uNF.x) : lin(gl_FragCoord.z), b = lin(texture2D(tDepth, gl_FragCoord.xy / uMax).x);
   if (abs(a - b) > 0.02 + 0.01 * a) discard;
   gl_FragColor = vec4((vP.xy / vP.w - vC.xy / vC.w) * 0.5, vP.w, vC.w);
 }`;
@@ -278,7 +284,7 @@ export class PostFX {
   _objects(scene, camera, v, ortho) {
     const pp = this.pp, list = this.pscene.children; list.length = 0;
     const vm = this.mat('velObj', () => new THREE.ShaderMaterial({ vertexShader: VEL_VS, fragmentShader: VEL_FS, side: THREE.DoubleSide, depthTest: false, depthWrite: false, blending: THREE.NoBlending,
-      uniforms: { uPrevModel: { value: new THREE.Matrix4() }, uCurVP: { value: this.curVP }, uPrevVP: { value: this.prevVP }, tPrevBones: { value: null }, tDepth: { value: null }, uMax: { value: new THREE.Vector2() }, uNF: { value: new THREE.Vector3() } } }));
+      uniforms: { uVmNear: { value: 0 }, uPrevModel: { value: new THREE.Matrix4() }, uCurVP: { value: this.curVP }, uPrevVP: { value: this.prevVP }, tPrevBones: { value: null }, tDepth: { value: null }, uMax: { value: new THREE.Vector2() }, uNF: { value: new THREE.Vector3() } } }));
     const moved = [];
     scene.traverseVisible((o) => {
       if (!o.isMesh || !o.geometry || o.isBatchedMesh || !o.layers.test(camera.layers)) return;
@@ -326,7 +332,7 @@ export class PostFX {
     if (o.isInstancedMesh) { p.instanceMatrix.dispose?.(); p.instanceMatrix = o.instanceMatrix; }
     p.matrixAutoUpdate = p.matrixWorldAutoUpdate = false; p.matrixWorld = o.matrixWorld;
     p.frustumCulled = !(o.isSkinnedMesh || o.isInstancedMesh) && o.frustumCulled;
-    p.onBeforeRender = () => { vm.uniforms.uPrevModel.value.copy(en.prev); vm.uniforms.tPrevBones.value = en.bones ? en.bones.tex : null; vm.uniformsNeedUpdate = true; };
+    p.onBeforeRender = () => { vm.uniforms.uVmNear.value = o.userData.mgViewModelNear || 0; vm.uniforms.uPrevModel.value.copy(en.prev); vm.uniforms.tPrevBones.value = en.bones ? en.bones.tex : null; vm.uniformsNeedUpdate = true; };
     return p;
   }
 

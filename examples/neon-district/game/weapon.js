@@ -7,9 +7,12 @@
 // the player pulled against it; the gun kicks back and rolls; a short field-of-view punch; spread that blooms (the
 // crosshair shows it); a screen shake, a view flinch and a landing dip, all offsets on the camera that never drift
 // the aim; a muzzle lamp strong enough to light the walls for two frames; casings that fall and tinkle.
-// The engine has no weapon layer: the view model is an ordinary lit object placed from the camera's matrix before
-// every sub-frame (world.ctx.onUpdate), so the neon lights it and the temporal passes see its motion.
+// The view model is an ordinary lit object placed from the camera's matrix before every sub-frame
+// (world.ctx.onUpdate), so the neon lights it and the temporal passes see its motion; it is drawn with its own near
+// plane (1 cm, core viewModelDepth) in the camera's depth range: the camera's 0.1 m near plane cut the sight, the
+// receiver and the cuffs as the gun swayed and kicked toward the eye (the hands and the gun flickered).
 import * as THREE from 'three';
+import { viewModelDepth } from '@miragekit/core/viewmodel';
 import { FX } from './fx.js';
 import { ARMS, ARM } from './arms.js';
 import { createModels } from './viewmodels.js';
@@ -24,6 +27,7 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
   const build = createModels({ world, M });
   const models = {};
   for (const a of ARMS) { const m = build[a.model](); m.group.scale.setScalar(m.scale); m.group.visible = false; holder.add(m.group); models[a.id] = m; m.muzzleObj = new THREE.Object3D(); m.muzzleObj.position.set(...m.muzzle); m.group.add(m.muzzleObj); if (m.port) { m.portObj = new THREE.Object3D(); m.portObj.position.set(...m.port); m.group.add(m.portObj); } }
+  viewModelDepth(holder, { near: 0.01 });
   // the muzzle lamp: one clustered lamp, dark between shots; strong and wide enough to light the walls round the player
   const flash = new THREE.PointLight(0xffb060, 0, 11, 2); root.add(flash);
   world.lighting?.addLight(flash);

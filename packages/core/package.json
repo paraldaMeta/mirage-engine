@@ -58,6 +58,7 @@
     "./stream": { "types": "./src/stream.d.ts", "default": "./src/stream.js" },
     "./textures": { "types": "./src/textures.d.ts", "default": "./src/textures.js" },
     "./vfx": { "types": "./src/vfx.d.ts", "default": "./src/vfx.js" },
+    "./viewmodel": { "types": "./src/viewmodel.d.ts", "default": "./src/viewmodel.js" },
     "./vfx-data": { "types": "./src/vfx-data.d.ts", "default": "./src/vfx-data.js" },
     "./vfx-library": { "types": "./src/vfx-library.d.ts", "default": "./src/vfx-library.js" },
     "./wet": { "types": "./src/wet.d.ts", "default": "./src/wet.js" },
@@ -77,7 +78,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "node check.mjs && node wet.check.mjs && node surfaces.check.mjs && node lamppool.check.mjs && node assets.check.mjs && node postfx.check.mjs && node bigworld.check.mjs && node platform.check.mjs"
+    "test": "node check.mjs && node wet.check.mjs && node surfaces.check.mjs && node lamppool.check.mjs && node assets.check.mjs && node postfx.check.mjs && node viewmodel.check.mjs && node bigworld.check.mjs && node platform.check.mjs"
   },
   "author": "灰叔 Racso",
   "types": "./src/index.d.ts"

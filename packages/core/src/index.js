@@ -36,3 +36,4 @@ export { createInstances } from './instancing.js';
 export { bakeImpostor, impostorMaterial } from './impostor.js';
 export { createOcclusion } from './hiz.js';
 export { onView } from './frame.js';
+export { viewModelDepth, viewModelShaders } from './viewmodel.js';
