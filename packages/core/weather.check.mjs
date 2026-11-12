@@ -21,7 +21,7 @@ assert.ok(flashEnabled() === false, 'no world, no flash');
   assert.equal(flashConfig({ intensity: -3 }).intensity, 0, 'intensity clamps at 0');
   assert.equal(flashConfig({ bolt: false }).bolt, false);
   const s = skyStormConfig({ storm: { glow: 99, flash: NaN } });
-  assert.ok(s.glow === 20 && s.flash === 0.35, 'storm numbers clamp, a non-number takes the default');
+  assert.ok(s.glow === 20 && s.flash === 0.5, 'storm numbers clamp, a non-number takes the default');
   assert.ok('uStorm' in createSkyUniforms({ storm: skyStormConfig({ storm: true }) }), 'storm uniforms with the option');
 }
 // --- the envelope: smooth below 1 (one pulse, no flicker), a leader / return stroke / re-strike at 1

@@ -16,6 +16,18 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
 - `createWorldRenderer({ sky: { storm: true | { glow, band, flash, speed } } })`: a low torn rain deck over the dome,
   lit from below by the haze colour and from inside by the flash, curtains of rain and a bright horizon band; its weight
   is `sky.material.uniforms.uStorm.value.x` (0 = the dome as before, the caller eases it with the rain).
+- `channelWater(world, { from, to, y, width, depth, water, speed, turbulence, foam, wall, bed })` (`@miragekit/core`,
+  `@miragekit/core/channel`): a straight open channel of running water. The surface traces its own cross-section in
+  the shader (no mirror pass): refraction onto the bed or a wall (caustics, the walls' shadow from the cross-section,
+  absorption), the opposite wall in its reflection, three's reflection elsewhere, advected ripples, rain rings, foam
+  below the inflow, lit by what three computed at the pixel (the shadowed sun, lamps, image-based light, the flash).
+  Returns the water mesh and the walls' and bed's geometry. Nothing changes without the call.
+- `createPlumes(world, { budget, slices, far })` (`@miragekit/core`, `@miragekit/core/plumes`): lit volumetric steam
+  and thin smoke, every plume one instance of camera-facing slices in a single draw, sorted, the nearest `budget`
+  within `far` drawn; single scattering of the key light (sun visibility given per plume), one lamp per plume and an
+  ambient fill. Nothing changes without the call. Check (both): `packages/core/channel.check.mjs`.
+- The channel water and the lightning re-implement techniques of the owner's Nizwa project (falaj water, qulzum
+  storm, incense smoke); no Nizwa engine code (its `src/core`) is included.
 
 **A view model in its own near plane (opt-in)**
 - `viewModelDepth(root, { near: 0.01 })` (`@miragekit/core`, `@miragekit/core/viewmodel`): every mesh under `root` is

@@ -22,6 +22,10 @@ export { createTextures, TEX_GLSL, TEX_RELIEF_GLSL, glslName } from './textures.
 export { createJobQueue, createLRU, createUploadBudget, textureBytes, objectBytes, texturesOf, disposeObject, watchLongTasks, nextFrame } from './stream.js';
 export { RELIEF, RELIEF_GLSL, RELIEF_LIGHT, setRelief, withRelief, renderHeight, renderShade } from './relief.js';
 export { WET, WET_GLSL, setWetness, setRain, withWet } from './wet.js';
+export { createPlumes } from './plumes.js';
+export type { Plumes, PlumeOptions } from './plumes.js';
+export { channelWater } from './channel.js';
+export type { ChannelWaterOptions, ChannelWater } from './channel.js';
 export { FLASH, FLASH_GLSL, FLASH_LIGHT_GLSL, enableFlash, flashEnabled, withFlash, flashConfig, flashEnvelope, createFlash } from './weather.js';
 export { registerSurfaceKinds, registerSurfaceDecals, surfaceKinds, surfaceSpec, surfaceHooks, bakeSurface, bakeDecalAtlas, createSurfaces, noiseTexture } from './surfaces.js';
 export { createEnvLight } from './envlight.js';

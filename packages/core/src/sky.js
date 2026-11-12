@@ -34,7 +34,7 @@ import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 
 /** The storm sky's settings: `glow` the deck's brightness x the haze colour, `band` the horizon band's, `flash` x the
  *  lightning's light in the deck, `speed` the scud's drift (x the cloud layer's). */
-export const SKY_STORM_DEFAULTS = Object.freeze({ glow: 1.1, band: 1.7, flash: 0.35, speed: 6 });
+export const SKY_STORM_DEFAULTS = Object.freeze({ glow: 1.1, band: 1.7, flash: 0.5, speed: 6 });
 /** config.sky ({ storm: true | { glow, band, flash, speed } }) -> the storm sky's settings, or null (off). */
 export function skyStormConfig(c) {
   if (!c || !c.storm) return null;
@@ -223,7 +223,7 @@ uniform vec3 uStormBase, uFlash, uFlashDir;
 // faster than the deck, curtains of rain at the horizon, a bright horizon band, the lightning inside it
 vec3 mgStorm(vec3 d, vec3 col){
   float y = max(d.y, 0.0);
-  vec2 p = d.xz / (y + 0.1) * 0.9 + uCloudOffset * uStormSpeed;
+  vec2 p = d.xz / (y + 0.1) * 2.6 + uCloudOffset * uStormSpeed;
   float c1 = mgFbm2(p * 0.45, 5) * 0.5 + 0.5;
   float c2 = mgFbm2(p * 1.6 + uCloudOffset * uStormSpeed * 4.0 + c1 * 1.2, 4) * 0.5 + 0.5;
   float dens = smoothstep(0.3, 0.78, c1 * 0.75 + c2 * 0.4);

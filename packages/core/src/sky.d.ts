@@ -32,7 +32,7 @@ export interface SkyStormSettings {
   glow: number;
   /** The horizon band's brightness x the haze colour (1.7). */
   band: number;
-  /** x the lightning's light inside the deck (0.35). */
+  /** x the lightning's light inside the deck (0.5). */
   flash: number;
   /** The scud's drift, x the cloud layer's (6). */
   speed: number;
