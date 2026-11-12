@@ -23,6 +23,7 @@
 import * as THREE from 'three';
 import { createDestructibles } from '@miragekit/game';
 import { machineUnits } from '@miragekit/assets/kits/cyber';
+import '@miragekit/assets/destruct';   // the material classes (glass, wood, metal...), registered with the system
 
 /** the price of each family (the end card's property damage); civilians cost the most by far */
 export const PRICE = {

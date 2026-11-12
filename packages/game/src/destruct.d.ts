@@ -8,7 +8,9 @@ type V3 = [number, number, number];
 /** The damage kinds; armour is a multiplier per kind (0 immune, 1 as dealt). */
 export type DamageKind = 'bullet' | 'pellet' | 'blast' | 'melee' | 'emp' | 'fire';
 export const DAMAGE_KINDS: DamageKind[];
-export type MaterialClass = 'glass' | 'paper' | 'wood' | 'cardboard' | 'plastic' | 'thinMetal' | 'heavyMetal' | 'ceramic' | 'liquid' | 'electronics' | 'fabric' | 'actor';
+/** A class name: the registered table's (@miragekit/assets/destruct: glass, paper, wood, cardboard, plastic, thinMetal,
+ *  heavyMetal, ceramic, liquid, electronics, fabric, actor; the built-in default: generic, actor). */
+export type MaterialClass = string;
 
 export interface DestructStage {
   /** The share of health lost at which the stage starts (0..1). */
@@ -53,15 +55,21 @@ export interface DestructMaterial {
   blocks?: boolean;
   behave?: Partial<Behaviours>;
 }
-export const DESTRUCT_MATERIALS: Record<MaterialClass, DestructMaterial>;
-/** The particle effects (vfx JSON) the classes and behaviours use. */
-export const DESTRUCT_EFFECTS: Record<string, object>;
-/** The break sound sets (dx_break_<name>). */
-export const DESTRUCT_SOUNDS: string[];
-/** Every destructibles sound as audio.add() factories. */
-export function destructSoundFactories(): Record<string, (ctx: BaseAudioContext) => AudioBuffer | AudioBuffer[]>;
-/** Add them to a createAudio() mixer (made at unlock); returns the names. */
-export function addDestructSounds(audio: Pick<AudioMixer, 'add'>): string[];
+/** A class table: what registerDestructData takes and destructData returns. */
+export interface DestructData {
+  materials: Record<string, DestructMaterial>;
+  /** The particle effects (vfx JSON) the classes and behaviours name. */
+  effects: Record<string, object>;
+  /** The class a name the game adds starts from. */
+  fallback: string;
+  /** Adds the sounds the classes name to a createAudio() mixer. */
+  addSounds: ((audio: Pick<AudioMixer, 'add'>) => unknown) | null;
+}
+/** Set the class table for registries made from now on (@miragekit/assets/destruct registers the library's); null: the
+ *  built-in default (one `generic` class and an `actor`, no effects, no sounds). Returns the table in use. */
+export function registerDestructData(data: { materials: Record<string, DestructMaterial>; effects?: Record<string, object>; fallback?: string; addSounds?: ((audio: Pick<AudioMixer, 'add'>) => unknown) | null } | null): DestructData;
+/** The class table registries are made from now. */
+export function destructData(): DestructData;
 /** Broken-state geometry generators in a unit box: pane (XY plane), crate, dent (front +Z), tyre (axis X). */
 export const BROKEN_STATES: { pane(seed?: string): THREE.BufferGeometry; crate(): THREE.BufferGeometry; dent(seed?: string): THREE.BufferGeometry; tyre(): THREE.BufferGeometry };
 export const MARKS: Record<string, { tile: number; size: number; color: string; opacity: number }>;

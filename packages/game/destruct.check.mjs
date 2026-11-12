@@ -1,6 +1,8 @@
 // Mirage original code. The destructibles (src/destruct.js) without a GPU: `node packages/game/destruct.check.mjs`
 // (part of the game package's `npm test`). What a screen shows (shards, lamps really going dark, frame time in a page)
-// is checked by examples/demos/destruct/destruct-check.mjs in Chrome.
+// is checked by examples/demos/destruct/destruct-check.mjs in Chrome. First the system alone (its built-in class);
+// then, for the rest, with the library's classes registered (packages/assets/src/destruct, a test-time import: the
+// classes' own data is checked by packages/assets/destruct.check.mjs).
 import assert from '../../scripts/soft-assert.mjs';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -12,9 +14,20 @@ if (typeof globalThis.gc !== 'function') {
   process.exit(r.status ?? 1);
 }
 
-const { createDestructibles, DESTRUCT_MATERIALS, DESTRUCT_EFFECTS, DAMAGE_KINDS, destructSoundFactories, BROKEN_STATES } = await import('./src/destruct.js');
+const { createDestructibles, registerDestructData, destructData, DAMAGE_KINDS, BROKEN_STATES } = await import('./src/destruct.js');
 const game = await import('./src/index.js');
-const { defineEffect } = await import('../core/src/vfx-data.js');
+
+// ---- 0. alone: nothing registered, one plain class; a game's own class starts from it; no sounds are added
+{
+  assert.deepEqual(Object.keys(destructData().materials), ['generic', 'actor'], 'the built-in table: generic, actor');
+  const added = [], d = createDestructibles({ root: new THREE.Group(), audio: { add: (n) => added.push(n) } }, { floor: 0, materials: { door: { health: 80 } } });
+  const it = d.add({ id: 'box', box: { center: [0, 0.5, 0], half: [0.3, 0.3, 0.3] } }), door = d.add({ id: 'door', material: 'door', box: { center: [3, 1, 0], half: [0.5, 1, 0.05] } });
+  d.damage(it, 29, 'bullet'); const whole = !it.broken; d.damage(it, 2, 'bullet');
+  d.damage(door, 79, 'bullet'); const doorWhole = !door.broken; d.damage(door, 2, 'bullet');
+  assert.ok(whole && it.broken && doorWhole && door.broken && added.length === 0, 'alone: breaks at its health, a class of the game\'s own, no sounds');
+  assert.throws(() => registerDestructData({ materials: { a: {} }, fallback: 'b' }), Error);
+}
+const { DESTRUCT_MATERIALS } = await import('../assets/src/destruct/index.js');
 const { createLampPool, lampPoolConfig } = await import('../core/src/lamppool.js');
 const { createInjector } = await import('../core/src/inject.js');
 const { createGame } = await import('./src/game.js');
@@ -350,18 +363,6 @@ assert.equal(typeof game.createDestructibles, 'function', 'exported from @mirage
   d.hit({ ray: { origin: [20, 0.7, 4], dir: [0, 0, -1] }, damage: 10 });
   assert.ok(noise.some((n) => n.kind === 'alarm' && n.radius === 30), 'alarm: a noise event for AI on the first hit');
   lines.push('movers, spill, steam, fall, burn, loot, alarm');
-}
-
-// ---- 12. data: every effect is a valid vfx effect; every sound renders
-{
-  for (const [k, e] of Object.entries(DESTRUCT_EFFECTS)) { let ok = true; try { defineEffect(e); } catch (err) { ok = false; console.log(k, err.message); } assert.ok(ok, 'effect ' + k); }
-  const ctx = { sampleRate: 22050, createBuffer: (ch, n, sr) => { const d = new Float32Array(n); return { length: n, sampleRate: sr, getChannelData: () => d }; } };
-  let n = 0;
-  for (const [k, f] of Object.entries(destructSoundFactories())) {
-    const b = [].concat(f(ctx));
-    for (const x of b) { const a = x.getChannelData(0); let pk = 0, bad = 0; for (const s of a) { if (!Number.isFinite(s)) bad++; pk = Math.max(pk, Math.abs(s)); } assert.ok(!bad && pk > 0.01 && pk <= 0.91, `sound ${k}: peak ${pk.toFixed(2)}`); n++; }
-  }
-  lines.push(`${Object.keys(DESTRUCT_EFFECTS).length} effects valid, ${n} sound buffers`);
 }
 
 console.log('destruct check: ' + lines.join('; '));

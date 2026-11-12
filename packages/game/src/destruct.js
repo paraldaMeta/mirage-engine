@@ -17,11 +17,43 @@
 // ---------------------------------------------------------------------------
 import * as THREE from 'three';
 import { rng } from '@miragekit/core/rng';
-import { DESTRUCT_MATERIALS, DESTRUCT_EFFECTS, DAMAGE_KINDS, addDestructSounds } from './destruct-data.js';
 import { makeHandle, createDebris, createMarks, createBrokenPools, createMoverLayers, MARKS, BROKEN_STATES } from './destruct-draw.js';
 
-export { DESTRUCT_MATERIALS, DESTRUCT_EFFECTS, DAMAGE_KINDS, DESTRUCT_SOUNDS, addDestructSounds, destructSoundFactories } from './destruct-data.js';
 export { BROKEN_STATES, MARKS } from './destruct-draw.js';
+
+/** the damage kinds hit() and blast() take (armour is a multiplier per kind: 0 immune, 1 as dealt) */
+export const DAMAGE_KINDS = ['bullet', 'pellet', 'blast', 'melee', 'emp', 'fire'];
+
+// ---- the material classes: registered, with a minimal default
+// The class table (health, armour, pierce, stages, debris, effects, sound per class), the particle effects and the
+// break sounds are data: registerDestructData() sets them for every registry made after it (@miragekit/assets/destruct
+// registers the full set of eleven classes and an actor). Without it the system works alone with one plain class,
+// `generic`, no particle effects and no sounds; any class a game names in `materials` starts from the fallback class.
+const ALL = (k) => ({ bullet: k, pellet: k, blast: k, melee: k, emp: 0, fire: k });
+const DEFAULT_DATA = Object.freeze({
+  materials: {
+    generic: { health: 30, armour: ALL(1), pierce: 0.3, value: 0, sound: 'generic', stages: [{ at: 0.01, mark: 'hole' }],
+      debris: { shape: 'chunk', count: 8, size: [0.02, 0.1], speed: [1, 3], spread: 0.7, up: 1, bounce: 0.3, friction: 0.6, spin: 10, rest: 4, colors: ['#8a8a8a', '#5a5a5a'] },
+      fx: {} },
+    actor: { health: 50, armour: ALL(1), pierce: 0, value: 0, sound: 'generic', stages: [], debris: false, fx: {} },
+  },
+  effects: {},
+  fallback: 'generic',
+  addSounds: null,
+});
+let DATA = DEFAULT_DATA;
+/** set the class table for registries made from now on: { materials: { class: spec }, effects: { name: vfx JSON },
+ *  fallback (the class a new name starts from), addSounds(audio) (adds the sounds the classes name) }; null: back to
+ *  the built-in default. Returns the table in use. */
+export function registerDestructData(data) {
+  if (data == null) return (DATA = DEFAULT_DATA);
+  const materials = data.materials || {};
+  const fallback = data.fallback ?? (materials.plastic ? 'plastic' : Object.keys(materials)[0]);
+  if (!materials[fallback]) throw new Error('registerDestructData: the fallback class "' + fallback + '" is not in materials');
+  return (DATA = { materials, effects: data.effects || {}, fallback, addSounds: data.addSounds || null });
+}
+/** the class table registries are made from now: { materials, effects, fallback, addSounds } */
+export function destructData() { return DATA; }
 
 const BEHAVIOURS = {
   explosive: { delay: 0.4, radius: 4, damage: 180, falloff: 'linear', occlusion: true, fx: 'blast', sound: 'dx_boom', scorch: true, noise: 40 },
@@ -58,12 +90,13 @@ export function createDestructibles(target = {}, options = {}) {
     maxSpawnPerStep: options.maxSpawnPerStep ?? 160, maxMovers: options.maxMovers ?? 64, maxPierce: options.maxPierce ?? 3, maxSounds: options.maxSounds ?? 6, maxFx: options.maxFx ?? 12, gravity: options.gravity ?? 9.81 };
   const CS = options.cell ?? 4;
   const materials = {};
-  for (const [k, v] of Object.entries(DESTRUCT_MATERIALS)) materials[k] = mergeClass(v, options.materials?.[k]);
-  for (const [k, v] of Object.entries(options.materials || {})) if (!materials[k]) materials[k] = mergeClass(DESTRUCT_MATERIALS.plastic, v);
-  const effects = { ...DESTRUCT_EFFECTS, ...(options.effects || {}) };
+  const data = DATA;
+  for (const [k, v] of Object.entries(data.materials)) materials[k] = mergeClass(v, options.materials?.[k]);
+  for (const [k, v] of Object.entries(options.materials || {})) if (!materials[k]) materials[k] = mergeClass(data.materials[data.fallback], v);
+  const effects = { ...data.effects, ...(options.effects || {}) };
   let lampsAdapter = options.lamps ?? world?.lampPool ?? null;
   const lampScale = (i, k) => { if (!lampsAdapter) return; if (typeof lampsAdapter === 'function') lampsAdapter(i, k); else if (lampsAdapter.scale) lampsAdapter.scale(i, k); };
-  if (options.sounds !== false && audio && audio.add) addDestructSounds(audio);
+  if (options.sounds !== false && audio && audio.add && data.addSounds) data.addSounds(audio);
 
   // ---- state
   const items = [], byId = new Map(), listeners = new Map();
@@ -292,7 +325,7 @@ export function createDestructibles(target = {}, options = {}) {
   /** register a breakable; returns its record (also d.get(id)) */
   function add(spec) {
     if (disposed) throw new Error('destructibles: disposed');
-    const cls = spec.material || 'plastic', mat0 = materials[cls];
+    const cls = spec.material || data.fallback, mat0 = materials[cls];
     if (!mat0) throw new Error(`destructibles: no material class "${cls}" (known: ${Object.keys(materials).join(', ')})`);
     const mat = spec.armour || spec.pierce != null || spec.stages || spec.debris !== undefined || spec.fx || spec.sound ? mergeClass(mat0, { armour: spec.armour, pierce: spec.pierce ?? mat0.pierce, stages: spec.stages ?? mat0.stages, debris: spec.debris, fx: spec.fx, sound: spec.sound ?? mat0.sound }) : mat0;
     const index = items.length, id = spec.id != null ? String(spec.id) : 'd' + index;
@@ -1187,4 +1220,3 @@ export function createDestructibles(target = {}, options = {}) {
   }
   return api;
 }
-void DAMAGE_KINDS;

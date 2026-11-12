@@ -1,12 +1,9 @@
-// Mirage original code. The data of the destructibles (destruct.js): damage kinds, the material classes with their
-// default stages, debris, particles and sounds, the particle effects (vfx JSON) and the break sounds, made in code.
-// Everything here is plain data or a pure function: a game overrides any field through createDestructibles'
-// `materials` option or per prop in add(spec).
+// Mirage original code. The data of the destructibles (@miragekit/game's createDestructibles): the material classes
+// with their default stages, debris, particles and sounds, the particle effects (vfx JSON) and the break sounds, made
+// in code. Everything here is plain data or a pure function: a game overrides any field through createDestructibles'
+// `materials` option or per prop in add(spec). The damage kinds are the system's (DAMAGE_KINDS in @miragekit/game).
 // ---------------------------------------------------------------------------
 import { sfc32, hash32 } from '@miragekit/core/rng';
-
-/** the damage kinds hit() and blast() take (armour is a multiplier per kind: 0 immune, 1 as dealt) */
-export const DAMAGE_KINDS = ['bullet', 'pellet', 'blast', 'melee', 'emp', 'fire'];
 
 // A class: health (damage points to break), armour per kind, pierce (the share of a bullet's damage that goes on
 // through it: thin things), stages (at: the share of health lost; mark: a decal on the surface where it was hit,

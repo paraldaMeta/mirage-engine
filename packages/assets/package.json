@@ -14,6 +14,7 @@
   },
   "type": "module",
   "exports": {
+    "./destruct": { "types": "./src/destruct/index.d.ts", "default": "./src/destruct/index.js" },
     "./kits/cyber": { "types": "./src/kits/cyber.d.ts", "default": "./src/kits/cyber.js" },
     "./sounds": { "types": "./src/sounds/index.d.ts", "default": "./src/sounds/index.js" },
     "./presets": { "types": "./src/presets/index.d.ts", "default": "./src/presets/index.js" },
@@ -26,7 +27,8 @@
     "LICENSE"
   ],
   "sideEffects": [
-    "./src/surfaces/index.js"
+    "./src/surfaces/index.js",
+    "./src/destruct/index.js"
   ],
   "peerDependencies": {
     "three": ">=0.186.1 <0.187.0",
@@ -37,7 +39,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "node surfaces.check.mjs && node cyber.check.mjs && node sounds.check.mjs"
+    "test": "node surfaces.check.mjs && node cyber.check.mjs && node sounds.check.mjs && node destruct.check.mjs"
   },
   "author": "灰叔 Racso"
 }

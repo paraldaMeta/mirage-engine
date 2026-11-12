@@ -23,4 +23,4 @@ export { createFocusNav } from './ui-nav.js';
 export { createWorldUI } from './ui-world.js';
 export { createCanvasUI } from './ui-canvas.js';
 export { createKitUI } from './ui-menu.js';
-export { createDestructibles, DESTRUCT_MATERIALS, DESTRUCT_EFFECTS, DAMAGE_KINDS, DESTRUCT_SOUNDS, BROKEN_STATES, addDestructSounds } from './destruct.js';
+export { createDestructibles, registerDestructData, destructData, DAMAGE_KINDS, BROKEN_STATES } from './destruct.js';

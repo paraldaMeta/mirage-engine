@@ -10,6 +10,7 @@ import * as THREE from 'three';
 import { createWorldRenderer, placeDate, createVfx } from '@miragekit/core';
 import { buildWorld, definePlan } from '@miragekit/world';
 import { createPhysics, createAudio, createDestructibles } from '@miragekit/game';
+import '@miragekit/assets/destruct';   // the material classes (BUSL-1.1), registered with the system
 
 const Q = new URLSearchParams(location.search);
 const W = +Q.get('w') || innerWidth, H = +Q.get('h') || innerHeight, mode = Q.get('dx') ?? 'on';
