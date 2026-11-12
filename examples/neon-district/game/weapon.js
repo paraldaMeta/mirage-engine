@@ -485,7 +485,8 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
     if (V.glowRing) V.glowRing.visible = S.spin > 0.05;
     if (V.dot) V.dot.visible = a > 0.5;
     holder.updateMatrixWorld(true);
-    const vmClose = S.ads > 0.02 || S.tuck > 0.03 || S.kick > 0.02 || S.jab > 0 || S.reloading > 0 || !!S.switching || S.draw > 0.02 || S.sprint > 0.3;
+    const vmClose = S.ads > 0.02 || S.tuck > 0.03 || S.kick > 0.02 || S.jab > 0 || S.reloading > 0 || !!S.switching || S.draw > 0.02 || S.sprint > 0.3
+      || cur === 'rocket' || cur === 'gatling';   // (the big tubes reach back past the camera's 0.1 m near plane even at the hip: always on)
     vmNeed = vmClose ? 0.5 : Math.max(0, vmNeed - dt);   // on at once, off half a second after (no switching to and fro)
     vmDepth.active(vmNeed > 0);
     V.muzzleObj.getWorldPosition(mz);
