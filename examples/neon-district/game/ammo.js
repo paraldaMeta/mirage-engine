@@ -121,7 +121,7 @@ export function createAmmo({ world, game, plan, weapon, player, vfx, sfx, lamps,
     api.state = state;
   }
   const api = {
-    state: 'ok', update, nearest, cells, crates,
+    state: 'ok', update, nearest, cells, crates, drop,   // (drop: also the tests' drill, index.js ?drill=1)
     start(g) { grid = g; },
     /** once a display frame */
     draw(yaw) { overlay.ammo(api.state, target, yaw); },
