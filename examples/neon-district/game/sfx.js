@@ -5,6 +5,7 @@
 // (about 1.3 s of work in all, in the browser's idle time between frames, the carbine first), each handed to audio.add as it is done. Until a
 // gun's own buffers exist its shots fall back to `nd_shot` (the first carbine sound, kept below).
 import { SOUNDS, ORDER } from './gunsound.js';
+import { MELEE_SOUNDS } from './melee-sound.js';
 const TAU = Math.PI * 2;
 
 export function createSfx(audio) {
@@ -89,6 +90,9 @@ export function createSfx(audio) {
         d[i] = l(sat(s * 0.6) * 0.5 + pulse * 0.4 + noise() * 0.015) * 2.2;
       }
     });
+    // close combat (melee-sound.js)
+    const one = ([sec, fill]) => buf(sec, (d) => fill(d, SR, noise, lp));
+    for (const [k, v] of Object.entries(MELEE_SOUNDS)) B[k] = Array.isArray(v[0]) ? v.map(one) : one(v);
     ready = true;
     queue = [];
     for (const name of ORDER) { const list = []; for (let v = 0; v < SOUNDS[name].n; v++) queue.push({ name, v, list }); }

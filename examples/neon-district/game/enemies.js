@@ -17,6 +17,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { createRigModel, createAnimator, createNavGrid, createNavAgent, createNavCrowd, createSenses, solveLookAt, solveTwoBone, createFootIK, blend1d } from '@miragekit/play';
 import { FX } from './fx.js';
+import { MELEE_KIND, createMelee } from './melee.js';
 import { robotMaterials, part, mergeParts, ext, tf, moved, COL, humanoidMeshes, motionClips, createHound } from '@miragekit/assets/kits/cyber';
 
 const q = (x, y, z) => new THREE.Quaternion().setFromEuler(new THREE.Euler(x, y, z)).toArray();
@@ -68,6 +69,7 @@ const KIND = {
   hound: { name: 'grunt', type: 'hound', style: 'scout', hp: 40, speed: 4.6, damage: 0, bite: 9, burst: 0, tele: 0.62, range: 22, fire: 0, visor: [1.0, 0.3, 0.04], eye: 0.42, scale: 0.5 },
   hauler: { name: 'grunt', type: 'hound', style: 'hauler', hp: 85, speed: 3.0, damage: 4, bite: 11, burst: 4, gap: 0.11, tele: 0.62, range: 24, fire: 16, visor: [1.0, 0.14, 0.04], eye: 0.66, scale: 0.6 },
 };
+Object.assign(KIND, MELEE_KIND);   // the hand-to-hand kinds (melee.js): brawler, blade, the two bosses
 // hit volumes: [height, radius, head, forward] (bipeds: times the scale; hounds: metres)
 const HIT = {
   biped: [[1.66, 0.17, true, 0], [1.25, 0.3, false, 0], [0.85, 0.3, false, 0], [0.4, 0.27, false, 0]],
@@ -114,6 +116,7 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
   let nav = null, crowd = null, senses = null, walk = null, rnd = 0x9e3779b9;
   const R = () => ((rnd = (Math.imul(rnd ^ (rnd >>> 15), 0x2c1b3c6d) ^ (rnd << 7)) >>> 0) / 4294967296);
   const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3();
+  const melee = createMelee({ world, game, player, vfx, sfx, tune, assist, plain, R, list, plan, physics, onDispose, damage: (...a) => damage(...a), park: (e) => park(e), nav: () => nav, walk: () => walk });
 
   // the parts are the robot kit's (@miragekit/assets/kits/cyber), skinned rigidly to the rig's bones (its robot-rig.js):
   // two meshes (the shell with the lights and the rifle, the metal) at each of three levels of detail, the geometry
@@ -135,9 +138,10 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
     // in the shell's mesh: its parts moved into the bind space (the hand's bind pose x the grip's offset)
     const sniper = K.name === 'marksman', grip = new THREE.Matrix4().makeTranslation(-0.1, -0.02, 0.02), muzzle = [sniper ? -0.98 : -0.6, 0.03, 0];
     const sk = rig.mesh.skeleton, toBind = new THREE.Matrix4().copy(rig.mesh.bindMatrixInverse).multiply(sk.boneInverses[names.indexOf('RightHand')].clone().invert()).multiply(grip);
-    const inHand = { RightHand: moved([...rifle(sniper), part(tf(new THREE.CylinderGeometry(0.012, 0.012, 0.012, 8).rotateZ(Math.PI / 2), muzzle), 'l', [1, 1, 1])], toBind) };
+    const kitOn = K.melee ? melee.extraParts(K) : null;   // the hand-to-hand kinds carry no rifle
+    const inHand = kitOn ? kitOn.extra : { RightHand: moved([...rifle(sniper), part(tf(new THREE.CylinderGeometry(0.012, 0.012, 0.012, 8).rotateZ(Math.PI / 2), muzzle), 'l', [1, 1, 1])], toBind) };
     const sets = [0, 1, 2].map((lod) => {
-      const g = humanoidMeshes(K.look, lod, kit, names, inHand, sniper ? 'rifle-long' : 'rifle');
+      const g = humanoidMeshes(K.look, lod, kit, names, inHand, kitOn ? kitOn.key : sniper ? 'rifle-long' : 'rifle');
       return [['s', shellOf[kk]], ['m', mats.metal]].filter(([k]) => g[k]).map(([k, m]) => {
         const sm = new THREE.SkinnedMesh(g[k], m); sm.bind(rig.mesh.skeleton, rig.mesh.bindMatrix);
         sm.boundingSphere = reach; sm.frustumCulled = true; sm.castShadow = k === 's' && lod < 2; sm.receiveShadow = true; sm.visible = lod === 0;   // (past 30 m no shadow, as the hounds: a far robot walking under a lamp no longer redraws its tile)
@@ -187,6 +191,7 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
       if (e.watch) solveLookAt([B.Neck, B.Head], eyeAt.set(player.feet[0], player.feet[1] + player.height, player.feet[2]), { share: [0.4, 0.6], limit: 0.9 });
       motion(e, a.dt);
     });
+    if (K.melee) melee.equip(e);
     anim.update(0);
     return e;
   }
@@ -269,7 +274,7 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
     e.mo.hit = { t: 0, dx: lx, dz: lz, part, side: px > 0 ? 1 : -1, tw: clamp((pz * lx - px * lz) * 2.5, -0.6, 0.6), k: Math.min(1.6, 0.6 + e.hitSum / 40) };
     if (lz < 0.2 && part !== 'legs') e.anim.trigger(head ? 'head' : 'flinch');
     const heavy = !!(hit?.splash || hit?.melee || e.hitSum >= 40);
-    if (heavy && e.hp > 0) { e.stagger = 0.7; e.anim.play('stagger', { duration: 0.08 }); e.agent?.stop(); }
+    if (heavy && e.hp > 0 && !e.K.boss) { e.stagger = 0.7; e.anim.play('stagger', { duration: 0.08 }); e.agent?.stop(); }
     return heavy;
   }
   /** down: backwards from a shot in front (the borrowed death), thrown flat by a heavy blow (the knockdown), folding
@@ -490,6 +495,7 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
       if (e.shieldHp <= 0) breakShield(e, point);
       return false;
     }
+    if (e.mm) { const g = melee.guard(e, amount, head, point, dir, hit); if (g <= 0) return false; amount *= g; }   // a block, a parry, armour, the ally
     let k = head ? 2.2 : 1;
     if (hit?.melee && e.stun > 0) k *= 2.4;   // a stunned robot falls to the stock in one or two strikes
     on.dealt(Math.max(0, Math.min(e.hp, amount * k)), e, hit);
@@ -519,7 +525,7 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
     let best = null;
     _o.fromArray(origin); _d.fromArray(dir);
     for (const e of list) {
-      if (e.dead || !e.rig.root.visible) continue;
+      if (e.dead || !e.rig.root.visible || e.ally) continue;
       const s = e.K.scale;
       if (e.shield && e.shieldOff <= 0 && e.stun <= 0) {
         const hx = e.heading[0], hz = e.heading[1], cx = e.pos[0] + hx * 0.62 * s, cz = e.pos[2] + hz * 0.62 * s, den = dir[0] * hx + dir[2] * hz;
@@ -670,6 +676,7 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
   }
   let withdrawn = 0;
   function think(e, dt) {
+    if (e.K.boss) return melee.think(e, dt);   // a boss's whole brain is its own (boss.js, heavy.js)
     const p = player.feet, dx = p[0] - e.pos[0], dz = p[2] - e.pos[2], dist = Math.hypot(dx, dz);
     e.t += dt;
     e.jam = Math.max(0, e.jam - dt); e.shieldOff = Math.max(0, e.shieldOff - dt);
@@ -705,6 +712,7 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
         if (player.dead) { e.state = 'post'; e.agent.stop(); break; }
         if (e.K.name === 'marksman') { snipe(e, dt, sees, dist); face = e.lastSeen || p; wantAim = sees ? 1 : 0.5; break; }
         if (e.K.type === 'hound') { face = hunt(e, dt, sees, dist); wantAim = sees ? 1 : 0; break; }
+        if (e.K.melee) { face = melee.fight(e, dt, sees, dist); wantAim = 0; break; }
         const lost = game.time - e.seenT;
         if (lost > 5) { e.state = 'search'; e.t = 0; bark(e, 'search', 8); if (e.lastSeen) e.agent.setGoal(nav.nearest(e.lastSeen, { snap: 2 }) || e.lastSeen); break; }
         const canFire = sees && dist < e.K.fire && e.jam <= 0;
@@ -859,7 +867,7 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
     rim.value.set(0.05, 0.11, 0.14).multiplyScalar(1 + 5 * env.rim);
     return moved;
   }
-  const api = { list, byZone, start, update, damage, breakShield, rayHit, noise, wake, alert, eyeOf, revive, park, retune, tune, env, on, stun, stunAt, jam, hackable, darken, lure, KIND,
+  const api = { melee, list, byZone, start, update, damage, breakShield, rayHit, noise, wake, alert, eyeOf, revive, park, retune, tune, env, on, stun, stunAt, jam, hackable, darken, lure, KIND,
     get alive() { return list.filter((e) => !e.dead && e.active).length; }, get nav() { return nav; } };
   return api;
 }

@@ -16,7 +16,7 @@ const NAMES = ['propKit', 'uvRect', 'tint', 'uvByHeight', 'hex', 'canGeo', 'bott
   'breakables', 'markBatch', 'sinceMark', 'track', 'breakablesLamp', 'trackLamps', 'recorder', 'surfaceLib', 'gasBottle', 'extinguisher',
   'tf', 'decalTexture', 'decalUV', 'robotSurfaces', 'robotMaterials', 'COL', 'part', 'mergeParts', 'moved', 'ext', 'drum', 'link', 'cover',
   'cable', 'decal', 'JOINTS', 'LEN', 'humanoid', 'humanoidRig', 'quadrupedDims', 'quadruped', 'legIK', 'bipedLegs', 'GAITS', 'trotLegs',
-  'humanoidMeshes', 'robotClips', 'CLIP_SPEED', 'createHound', 'motionClips', 'samplePose', 'MOTION_BONES', 'corrugated', 'canopy', 'WORN_DECL', 'worn', 'interiorMaterial', 'textAtlas', 'atlasQuad'];
+  'humanoidMeshes', 'robotClips', 'CLIP_SPEED', 'createHound', 'motionClips', 'samplePose', 'MOTION_BONES', 'bladeParts', 'scabbardParts', 'roninParts', 'MOVES', 'samplePoseKeys', 'CUT_AXIS', 'corrugated', 'canopy', 'WORN_DECL', 'worn', 'interiorMaterial', 'textAtlas', 'atlasQuad'];
 for (const n of NAMES) ok(n in K, `exports ${n}`);
 ok(Object.keys(K).length === NAMES.length, `exports exactly the listed names (${Object.keys(K).length} vs ${NAMES.length})`);
 
@@ -48,6 +48,15 @@ ok(rb.albedo?.startsWith('x;') || rb.albedo === 'x;' || typeof rb.fragmentDecl =
 ok(K.CAR_DESIGNS.length === 3 && K.CAR_DESIGNS.map((d) => d.name).join() === 'slab,vane,pod', 'three car designs: slab, vane, pod');
 ok(K.legIK(0, -0.8, 0.42, 0.42).every(Number.isFinite), 'legIK: finite angles for a reachable foot');
 ok(K.hex('#ff0000', 2).join() === '2,0,0', 'hex: linear rgb times k');
+// close combat: the blades and the scabbard are finite and as long as asked; every move's keys are in time order
+// and complete; a pose sampled mid-move is finite
+for (const k of ['katana', 'sabre']) { const b = K.bladeParts(k), h = bounds(b.m).max.y; ok(finite(b.s) && finite(b.m) && finite(b.l), `bladeParts(${k}) is finite`); ok(h > (k === 'katana' ? 0.75 : 0.6) && h < 0.85, `bladeParts(${k}): ${h.toFixed(2)} m of blade`); }
+ok(finite(K.scabbardParts().s) && bounds(K.scabbardParts().s).max.y > 0.8, 'scabbardParts: 0.84 m along +y');
+for (const [n, m] of Object.entries(K.MOVES)) {
+  ok(m.keys.every((k, i) => i === 0 || k[0] >= m.keys[i - 1][0]) && m.keys[m.keys.length - 1][0] <= m.dur + 1e-6, `MOVES.${n}: keys in time order within ${m.dur} s`);
+  const p = K.samplePoseKeys(m, m.dur * 0.37);
+  ok(['rh', 'dir'].every((f) => f in p) && Object.values(p).every((v) => !(typeof v === 'number') || Number.isFinite(v)), `MOVES.${n}: a complete, finite pose`);
+}
 
 console.log(fails ? `cyber kit check: ${fails} failed` : 'cyber kit check: ok');
 process.exit(fails ? 1 : 0);

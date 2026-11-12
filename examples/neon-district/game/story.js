@@ -10,6 +10,7 @@
 //   banter       idle sentinels at their posts trade deadpan pairs when the player is within earshot and unseen
 //                (a subtitle over each speaker and the radio blip); state barks (alert, hurt, hacked, ...) in the
 //                same voice, at most one every 1.2 s, the nearest first
+//   the bosses   the swordsman's and the heavy chassis' radio lines and spoken lines go through here (boss.js)
 //   hit words    comic words in the world on a head shot, a shield breaking, an EMP and an overload (opts.pops:
 //                off unless the player turns them on in the options)
 export function createStory({ game, enemies, hud, overlay, sfx, player, T, hack, opts, holdout }) {
@@ -31,6 +32,8 @@ export function createStory({ game, enemies, hud, overlay, sfx, player, T, hack,
   /** a comic word (when the option is on) */
   function pop(kind, pos, force = false) { if (opts.pops !== true && !force) return; overlay.pop(pick(X.pops[kind]), pos, POP_KIND[kind]); }
   enemies.on.pop = pop;
+  // the swordsman and the heavy chassis (boss.js, heavy.js): radio lines and their own lines over their heads
+  if (enemies.melee) { enemies.melee.on.radio = (k) => hud.radio(T.melee.radio[k]); enemies.melee.on.say = (e, text) => speak(e, text, 3.5); }
   // the handler's tag, by how far the route has gone
   const setStage = (n) => { if (n <= stage) return; stage = n; T.control = ST.labels[Math.min(n, ST.labels.length - 1)]; };
   game.on('start', () => {

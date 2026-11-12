@@ -37,6 +37,8 @@
 //   motion-clips.js borrowed motion capture for the rig (motionClips, samplePose: idle, walk, jog, crouch walk, a
 //                  broken walk, hits, a death, a knockdown; Quaternius' Universal Animation Library, CC0, retargeted;
 //                  motion-data.js says where from): the only data in the kit that was not made in code
+//   melee-kit.js   close combat: blades, a scabbard, the swordsman's armour (bladeParts, scabbardParts, roninParts) and
+//                  the fist, sabre and sword moves as keyframed poses in body space (MOVES, samplePoseKeys, CUT_AXIS)
 //   surfaces.js    corrugated sheet, canopies, worn painted metal, shop interiors behind glass, text atlases
 //
 // All brands, names and plates are invented. Text is English, Traditional Chinese and Japanese (the fonts of the
@@ -55,4 +57,5 @@ export { tf, decalTexture, decalUV, surfaceLib as robotSurfaces, robotMaterials,
   JOINTS, LEN, humanoid, humanoidRig, quadrupedDims, quadruped, legIK, bipedLegs, GAITS, trotLegs } from './cyber/robot-kit.js';
 export { humanoidMeshes, robotClips, CLIP_SPEED, createHound } from './cyber/robot-rig.js';
 export { motionClips, samplePose, MOTION_BONES } from './cyber/motion-clips.js';
+export { bladeParts, scabbardParts, roninParts, MOVES, samplePoseKeys, CUT_AXIS } from './cyber/melee-kit.js';
 export { corrugated, canopy, WORN_DECL, worn, interiorMaterial, textAtlas, atlasQuad } from './cyber/surfaces.js';

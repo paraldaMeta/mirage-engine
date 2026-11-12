@@ -154,6 +154,12 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
       const en = enemies.list.find((x) => x.id === (e.code === 'KeyJ' ? 'g11' : 'g1')), d = e.code === 'KeyJ' ? 8 : 4, at = [player.feet[0] + Math.cos(play.yaw) * d, player.feet[1], player.feet[2] + Math.sin(play.yaw) * d];
       en.yaw = Math.atan2(player.feet[0] - at[0], player.feet[2] - at[2]); enemies.revive(en, at, 1); en.drill = true; if (e.code === 'KeyK') enemies.stun(en, 4); game.set('drills', (game.flags.drills || 0) + 1);
     }
+    // N: the swordsman beaten (it kneels, then joins); M: a brawler and a sword robot 6 m ahead, awake
+    if (drill && e.code === 'KeyN') { enemies.melee.boss.drillBeat(); game.set('drills', (game.flags.drills || 0) + 1); }
+    if (drill && e.code === 'KeyM') for (const [id, s] of [['m0', -1.5], ['m1', 1.5]]) {
+      const en = enemies.list.find((x) => x.id === id), at = [player.feet[0] + Math.cos(play.yaw) * 6 - Math.sin(play.yaw) * s, player.feet[1], player.feet[2] + Math.sin(play.yaw) * 6 + Math.cos(play.yaw) * s];
+      en.yaw = Math.atan2(player.feet[0] - at[0], player.feet[2] - at[2]); enemies.revive(en, at, 1); en.drill = true; enemies.alert(en, player.feet); game.set('drills', (game.flags.drills || 0) + 1);
+    }
     // U: the street's kite 5 m ahead and 1.3 m over the eye, held still for 3 s (a hack's target); L: an ammo cell 2.5 m ahead
     if (drill && (e.code === 'KeyU' || e.code === 'KeyL')) {
       const d = e.code === 'KeyU' ? 5 : 2.5, at = [player.feet[0] + Math.cos(play.yaw) * d, player.feet[1], player.feet[2] + Math.sin(play.yaw) * d];
@@ -418,7 +424,7 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
     weapon.update(dt, ok);
     feel.update(dt, player.hp, player.dead);
     // a hit-stop: for a few hundredths of a second after a kill the robots hold still
-    const edt = feel.stopping ? dt * 0.08 : dt;   // not 0: the robots divide by their step
+    const edt = (feel.stopping ? dt * 0.08 : dt) * enemies.melee.slow;   // not 0: the robots divide by their step (melee.js: a blow's slow beat)
     enemies.update(edt); drones.update(edt);
     reverb?.update(dt, world.camera);
     if (!said.spotted && enemies.list.some((e) => e.state === 'fight')) { said.spotted = true; hud.radio(T.radio.spotted); }
@@ -493,7 +499,7 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
     const pool = free(enemies.list, (e) => e.rig.root.visible).filter(allowed), sky = free(drones.list, (e) => e.o.visible).filter(allowed).sort((a, b) => (b.kind === 'mender') - (a.kind === 'mender'));
     const n = Math.min(pool.length, 2 + w), heavies = Math.min(Math.floor((w - 1) / 2), n - 1), kites = Math.min(sky.length, 1 + Math.floor((w - 1) / 2));
     const hp = 1 + 0.07 * (w - 1);   // past the pool's size a wave grows in toughness
-    const big = pool.filter((e) => e.K.name === 'heavy'), jobs = pool.filter((e) => e.K.name === 'shield' || e.K.name === 'marksman'), small = pool.filter((e) => e.K.name === 'grunt');
+    const big = pool.filter((e) => e.K.name === 'heavy'), jobs = pool.filter((e) => e.K.name === 'shield' || e.K.name === 'marksman'), small = pool.filter((e) => e.K.name === 'grunt' || e.K.melee === 'fist' || e.K.melee === 'sword');
     const pick = [...jobs.slice(0, Math.min(1 + Math.floor((w - 2) / 2), n - 1)), ...big.slice(0, heavies)];
     for (const e of [...small, ...big.slice(heavies), ...jobs]) if (pick.length < n && !pick.includes(e)) pick.push(e);
     H.queue = []; H.foes = []; H.total = pick.length + kites;
@@ -537,7 +543,7 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
   // ---- the title: the camera flies the district, the game waits paused, DEPLOY starts the chosen run
   run.lang = lang;
   const title = createTitle({ T, plan, world, values: run, choices: { mode: MODES, difficulty: DIFFS, hour: TITLE_HOURS, lang: LANG_ORDER }, names: { lang: LANG_NAMES }, best: bestOf, onDispose,
-    optionsOpen: () => hud.optionsOpen, onOptions: toggleOptions,
+    optionsOpen: () => hud.optionsOpen, onOptions: toggleOptions, ng: { on: () => enemies.melee.boss.ngRun, reset: () => enemies.melee.boss.resetAlly() },
     onChange: (k, v) => { if (k === 'lang') { switchLang(v); return; } if (k === 'difficulty') Object.assign(tune, TUNE[v]); if (k === 'hour') setHour(v); saveRun(); },
     onFrame: () => { play.turn(0, 0, 0); relight(); weapon.holder.visible = false; },
     // the pointer lock is asked for before the full screen: the full screen takes the click's user activation, and a
@@ -603,6 +609,7 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
     start(game_) {
       g = game_; play = g.play;
       g.character.body.walk = 3.3; g.character.body.run = 5.4;      // a shooter's pace (the engine's walker strolls at 1.5 m/s)
+      player.body = g.character; player.yaw = () => play.yaw;   // (melee.js: a blow throws the player; the ally keeps behind them)
       weapon.start(play); enemies.start(play.grid); drones.start(play.grid); applyLook();
       kit.start(g);
       if (Q.get('debug') === 'look') lookDebug();
