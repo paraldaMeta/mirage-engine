@@ -162,6 +162,15 @@ export default {
     { id: 'h2', at: [24, KERB, -9.5], face: 3.14, zone: 'plaza', kind: 'hound' },
     { id: 'h3', at: [22.5, FLOOR, -24.5], face: 0, zone: 'holdout', kind: 'hound' },
     { id: 'h4', at: [13, FLOOR, -24], face: 0, zone: 'holdout', kind: 'hauler' },
+    // close combat (melee.js): a brawler on the street, sword robots in the bar and on the plaza, a brawler in the relay;
+    // the swordsman on the relay's roof by the uplink, facing the stair door (boss.js: it wakes when the player is up
+    // there); in New Game+ the heavy chassis in its place (heavy.js; parked otherwise)
+    { id: 'm0', at: [-14, KERB, 8.8], face: 3.14, zone: 'street', kind: 'brawler' },
+    { id: 'm1', at: [20, KERB, -13], face: 3.14, zone: 'plaza', kind: 'blade' },
+    { id: 'm2', at: [-16, FLOOR, -7], face: 0, zone: 'bar', kind: 'blade' },
+    { id: 'm3', at: [16, FLOOR, -28], face: 0, zone: 'relay', kind: 'brawler' },
+    { id: 'k0', at: [11.5, ROOF, -24.6], face: 1.57, zone: 'duel', kind: 'ronin' },
+    { id: 'k1', at: [12.5, ROOF, -24.2], face: 1.57, zone: 'duel', kind: 'bulwark' },
   ],
   // kites: flying drones, where each hovers until it is woken ([x, y, z] in the air)
   drones: [

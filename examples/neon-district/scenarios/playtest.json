@@ -942,6 +942,26 @@
    }
   },
   {
+   "name": "the-swordsman-wakes",
+   "ms": 2500,
+   "shot": true,
+   "expect": {
+    "flags.bossAwake": "== true",
+    "errors": "== 0"
+   }
+  },
+  {
+   "name": "the-swordsman-joins",
+   "tap": "KeyN",
+   "ms": 6000,
+   "shot": true,
+   "expect": {
+    "flags.bossKneels": ">= 1",
+    "flags.allyJoined": ">= 1",
+    "flags.bossBeaten": "== true"
+   }
+  },
+  {
    "name": "parapet-blocks",
    "place": {
     "eye": [

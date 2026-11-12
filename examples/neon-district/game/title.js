@@ -34,7 +34,7 @@ const CSS = `
 .nt-row .ar{justify-content:center;color:#7af0ff70;font-size:12px}
 .nt-row.on .ar{color:var(--cy)}
 .nt-row .ar:hover{color:#fff}
-.nt-row.solo{grid-template-columns:1fr}.nt-row.solo .k{font-size:11px;color:#d8f6ffd0}
+.nt-row[hidden]{display:none}.nt-row.solo{grid-template-columns:1fr}.nt-row.solo .k{font-size:11px;color:#d8f6ffd0}
 .nt-row.go{height:52px;margin-bottom:6px;border-color:#19d8ff;background:linear-gradient(90deg,#19d8ffe8,#19d8ffb0 62%,#19d8ff30);box-shadow:0 0 24px #19d8ff30}
 .nt-row.go .k{font-size:17px;letter-spacing:.42em;color:#02080d;font-weight:800;padding-left:18px}
 .nt-row.go .k:before{content:"";display:inline-block;margin-right:16px;border:7px solid transparent;border-left:11px solid #02080d;border-right:0;vertical-align:-1px}
@@ -94,7 +94,7 @@ const SPEED = 2.6;   // metres a second along the eye's path
  * @param o.T the language's table; o.values { mode, difficulty, hour }; o.choices { mode: [], difficulty: [], hour: [] }
  * @param o.onChange (key, value)   o.onDeploy (event-like | undefined)   o.onOptions ()   o.optionsOpen () => bool
  */
-export function createTitle({ T, plan, world, values, choices, names = {}, best, onChange, onDeploy, onOptions, optionsOpen, onFrame, onDispose }) {
+export function createTitle({ T, plan, world, values, choices, names = {}, best, onChange, onDeploy, onOptions, optionsOpen, onFrame, onDispose, ng = null }) {
   const F = T.front;   // a live branch: a language switch changes its strings in place (text.js)
   const root = document.createElement('div');
   root.className = 'nt'; root.hidden = true;
@@ -106,6 +106,8 @@ export function createTitle({ T, plan, world, values, choices, names = {}, best,
     { id: 'hour', label: () => F.hour, list: choices.hour, name: (v) => (T.hours[v] || v).toUpperCase() },
     ...(choices.lang ? [{ id: 'lang', label: () => F.lang, list: choices.lang, name: (v) => (names.lang && names.lang[v]) || v }] : []),
     { id: 'options', solo: true, label: () => F.options },
+    // New Game+ (boss.js): the swordsman with the player from the start; a row to fight it again
+    ...(ng ? [{ id: 'ngreset', solo: true, label: () => T.melee.front.reset }] : []),
   ];
   root.innerHTML = `<style>${CSS}</style><div class="nt-shade"></div><div class="nt-scan"></div>
     <div class="nt-top"><span><i></i><span class="nt-feed"></span></span><span class="nt-clock"></span></div>
@@ -130,7 +132,7 @@ export function createTitle({ T, plan, world, values, choices, names = {}, best,
     const cjk = /[぀-ヿ一-鿿]/.test(T.title);
     root.setAttribute('aria-label', T.title);
     root.querySelector('.nt-feed').textContent = F.feed;
-    root.querySelector('.nt-kicker').textContent = F.kicker;
+    root.querySelector('.nt-kicker').textContent = (ng?.on() ? T.melee.front.ngPlus + ' · ' : '') + F.kicker;
     const h = root.querySelector('.nt-h');
     h.className = 'nt-h' + (cjk ? ' cjk' : '');
     h.innerHTML = cjk ? `<span>${esc(T.title)}</span>` : T.title.split(' ').map((w) => `<span>${esc(w)}</span>`).join('');
@@ -150,17 +152,20 @@ export function createTitle({ T, plan, world, values, choices, names = {}, best,
 
   function render() {
     rows.forEach((r, i) => {
+      if (r.id === 'ngreset') els[i].hidden = !ng.on();
       els[i].classList.toggle('on', i === sel);
       if (r.list) { const v = els[i].querySelector('.v'); v.textContent = r.name(values[r.id]); if (r.id === 'lang') v.lang = { en: 'en', zh: 'zh-Hant-TW', ja: 'ja' }[values.lang] || ''; }
     });
     const r = rows[sel];
-    const text = r.id === 'mode' ? F.modeText[values.mode] : r.id === 'difficulty' ? F.diffText[values.difficulty] : r.id === 'hour' ? F.hourText : r.id === 'options' ? F.optionsText : r.id === 'lang' ? F.langText : F.sum(F.modes[values.mode], F.diffs[values.difficulty], (T.hours[values.hour] || values.hour).toUpperCase());
+    const text = r.id === 'mode' ? F.modeText[values.mode] : r.id === 'difficulty' ? F.diffText[values.difficulty] : r.id === 'hour' ? F.hourText : r.id === 'options' ? F.optionsText : r.id === 'ngreset' ? T.melee.front.resetText : r.id === 'lang' ? F.langText : F.sum(F.modes[values.mode], F.diffs[values.difficulty], (T.hours[values.hour] || values.hour).toUpperCase());
     desc.textContent = text;
     const b = best();
     if (values.mode === 'holdout' && b > 0 && (r.id === 'mode' || r.id === 'deploy')) { const tag = document.createElement('b'); tag.textContent = F.best(b); desc.appendChild(tag); }
   }
   function select(i, focus = true) {
-    sel = (i + rows.length) % rows.length; render();
+    const prev = sel; sel = (i + rows.length) % rows.length;
+    if (rows[sel].id === 'ngreset' && !ng.on()) sel = i < 0 || i < prev ? sel - 1 : 0;   // skipped while hidden
+    render();
     if (focus) els[sel].querySelector('[data-a=main]').focus({ preventScroll: true });
   }
   function change(i, d) {
@@ -174,6 +179,7 @@ export function createTitle({ T, plan, world, values, choices, names = {}, best,
     const r = rows[i];
     if (r.id === 'deploy') deploy(ev);
     else if (r.id === 'options') onOptions();
+    else if (r.id === 'ngreset') { ng.reset(); texts(); select(0); desc.textContent = T.melee.front.resetDone; }
     else change(i, 1);
   }
   function deploy(ev) {

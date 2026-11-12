@@ -202,6 +202,20 @@ export const MOTION_BONES: readonly string[];
 export function motionClips(): { clips: THREE.AnimationClip[]; byName: Record<string, MotionClip> };
 /** The pose of a borrowed clip at t seconds (looped when the clip loops) into out (MOTION_BONES.length * 4 + 3 floats). */
 export function samplePose(clip: MotionClip, t: number, out: Float32Array): Float32Array;
+// ---- close combat (melee-kit.js)
+/** A blade in its own frame (the guard at the origin, the blade along +y, the edge toward +z): geometry by slot. */
+export function bladeParts(kind?: 'katana' | 'sabre'): { s: THREE.BufferGeometry; m: THREE.BufferGeometry; l: THREE.BufferGeometry };
+/** The scabbard: the mouth at the origin, the blade's way in along +y. */
+export function scabbardParts(): { s: THREE.BufferGeometry; l: THREE.BufferGeometry };
+/** The swordsman's hat, shoulder and hip plates by bone, in the rig's T-pose space (humanoidMeshes' extra). */
+export function roninParts(): Record<'Head' | 'Chest' | 'Hips', { g: THREE.BufferGeometry; slot: string }[]>;
+/** A move: keys [time, pose, ease?] in body space (see melee-kit.js), events [time, name]. */
+export interface MeleeMove { dur: number; loop?: boolean; arms?: boolean; keys: [number, Record<string, any>, string?][]; ev: [number, string][] }
+export const MOVES: Record<string, MeleeMove>;
+/** The pose of a move at t seconds into out: numbers and arrays eased between keys, the rest stepped. */
+export function samplePoseKeys(move: MeleeMove, t: number, out?: Record<string, any>): Record<string, any>;
+/** A swing's axis in body space by its name ('lr', 'rl', 'down', 'up'): the edge is dir x axis. */
+export const CUT_AXIS: Record<string, [number, number, number]>;
 /** A robot dog on its own skeleton, posed in code. */
 export function createHound(options: { style: string; mats: Record<string, THREE.Material> }): any;
 
