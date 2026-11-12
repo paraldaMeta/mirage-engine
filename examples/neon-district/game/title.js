@@ -41,6 +41,7 @@ const CSS = `
 .nt-row.go{height:52px;margin-bottom:6px;border-color:#19d8ff;background:linear-gradient(90deg,#19d8ffe8,#19d8ffb0 62%,#19d8ff30);box-shadow:0 0 24px #19d8ff30}
 .nt-row.go .k{font-size:17px;letter-spacing:.42em;color:#02080d;font-weight:800;padding-left:18px}
 .nt-row.go .k:before{content:"";display:inline-block;margin-right:16px;border:7px solid transparent;border-left:11px solid #02080d;border-right:0;vertical-align:-1px}
+.nt-row.go.busy{background:linear-gradient(90deg,#19d8ffe8 calc(var(--p,0) * 100%),#19d8ff30 calc(var(--p,0) * 100%));cursor:progress;filter:saturate(.6)}
 .nt-row.go.on{background:linear-gradient(90deg,#7af4ff,#19d8ffd0 62%,#19d8ff40);box-shadow:0 0 34px #19d8ff60}
 .nt-row:focus-within{outline:none}.nt-row button:focus-visible{outline:none}
 .nt-desc{margin:12px 0 0;min-height:2.9em;font:400 12px/1.45 system-ui,-apple-system,var(--nd-cjk,"PingFang TC"),sans-serif;color:#d8f6ffa8;max-width:32em}
@@ -129,6 +130,7 @@ export function createTitle({ T, plan, world, values, choices, names = {}, best,
     <div class="nt-nav"></div>`;
   document.body.appendChild(root);
   const els = [...root.querySelectorAll('.nt-row')], desc = root.querySelector('.nt-desc'), nav = root.querySelector('.nt-nav'), clock = root.querySelector('.nt-clock');
+  let busy = null;   // null, or 0..1: the shaders are still compiling (main.js): the menu works, DEPLOY waits and shows how far it is
   let sel = 0, shown = false, g = null, orig = null, t = 0, last = 0, stickT = 0, stickDir = 0, source = '';
   onDispose(() => { root.remove(); document.body.classList.remove('nd-titling'); });
   const esc = (v) => String(v).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -189,13 +191,13 @@ export function createTitle({ T, plan, world, values, choices, names = {}, best,
     else change(i, 1);
   }
   function deploy(ev) {
-    if (!shown) return;
+    if (!shown || busy !== null) return;
     hide();
     onDeploy(ev);
   }
   /** the intro again, then the run (intro.js) */
   function replay(ev) {
-    if (!shown || !onIntro) return;
+    if (!shown || !onIntro || busy !== null) return;
     hide();
     onIntro(ev);
   }
@@ -314,6 +316,14 @@ export function createTitle({ T, plan, world, values, choices, names = {}, best,
     setTimeout(() => { if (!shown) root.hidden = true; }, 480);
   }
   /** the language changed: every text again */
-  const relang = () => { texts(); render(); };
-  return { show, hide, render, relang, get shown() { return shown; }, get selected() { return rows[sel].id; }, root };
+  const relang = () => { texts(); render(); setBusy(busy); };
+  /** f in 0..1: DEPLOY is a progress bar; null: it is DEPLOY */
+  function setBusy(f) {
+    busy = f;
+    const row = els[0], k = row.querySelector('.k');
+    row.classList.toggle('busy', f !== null);
+    row.style.setProperty('--p', f === null ? 1 : f.toFixed(3));
+    k.textContent = f === null ? rows[0].label() : `${rows[0].label()} · ${Math.round(f * 100)}%`;
+  }
+  return { show, hide, render, relang, setBusy, get shown() { return shown; }, get selected() { return rows[sel].id; }, root };
 }

@@ -28,7 +28,7 @@ import { setupGame, objective, summary, VERSION, T } from './game/index.js';
 import { mirrorLayer, distanceCull, MIRROR_LAYER } from './perf.js';
 
 performance.mark('nd:eval');
-if (!location.search.includes('world=')) loadRapier().catch(() => {});   // the wasm compiles while the world builds (createPhysics shares this promise)
+if (!location.search.includes('world=')) loadRapier().then(() => performance.mark('nd:rapier'), () => {});   // the wasm compiles while the world builds (createPhysics shares this promise)
 const Q = new URLSearchParams(location.search);
 const W = +Q.get('w') || innerWidth, H = +Q.get('h') || innerHeight;
 const canvas = document.querySelector('canvas');
@@ -165,6 +165,9 @@ const wx0 = weatherAt(startState ? startState.sun.elevation : -60);
 const wetQ = (v) => Math.round(v * 20) / 20;   // in steps of 0.05: a wetness change recaptures the light
 setWetness(Q.has('wet') ? +Q.get('wet') : wetQ(wx0.wet));
 setRain(Q.has('rain') ? +Q.get('rain') : (TIER.rain ?? 1) * wx0.rain);
+// ?coldsalt=1 (measuring a first visit): every fragment shader gets a constant no other run has, so neither Chrome's nor the
+// OS's shader cache can hit (the picture changes by 1e-4 of the alpha, which nothing shows)
+if (Q.get('coldsalt') === '1') THREE.ShaderChunk.output_fragment += `\n\tgl_FragColor.a *= ${(1 + Math.random() * 1e-4).toFixed(9)};\n`;
 const world = createWorldRenderer({
   quality, canvas, width: W, height: H, preserveDrawingBuffer: true, pixelRatio,
   ...(phone && clarity !== 'standard' ? { dynamicRes: { target: 60, min: 0.6 } } : {}),
@@ -211,6 +214,7 @@ const world = createWorldRenderer({
 });
 
 performance.mark('nd:renderer');
+{ const prepare = world.prepare; world.prepare = async (...a) => { performance.mark('nd:prepare0'); const r = await prepare(...a); performance.mark('nd:prepare1'); return r; }; }
 // detail: how much optional dressing the modules build (crowds, traffic, balcony life, the far skyline): phones stay light
 const shared = { quality: on('shadows') ? quality : 'low', tier: quality, gi: !!lighting.gi, detail: Q.has('detail') ? +Q.get('detail') : { low: 0.4, medium: 0.8, high: 1 }[quality] ?? 1 };
 const skip = (Q.get('skip') || '').split(',');                                                     // ?skip=aerial,grime: build without those modules (A/B timing)
@@ -278,19 +282,25 @@ const { camera } = world;
 // farthest towers and traffic lanes are within 250 m): more depth resolution on the far facades than 0.08 / 3000
 camera.aspect = W / H; camera.fov = 62; camera.near = 0.1; camera.far = 1600; camera.updateProjectionMatrix();
 const spp = +Q.get('spp') || 4, hud = Q.get('hud') !== '0';
-let play, g = null, game = null;
+let play, g = null, game = null, defer = false, compiled = null;
 if (Q.has('world')) {   // the district alone: walk, fly, orbit (stills, the world check)
   await world.prepare();
   play = createPlay(world, { plan: built.plan, canvas, mode: Q.get('mode') || 'walk', spp, ui: Q.get('ui') !== '0', shadowRadius: 34, fit: !Q.get('w'), quality, hud });
   grabBoot(); grabU();
 } else {
+  // a player's first visit: the title is up as soon as the world is built, the shaders compile behind it (DEPLOY is a progress bar until
+  // they are done, the 3D view starts then) instead of a minute of a static card on a phone that has to build every program; the
+  // tools (?start=1, ?ui=0) and ?defer=0 keep the old order
+  defer = !Q.has('start') && Q.get('ui') !== '0' && Q.get('defer') !== '0';
+  if (defer) { const prepare = world.prepare; world.prepare = (...a) => { compiled = prepare(...a); return Promise.resolve({}); }; }
   g = await startGame(world, {
     built, canvas, id: plan.name, version: VERSION, title: T.title, subtitle: T.subtitle,
     spp, shadowRadius: 34, fit: !Q.get('w'), quality, hud, idle: 0,
-    setup: (ctx) => { game = setupGame(ctx, { built, shared, vfx, Q, quality, relight, setHour, hour: () => hour }); },
+    setup: (ctx) => { performance.mark('nd:setup0'); game = setupGame(ctx, { built, shared, vfx, Q, quality, relight, setHour, hour: () => hour }); performance.mark('nd:setup1'); },
     objective, summary,
   });
   play = g.play;
+  if (defer) play.stop();   // (no frame before the programs are built: each would be compiled on its own, on the main thread)
   grabBoot(); grabU();
   // the rooms' shafts of light (modules/shafts.js) shine only when the sun, the moon or the lamp outside really reaches
   // the opening: a ray through the physics world toward it
@@ -299,8 +309,20 @@ if (Q.has('world')) {   // the district alone: walk, fly, orbit (stills, the wor
   const gi = world.lighting?.gi;
   if (gi && !Q.has('start')) g.game.on('start', () => { gi.cfg.budget = 0; gi.cfg.pace = 2; });   // a player's first bake takes what the frame can spare; ?start=1 (automation) keeps the fast one
   performance.mark('nd:title');
+  window.__ndInfo = { programs: world.renderer.info.programs?.length };
   document.getElementById('boot')?.remove();
   if (Q.has('start')) g.ui.begin();
+  if (defer) {
+    const title = game.title, programs = world.renderer.info.programs, EXPECT = 330;
+    let best = 0;
+    title.setBusy(0);
+    const poll = setInterval(() => { const n = programs.length; let ready = 0; for (const p of programs) if (p.isReady?.()) ready++; best = Math.max(best, Math.min(0.99, ready / Math.max(n, EXPECT))); title.setBusy(best); }, 120);
+    compiled.then(() => {
+      clearInterval(poll); performance.mark('nd:compiled');
+      title.setBusy(null); play.start();
+      if (window.__ndTap) g.ui.begin();   // (a tap on the loading card counts)
+    });
+  } else if (window.__ndTap) g.ui.begin();
 }
 // the frame budget (perf.js, NOTES.md "Frame budget"): the close-up props (modelled for a look from a metre: cans,
 // bottles, keys, bolts, goods) stay out of the wet street's mirror, with the view model (?mirrorall=1 puts them back);
@@ -323,6 +345,7 @@ if (Q.has('world')) world.ctx.onUpdate(relight);
 window.__mirage = { world, built, play, g, game, vfx, rain, big, shared, setHour, relight, weather: { WX, WX_H, now: wxNow, at: weatherAt }, features: Object.fromEntries(Object.keys(TIER).map((k) => [k, F(k)])) };
 document.getElementById('boot')?.remove();
 // ready = the light is baked too (the stills and the checks wait for it); the title and the game are up before that
+if (compiled) await compiled;
 while (world.lighting?.busy) await new Promise((r) => setTimeout(r, 50));
 // the reflection probes were captured before the volume was baked, from a world without its light: capture them again,
 // from the state the first bake had (they were captured after it)

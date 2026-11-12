@@ -77,8 +77,8 @@ const dangling = [...page.matchAll(/(?:src|href)="(?:\.?\/)?(assets\/[^"]+)"/g)]
 if (dangling.length) throw new Error('index.html references files that cannot be inlined: ' + dangling.join(', '));
 const body = pre + htmlSafe(js, parseAst);
 if (!scriptCloses(body)) throw new Error('the bundle holds `<!--` and `<script` in code the packager cannot escape: the inlined script would never close');
-const GUNZIP = "(async()=>{try{const b=atob(document.getElementById('z').textContent.trim()),u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);"
-  + "const t=await new Response(new Blob([u]).stream().pipeThrough(new DecompressionStream('gzip'))).text(),s=document.createElement('script');s.type='module';s.textContent=t;document.head.append(s)}"
+const GUNZIP = "(async()=>{try{performance.mark('nd:unpack0');const b=atob(document.getElementById('z').textContent.trim()),u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);"
+  + "const t=await new Response(new Blob([u]).stream().pipeThrough(new DecompressionStream('gzip'))).text(),s=document.createElement('script');s.type='module';s.textContent=t;performance.mark('nd:unpack1');document.head.append(s)}"
   + "catch(e){document.body.textContent='This browser cannot unpack the page ('+e+'). Use a current Chrome, Edge, Firefox or Safari.'}})()";
 // base64 holds no `<`, so the data block cannot close early; the unpacker is a classic script and runs where the module did
 const script = opts.values['no-gzip'] ? `<script type="module">\n${body}\n</script>`
