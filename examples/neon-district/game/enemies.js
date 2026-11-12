@@ -658,12 +658,9 @@ export function createEnemies({ world, game, physics, plan, vfx, sfx, player, as
   }
   const firing = () => { let n = 0; for (const o of list) if (!o.dead && (o.burst > 0 || o.tele > 0)) n++; return n; };
 
-  // ---- stragglers: the mission must always be completable. The last wave (zone 'wave') and the holdout's waves
-  // (revived) must all go down for the uplink or the wave to end; a robot of theirs that lost the player used to
-  // search, give up and walk home to its post on the ground floor, where the player on the roof never saw it again.
-  // Now it goes where the player is instead (the uplink tells them); one unseen for STRAY_S is a straggler (marked
-  // through walls, kit.js) and runs to the player; one that cannot get there (no progress for STUCK_S while unseen)
-  // or is still unseen after GIVE_UP_S withdraws (out of play, counted down, no kill credit).
+  // ---- stragglers: the last wave and the holdout's waves must all go down, so a robot that lost the player goes where
+  // the player is. Unseen for STRAY_S: a straggler (marked through walls, kit.js) that runs to the player; stuck for
+  // STUCK_S unseen, or unseen after GIVE_UP_S: it withdraws (out of play, counted down, no kill credit).
   const STRAY_S = 14, STUCK_S = 12, GIVE_UP_S = 50;
   const pressed = (e) => !e.drill && (e.def.zone === 'wave' || e.revived);
   /** after the player: a search whose goal is where they stand (the nearest walkable point) */

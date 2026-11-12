@@ -26,7 +26,7 @@ import { machineUnits } from '@miragekit/assets/kits/cyber';
 import '@miragekit/assets/destruct';   // the material classes (glass, wood, metal...), registered with the system
 
 /** the price of each family (the end card's property damage); civilians cost the most by far */
-export const PRICE = {
+const PRICE = {
   vending: 1500, 'vending-glass': 150, can: 3, bottle: 4, cup: 2, box: 3, pack: 2, cap: 2,
   'shop-glass': 400, lightbox: 600, shutter: 1200, ac: 350, neon: 300, tube: 120, streetlamp: 900, bulb: 2, lantern: 20,
   sign: 400, blade: 1200, led: 2500, 'bar-window': 400, barBottle: 18, glassware: 6, bowls: 12, jar: 8,
@@ -35,7 +35,7 @@ export const PRICE = {
 };
 export const CIVILIAN = { value: 25000, points: 500 };
 /** property damage remarks: from this total on */
-export const REMARK_AT = [0, 2000, 20000, 100000];
+const REMARK_AT = [0, 2000, 20000, 100000];
 
 /** the vfx the robots get, with a tap on its tracers: every round they fire is a line the props on it take */
 export function shotTap(vfx) {

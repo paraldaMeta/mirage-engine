@@ -30,7 +30,7 @@ export function introSeen() { try { return seenHere || localStorage.getItem(SEEN
 function markSeen() { seenHere = true; try { localStorage.setItem(SEEN, '1'); } catch { /* storage blocked: once a page */ } }
 
 /** monotone cubic through (ts, ys), Fritsch-Carlson; flat at both ends (every shot starts and ends at rest) */
-export function monotone(ts, ys) {
+function monotone(ts, ys) {
   const n = ts.length;
   if (n === 1) return () => ys[0];
   const d = [], m = new Array(n).fill(0);
