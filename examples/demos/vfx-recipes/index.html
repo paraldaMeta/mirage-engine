@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <link rel="icon" href="data:,">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mirage · effect recipes</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #0b0f14; overflow: hidden; font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; color: #e8e4dc; }
+    canvas { display: block; }
+    #hud { position: fixed; left: 14px; top: 12px; white-space: pre; pointer-events: none; text-shadow: 0 1px 3px #000; }
+    #log { position: fixed; right: 14px; top: 12px; max-width: min(60vw, 760px); max-height: 94vh; overflow: auto; white-space: pre-wrap; }
+    #log .bad { color: #ff9a80; } #log .ok { color: #b8e6a8; }
+  </style>
+</head>
+<body>
+  <canvas></canvas><div id="hud"></div><div id="log"></div>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

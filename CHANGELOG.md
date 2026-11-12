@@ -105,6 +105,12 @@ All notable changes. From 1.0.0 on, versions follow semver for the stable API in
   view" difference in `npm run test:determinism` went from 260 k to 18 k pixels at its street view (not yet zero).
 
 **New**
+- Asset library (`packages/assets`): effect recipes, `src/vfx` (docs/vfx-recipes.md): 55 particle effects in core's
+  effect format for `createVfx` (combat: muzzle flash, tracer, impacts on concrete / metal / wood / water, robot hits,
+  shockwave, EMP, shield hits, plasma, arcs; weather: heavy rain with splashes, drizzle, blizzard, hail, sandstorm,
+  ground fog, ash, petals, pollen; fire, smoke and steam; water; magic; fireworks and confetti; ambience). Weather up
+  to 8,000 particles, everything else at most 600. Demo `examples/demos/vfx-recipes`; checked by
+  `packages/assets/vfx.check.mjs`.
 - Asset library (`packages/assets`): home and office props, `src/props-home` (docs/home-props.md): 48 props made in
   code to real sizes (sofas, tables, a bookcase with seeded books, lamps, plants, a kitchen run with a sink and a
   hob, a fridge, a bed, a wardrobe, a bathroom suite, desks with what is on them, office chairs, cabinets, a
