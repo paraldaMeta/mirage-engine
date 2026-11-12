@@ -105,6 +105,8 @@ export default {
     stair: { rect: [23.3, -28.7, 28.7, -21.3], top: 8.8, risers: RISERS, rise: RISE, tread: TREAD, width: 2.5,
       foot: -23.0, door: { z: -22.15, width: 1.2, height: 2.3 } },      // doors in its west wall: ground and roof
     uplink: [9.5, ROOF, -25],                                           // the console on the roof
+    clerestory: [{ x: 9.0 }, { x: 11.6 }, { x: 17.0 }, { x: 20.0 }],      // high windows in the south wall (centres), 1.6 wide, 2.2 to 3.4 m
+    stairWindow: { x0: 25.2, x1: 27.8, y0: 6.7, y1: 7.9 },             // the stairwell's high south window
   },
 
   // ---- things modules place and the game spawns on (one [x, y, z] per name)

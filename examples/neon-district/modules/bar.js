@@ -8,6 +8,7 @@ import { materials } from './materials.js';
 import { lamp, slab, decor } from './lib.js';
 import { propKit, recorder, track, trackLamps, breakablesLamp, paperLantern, tubeFixture, spiritBottle, tumbler, bowls, pot, noodleBasket, riceCooker, chopsticks, stool } from '@miragekit/assets/kits/cyber';
 import { detail } from './kit.js';
+import { shafts } from './shafts.js';
 
 export default {
   name: 'bar',
@@ -127,6 +128,17 @@ export default {
       lantern('bar-door-lantern-' + (s + 1) / 2, paperLantern(P, pb, geom, [B.door.x + s * 1.35, H - 0.15, z1 + 0.32], { r: 0.22, h: 0.52, print: s < 0 ? 1 : 2, color: [1.0, 0.2, 0.1], k: 1.8, cord: H - 0.15 - K - 2.25 - 0.31, tilt: s * 0.03 }), null, 'bar-door-lanterns');
     }
     breakablesLamp(ctx, 'bar-door-lanterns', trackLamps(ctx, () => lamp(ctx, { pos: [B.door.x, K + 2.1, z1 + 0.7], color: 0xff3a20, intensity: 2.4, range: 5 })));
+    // ---- light in the air (shafts.js): the street lamps across the road through the shop windows and the door by
+    // night, warm-white with the steam and dust of the kitchen in it; the sun or the moon when it shines in
+    const SH = shafts(ctx), room = [x0 + T, 0, z0 + T, x1 - T, H, z1];
+    const streetLamps = plan.lamps.filter(([, z]) => z > 5).map(([x, z, side]) => [x, K + 4.9, z + side * 1.45]);
+    const near = (x) => streetLamps.reduce((a, l) => (Math.abs(l[0] - x) < Math.abs(a[0] - x) ? l : a));
+    for (const w of B.windows) {
+      const ap = { o: [w.x - w.width / 2, 0.9, z1], e1: [w.width, 0, 0], e2: [0, 1.6, 0], out: [0, 0, 1], depth: T, floorY: F, clip: room };
+      SH.add({ ...ap, kind: 'spill', src: near(w.x), color: [1, 0.89, 0.81], power: 1.5, dens: 0.045, motes: 140 });
+      SH.add({ ...ap, kind: 'key', dens: 0.04, motes: 0 });
+    }
+    SH.add({ o: [B.door.x - B.door.width / 2, F, z1], e1: [B.door.width, 0, 0], e2: [0, B.door.height - F, 0], out: [0, 0, 1], depth: T, floorY: F, clip: room, kind: 'spill', src: near(B.door.x), color: [1, 0.89, 0.81], power: 1.5, dens: 0.04, motes: 0 });
     root.add(b.finish({ name: 'bar' }));
     root.add(decor(rec.finished(fx, fx.finish({ name: 'bar-decor', castShadow: false }))), decor(rec.finished(pb, pb.finish({ name: 'bar-props', castShadow: false }))));
     return { lanterns };

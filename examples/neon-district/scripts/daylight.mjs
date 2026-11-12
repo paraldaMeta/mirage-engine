@@ -20,6 +20,9 @@ const VIEWS = {
   'strip': { eye: [13, 1.7, 4.2], look: [8.5, 0, 8.1] },                   // the sunlit strip reserved for the water channel (plan.js waterStrip)
   'street-sun': { eye: [24, 1.62, 6.6], look: [-40, 8.5, 6] },           // the same, a little higher: the sun's disc in the street's end        // from the plaza's corner, down the street to the west
   'street-up': { eye: [-7, 1.62, 6.2], look: [12, 13, 3.5] },
+  'bar': { eye: [-11.2, 1.6, 0.9], look: [-20, 1.5, -7] },
+  'relay': { eye: [21.4, 1.6, -21.2], look: [9, 1.4, -28.5] },
+  'stair': { eye: [24.0, 7.6, -22.0], look: [27.5, 6.0, -27.5] },
   'street': { eye: [-29.5, 1.62, 6.4], look: [8, 3.2, 5] },
   'plaza': { eye: [10.2, 1.76, 0.9], look: [19, 3.6, -11] },
   'skyline': { eye: [21.5, 7.62, -21.6], look: [-24, 24, 22] },

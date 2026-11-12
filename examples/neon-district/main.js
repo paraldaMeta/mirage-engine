@@ -134,7 +134,7 @@ const world = createWorldRenderer({
   // is the sky's (x1, not brighter: a brighter fog than the sky is what washed the day out)
   fog: { groundDensity: 0.0045, height: 14, air: 0.0003, color: 1.0, glow: 1 },
   lighting,
-  light2: on('vol') ? { ssr: false, bloom: false, ls: { slots: 4 }, vol: { lamps: 1.5, dustOut: 0.008, golden: 0.6, height: 9, lampDust: 0.05, haloR: 1.3, lampReach: 7, noise: 0.7 } } : undefined,
+  light2: on('vol') ? { ssr: false, bloom: false, ls: { slots: 4 }, vol: { lamps: 1.5, dustOut: 0.008, golden: 0.3, height: 9, lampDust: 0.05, haloR: 1.3, lampReach: 7, noise: 0.7 } } : undefined,
   post: {
     // a neutral base (the grade does the hour's look): no extra contrast or colour; bloom only off true emitters, tight
     exposure: 0.5, contrast: 1.0, saturation: 0.97, vignette: 0.26, grain: Q.get('grain') === '0' ? 0 : 0.014, bloom: 0.11, bloomRadius: 0.32, ao: 0.9,
@@ -223,6 +223,9 @@ if (Q.has('world')) {   // the district alone: walk, fly, orbit (stills, the wor
     objective, summary,
   });
   play = g.play;
+  // the rooms' shafts of light (modules/shafts.js) shine only when the sun, the moon or the lamp outside really reaches
+  // the opening: a ray through the physics world toward it
+  shared.shafts?.setSee((from, dir, max) => !!g.physics.ray(from, dir, max));
   game.start(g);
   if (Q.has('start')) g.ui.begin();
 }
