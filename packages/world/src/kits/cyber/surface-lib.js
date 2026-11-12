@@ -3,7 +3,8 @@
 // helpers the kit's props and the neon district share: surf (a material from a surface spec, optionally wet, with
 // layout marks over it), painted (painted steel in any colour from one bake) and shade (light-coloured sets tinted per part).
 import * as THREE from 'three';
-import { withWet, SURFACES, SURFACE_KINDS, createSurfaces } from '@miragekit/core';
+import { withWet } from '@miragekit/core';
+import { SURFACES, SURFACE_KINDS, createSurfaces } from '@miragekit/assets/surfaces';
 
 /** The district's surface library (one per world, ctx.shared.surf): createSurfaces in 'auto' mode with a bake size
  *  per quality (ctx.shared.tier) and per role, so the baked sets stay inside the memory budget (NOTES.md "Surfaces").

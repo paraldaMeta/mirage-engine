@@ -1,4 +1,4 @@
-// Demo: the surface library (@miragekit/core SURFACES / createSurfaces). One surface at a time on four test objects
+// Demo: the surface library (@miragekit/assets/surfaces SURFACES / createSurfaces, BUSL-1.1). One surface at a time on four test objects
 // (a sphere, a bevelled cube, a 2 m wall panel, a ground patch) under three lightings, dry or wet, seen from 5 m or
 // from 0.5 m; procedural or baked.
 // URL: ?s=kind[:variant]   ?light=studio | golden | night   ?wet=0 | 1   ?view=far | near | wall | ground
@@ -7,7 +7,8 @@
 // gallery shooter examples/demos/materials/shoot.mjs, the bench and packages/tools/src/surfaces-check.mjs drive it).
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { createWorldRenderer, placeDate, SURFACES, SURFACE_KINDS, createSurfaces, surfaceHooks, bakeSurface, setWetness, setRain, createTextures } from '@miragekit/core';
+import { createWorldRenderer, placeDate, surfaceHooks, bakeSurface, setWetness, setRain, createTextures } from '@miragekit/core';
+import { SURFACES, SURFACE_KINDS, createSurfaces } from '@miragekit/assets/surfaces';
 
 const Q = new URLSearchParams(location.search);
 const W = +Q.get('w') || innerWidth, H = +Q.get('h') || innerHeight;

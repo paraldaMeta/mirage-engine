@@ -2,11 +2,8 @@ import type * as THREE from 'three';
 import type { MaterialHooks, MaterialKit } from './materials.js';
 import type { WetOptions } from './wet.js';
 
-export type SurfaceKind =
-  | 'concrete' | 'asphalt' | 'paving' | 'brick' | 'render' | 'tile' | 'corrugated' | 'paintedMetal' | 'stainless' | 'galvanised'
-  | 'castIron' | 'aluminium' | 'chrome' | 'metal' | 'powderCoat' | 'carPaint' | 'glass' | 'plastic' | 'rubber' | 'fabric'
-  | 'paper' | 'wood' | 'bamboo' | 'leather' | 'carbonFibre' | 'ceramic' | 'roofing'
-  | 'neon' | 'fluorescent' | 'ledPanel' | 'lcd' | 'lightbox' | 'paperLantern' | 'water' | 'oil';
+/** A registered kind's name (@miragekit/assets/surfaces narrows it to the library's 35). */
+export type SurfaceKind = string;
 export type SurfaceColor = readonly [number, number, number] | string | number;
 
 /** Measured ranges a kind's defaults sit in (linear albedo or metal F0, roughness, metalness), with a note. */
@@ -98,14 +95,44 @@ export interface SurfaceLibrary {
   bake(spec: SurfaceSpec, size?: number): BakedSurface;
   stats(): { baked: number; ms: number; bytes: number; materials: number };
   dispose(): void;
-  SURFACES: typeof SURFACES;
-  KINDS: typeof SURFACE_KINDS;
+  /** spec makers of the kinds registered when the library was made */
+  SURFACES: Record<string, (options?: SurfaceOptions) => SurfaceSpec>;
+  KINDS: Record<string, SurfaceKindInfo>;
 }
 
-export const SURFACES: { readonly [K in SurfaceKind]: (options?: SurfaceOptions) => SurfaceSpec };
-export const SURFACE_KINDS: { readonly [K in SurfaceKind]: SurfaceKindInfo };
-/** F0 (linear) of common metals. */
-export const METALS: Record<string, [number, number, number]>;
+/** A kind as registered: its table entry (the numbers, their packing, reference ranges) and optional program pieces. */
+export interface SurfaceKindEntry {
+  family: string; variants: readonly string[]; tile: number; depth: number; size?: number; porosity: number;
+  refs: SurfaceRefs; defaults: Record<string, unknown>;
+  cheap?: boolean; live?: boolean; physical?: boolean; mapping?: 'tri' | 'wall' | 'ground' | 'grain' | 'uv';
+  micro?: readonly [number, number, number, number];
+  variantDefaults?: Record<string, Record<string, unknown>>;
+  pack(options: Record<string, any>): Record<'A' | 'B' | 'C' | 'D', number[]>;
+  quantum?(options: Record<string, any>, tile: number, variant: number): [number, number];
+  edge?(options: Record<string, any>, variant: number): { rgb: number[]; rough: number; metal: number; mode: number; chip: number };
+  material?(options: Record<string, any>, variant: number): Record<string, unknown>;
+  /** GLSL added to the evaluation before the runtime layer */
+  body?(spec: SurfaceSpec, options: SurfaceHookOptions): string;
+  /** adjust the hooks (output, emissive, normal...) */
+  hooks?(hooks: MaterialHooks, spec: SurfaceSpec, options: SurfaceHookOptions): void;
+  /** adjust the material parameters; true: a MeshPhysicalMaterial */
+  prepare?(params: Record<string, unknown>, spec: SurfaceSpec, options: SurfaceMaterialOptions): boolean;
+}
+/** The weathering decals (options.decals) as registered. */
+export interface SurfaceDecalRecipes {
+  /** declares msDecals(inout MsS s, vec3 worldPos, vec3 worldNormal) */
+  glsl: string;
+  /** the atlas baker's fragment shader (GLSL3, uniform float msN) */
+  fragment: string;
+  uniforms(decals: SurfaceDecals): Record<string, { value: unknown }>;
+}
+/** Register kinds: table entries and their recipes (`glsl`: bakeable; `liveGlsl`: per pixel only). */
+export function registerSurfaceKinds(kinds: { kinds?: Record<string, SurfaceKindEntry>; glsl?: Record<string, string>; liveGlsl?: Record<string, string> }): void;
+export function registerSurfaceDecals(decals: SurfaceDecalRecipes): void;
+/** Everything the framework knows about each registered kind. */
+export function surfaceKinds(): Record<string, SurfaceKindInfo>;
+/** A spec of a registered kind. */
+export function surfaceSpec(kind: SurfaceKind, options?: SurfaceOptions): SurfaceSpec;
 export function surfaceHooks(spec: SurfaceSpec, options?: SurfaceHookOptions): MaterialHooks;
 export function bakeSurface(renderer: THREE.WebGLRenderer, spec: SurfaceSpec, options?: { size?: number; anisotropy?: number }): BakedSurface;
 export function bakeDecalAtlas(renderer: THREE.WebGLRenderer, size?: number): THREE.WebGLRenderTarget;

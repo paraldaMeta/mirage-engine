@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-// Mirage original code. Headless check of the surface library (packages/core/src/surfaces.js) on a real GPU, through
+// Mirage original code. Headless check of the surface library (@miragekit/assets/surfaces on core's framework) on a real GPU, through
 // the materials demo (examples/demos/materials, packaged into its out/ first).
 //
 // usage: node packages/tools/src/surfaces-check.mjs [--only concrete,asphalt] [--out dir]
-//        (needs Chrome with a GPU: not in npm test; the GPU-free parts are packages/core/surfaces.check.mjs)
+//        (needs Chrome with a GPU: not in npm test; the GPU-free parts are packages/assets/surfaces.check.mjs)
 // Checked:
 //   - every kind and variant compiles, procedural and baked, on Standard / Physical, dry and wet (no shader error,
 //     no page error);

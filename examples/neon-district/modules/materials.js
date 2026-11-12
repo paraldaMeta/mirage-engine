@@ -5,7 +5,7 @@
 // pools puddles that the screen-space reflections then mirror. Lit windows, screens and holograms are emissive
 // hooks scaled by the world's lamp gain (uLampGain), so they read the same at any exposure.
 import * as THREE from 'three';
-import { SURFACES } from '@miragekit/core';
+import { SURFACES } from '@miragekit/assets/surfaces';
 import { surfaceLib } from '@miragekit/world/kits/cyber';
 
 // ---- facades: one window grid per style, lit rooms by a hash of the bay and the floor

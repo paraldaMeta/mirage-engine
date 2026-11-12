@@ -18,7 +18,8 @@
 // sensor heads instead of faces, battery packs); no maker's shapes, names or marks: the makers here are invented.
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { SURFACES, createSurfaces, WET } from '@miragekit/core';
+import { WET } from '@miragekit/core';
+import { SURFACES, createSurfaces } from '@miragekit/assets/surfaces';
 
 const HP = Math.PI / 2, TAU = Math.PI * 2;
 const v2 = (pts) => pts.map(([a, b]) => new THREE.Vector2(a, b));

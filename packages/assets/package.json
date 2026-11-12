@@ -15,6 +15,7 @@
   "type": "module",
   "exports": {
     "./presets": { "types": "./src/presets/index.d.ts", "default": "./src/presets/index.js" },
+    "./surfaces": { "types": "./src/surfaces/index.d.ts", "default": "./src/surfaces/index.js" },
     "./package.json": "./package.json"
   },
   "files": [
@@ -22,13 +23,18 @@
     "README.md",
     "LICENSE"
   ],
-  "sideEffects": false,
+  "sideEffects": [
+    "./src/surfaces/index.js"
+  ],
   "peerDependencies": {
     "three": ">=0.186.1 <0.187.0",
     "@miragekit/core": "^1.0.0"
   },
   "engines": {
     "node": ">=22"
+  },
+  "scripts": {
+    "test": "node surfaces.check.mjs"
   },
   "author": "灰叔 Racso"
 }
