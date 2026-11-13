@@ -351,7 +351,7 @@ export function createWorldRenderer(config = {}) {
 
   /** Compile every program the first frames need, capture the environment. { warm: true } (opt-in) also draws one
    *  frame and waits for the GPU (see warmUp); returns { warmMs } then. */
-  async function prepare({ warm = false, captures = 'now' } = {}) {
+  async function prepare({ warm = false, captures = 'now', serial = false } = {}) {
     if (!light) setTime(time);
     scene.environment = noEnv();
     camera.updateMatrixWorld();
@@ -372,13 +372,83 @@ export function createWorldRenderer(config = {}) {
     if (lampPool) lampPool.adopt();
     // (with the black environment: the programs of every capture pass and every frame; and the surface sets queued with
     // `later`, drawn as their programs come ready: the capture below sees them)
-    await Promise.all([compile(), pipeline.compileAsync(), surfaceBakesDone(renderer)]);
+    // serial (no KHR_parallel_shader_compile, where every link blocks the main thread; or forced): the first view's
+    // programs a few at a time with the page answering between them, the rest after prepare() returns (`rest`)
+    const ser = serial && (serial.force || !renderer.extensions.has('KHR_parallel_shader_compile'));
+    let rest = null;
+    if (ser) {
+      await Promise.all([pipeline.compileAsync(), surfaceBakesDone(renderer)]);
+      ({ rest } = await compileSerial(serial));
+    } else await Promise.all([compile(), pipeline.compileAsync(), surfaceBakesDone(renderer)]);
     // captures: 'later': the image-based light (and the probes after it) is captured by the first moving frames, one
     // pass each, instead of here: the programs are the same (the black environment above is of its kind), so prepare
     // ends as soon as they are built (a page that shows a still or a poster over those frames)
     if (captures === 'later' && !warm) envState = 'instant';
     else captureEnv(true);
     if (warm) return { warmMs: warmUp() };
+    if (rest) return { rest };
+  }
+
+  // The serial compile (prepare({ serial })). Without KHR_parallel_shader_compile three's compileAsync is one blocking
+  // pass over every program (a phone sat on a dead page for seconds). Here the drawables are taken one program recipe
+  // at a time (material, kind of mesh, its attributes: one compile each, its link forced and timed), nearest the eye
+  // (or the `near` points) first; the page gets the main thread back every `budgetMs`. What is not compiled yet is kept out
+  // of every camera (layer 0 off), so no frame compiles anything on its own; each comes in as its program is linked.
+  // Resolves to { rest } once everything within `radius` of them is in (the first view); `rest`
+  // resolves when all is, and the light is captured again then (it was taken with part of the world).
+  // opts: { near: [[x, y, z], ...], radius = 40, budgetMs = 12, onProgress(done, total, firstView), first: roots | () => roots
+  // (always in the first view), force }
+  async function compileSerial({ near = [], radius = 40, budgetMs = 12, onProgress = null, first = null } = {}) {
+    const gl = renderer.getContext(), progs = renderer.info.programs, groups = new Map(), sph = new THREE.Sphere(), forced = new Set();
+    for (const root of (typeof first === 'function' ? first() : first) || []) root?.traverse((o) => forced.add(o));   // (always in the first view: a view model)
+    scene.updateMatrixWorld(true);
+    const pts = near.length ? near : [camera.position.toArray()];   // (the points given, else the eye)
+    scene.traverse((o) => {
+      if (!(o.isMesh || o.isPoints || o.isLine || o.isSprite) || !o.material) return;
+      const g = o.geometry, mats = [].concat(o.material);
+      const key = mats.map((m) => m.uuid).join() + (o.isInstancedMesh ? 'i' : '') + (o.isSkinnedMesh ? 's' : '') + (o.isBatchedMesh ? 'b' : '')
+        + (o.matrixWorld.determinant() < 0 ? 'f' : '') + (g ? Object.keys(g.attributes).sort().join() + Object.keys(g.morphAttributes).join() : '');
+      let d = 0;
+      if (g && !o.isInstancedMesh && !o.isBatchedMesh && !forced.has(o)) {
+        if (!g.boundingSphere) g.computeBoundingSphere();
+        if (g.boundingSphere) { sph.copy(g.boundingSphere).applyMatrix4(o.matrixWorld); d = Infinity; for (const p of pts) d = Math.min(d, Math.max(0, Math.hypot(p[0] - sph.center.x, p[1] - sph.center.y, p[2] - sph.center.z) - sph.radius)); }
+      }
+      const e = groups.get(key);
+      if (e) { e.list.push(o); e.d = Math.min(e.d, d); } else groups.set(key, { o, list: [o], d });
+    });
+    const order = [...groups.values()].sort((a, b) => a.d - b.d), nFirst = order.filter((e) => e.d <= radius).length;
+    const hidden = new Set();
+    for (const e of order) for (const o of e.list) if (o.layers.isEnabled(0)) { o.layers.disable(0); hidden.add(o); }
+    let i = 0;
+    const step = (until) => {
+      const t0 = performance.now(), rt = renderer.getRenderTarget();
+      renderer.setRenderTarget(pipeline.sceneRT);
+      try {
+        while (i < until) {
+          const e = order[i++], n0 = progs.length;
+          for (const o of e.list) if (hidden.delete(o)) o.layers.enable(0);   // (compile() looks at what a camera sees)
+          renderer.compile(e.o, camera, scene);
+          for (let k = n0; k < progs.length; k++) gl.getProgramParameter(progs[k].program, gl.LINK_STATUS);   // the link, now
+          if (performance.now() - t0 > budgetMs) break;
+        }
+      } finally { renderer.setRenderTarget(rt); }
+      if (onProgress) onProgress(i, order.length, nFirst);
+    };
+    const tick = () => new Promise((r) => { const c = new MessageChannel(); c.port1.onmessage = () => r(); c.port2.postMessage(0); });
+    while (i < nFirst) { step(nFirst); await tick(); }
+    performance.mark('mg:compile-first', { detail: progs.length });
+    return { rest: new Promise((resolve) => {
+      const go = () => {
+        step(order.length);
+        if (i < order.length) { setTimeout(go, 0); return; }
+        for (const o of hidden) o.layers.enable(0);
+        hidden.clear();
+        performance.mark('mg:compile-all', { detail: progs.length });
+        envState = 'instant';   // the light again, with the whole world in it
+        resolve();
+      };
+      setTimeout(go, 0);
+    }) };
   }
 
   // Warm-up (prepare({ warm: true })): compileAsync links the programs, but the first frame that uses them still pays

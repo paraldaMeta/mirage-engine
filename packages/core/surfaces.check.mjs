@@ -40,7 +40,7 @@ assert.ok(spec.isSurface && spec.kind === 'flat' && spec.variant === 'gloss' && 
 let n = 0;
 for (const mapping of ['tri', 'wall', 'ground', 'grain', 'uv']) for (const mode of ['procedural', 'baked']) {
   const h = surfaceHooks(spec, { mapping, mode, baked: tex });
-  assert.ok(h.fragmentDecl.includes('ms_flat(') && h.fragmentDecl.includes('#define MS_COMMON') && h.albedo.includes('msS.r *= 1.0'), `${mapping} ${mode}: the recipe, the helpers, the kind's body`);
+  assert.ok(h.fragmentDecl.includes('ms_flat(') === (mode === 'procedural') && h.fragmentDecl.includes('#define MS_COMMON') && h.albedo.includes('msS.r *= 1.0'), `${mapping} ${mode}: the recipe (per pixel only), the helpers, the kind's body`);
   assert.equal(h.emissive, '/* flat */', 'the kind\'s hooks');
   n++;
 }

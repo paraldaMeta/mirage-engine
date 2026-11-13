@@ -115,8 +115,11 @@ export interface WorldRenderer {
   tick(dt: number): boolean;
   /** Compile materials and capture lighting after building the scene. Requires WebGL.
    *  { warm: true } (opt-in): also draw one discarded frame and wait for the GPU, so the first visible frame pays no upload or driver work.
-   *  { captures: 'later' }: the image-based light (and the probes) are left to the first moving frames, a pass each. */
-  prepare(options?: { warm?: boolean; captures?: 'now' | 'later' }): Promise<void | { warmMs: number }>;
+   *  { captures: 'later' }: the image-based light (and the probes) are left to the first moving frames, a pass each.
+   *  { serial }: without KHR_parallel_shader_compile (or serial.force) the programs are built one recipe at a time, the
+   *  nearest first, the page answering between them; what is not built yet stays out of the cameras. Resolves once
+   *  everything within serial.radius (40 m) of the eye and serial.near is in, with `rest` for the remainder. */
+  prepare(options?: { warm?: boolean; captures?: 'now' | 'later'; serial?: { near?: number[][]; radius?: number; budgetMs?: number; force?: boolean; first?: THREE.Object3D[] | (() => (THREE.Object3D | null | undefined)[]); onProgress?: (done: number, total: number, firstView: number) => void } }): Promise<void | { warmMs: number } | { rest: Promise<void> }>;
   renderFrame(seconds?: number, options?: RenderFrameOptions): ConvergeResult | void;
   /** A still with a transparent sky: rendered over black and over white (sky and stars hidden), straight alpha recovered
    *  per pixel. Still-path options (spp, frameIndex, camera, shadow, shutter); no bloom, no auto exposure. */

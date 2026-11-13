@@ -112,23 +112,37 @@ export function bootDiag({ world, Q, quality, why, clarity, pixelRatio, title, p
     else if (t0) rows.push('long frames: none');
     return rows.join('\n');
   };
-  let pre = null;
+  // unpinned: a small pill at the top right (over the scene, clear of the menu); a tap pins it: an opaque panel above
+  // everything along the top, COPY first, the text scrollable
+  let pre = null, copy = null;
+  const style = () => {
+    el.style.cssText = pinned
+      ? 'position:fixed;left:0;right:0;top:0;z-index:2147483000;max-height:40vh;overflow:auto;-webkit-overflow-scrolling:touch;padding:max(8px,env(safe-area-inset-top)) 10px 10px;background:#02060af2;border-bottom:1px solid #19d8ff80;font:10px/1.35 ui-monospace,monospace;color:#dff;pointer-events:auto'
+      : 'position:fixed;right:8px;top:max(56px,calc(env(safe-area-inset-top) + 48px));z-index:2147483000;padding:5px 9px;border-radius:12px;background:#02060ad0;border:1px solid #19d8ff60;font:10px/1.2 ui-monospace,monospace;color:#bfe;pointer-events:auto;cursor:pointer';
+    copy.style.display = pinned ? 'block' : 'none';
+  };
   const show = () => {
     if (!el) {
       el = document.createElement('div');
       el.id = 'nd-boot';
-      el.style.cssText = 'position:fixed;left:6px;bottom:4px;z-index:40;max-width:min(96vw,760px);font:9px/1.3 ui-monospace,monospace;color:#cfe;opacity:.5;pointer-events:auto;text-shadow:0 0 2px #000';
       pre = document.createElement('pre'); pre.style.cssText = 'margin:0;white-space:pre-wrap;user-select:text';
-      const copy = document.createElement('button');
-      copy.textContent = 'COPY'; copy.style.cssText = 'font:inherit;color:#02080d;background:#19d8ff;border:0;padding:2px 8px;margin-top:3px';
+      copy = document.createElement('button');
+      copy.textContent = 'COPY (boot numbers to the clipboard)';
+      copy.style.cssText = 'display:none;font:600 15px system-ui,sans-serif;color:#02080d;background:#19d8ff;border:0;border-radius:6px;padding:12px 18px;margin:0 0 8px;min-width:60%;touch-action:manipulation';
       copy.addEventListener('pointerdown', (e) => e.stopPropagation());
-      copy.addEventListener('click', (e) => { e.stopPropagation(); read(); const t = JSON.stringify(D); (navigator.clipboard?.writeText(t) ?? Promise.reject()).then(() => { copy.textContent = 'COPIED'; }, () => { pre.textContent = t; }); });
-      el.append(pre, copy);
-      el.addEventListener('pointerdown', (e) => { e.stopPropagation(); pinned = !pinned; el.style.opacity = pinned ? 0.9 : 0.5; el.style.background = pinned ? '#000c' : ''; });
-      if (pinned) { el.style.opacity = 0.9; el.style.background = '#000c'; }
+      copy.addEventListener('click', (e) => {
+        e.stopPropagation(); read(); const t = JSON.stringify(D);
+        const fallback = () => { const ta = document.createElement('textarea'); ta.value = t; document.body.append(ta); ta.select(); let ok = false; try { ok = document.execCommand('copy'); } catch { /* none */ } ta.remove(); if (ok) copy.textContent = 'COPIED'; else pre.textContent = t; };
+        if (navigator.clipboard?.writeText) navigator.clipboard.writeText(t).then(() => { copy.textContent = 'COPIED'; }, fallback); else fallback();
+      });
+      el.append(copy, pre);
+      el.addEventListener('pointerdown', (e) => e.stopPropagation());
+      el.addEventListener('click', (e) => { if (e.target === copy) return; e.stopPropagation(); pinned = !pinned; style(); pre.textContent = text(); });
+      style();
       document.body.appendChild(el);
     }
-    pre.textContent = text();
+    if (pinned) pre.textContent = text();
+    else { read(); const m = D.marks, last = MARKS.filter(([k]) => m[k] !== undefined).at(-1); pre.textContent = `BOOT ${last ? `${last[1]} ${s(m[last[0]])}` : '…'} · ${D.programs.now} prog · tap`; }
   };
   const hideUnlessPinned = () => { if (!pinned && el) { el.remove(); el = null; } };
   timer = setInterval(() => { if (compiling || pinned) show(); else hideUnlessPinned(); }, 500);

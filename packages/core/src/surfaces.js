@@ -531,7 +531,10 @@ export function createSurfaces(world, { mode = 'auto', size = 0, anisotropy = 8,
   const cache = new Map();
   let atlas = null, bakeMs = 0, made = 0;
   // 'auto': bake the kinds whose recipe costs more than its texture taps; the cheap ones (a grid, a few lines) run per pixel
-  const pathOf = (spec, m) => (spec.live ? 'procedural' : m === 'auto' ? (KINDS[spec.kind].cheap ? 'procedural' : 'baked') : m);
+  // (a low-quality world bakes the cheap kinds too: on a phone every program is paid for at the start, and baked
+  // surfaces of one option set share a program; medium / high keep them per pixel)
+  const bakeCheap = world.ctx?.quality === 'low';
+  const pathOf = (spec, m) => (spec.live ? 'procedural' : m === 'auto' ? (KINDS[spec.kind].cheap && !bakeCheap ? 'procedural' : 'baked') : m);
   // the set's size: an explicit one, else the kind's own (its detail needs it); tier 'low' halves it (a quarter of the
   // memory: phones), never under 256
   const sizeOf = (spec, sz) => sz || (tier === 'low' ? Math.max(256, (spec.size || 1024) >> 1) : spec.size || 1024);

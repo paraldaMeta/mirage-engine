@@ -1,8 +1,8 @@
 // The game's own sounds, made in code like the engine's (no files): pickups, the uplink's alarm, hurt, thunder, and
 // four loops (rain, a sign's hum, a vent's hiss, the score), given to the mixer with audio.add at the first gesture.
 // The guns, their mechanics, casings, impacts, the robots' rifles and the rest of the feel's sounds are layered
-// syntheses in gunsound.js: rendered offline, a buffer at a time over the first second or two after the first gesture
-// (about 1.3 s of work in all, in the browser's idle time between frames, the carbine first), each handed to audio.add as it is done. Until a
+// syntheses in gunsound.js: rendered in a worker (gunsound.worker.js; idle slices where there is none) once the game's
+// own sounds are made, the carbine first, each handed to audio.add as it is done. Until a
 // gun's own buffers exist its shots fall back to `nd_shot` (the first carbine sound, kept below).
 import { SOUNDS, ORDER } from './gunsound.js';
 import { MELEE_SOUNDS } from './melee-sound.js';
@@ -15,17 +15,29 @@ export function createSfx(audio) {
   const B = new Proxy({}, { set: (o, k, v) => { audio.add(k, v); return true; } });
   let queue = null;
   function renderSome(budgetMs) {
-    const t0 = performance.now(), ctx = audio.maker, SR = ctx.sampleRate;
-    while (queue.length && performance.now() - t0 < budgetMs) {
-      const job = queue.shift(), data = SOUNDS[job.name].render(SR, job.v), b = ctx.createBuffer(1, data.length, SR);
-      b.copyToChannel(data, 0);
-      job.list.push(b);
-      audio.add(job.name, job.list.length > 1 ? job.list.slice() : job.list[0]);
-    }
+    const t0 = performance.now(), SR = audio.maker.sampleRate;
+    while (queue.length && performance.now() - t0 < budgetMs) { const job = queue.shift(); take(job, SOUNDS[job.name].render(SR, job.v)); }
   }
-  // one idle slice after another until the queue is empty (setTimeout where requestIdleCallback is missing)
+  const take = (job, data) => {
+    const ctx = audio.maker, b = ctx.createBuffer(1, data.length, ctx.sampleRate);
+    b.copyToChannel(data, 0);
+    job.list.push(b);
+    audio.add(job.name, job.list.length > 1 ? job.list.slice() : job.list[0]);
+  };
+  // the guns' buffers in a worker (gunsound.worker.js): one of them alone held a phone's frame for most of a second
+  // (one idle slice runs a whole buffer); in order, so the carbine comes first. Without workers: idle slices
   function idle() {
     if (!queue?.length) return;
+    if (typeof Worker === 'function' && !idle.failed) {
+      try {
+        const w = new Worker(new URL('./gunsound.worker.js', import.meta.url), { type: 'module' }), jobs = queue.splice(0), SR = audio.maker.sampleRate;
+        const done = new Set();
+        w.onmessage = (e) => { done.add(e.data.i); take(jobs[e.data.i], e.data.d); if (done.size === jobs.length) w.terminate(); };
+        w.onerror = (e) => { e.preventDefault?.(); w.terminate(); idle.failed = true; queue = jobs.filter((_, i) => !done.has(i)); idle(); };   // (the rest in idle slices)
+        jobs.forEach((j, i) => w.postMessage({ i, name: j.name, v: j.v, SR }));
+        return;
+      } catch { idle.failed = true; }
+    }
     const go = (d) => { renderSome(Math.max(1, Math.min(8, d && d.timeRemaining ? d.timeRemaining() - 1 : 4))); idle(); };
     if (typeof requestIdleCallback === 'function') requestIdleCallback(go, { timeout: 250 }); else setTimeout(go, 16);
   }

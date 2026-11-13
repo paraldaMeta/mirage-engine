@@ -31,9 +31,17 @@ import { bootDiag, bootProbe } from './game/bootdiag.js';
 performance.mark('nd:eval');
 if (!location.search.includes('world=')) loadRapier().then(() => performance.mark('nd:rapier'), () => {});   // the wasm compiles while the world builds (createPhysics shares this promise)
 const Q = new URLSearchParams(location.search);
-// the boot measured on the device (game/bootdiag.js): on ?boot=1 and on a first visit the synchronous GL calls are timed
-// from before the renderer exists (a wrapper per call: off on later visits)
-const probe = (() => { let seen = false; try { seen = localStorage.getItem('nd.booted') === '1'; } catch { /* no storage */ } return Q.get('boot') === '1' || (!seen && !Q.has('start') && Q.get('ui') !== '0') ? bootProbe() : null; })();
+// ?noparallel=1 (a phone without KHR_parallel_shader_compile, emulated): the extension hidden and every link made to
+// cost ?linkms= ms (60) of the main thread, as a driver that links on it does
+if (Q.get('noparallel') === '1') {
+  const P = WebGL2RenderingContext.prototype, ge = P.getExtension, gs = P.getSupportedExtensions, lp = P.linkProgram, ms = +Q.get('linkms') || 60;
+  P.getExtension = function (n) { return n === 'KHR_parallel_shader_compile' ? null : ge.call(this, n); };
+  P.getSupportedExtensions = function () { return (gs.call(this) || []).filter((n) => n !== 'KHR_parallel_shader_compile'); };
+  P.linkProgram = function (p) { const t = performance.now() + ms; while (performance.now() < t) { /* the driver's link */ } return lp.call(this, p); };
+}
+// the boot measured on the device (game/bootdiag.js): on a player's page (and ?boot=1) the synchronous GL calls are timed
+// from before the renderer exists (a wrapper per call; the tools run without it)
+const probe = Q.get('boot') === '1' || (!Q.has('start') && Q.get('ui') !== '0' && !Q.has('world')) ? bootProbe() : null;
 const W = +Q.get('w') || innerWidth, H = +Q.get('h') || innerHeight;
 const canvas = document.querySelector('canvas');
 canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
@@ -236,13 +244,15 @@ world.renderer.debug.checkShaderErrors = Q.get('debug') === '1' || Q.has('start'
   if (!on('moon')) { world.setTime(timeOf(hour) || TIMES.night); world.sun.castShadow = world.G.uLampGain.value < 0.5; }
   const r = await prepare(...a);
   const vm = game?.weapon?.vmDepth, holder = game?.weapon?.holder;
-  if (vm && holder) {
+  const vmCompile = async () => {
+    if (!vm || !holder) return;
     const rt = world.renderer.getRenderTarget(), was = vm.active();
     vm.active(!was); world.renderer.setRenderTarget(world.pipeline.sceneRT);
     const p = world.renderer.compileAsync(holder, camera, world.scene);
     world.renderer.setRenderTarget(rt); vm.active(was);
     await p;
-  }
+  };
+  if (r?.rest) r.rest = r.rest.then(vmCompile); else await vmCompile();   // (a serial compile: after the rest, not before DEPLOY)
   performance.mark('nd:prepare1'); return r;
 }; }
 // detail: how much optional dressing the modules build (crowds, traffic, balcony life, the far skyline): phones stay light
@@ -330,7 +340,13 @@ if (Q.has('world')) {   // the district alone: walk, fly, orbit (stills, the wor
   // tools (?start=1, ?ui=0) and ?defer=0 keep the old order
   defer = !Q.has('start') && Q.get('ui') !== '0' && Q.get('defer') !== '0';
   // (the light is captured by the first frames, under the poster's fade: DEPLOY is live as soon as the programs are)
-  if (defer) { const prepare = world.prepare; world.prepare = () => { compiled = prepare({ captures: 'later' }); return Promise.resolve({}); }; }
+  // Without KHR_parallel_shader_compile (many phones: every link blocks the main thread) the programs are built a few
+  // at a time, nearest the spawn first; DEPLOY is live once those are, the rest come in during the title, which stays
+  // on the poster's still meanwhile (core world.js compileSerial)
+  let serialF = null;
+  const serial = { force: Q.get('noparallel') === '1', radius: 12, near: [plan.spawn.eye], first: () => [game?.weapon?.holder],
+    onProgress: (done, total, first) => { serialF = Math.min(1, done / Math.max(first, 1)); window.__ndSerial = { done, total, first }; } };
+  if (defer) { const prepare = world.prepare; world.prepare = () => { compiled = prepare({ captures: 'later', serial }); return Promise.resolve({}); }; }
   g = await startGame(world, {
     built, canvas, id: plan.name, version: VERSION, title: T.title, subtitle: T.subtitle,
     spp, shadowRadius: 34, fit: !Q.get('w'), quality, hud, idle: 0,
@@ -363,11 +379,15 @@ if (Q.has('world')) {   // the district alone: walk, fly, orbit (stills, the wor
     // the sounds are made in code (~2 s of a phone's main thread): now, while the driver compiles on its own threads,
     // not on the DEPLOY tap (the audio's unlock) where they held the first frame of play
     setTimeout(() => { g.audio.prepare(); game.sfx.poll(); }, 50);
-    const poll = setInterval(() => { const n = programs.length; let ready = 0; for (const p of programs) if (p.isReady?.()) ready++; best = Math.max(best, Math.min(0.99, ready / Math.max(n, EXPECT))); title.setBusy(best); diag?.progress(ready, n); }, 120);
+    const poll = setInterval(() => { const n = programs.length; let ready = 0; for (const p of programs) if (p.isReady?.()) ready++; best = Math.max(best, Math.min(0.99, serialF ?? ready / Math.max(n, EXPECT))); title.setBusy(best); diag?.progress(serialF === null ? ready : Math.round(serialF * n), n); }, 120);
     compiled.then(() => {
-      clearInterval(poll); performance.mark('nd:compiled'); diag?.ready(); try { localStorage.setItem('nd.booted', '1'); } catch { /* no storage */ }
+      clearInterval(poll); performance.mark('nd:compiled'); diag?.ready();
       title.setBusy(null); play.start();
-      requestAnimationFrame(() => requestAnimationFrame(() => { poster?.classList.add('gone'); setTimeout(() => poster?.remove(), 600); }));   // (after the first 3D frame)
+      // the still fades after the first 3D frame; after a serial compile (no parallel compile) only once all is built
+      // (the title's flight would show the world filling in) or when the title goes (DEPLOY), whichever is first
+      const fade = () => { if (!poster?.isConnected || poster.classList.contains('gone')) return; poster.classList.add('gone'); setTimeout(() => poster.remove(), 600); };
+      compiled.then((r) => (r?.rest || Promise.resolve()).then(() => requestAnimationFrame(() => requestAnimationFrame(fade))));
+      const off = world.ctx.onUpdate(() => { if (!title.shown) { fade(); off(); } });   // (DEPLOY: the intro or the game shows)
       if (window.__ndTap) g.ui.begin();   // (a tap on the loading card counts)
     });
   } else if (window.__ndTap) g.ui.begin();
@@ -393,7 +413,7 @@ if (Q.has('world')) world.ctx.onUpdate(relight);
 window.__mirage = { world, built, play, g, game, vfx, rain, big, shared, setHour, relight, weather: { WX, WX_H, now: wxNow, at: weatherAt }, features: Object.fromEntries(Object.keys(TIER).map((k) => [k, F(k)])) };
 if (!defer) document.getElementById('boot')?.remove();
 // ready = the light is baked too (the stills and the checks wait for it); the title and the game are up before that
-if (compiled) { await compiled; for (let i = 0; i < 4; i++) await new Promise((r) => requestAnimationFrame(r)); }   // (and the first frames' light captures)
+if (compiled) { const r = await compiled; if (r?.rest) await r.rest; for (let i = 0; i < 4; i++) await new Promise((r) => requestAnimationFrame(r)); }   // (and the rest of a serial compile, the first frames' light captures)
 while (world.lighting?.busy) await new Promise((r) => setTimeout(r, 50));
 // the reflection probes were captured before the volume was baked, from a world without its light: capture them again,
 // from the state the first bake had (they were captured after it)

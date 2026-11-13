@@ -10,7 +10,7 @@
 // ---------------------------------------------------------------------------
 import * as THREE from 'three';
 import { createLifetime } from '@miragekit/core/lifetime';
-import { createPlay, bakeWalkGrid } from '@miragekit/play';
+import { createPlay } from '@miragekit/play';
 import { createPhysics } from './physics.js';
 import { createSimulation } from './simulation.js';
 import { createGame } from './game.js';
@@ -64,9 +64,6 @@ async function mountGame(world, opts, life, dispose, ownAudio) {
   ownAudio(audio);
   const ctx = { onDispose: life.defer, game, physics, audio, input, root, plan, anchors: built.anchors, world };
   if (setup) await setup(ctx);
-  // the walk grid before the compile is queued: its readbacks would otherwise wait behind every program (a phone
-  // whose driver links one program at a time held the title until the whole compile was done)
-  const grid = opts.grid || bakeWalkGrid(world, { bounds: plan.bounds, ...plan.walk });
   await world.prepare();                                // compiles every program once, entities included
   const sp = plan.spawn;
   let play = null, simulation;
@@ -115,7 +112,7 @@ async function mountGame(world, opts, life, dispose, ownAudio) {
   const cam = world.camera, dir = new THREE.Vector3();
   let near = null;
   play = createPlay(world, {
-    plan, canvas, mode: 'walk', walker: character, devKeys: false, spp: opts.spp || 6, ui: false, shadowRadius: opts.shadowRadius, grid, fit: opts.fit,
+    plan, canvas, mode: 'walk', walker: character, devKeys: false, spp: opts.spp || 6, ui: false, shadowRadius: opts.shadowRadius, grid: opts.grid, fit: opts.fit,
     quality: opts.quality, hud: opts.hud, idle: opts.idle, appearance: opts.appearance, onQuality: opts.onQuality, simulation,
     animate: opts.animate, fov: opts.fov, maxFps: opts.maxFps,   // a scene clock on real time, the lens, the frame cap
     onVisibility(shown) { simulation.reset(); input.clear(); audio.suspend(!shown); },
