@@ -195,7 +195,7 @@ export interface DestructiblesOptions {
   cell?: number; gravity?: number;
   root?: THREE.Object3D;
   world?: { scene: THREE.Scene; lampPool?: unknown };
-  vfx?: { burst(effect: object, at: V3, o?: object): void; spawn(effect: object, o?: object): { stop(): unknown }; prewarm?(effect: object): unknown } | null;
+  vfx?: { burst(effect: object, at: V3, o?: object): void; spawn(effect: object, o?: object): { stop(): unknown }; prewarm?(effect: object, options?: { compile?: boolean }): unknown } | null;
   audio?: Partial<AudioMixer> | null;
   /** false: do not add the destructibles sounds to the audio. */
   sounds?: boolean;
@@ -242,7 +242,7 @@ export interface Destructibles {
   snapshot(): DestructSnapshot;
   restore(s: DestructSnapshot): DestructSnapshot;
   reset(): void;
-  prewarm(): void;
+  prewarm(options?: { compile?: boolean }): void;
   dispose(): void;
   fromCollider(handle: number | { handle: number }): Destructible | null;
   visibility(from: V3, to: V3): number;

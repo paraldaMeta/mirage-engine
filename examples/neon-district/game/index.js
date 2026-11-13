@@ -11,6 +11,8 @@
 // touch controls are in touch.js; the feel (rumble, buzz, heartbeat, hit-stop) in feel.js.
 import * as THREE from 'three';
 import { FX } from './fx.js';
+import { MFX } from './melee.js';
+import { FXC } from './hack.js';
 import { createSfx } from './sfx.js';
 import { createHud } from './hud.js';
 import { createWeapon } from './weapon.js';
@@ -608,6 +610,9 @@ export function setupGame(ctx, { shared, vfx, Q, quality, relight, setHour, hour
   // ---- the props that break (destruct.js): the weapon puts its rounds through them; the end cards' bill and casualties
   const props = setupDestruct({ ctx, shared, vfx, sfx, player, weapon, enemies, drones, hud, stats, kit, T, holdout: H, tap: robotVfx, assist });
   weapon.props = props; onDispose(() => props.dispose());
+  // every effect's pools now, so world.prepare() compiles their programs with the rest (a muzzle flash, an impact, a
+  // blast built on first use compiled its programs one by one in the middle of play)
+  for (const fx of [...Object.values(FX), ...Object.values(MFX), ...Object.values(FXC)]) if (fx?.emitters) vfx.prewarm(fx, { compile: false });
   /** the end card's lines under the figures: property damage, civilian casualties, the remark on the bill */
   const cardLines = () => { const c = props.card(); return `\n\n${T.dx.props(c.bill)}\n${T.dx.civ(c.civilians, c.points)}\n${T.dx.remarks[c.remark]}`; };
 

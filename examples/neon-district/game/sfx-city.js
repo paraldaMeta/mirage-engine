@@ -5,7 +5,7 @@
 const TAU = Math.PI * 2;
 
 export function addCitySounds(audio) {
-  const ctx = audio.ctx, SR = ctx.sampleRate, B = new Proxy({}, { set: (o, k, v) => { audio.add(k, v); return true; } });
+  const ctx = audio.maker, SR = ctx.sampleRate, B = new Proxy({}, { set: (o, k, v) => { audio.add(k, v); return true; } });
   let seed = 0x6a09e667;
   const rnd = () => ((seed = (seed ^ (seed << 13)) >>> 0, seed = (seed ^ (seed >>> 17)) >>> 0, seed = (seed ^ (seed << 5)) >>> 0) / 4294967296);
   const noise = () => rnd() * 2 - 1;

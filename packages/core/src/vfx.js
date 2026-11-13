@@ -110,11 +110,12 @@ export function createVfx(target, opts = {}) {
     return k;
   }
   /** build an effect's pools and compile its shaders now, not at its first spawn (a hitch in the middle of play).
-   *  opts.instances: how many instances of the effect its pools must hold at once (default: createVfx's `instances`) */
+   *  opts.instances: how many instances of the effect its pools must hold at once (default: createVfx's `instances`);
+   *  opts.compile: false builds the pools only (a page that calls world.prepare() afterwards) */
   function prewarm(what, o = {}) {
     const k = kitFor(resolve(what), o.instances);
     for (const u of k.units) for (const x of [u, ...u.subs]) { x.mesh.visible = true; x.mesh.geometry.instanceCount = Math.max(1, x.mesh.geometry.instanceCount); }
-    if (renderer.compile) renderer.compile(root, camera, scene);
+    if (renderer.compile && o.compile !== false) renderer.compile(root, camera, scene);   // compile: false: world.prepare() compiles them (in parallel, for the frame's target)
     for (const u of k.units) for (const x of [u, ...u.subs]) x.mesh.geometry.instanceCount = 0;
     return k;
   }

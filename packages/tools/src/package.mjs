@@ -17,6 +17,7 @@
 import { build, parseAst } from 'vite';
 import zlib from 'node:zlib';
 import { embedWorkers, htmlSafe, scriptCloses } from './embed-workers.mjs';
+import { RAPIER, EMBEDDED } from './vite-rapier.mjs';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -41,9 +42,24 @@ const dropThreeDecoders = {
   },
 };
 
+// Rapier's wasm (1.5 MB, carried by @dimforge/rapier3d-compat as base64 inside the code): gzipped on its own it is
+// 570 KB, as base64 text inside the gzipped code 790 KB. So it travels in its own gzip block, and Rapier's init gets
+// it as a Response the unpacker streams out of that block (instantiateStreaming: it compiles while it unpacks).
+let wasm = null;
+const rapierOwnBlock = {
+  name: 'mirage-package-rapier-wasm',
+  transform(code, id) {
+    if (opts.values['no-gzip'] || !RAPIER.test(id)) return null;
+    const m = code.match(EMBEDDED);
+    if (!m) return null;
+    wasm = Buffer.from(m[1], 'base64');
+    return { code: code.replace(m[0], '{ module_or_path: globalThis.__mgWasm }'), map: null };
+  },
+};
+
 const t0 = Date.now();
 await build({
-  root, logLevel: 'warn', configFile: false, plugins: opts.values['keep-three-decoders'] ? [] : [dropThreeDecoders],
+  root, logLevel: 'warn', configFile: false, plugins: [rapierOwnBlock, ...(opts.values['keep-three-decoders'] ? [] : [dropThreeDecoders])],
   build: {
     outDir: DIST, emptyOutDir: true, target: 'es2022', modulePreload: false, assetsInlineLimit: () => true, minify: true,
     rolldownOptions: { output: { codeSplitting: false } }, chunkSizeWarningLimit: 1e5,
@@ -77,13 +93,19 @@ const dangling = [...page.matchAll(/(?:src|href)="(?:\.?\/)?(assets\/[^"]+)"/g)]
 if (dangling.length) throw new Error('index.html references files that cannot be inlined: ' + dangling.join(', '));
 const body = pre + htmlSafe(js, parseAst);
 if (!scriptCloses(body)) throw new Error('the bundle holds `<!--` and `<script` in code the packager cannot escape: the inlined script would never close');
-const GUNZIP = "(async()=>{try{performance.mark('nd:unpack0');const b=atob(document.getElementById('z').textContent.trim()),u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);"
-  + "const t=await new Response(new Blob([u]).stream().pipeThrough(new DecompressionStream('gzip'))).text(),s=document.createElement('script');s.type='module';s.textContent=t;performance.mark('nd:unpack1');document.head.append(s)}"
+const GUNZIP = "(async()=>{try{performance.mark('nd:unpack0');const gz=(id)=>{const b=atob(document.getElementById(id).textContent.trim()),u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return new Blob([u]).stream().pipeThrough(new DecompressionStream('gzip'))};"
+  + "if(document.getElementById('zw'))globalThis.__mgWasm=new Response(gz('zw'),{headers:{'content-type':'application/wasm'}});"
+  + "const t=await new Response(gz('z')).text(),s=document.createElement('script');s.type='module';s.textContent=t;performance.mark('nd:unpack1');document.head.append(s)}"
   + "catch(e){document.body.textContent='This browser cannot unpack the page ('+e+'). Use a current Chrome, Edge, Firefox or Safari.'}})()";
 // base64 holds no `<`, so the data block cannot close early; the unpacker is a classic script and runs where the module did
+const block = (id, data) => `<script type="application/octet-stream" id="${id}">${zlib.gzipSync(data, { level: 9 }).toString('base64')}</script>\n`;
 const script = opts.values['no-gzip'] ? `<script type="module">\n${body}\n</script>`
-  : `<script type="application/octet-stream" id="z">${zlib.gzipSync(body, { level: 9 }).toString('base64')}</script>\n<script>${GUNZIP}</script>`;
-const html = page.replace(/<script type="module"[^>]*src="[^"]*"[^>]*><\/script>/, () => script).replace(/<link rel="modulepreload"[^>]*>/g, '');
+  : `${block('z', body)}${wasm ? block('zw', wasm) : ''}<script>${GUNZIP}</script>`;
+// the code goes last in the body (Vite puts the module tag in the head): what the page shows before it (a loading card,
+// a poster) paints while the megabytes of code are still arriving, instead of after them
+const bare = page.replace(/<script type="module"[^>]*src="[^"]*"[^>]*><\/script>/, '').replace(/<link rel="modulepreload"[^>]*>/g, '');
+const at = bare.lastIndexOf('</body>');
+const html = at < 0 ? bare + script : bare.slice(0, at) + script + '\n' + bare.slice(at);
 fs.mkdirSync(path.dirname(outFile), { recursive: true });
 fs.writeFileSync(outFile, html);
 fs.rmSync(DIST, { recursive: true, force: true });

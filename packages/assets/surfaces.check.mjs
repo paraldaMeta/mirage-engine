@@ -23,7 +23,7 @@ for (const [k, K] of Object.entries(SURFACE_KINDS)) {
     assert.equal(spec.kind, k); assert.equal(spec.variant, v);
     for (const mapping of ['tri', 'wall', 'ground', 'grain', 'uv']) for (const mode of K.live ? ['procedural'] : ['procedural', 'baked']) {
       const h = surfaceHooks(spec, { mapping, mode, baked: tex, grain: mapping === 'grain' ? [1, 0, 0] : 'x' });
-      assert.ok(h.fragmentDecl.includes(`ms_${k}(`) && h.albedo.includes('diffuseColor.rgb *= msAlb'), `${k}:${v} ${mapping} ${mode}: the recipe and the albedo`);
+      assert.ok(h.fragmentDecl.includes(`ms_${k}(`) === (mode === 'procedural') && h.albedo.includes('diffuseColor.rgb *= msAlb'), `${k}:${v} ${mapping} ${mode}: the recipe (per pixel only: a baked set never calls it) and the albedo`);
       assert.ok(h.uniforms.msA.value.isVector4 && h.uniforms.msX.value.x === spec.tile, `${k}:${v}: parameters are uniforms`);
       if (mode === 'baked') assert.ok(h.uniforms.msTC.value === tex.c && h.normal.includes('msNWo'), `${k}:${v}: baked taps the set, its normal`);
       n++;

@@ -134,8 +134,10 @@ export function surfaceKinds(): Record<string, SurfaceKindInfo>;
 /** A spec of a registered kind. */
 export function surfaceSpec(kind: SurfaceKind, options?: SurfaceOptions): SurfaceSpec;
 export function surfaceHooks(spec: SurfaceSpec, options?: SurfaceHookOptions): MaterialHooks;
-export function bakeSurface(renderer: THREE.WebGLRenderer, spec: SurfaceSpec, options?: { size?: number; anisotropy?: number }): BakedSurface;
+export function bakeSurface(renderer: THREE.WebGLRenderer, spec: SurfaceSpec, options?: { size?: number; anisotropy?: number; later?: boolean }): BakedSurface;
+/** The bakes `later` queued on this renderer, done. */
+export function surfaceBakesDone(renderer: THREE.WebGLRenderer): Promise<unknown>;
 export function bakeDecalAtlas(renderer: THREE.WebGLRenderer, size?: number): THREE.WebGLRenderTarget;
-export function createSurfaces(world: { renderer: THREE.WebGLRenderer; mat: MaterialKit }, options?: { mode?: 'auto' | 'procedural' | 'baked'; size?: number; anisotropy?: number; tier?: 'high' | 'low' }): SurfaceLibrary;
+export function createSurfaces(world: { renderer: THREE.WebGLRenderer; mat: MaterialKit }, options?: { mode?: 'auto' | 'procedural' | 'baked'; size?: number; anisotropy?: number; tier?: 'high' | 'low'; later?: boolean }): SurfaceLibrary;
 /** The runtime layer's shared noise texture (RGBA8 256 x 256, four tileable fractal channels; made once in JS). */
 export function noiseTexture(): THREE.DataTexture;

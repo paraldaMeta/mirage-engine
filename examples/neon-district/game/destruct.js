@@ -632,7 +632,7 @@ export function setupDestruct({ ctx, shared, vfx, sfx, player, weapon, enemies, 
   };
   // ---- no hitch at the first break: the programs of what breaking shows (a pane's rim in each glass, a split crate, a
   // dead tube, the extinguisher's cloud) are made while the game loads: a few hidden instances drawn for 20 frames
-  d.prewarm(); vfx.prewarm?.(d.effects.extinguisher);
+  d.prewarm({ compile: false }); vfx.prewarm?.(d.effects.extinguisher, { compile: false });   // (world.prepare() compiles them)
   {
     const warm = new THREE.Group(), box = new THREE.BoxGeometry(1, 1, 1), tiny = new THREE.Matrix4().makeScale(1e-4, 1e-4, 1e-4);
     const mk = (mat, shadow) => { const m = new THREE.InstancedMesh(box, mat, 1); m.setMatrixAt(0, tiny); m.frustumCulled = false; m.castShadow = shadow; m.receiveShadow = true; m.userData.collide = false; warm.add(m); };

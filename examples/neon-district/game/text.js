@@ -80,7 +80,7 @@ const EN = {
   opt: { title: 'Options', sens: 'Look sensitivity', fov: 'Field of view', invert: 'Invert vertical look', full: 'Full screen', lang: 'Language', time: 'Time of day', close: 'Close', on: 'On', off: 'Off', hint: 'O opens this · T steps the hour · 1–5 or the wheel: guns · Alt dash · H EMP · B overdrive · Z / X lean · C crouches · V strikes · Q aims · R reloads',
     touch: 'TOUCH', tSens: 'Touch look sensitivity', tOpacity: 'Button opacity', tScale: 'Button size', leftFire: 'Left fire button', sprintLock: 'Sprint lock (stick far up)',
     touchHint: 'Drag on the right to look; a finger on fire or aim looks as it drags. Aim and lean: hold, or tap to toggle.',
-    fullHint: 'For full screen on an iPhone: Share, then Add to Home Screen.', fullBack: 'Return to full screen', install: 'Install as an app', installGo: 'Install',
+    fullHint: 'For full screen on an iPhone: Share, then Add to Home Screen.', fullBack: 'Return to full screen', install: 'Install as an app', installGo: 'Install', boot: 'Boot timing', bootGo: 'Show',
     pops: 'Comic hit words', feel: 'FEEL', shake: 'Camera shake', vibrate: 'Vibration', hitStop: 'Hit-stop on kills', comfort: 'Camera motion', comfortNames: { comfort: 'Comfort', standard: 'Standard', intense: 'Intense', custom: 'Custom' }, code: 'Code', codeHint: 'type 0', clarity: 'Clarity (reloads the page)', clarityNames: { standard: 'Standard', sharp: 'Sharp', max: 'Max' } },
   // ---- the city as a weapon: hacks, abilities, ammunition, the robots' voice, the story (kit.js and the files it wires)
   xt: {
@@ -263,7 +263,7 @@ const ZH = {
   opt: { title: '設定', sens: '視角靈敏度', fov: '視野', invert: '反轉垂直視角', full: '全螢幕', lang: '語言', time: '時段', close: '關閉', on: '開', off: '關', hint: 'O 開關設定 · T 切換時段 · 1–5 或滾輪：換槍 · Alt 衝刺 · H 電磁 · B 超載 · Z / X 探頭 · C 蹲下 · V 近戰 · Q 瞄準 · R 換彈',
     touch: '觸控', tSens: '觸控視角靈敏度', tOpacity: '按鍵透明度', tScale: '按鍵大小', leftFire: '左側開火鍵', sprintLock: '衝刺鎖定（搖桿推到底）',
     touchHint: '在右半邊拖曳轉動視角；按住開火或瞄準鍵時拖曳也能轉。瞄準與探頭：按住，或輕點切換。',
-    fullHint: 'iPhone 要全螢幕：點「分享」，再選「加入主畫面」。', fullBack: '回到全螢幕', install: '安裝成應用程式', installGo: '安裝',
+    fullHint: 'iPhone 要全螢幕：點「分享」，再選「加入主畫面」。', fullBack: '回到全螢幕', install: '安裝成應用程式', installGo: '安裝', boot: '開機計時', bootGo: '顯示',
     pops: '漫畫狀聲詞', feel: '手感', shake: '畫面震動', vibrate: '震動回饋', hitStop: '擊殺停頓', comfort: '鏡頭晃動', comfortNames: { comfort: '舒適', standard: '標準', intense: '強烈', custom: '自訂' }, code: '密碼', codeHint: '輸入 0', clarity: '清晰度（會重新載入頁面）', clarityNames: { standard: '標準', sharp: '清晰', max: '最高' } },
   xt: {
     hack: '駭入', dash: '衝刺', emp: '電磁', over: '超載', ready: '就緒', pips: '能量',
@@ -439,7 +439,7 @@ const JA = {
   opt: { title: 'オプション', sens: '視点感度', fov: '視野角', invert: '上下反転', full: 'フルスクリーン', lang: '言語', time: '時間帯', close: '閉じる', on: 'オン', off: 'オフ', hint: 'O：この画面 · T：時間帯 · 1–5 / ホイール：武器 · Alt：ダッシュ · H：EMP · B：オーバードライブ · Z / X：リーン · C：しゃがみ · V：近接 · Q：エイム · R：リロード',
     touch: 'タッチ', tSens: 'タッチの視点感度', tOpacity: 'ボタンの不透明度', tScale: 'ボタンの大きさ', leftFire: '左の射撃ボタン', sprintLock: 'スプリント固定（スティックを上いっぱい）',
     touchHint: '右側のドラッグで視点を動かす。射撃・エイムボタンを押したままドラッグしても回せる。エイムとリーンは長押し、またはタップで切替。',
-    fullHint: 'iPhoneで全画面にするには：共有 →「ホーム画面に追加」。', fullBack: '全画面に戻る', install: 'アプリとしてインストール', installGo: 'インストール',
+    fullHint: 'iPhoneで全画面にするには：共有 →「ホーム画面に追加」。', fullBack: '全画面に戻る', install: 'アプリとしてインストール', installGo: 'インストール', boot: '起動時間', bootGo: '表示',
     pops: 'マンガ擬音', feel: '操作感', shake: '画面の揺れ', vibrate: '振動', hitStop: '撃破時のヒットストップ', comfort: 'カメラの動き', comfortNames: { comfort: 'ひかえめ', standard: '標準', intense: '強め', custom: 'カスタム' }, code: 'コード', codeHint: '0 を入力', clarity: '解像感（ページを再読み込み）', clarityNames: { standard: '標準', sharp: 'くっきり', max: '最高' } },
   xt: {
     hack: 'ハック', dash: 'ダッシュ', emp: 'EMP', over: 'オーバードライブ', ready: '準備完了', pips: 'チャージ',
