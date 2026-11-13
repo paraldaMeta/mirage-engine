@@ -22,6 +22,10 @@ export interface AudioMixer {
   stats: { played: Record<string, number>; skipped: number; state: 'locked' | AudioContextState; genMs: number };
   /** Invoke from a user gesture; may leave ctx null when Web Audio is unavailable. */
   unlock(): void;
+  /** Before the gesture: a stand-in maker (AudioBuffers need no context), so sounds can be made while the page loads; unlock() then only opens the device. */
+  prepare(sampleRate?: number): AudioMixer;
+  /** What makes buffers: the context, or before unlock the stand-in prepare() set; null before either. */
+  readonly maker: { sampleRate: number; createBuffer(channels: number, length: number, sampleRate: number): AudioBuffer } | null;
   /**
    * A sound of your own under `name` (replaces a built-in of that name): a buffer, a list of variants (play picks
    * one), or a factory called with the context. Before unlock() the factory waits and runs at unlock; play and loop

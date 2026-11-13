@@ -60,7 +60,7 @@ export function setupKit({ ctx, shared, vfx, Q, T, player, weapon, enemies, dron
   let g = null, made = false;
   const setF = (k, v) => { if (game.flags[k] !== v) game.set(k, v); };
   game.system((dt) => {
-    if (!made && audio.ctx && audio.buffers) { addCitySounds(audio); made = true; }
+    if (!made && audio.maker && audio.buffers) { addCitySounds(audio); made = true; }
     if (!g) return;
     const ok = live();
     const pad = ctx.input.pad;

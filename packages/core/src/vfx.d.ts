@@ -21,7 +21,7 @@ export interface Vfx {
   define(effect: VfxEffect): VfxDefinedEffect;
   spawn(effect: string | VfxEffect | VfxDefinedEffect, place?: VfxPlace & { follow?: THREE.Object3D }): VfxHandle;
   burst(effect: string | VfxEffect | VfxDefinedEffect, position: P3, place?: VfxPlace): void;
-  prewarm(effect: string | VfxEffect | VfxDefinedEffect, options?: { instances?: number }): unknown;
+  prewarm(effect: string | VfxEffect | VfxDefinedEffect, options?: { instances?: number; compile?: boolean }): unknown;
   /** advance to time T (seconds); a Mirage world calls it from its own clock */
   update(T: number): void;
   clear(): void; release(effect: string | VfxEffect | VfxDefinedEffect): void; dispose(): void;

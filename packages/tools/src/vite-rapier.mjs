@@ -12,9 +12,9 @@
 // application/wasm still works, Rapier falls back with a console warning). Rapier's API and behaviour are unchanged.
 // Single-file pages (mirage-package) do not use the page's Vite config, so they keep the wasm inline.
 
-const RAPIER = /[\\/]@dimforge[\\/]rapier3d-compat[\\/]rapier\.m?js$/;
+export const RAPIER = /[\\/]@dimforge[\\/]rapier3d-compat[\\/]rapier\.m?js$/;
 // the compat build: init(){ ... yield <init>(<b64>.toByteArray("....").buffer) }
-const EMBEDDED = /\b[\w$]+\.toByteArray\("([A-Za-z0-9+/=]{100000,})"\)\.buffer/;
+export const EMBEDDED = /\b[\w$]+\.toByteArray\("([A-Za-z0-9+/=]{100000,})"\)\.buffer/;
 
 export function rapierWasm() {
   return {

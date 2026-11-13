@@ -26,6 +26,7 @@ import plan from './plan.js';
 import modules from './modules/index.js';
 import { setupGame, objective, summary, VERSION, T } from './game/index.js';
 import { mirrorLayer, distanceCull, MIRROR_LAYER } from './perf.js';
+import { bootDiag } from './game/bootdiag.js';
 
 performance.mark('nd:eval');
 if (!location.search.includes('world=')) loadRapier().then(() => performance.mark('nd:rapier'), () => {});   // the wasm compiles while the world builds (createPhysics shares this promise)
@@ -73,6 +74,11 @@ const lut = makeLut(([r, g, b]) => {
 // (the slider) is a time of 10 September.
 const TIMES = { night: { day: '2026-10-26', time: '23:10' }, dawn: { day: '2026-10-26', time: '06:20' }, day: { day: '2026-09-10', time: '17:44' }, dusk: { day: '2026-10-26', time: '17:04' } };
 const timeOf = (t) => TIMES[t] || (/^\d{1,2}:\d{2}$/.test(t || '') ? { day: '2026-09-10', time: t } : null);
+// the hour the world starts at: ?time=, else the hour the player chose on the title before (game/index.js keeps it;
+// the world is built at it, so its light is baked once instead of again when the title switches), else night; the
+// tools (?start=1, ?ui=0, ?world=1) always night
+const HOUR0 = Q.get('time') || (Q.has('start') || Q.get('ui') === '0' || Q.has('world') ? 'night'
+  : (() => { try { const h = JSON.parse(localStorage.getItem('mirage:neon-district:settings'))?.ndRun?.hour; return TIMES[h] ? h : 'night'; } catch { return 'night'; } })());
 const bar = plan.bar.rect, room = plan.relay.room;
 // the first bake used to run before the world's first frame, with the storm sky not yet eased in (uStorm 0): the lazy one,
 // run in frames, holds that state, so the light in the bar is what it was
@@ -160,7 +166,7 @@ function weatherAt(h) {
   return Object.fromEntries(Object.entries(WX).map(([k, v]) => [k, v[i] + (v[i + 1] - v[i]) * t]));
 }
 // wetness before the world exists (set later, the world recaptures its light and re-bakes every probe): the hour's
-const startState = (() => { const v = timeOf(Q.get('time')) || TIMES.night; try { return skyState(v, { lat: 34, lon: 135, height: 20, tzHours: 9 }); } catch { return null; } })();
+const startState = (() => { const v = timeOf(HOUR0) || TIMES.night; try { return skyState(v, { lat: 34, lon: 135, height: 20, tzHours: 9 }); } catch { return null; } })();
 const wx0 = weatherAt(startState ? startState.sun.elevation : -60);
 const wetQ = (v) => Math.round(v * 20) / 20;   // in steps of 0.05: a wetness change recaptures the light
 setWetness(Q.has('wet') ? +Q.get('wet') : wetQ(wx0.wet));
@@ -172,7 +178,7 @@ const world = createWorldRenderer({
   quality, canvas, width: W, height: H, preserveDrawingBuffer: true, pixelRatio,
   ...(phone && clarity !== 'standard' ? { dynamicRes: { target: 60, min: 0.6 } } : {}),
   place: { lat: 34, lon: 135, height: 20, tzHours: 9 },                                           // a generic mid-latitude coast, not a real city
-  time: timeOf(Q.get('time')) || TIMES.night,
+  time: timeOf(HOUR0) || TIMES.night,
   // the hour's look, photographic: a neutral night (white street and shop light, coloured accents; the darks lifted
   // a touch toward the sodium-grey of a cloud lit from below; highlights roll off to white through the AgX share),
   // a dusk of warm light against cool shade, and a golden afternoon (warm highlights, cool open shade, a firm curve).
@@ -214,7 +220,25 @@ const world = createWorldRenderer({
 });
 
 performance.mark('nd:renderer');
-{ const prepare = world.prepare; world.prepare = async (...a) => { performance.mark('nd:prepare0'); const r = await prepare(...a); performance.mark('nd:prepare1'); return r; }; }
+// prepare() compiles what the first frames draw; two states it would otherwise compile in the wrong one, so that the
+// first frames (or the first aim) rebuilt them one by one on the main thread (a phone stalls seconds):
+//  - the moon's shadow (?moon=0, phones): the frame loop turns the sun's shadow off once the lamps are on; set now,
+//    for the hour the world starts at (every lit program is keyed on the shadow count: ~100 programs at night)
+//  - the gun's own near plane (viewModelDepth, a define): on while aiming, kicking, reloading; both variants are built
+{ const prepare = world.prepare; world.prepare = async (...a) => {
+  performance.mark('nd:prepare0');
+  if (!on('moon')) { world.setTime(timeOf(hour) || TIMES.night); world.sun.castShadow = world.G.uLampGain.value < 0.5; }
+  const r = await prepare(...a);
+  const vm = game?.weapon?.vmDepth, holder = game?.weapon?.holder;
+  if (vm && holder) {
+    const rt = world.renderer.getRenderTarget(), was = vm.active();
+    vm.active(!was); world.renderer.setRenderTarget(world.pipeline.sceneRT);
+    const p = world.renderer.compileAsync(holder, camera, world.scene);
+    world.renderer.setRenderTarget(rt); vm.active(was);
+    await p;
+  }
+  performance.mark('nd:prepare1'); return r;
+}; }
 // detail: how much optional dressing the modules build (crowds, traffic, balcony life, the far skyline): phones stay light
 const shared = { quality: on('shadows') ? quality : 'low', tier: quality, gi: !!lighting.gi, detail: Q.has('detail') ? +Q.get('detail') : { low: 0.4, medium: 0.8, high: 1 }[quality] ?? 1 };
 const skip = (Q.get('skip') || '').split(',');                                                     // ?skip=aerial,grime: build without those modules (A/B timing)
@@ -236,7 +260,7 @@ const relight = () => {
 };
 relight();
 /** the hour: 'night' | 'dawn' | 'day' | 'dusk' | 'HH:MM'; eased over about a second, the probes bake again */
-let hour = TIMES[Q.get('time')] ? Q.get('time') : timeOf(Q.get('time')) ? Q.get('time') : 'night';
+let hour = timeOf(HOUR0) ? HOUR0 : 'night';
 const setHour = (t) => { const v = timeOf(t); if (!v) return hour; hour = t; world.setTime(v, { ease: true }); return hour; };
 // the weather follows the hour (weatherAt): eased each frame toward the Sun's elevation now; the fog's numbers are
 // scaled after the world writes them (onUpdate runs after writeFog), the wetness moves in 0.05 steps (each one
@@ -310,16 +334,26 @@ if (Q.has('world')) {   // the district alone: walk, fly, orbit (stills, the wor
   if (gi && !Q.has('start')) g.game.on('start', () => { gi.cfg.budget = 0; gi.cfg.pace = 2; });   // a player's first bake takes what the frame can spare; ?start=1 (automation) keeps the fast one
   performance.mark('nd:title');
   window.__ndInfo = { programs: world.renderer.info.programs?.length };
-  document.getElementById('boot')?.remove();
+  // the poster (index.html): its menu gives way to the title's; its still stays behind the title until the 3D view draws
+  const poster = document.getElementById('boot');
+  if (defer) poster?.classList.add('under'); else poster?.remove();
+  if (window.__ndOpts && !window.__ndTap) game.title.root.querySelector('[data-id=options] [data-a=main]')?.click();   // (OPTIONS tapped on the poster)
+  // the start, measured on the device (game/bootdiag.js): dim text while the shaders compile; ?boot=1 or a tap keeps it
+  const diag = defer || Q.get('boot') === '1' ? bootDiag({ world, Q, quality, pixelRatio, title: game.title }) : null;
+  if (!defer) diag?.ready();
   if (Q.has('start')) g.ui.begin();
   if (defer) {
     const title = game.title, programs = world.renderer.info.programs, EXPECT = 330;
     let best = 0;
     title.setBusy(0);
+    // the sounds are made in code (~2 s of a phone's main thread): now, while the driver compiles on its own threads,
+    // not on the DEPLOY tap (the audio's unlock) where they held the first frame of play
+    setTimeout(() => { g.audio.prepare(); game.sfx.poll(); }, 50);
     const poll = setInterval(() => { const n = programs.length; let ready = 0; for (const p of programs) if (p.isReady?.()) ready++; best = Math.max(best, Math.min(0.99, ready / Math.max(n, EXPECT))); title.setBusy(best); }, 120);
     compiled.then(() => {
-      clearInterval(poll); performance.mark('nd:compiled');
+      clearInterval(poll); performance.mark('nd:compiled'); diag?.ready();
       title.setBusy(null); play.start();
+      requestAnimationFrame(() => requestAnimationFrame(() => { poster?.classList.add('gone'); setTimeout(() => poster?.remove(), 600); }));   // (after the first 3D frame)
       if (window.__ndTap) g.ui.begin();   // (a tap on the loading card counts)
     });
   } else if (window.__ndTap) g.ui.begin();
@@ -343,7 +377,7 @@ const v = plan.viewpoints.find((p) => p.name === Q.get('view'));
 if (v) play.place(v.eye, v.look, v.mode || (Q.has('world') ? Q.get('mode') || 'walk' : 'walk'));
 if (Q.has('world')) world.ctx.onUpdate(relight);
 window.__mirage = { world, built, play, g, game, vfx, rain, big, shared, setHour, relight, weather: { WX, WX_H, now: wxNow, at: weatherAt }, features: Object.fromEntries(Object.keys(TIER).map((k) => [k, F(k)])) };
-document.getElementById('boot')?.remove();
+if (!defer) document.getElementById('boot')?.remove();
 // ready = the light is baked too (the stills and the checks wait for it); the title and the game are up before that
 if (compiled) await compiled;
 while (world.lighting?.busy) await new Promise((r) => setTimeout(r, 50));

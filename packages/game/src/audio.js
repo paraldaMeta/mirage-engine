@@ -10,8 +10,10 @@
 // audio.suspend(true | false)         the device off / on again (a hidden tab)
 // audio.add('shot', (ctx) => buffer | [buffers])   a sound of your own (or an AudioBuffer); before unlock it is made
 //                                     at unlock, with the context; play / loop find it by name
+// audio.prepare()                     before the gesture: a stand-in maker (AudioBuffers need no context), so a game
+//                                     can make its own sounds while it loads; the first tap only opens the device
 // ponytail: PannerNode + buffers made in JS instead of three's PositionalAudio (which wraps the same nodes and
-// needs the camera in the scene graph); no reverb, no occlusion; sounds are generated once (~0.2 s) on unlock.
+// needs the camera in the scene graph); no reverb, no occlusion; each sound is generated the first time it is played.
 // ---------------------------------------------------------------------------
 import { sfc32, hash32 } from '@miragekit/core/rng';
 
@@ -20,15 +22,29 @@ export const SURFACES = ['stone', 'gravel', 'grass', 'wood'];
 export function createAudio({ volumes = {} } = {}) {
   const vol = { master: 0.9, music: 0.3, sfx: 0.8, ambience: 0.6, ...volumes };
   const stats = { played: {}, skipped: 0, state: 'locked', genMs: 0 };
-  let ctx = null, buses = null, bufs = null;
+  let ctx = null, buses = null, bufs = null, stand = null;   // stand: what makes buffers before there is a context (prepare)
   let closing;
   const active = new Map(), added = new Map();   // add(): name -> AudioBuffer | AudioBuffer[] | (ctx) => either
-  const make = (sound) => (typeof sound === 'function' ? sound(ctx) : sound);
+  const make = (sound) => (typeof sound === 'function' ? sound(ctx || stand) : sound);
   const pendingLoops = [], J = sfc32(hash32('mirage/audio/jitter'));   // variant and pitch jitter
+  function gen(maker) {   // (the built-in sounds are getters: each is made when first played, makeSounds)
+    const t0 = performance.now();
+    bufs = makeSounds(maker);
+    for (const [name, sound] of added) bufs[name] = make(sound);
+    stats.genMs = +(performance.now() - t0).toFixed(1);
+  }
   const a = {
     get ctx() { return ctx; }, stats, get volumes() { return { ...vol }; },
     // for createAudioEngine (audio-engine.js): the bus gains, the generated sounds, and where a bus's sounds go instead
     get buses() { return buses; }, get buffers() { return bufs; }, route: null,
+    /** what makes buffers: the context, or before unlock the stand-in prepare() set (sampleRate, createBuffer); null */
+    get maker() { return ctx || stand; },
+    prepare(sampleRate = 48000) {
+      if (closing || bufs || typeof AudioBuffer !== 'function') return a;
+      stand = { sampleRate, createBuffer: (n, length, sr) => new AudioBuffer({ numberOfChannels: n, length, sampleRate: sr }) };
+      gen(stand);
+      return a;
+    },
     unlock() {
       if (closing) return;
       if (ctx) { if (ctx.state === 'suspended') a.suspend(false); return; }
@@ -39,10 +55,7 @@ export function createAudio({ volumes = {} } = {}) {
       buses = { master };
       for (const b of ['music', 'sfx', 'ambience']) { buses[b] = ctx.createGain(); buses[b].connect(master); }
       for (const [k, v] of Object.entries(vol)) a.volume(k, v);
-      const t0 = performance.now();
-      bufs = makeSounds(ctx);
-      for (const [name, sound] of added) bufs[name] = make(sound);
-      stats.genMs = +(performance.now() - t0).toFixed(1);
+      if (!bufs) gen(ctx);
       const resumed = () => { stats.state = ctx.state; };
       ctx.onstatechange = resumed; resumed();
       if (ctx.state === 'suspended') a.suspend(false);
@@ -137,7 +150,7 @@ export function createAudio({ volumes = {} } = {}) {
 // ---- the sounds, made from noise and sines -------------------------------------------------------------
 function makeSounds(ctx) {
   const SR = ctx.sampleRate;
-  const R = sfc32(hash32('mirage/audio'));
+  let R = null;   // each sound its own stream (seeded by its name): the same sound whichever is made first
   const noise = () => R() * 2 - 1;
   const buf = (sec, fn, ch = 1) => {
     const b = ctx.createBuffer(ch, Math.ceil(sec * SR), SR);
@@ -155,12 +168,17 @@ function makeSounds(ctx) {
   }, ch);
 
   const variants = (n, make) => Array.from({ length: n }, (_, v) => make(v));
+  // each sound is made the first time it is asked for (a game that never plays the 14 s wind never makes it): a getter
+  // that replaces itself with the buffer
   const S = {};
-  S.step_stone = variants(4, (v) => buf(0.14, (d) => {
+  const def = (name, make) => Object.defineProperty(S, name, { enumerable: true, configurable: true,
+    get() { R = sfc32(hash32('mirage/audio/' + name)); const v = make(); Object.defineProperty(S, name, { value: v, enumerable: true, configurable: true, writable: true }); return v; },
+    set(v) { Object.defineProperty(S, name, { value: v, enumerable: true, configurable: true, writable: true }); } });
+  def('step_stone', () => variants(4, (v) => buf(0.14, (d) => {
     const l = lp(0.25), f = 80 + v * 9;
     for (let i = 0; i < d.length; i++) { const t = i / SR, x = noise(); d[i] = 0.5 * (x - l(x)) * Math.exp(-t / 0.006) + 0.5 * l(x) * Math.exp(-t / 0.03) + 0.4 * Math.sin(6.283 * f * t) * Math.exp(-t / 0.025); }
-  }));
-  S.step_gravel = variants(4, () => buf(0.26, (d) => {
+  })));
+  def('step_gravel', () => variants(4, () => buf(0.26, (d) => {
     const l = lp(0.5);
     const grains = Array.from({ length: 34 }, () => [R() * 0.2 * R() + 0.005, 0.3 + 0.7 * R()]);
     for (let i = 0; i < d.length; i++) {
@@ -168,25 +186,25 @@ function makeSounds(ctx) {
       for (const [gt, ga] of grains) { const u = t - gt; if (u > 0 && u < 0.004) g += ga * Math.exp(-u / 0.0012); }
       d[i] = (x - l(x)) * g * 0.6 + l(x) * env(t, 0.01, 0.06) * 0.25;
     }
-  }));
-  S.step_grass = variants(4, () => buf(0.28, (d) => {
+  })));
+  def('step_grass', () => variants(4, () => buf(0.28, (d) => {
     const l = lp(0.08), l2 = lp(0.02);
     for (let i = 0; i < d.length; i++) { const t = i / SR, x = l(noise()); d[i] = (x - l2(x)) * 2.2 * env(t, 0.03, 0.07) * (0.6 + 0.4 * Math.abs(Math.sin(t * 140))); }
-  }));
-  S.step_wood = variants(4, (v) => buf(0.2, (d) => {
+  })));
+  def('step_wood', () => variants(4, (v) => buf(0.2, (d) => {
     const l = lp(0.3), f = 150 + v * 12;
     for (let i = 0; i < d.length; i++) { const t = i / SR, x = noise(); d[i] = 0.5 * (Math.sin(6.283 * f * t) + 0.5 * Math.sin(6.283 * f * 2.3 * t)) * Math.exp(-t / 0.05) + 0.3 * (x - l(x)) * Math.exp(-t / 0.004); }
-  }));
+  })));
   const bell = (d, f, t0, amp, dec) => {
     for (let i = Math.floor(t0 * SR); i < d.length; i++) { const t = i / SR - t0; d[i] += amp * Math.exp(-t / dec) * (Math.sin(6.283 * f * t) + 0.35 * Math.sin(6.283 * f * 2.76 * t) * Math.exp(-t / (dec * 0.3)) + 0.2 * Math.sin(6.283 * f * 5.4 * t) * Math.exp(-t / (dec * 0.12))); }
   };
-  S.pickup = buf(0.9, (d) => { bell(d, 1046.5, 0, 0.3, 0.25); bell(d, 1568, 0.08, 0.26, 0.35); });
-  S.done = buf(3.2, (d) => { [523.25, 659.25, 783.99, 1046.5, 1318.5].forEach((f, k) => bell(d, f, k * 0.16, 0.2, 0.9)); });
-  S.locked = buf(0.4, (d) => {
+  def('pickup', () => buf(0.9, (d) => { bell(d, 1046.5, 0, 0.3, 0.25); bell(d, 1568, 0.08, 0.26, 0.35); }));
+  def('done', () => buf(3.2, (d) => { [523.25, 659.25, 783.99, 1046.5, 1318.5].forEach((f, k) => bell(d, f, k * 0.16, 0.2, 0.9)); }));
+  def('locked', () => buf(0.4, (d) => {
     const l = lp(0.4);
     for (let i = 0; i < d.length; i++) { const t = i / SR, x = noise(); let s = 0; for (const t0 of [0, 0.11]) { const u = t - t0; if (u > 0) s += ((x - l(x)) * 0.6 + 0.4 * Math.sin(6.283 * 2350 * u)) * Math.exp(-u / 0.012); } d[i] = s * 0.7; }
-  });
-  S.door = buf(1.9, (d) => {
+  }));
+  def('door', () => buf(1.9, (d) => {
     let ph = 0; const l = lp(0.05), jit = lp(0.002);
     for (let i = 0; i < d.length; i++) {
       const t = i / SR, f = 95 + 70 * Math.sin(Math.min(t / 1.3, 1) * Math.PI) + 15 * jit(noise());
@@ -197,12 +215,12 @@ function makeSounds(ctx) {
       const thud = t > 1.45 ? Math.exp(-(t - 1.45) / 0.06) * (0.5 * Math.sin(6.283 * 60 * (t - 1.45)) + 0.4 * l(noise())) : 0;
       d[i] = s * a + thud * 0.8;
     }
-  });
-  S.ignite = buf(1.2, (d) => {
+  }));
+  def('ignite', () => buf(1.2, (d) => {
     const l = lp(0.1), l2 = lp(0.01);
     for (let i = 0; i < d.length; i++) { const t = i / SR, x = noise(), b = l(x) - l2(x); d[i] = b * 2.2 * env(t, 0.18, 0.3) + (R() < 0.0009 ? (R() - 0.5) * 1.2 : 0) * Math.exp(-t / 0.6); }
-  });
-  S.wind = loop(14, (d, c) => {
+  }));
+  def('wind', () => loop(14, (d, c) => {
     const l = lp(0.012), l2 = lp(0.0008);
     const SRf = SR, birds = Array.from({ length: 7 }, () => [R() * 13, 2400 + R() * 1800, 2 + Math.floor(R() * 3), c === 0 ? 0.6 + 0.4 * R() : 0.2 + 0.4 * R()]);
     for (let i = 0; i < d.length; i++) {
@@ -211,18 +229,18 @@ function makeSounds(ctx) {
       for (const [bt, bf, n, amp] of birds) for (let k = 0; k < n; k++) { const u = t - bt - k * 0.14; if (u > 0 && u < 0.07) b += amp * 0.12 * Math.sin(6.283 * (bf + 12000 * u) * u) * Math.sin(Math.PI * u / 0.07); }
       d[i] = w * 0.5 + b;
     }
-  });
-  S.water = loop(6, (d) => {
+  }));
+  def('water', () => loop(6, (d) => {
     const l = lp(0.3), l2 = lp(0.05);
     for (let i = 0; i < d.length; i++) { const t = i / SR, x = l(noise()); d[i] = (x - l2(x)) * 0.9 * (0.75 + 0.25 * Math.sin(t * 7.1) * Math.sin(t * 2.3)) + (R() < 0.0015 ? (R() - 0.5) * 0.5 : 0); }
-  }, 1, 0.5);
-  S.pad = loop(16, (d, c) => {
+  }, 1, 0.5));
+  def('pad', () => loop(16, (d, c) => {
     const chords = [[220, 261.63, 329.63, 440], [174.61, 220, 261.63, 349.23]];   // A minor, F major
     for (let i = 0; i < d.length; i++) {
       const t = i / SR, k = Math.floor(t / 8) % 2, u = t % 8, e = Math.min(u / 2.5, 1) * Math.min((8 - u) / 2.5 + 0.2, 1);
       let s = 0; for (const f of chords[k]) s += Math.sin(6.283 * f * (1 + (c ? 0.0021 : -0.0017)) * t) + 0.3 * Math.sin(6.283 * f * 2.001 * t);
       d[i] = s * e * 0.045;
     }
-  });
+  }));
   return S;
 }

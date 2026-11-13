@@ -508,7 +508,7 @@ export function createWeapon({ world, root, vfx, sfx, physics, M, player, target
   function emptiest() { let best = null, bk = 2; for (const id of ORDER) if (takes(id)) { const k = W[id].reserve / ARM[id].max; if (k < bk) { bk = k; best = id; } } return best; }
   function fill1(id, units) { const a = ARM[id], w = W[id], n = Math.min(a.max - w.reserve, Math.max(1, Math.round(units * a.per))); w.reserve += n; return n; }
   const api = {
-    S, holder, models, reload, update, melee, select, cycle, spread, W, ARMS, eject,
+    S, holder, models, vmDepth, reload, update, melee, select, cycle, spread, W, ARMS, eject,
     /** the breakable props (destruct.js, set by index.js): rounds, blasts and the stock go through them */
     props: null,
     get id() { return cur; }, get arm() { return A; }, get switchingTo() { return S.switching?.to || null; }, get unlocked() { return unlocked; },

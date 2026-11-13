@@ -1183,10 +1183,11 @@ export function createDestructibles(target = {}, options = {}) {
     return out.sort((a, b) => a[0] - b[0] || a[1].index - b[1].index).map((x) => x[1]);
   }
 
-  /** build the debris and mark meshes and compile the effects now (no hitch at the first break) */
-  function prewarm() {
+  /** build the debris and mark meshes and compile the effects now (no hitch at the first break); { compile: false }:
+   *  build them only, world.prepare() compiles them */
+  function prewarm(o = {}) {
     debris.prewarm(); marks.prewarm();
-    if (vfx?.prewarm) for (const k of ['glitter', 'dust', 'sparks', 'shorted', 'splash', 'spray', 'blast', 'steam', 'fire', 'chips', 'splinters', 'scraps']) if (effects[k]) vfx.prewarm(effects[k]);
+    if (vfx?.prewarm) for (const k of ['glitter', 'dust', 'sparks', 'shorted', 'splash', 'spray', 'blast', 'steam', 'fire', 'chips', 'splinters', 'scraps']) if (effects[k]) vfx.prewarm(effects[k], o);
   }
   function dispose() {
     if (disposed) return;
