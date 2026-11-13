@@ -258,7 +258,7 @@ export function surfaceHooks(spec, options = {}) {
   const fn = 'ms_' + spec.kind;
   let decl = MS_COMMON + 'uniform vec3 msGrainV; uniform float msUVScale; varying vec2 msUVraw;\n' + (objectSpace ? 'varying vec3 msOP; varying vec3 msON;\n' : '')
     + (o.edges === 'attribute' ? 'varying float msEdgeV;\n' : '') + (o.edges === 'box' ? 'varying vec3 msBP; uniform vec3 msBoxLo; uniform vec3 msBoxHi; uniform vec4 msBoxS;\n' : '')
-    + FRAME_GLSL + FINISH_GLSL + (LIVE_GLSL[spec.kind] || KIND_GLSL[spec.kind]);
+    + FRAME_GLSL + FINISH_GLSL + (baked ? '' : LIVE_GLSL[spec.kind] || KIND_GLSL[spec.kind]);   // (a baked set never calls the kind's recipe: same-option baked surfaces share a program)
   if (baked) {
     uniforms.msTC = { value: o.baked.c }; uniforms.msTN = { value: o.baked.n };
     // close up, where a pixel is finer than the set's texel: the kind's grain as a runtime detail layer over the bake
@@ -431,10 +431,14 @@ void main(){
   o1 = vec4(n.xy * 0.5 + 0.5, b.r, b.g);
 }`;
 
-const BAKERS = new WeakMap();
+const BAKERS = new WeakMap(), PENDING = new WeakMap();   // renderer -> its bakers; renderer -> the bakes still to draw
+/** The bakes `later` queued on this renderer, done (world.prepare() waits for them before its first capture). */
+export function surfaceBakesDone(renderer) { return Promise.all([...(PENDING.get(renderer) || [])]); }
 /** Render a surface's tile into a texture set: { c: albedo (sRGB, cavity folded in) + roughness (A), n: normal xy +
- *  height + metalness, size, ms (CPU-side time of the bake call; the GPU work is flushed), bytes }. */
-export function bakeSurface(renderer, spec, { size = 0, anisotropy = 8 } = {}) {
+ *  height + metalness, size, ms (CPU-side time of the bake call; the GPU work is flushed), bytes }.
+ *  later: the textures come back at once and are drawn once both passes' programs are built (compileAsync: no
+ *  blocking compile in the middle of a world's build); surfaceBakesDone(renderer) waits for them. */
+export function bakeSurface(renderer, spec, { size = 0, anisotropy = 8, later = false } = {}) {
   if (spec.live) throw new Error(`bakeSurface: ${spec.kind} is a live surface (per pixel only)`);
   if (!KIND_GLSL[spec.kind]) throw new Error(`bakeSurface: the kind "${spec.kind}" is not registered`);
   const N = size || spec.size || 1024;
@@ -449,30 +453,44 @@ export function bakeSurface(renderer, spec, { size = 0, anisotropy = 8 } = {}) {
     t.name = `surface-${spec.kind}-${i ? 'n' : 'c'}`;
   });
   const U = spec.uniforms;
-  // the two passes' materials, kept per renderer and kind (a second bake of a kind compiles nothing)
+  // the two passes' materials, kept per renderer and kind (a second bake of a kind compiles nothing); a quad each
   let per = BAKERS.get(renderer);
-  if (!per) BAKERS.set(renderer, (per = { quad: new THREE.Mesh(new THREE.PlaneGeometry(2, 2)), cam: new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), kinds: {}, m2: null }));
+  if (!per) { const g = new THREE.PlaneGeometry(2, 2); BAKERS.set(renderer, (per = { g, cam: new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), kinds: {}, q2: null })); }
+  const quadOf = (m) => { const q = new THREE.Mesh(per.g, m); q.frustumCulled = false; return q; };
   if (!per.kinds[spec.kind]) {
     const uni = { msN: { value: 0 }, uTime: { value: 0 }, cameraPosition: { value: new THREE.Vector3() } };
     for (const k of ['X', 'Y', 'W', 'A', 'B', 'C', 'D', 'E', 'F', 'G']) uni['ms' + k] = { value: new THREE.Vector4() };
-    per.kinds[spec.kind] = new THREE.RawShaderMaterial({ glslVersion: THREE.GLSL3, vertexShader: BAKE_VS, fragmentShader: bakeFS1(spec.kind), uniforms: uni });
+    per.kinds[spec.kind] = quadOf(new THREE.RawShaderMaterial({ glslVersion: THREE.GLSL3, vertexShader: BAKE_VS, fragmentShader: bakeFS1(spec.kind), uniforms: uni }));
   }
-  if (!per.m2) per.m2 = new THREE.RawShaderMaterial({ glslVersion: THREE.GLSL3, vertexShader: BAKE_VS, fragmentShader: BAKE_FS2,
-    uniforms: { t0: { value: null }, t1: { value: null }, msN: { value: 0 }, msX: { value: new THREE.Vector4() }, msY: { value: new THREE.Vector4() } } });
-  const m1 = per.kinds[spec.kind], m2 = per.m2, uni = m1.uniforms;
-  uni.msN.value = N;
-  for (const k of ['X', 'W', 'A', 'B', 'C', 'D', 'E', 'F', 'G']) uni['ms' + k].value.fromArray(U[k]);
-  uni.msY.value.set(0, spec.depth, 0, 0);
-  m2.uniforms.t0.value = rt1.textures[0]; m2.uniforms.t1.value = rt1.textures[1]; m2.uniforms.msN.value = N;
-  m2.uniforms.msX.value.copy(uni.msX.value); m2.uniforms.msY.value.copy(uni.msY.value);
-  const quad = per.quad; quad.material = m1; quad.frustumCulled = false;
-  const cam = per.cam;
-  const prev = renderer.getRenderTarget(), prevXR = renderer.xr.enabled, prevAuto = renderer.autoClear;
-  renderer.xr.enabled = false; renderer.autoClear = false;
-  renderer.setRenderTarget(rt1); renderer.render(quad, cam);
-  quad.material = m2; renderer.setRenderTarget(rt2); renderer.render(quad, cam);
-  renderer.setRenderTarget(prev); renderer.xr.enabled = prevXR; renderer.autoClear = prevAuto;
-  rt1.dispose();
+  if (!per.q2) per.q2 = quadOf(new THREE.RawShaderMaterial({ glslVersion: THREE.GLSL3, vertexShader: BAKE_VS, fragmentShader: BAKE_FS2,
+    uniforms: { t0: { value: null }, t1: { value: null }, msN: { value: 0 }, msX: { value: new THREE.Vector4() }, msY: { value: new THREE.Vector4() } } }));
+  const q1 = per.kinds[spec.kind], q2 = per.q2, cam = per.cam;
+  // (the uniforms are set at the draw: two bakes of one kind may be queued at once)
+  const draw = () => {
+    const uni = q1.material.uniforms, u2 = q2.material.uniforms;
+    uni.msN.value = N;
+    for (const k of ['X', 'W', 'A', 'B', 'C', 'D', 'E', 'F', 'G']) uni['ms' + k].value.fromArray(U[k]);
+    uni.msY.value.set(0, spec.depth, 0, 0);
+    u2.t0.value = rt1.textures[0]; u2.t1.value = rt1.textures[1]; u2.msN.value = N;
+    u2.msX.value.copy(uni.msX.value); u2.msY.value.copy(uni.msY.value);
+    const prev = renderer.getRenderTarget(), prevXR = renderer.xr.enabled, prevAuto = renderer.autoClear;
+    renderer.xr.enabled = false; renderer.autoClear = false;
+    renderer.setRenderTarget(rt1); renderer.render(q1, cam);
+    renderer.setRenderTarget(rt2); renderer.render(q2, cam);
+    renderer.setRenderTarget(prev); renderer.xr.enabled = prevXR; renderer.autoClear = prevAuto;
+    rt1.dispose();
+  };
+  if (!later) draw();
+  else {
+    // each pass compiled against its own target (the target's colour space is part of the program)
+    const prev = renderer.getRenderTarget();
+    renderer.setRenderTarget(rt1); const a = renderer.compileAsync(q1, cam);
+    renderer.setRenderTarget(rt2); const b = renderer.compileAsync(q2, cam);
+    renderer.setRenderTarget(prev);
+    const set = PENDING.get(renderer) || new Set(); PENDING.set(renderer, set);
+    const job = Promise.all([a, b]).then(draw).finally(() => set.delete(job));
+    set.add(job);
+  }
   const ms = performance.now() - t0;
   return { c: rt2.textures[0], n: rt2.textures[1], target: rt2, size: N, ms, bytes: Math.round(N * N * 8 * 4 / 3) };
 }
@@ -495,7 +513,8 @@ export function bakeDecalAtlas(renderer, size = 1024) {
 
 // ---- the library bound to a world -----------------------------------------------------------------------------------
 /**
- * createSurfaces(world, { mode = 'auto' | 'baked' | 'procedural', size, anisotropy, tier = 'high' | 'low' }) -> {
+ * createSurfaces(world, { mode = 'auto' | 'baked' | 'procedural', size, anisotropy, tier = 'high' | 'low', later = world.bakeLater }) -> {
+ *   (later: the sets are drawn once their programs are built, not during the build: world.prepare() waits for them)
  *   (tier 'low': every set at half its kind's size, a quarter of the memory; 'auto': baked, except
  *   the kinds cheaper per pixel than their taps: tile, stainless, chrome, metal, carPaint, rubber, bamboo, carbonFibre)
  *   material(spec, options)  a ready MeshStandard / MeshPhysical material (options: see surfaceHooks, plus wet: true |
@@ -507,7 +526,7 @@ export function bakeDecalAtlas(renderer, size = 1024) {
  *   dispose()
  * }
  */
-export function createSurfaces(world, { mode = 'auto', size = 0, anisotropy = 8, tier = 'high' } = {}) {
+export function createSurfaces(world, { mode = 'auto', size = 0, anisotropy = 8, tier = 'high', later = !!world.bakeLater } = {}) {
   const renderer = world.renderer, kit = world.mat;
   const cache = new Map();
   let atlas = null, bakeMs = 0, made = 0;
@@ -518,7 +537,7 @@ export function createSurfaces(world, { mode = 'auto', size = 0, anisotropy = 8,
   const sizeOf = (spec, sz) => sz || (tier === 'low' ? Math.max(256, (spec.size || 1024) >> 1) : spec.size || 1024);
   const bake = (spec, sz = size) => {
     const N = sizeOf(spec, sz), key = spec.bakeKey + ':' + N;
-    if (!cache.has(key)) { const b = bakeSurface(renderer, spec, { size: N, anisotropy }); bakeMs += b.ms; cache.set(key, b); }
+    if (!cache.has(key)) { const b = bakeSurface(renderer, spec, { size: N, anisotropy, later }); bakeMs += b.ms; cache.set(key, b); }
     return cache.get(key);
   };
   const hooks = (spec, o = {}) => {

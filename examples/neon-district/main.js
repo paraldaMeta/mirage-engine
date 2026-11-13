@@ -248,7 +248,14 @@ world.renderer.debug.checkShaderErrors = Q.get('debug') === '1' || Q.has('start'
 // detail: how much optional dressing the modules build (crowds, traffic, balcony life, the far skyline): phones stay light
 const shared = { quality: on('shadows') ? quality : 'low', tier: quality, gi: !!lighting.gi, detail: Q.has('detail') ? +Q.get('detail') : { low: 0.4, medium: 0.8, high: 1 }[quality] ?? 1 };
 const skip = (Q.get('skip') || '').split(',');                                                     // ?skip=aerial,grime: build without those modules (A/B timing)
-const built = await buildWorld(world, { plan, modules: modules.filter((m) => !skip.includes(m.name)), shared });
+// the surface sets are drawn once their programs are built (core/surfaces.js `later`), not one blocking compile after
+// another in the middle of the build; prepare() waits for them
+world.bakeLater = true;
+// a player's page gives the main thread back between modules (the poster's taps answer while the world builds); the
+// tools build in one piece
+const sliced = !Q.has('start') && Q.get('ui') !== '0' && !Q.has('world');
+const yieldNow = () => new Promise((r) => { const c = new MessageChannel(); c.port1.onmessage = () => r(); c.port2.postMessage(0); });
+const built = await buildWorld(world, { plan, modules: modules.filter((m) => !skip.includes(m.name)), shared, ...(sliced ? { slice: { budgetMs: 12, yield: yieldNow } } : {}) });
 performance.mark('nd:built');
 for (let i = 0, n = +Q.get('lamps') || 0; i < n; i++) {                                           // ?lamps=N: the clustered-light test
   const l = new THREE.PointLight(new THREE.Color().setHSL((i * 0.618) % 1, 0.8, 0.55), 6 * world.G.uLampGain.value, 7, 2);
@@ -322,7 +329,8 @@ if (Q.has('world')) {   // the district alone: walk, fly, orbit (stills, the wor
   // they are done, the 3D view starts then) instead of a minute of a static card on a phone that has to build every program; the
   // tools (?start=1, ?ui=0) and ?defer=0 keep the old order
   defer = !Q.has('start') && Q.get('ui') !== '0' && Q.get('defer') !== '0';
-  if (defer) { const prepare = world.prepare; world.prepare = (...a) => { compiled = prepare(...a); return Promise.resolve({}); }; }
+  // (the light is captured by the first frames, under the poster's fade: DEPLOY is live as soon as the programs are)
+  if (defer) { const prepare = world.prepare; world.prepare = () => { compiled = prepare({ captures: 'later' }); return Promise.resolve({}); }; }
   g = await startGame(world, {
     built, canvas, id: plan.name, version: VERSION, title: T.title, subtitle: T.subtitle,
     spp, shadowRadius: 34, fit: !Q.get('w'), quality, hud, idle: 0,
@@ -385,7 +393,7 @@ if (Q.has('world')) world.ctx.onUpdate(relight);
 window.__mirage = { world, built, play, g, game, vfx, rain, big, shared, setHour, relight, weather: { WX, WX_H, now: wxNow, at: weatherAt }, features: Object.fromEntries(Object.keys(TIER).map((k) => [k, F(k)])) };
 if (!defer) document.getElementById('boot')?.remove();
 // ready = the light is baked too (the stills and the checks wait for it); the title and the game are up before that
-if (compiled) await compiled;
+if (compiled) { await compiled; for (let i = 0; i < 4; i++) await new Promise((r) => requestAnimationFrame(r)); }   // (and the first frames' light captures)
 while (world.lighting?.busy) await new Promise((r) => setTimeout(r, 50));
 // the reflection probes were captured before the volume was baked, from a world without its light: capture them again,
 // from the state the first bake had (they were captured after it)

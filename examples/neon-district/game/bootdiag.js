@@ -41,7 +41,7 @@ export function bootProbe() {
             else if (!P.src.lit && s.includes('#define STANDARD')) P.src.lit = [lastVs, s];
             else if (!P.src.bake && P.phase === 'nd:renderer' && s.length > 4000) P.src.bake = [lastVs, s];
           } else if (name === 'texImage2D' || name === 'texSubImage2D') {
-            P.tex.n++; const w = a.length >= 9 ? a[3] : a[a.length - 1]?.width, h = a.length >= 9 ? a[4] : a[a.length - 1]?.height;
+            P.tex.n++; const k = name === 'texImage2D' ? 3 : 4, src = a[a.length - 1], w = typeof a[k] === 'number' && a.length >= 8 ? a[k] : src?.width, h = typeof a[k + 1] === 'number' && a.length >= 8 ? a[k + 1] : src?.height;
             if (w && h) P.tex.mb += (w * h * 4) / 1048576;
           } else if ((name === 'getProgramParameter' && a[1] === LINK_STATUS) || name === 'getProgramInfoLog') {
             if (!performance.getEntriesByName('nd:title').length) P.syncLinks++;
@@ -71,7 +71,7 @@ export function bootDiag({ world, Q, quality, why, clarity, pixelRatio, title, p
   const D = window.__ndBoot = {
     gpu: String(gl.getParameter(dbg ? dbg.UNMASKED_RENDERER_WEBGL : gl.RENDERER)),
     khr: !!gl.getExtension('KHR_parallel_shader_compile'),
-    dpr: devicePixelRatio, pr: pixelRatio, quality, why, clarity, canvas: `${gl.drawingBufferWidth}x${gl.drawingBufferHeight}`,
+    dpr: +devicePixelRatio.toFixed(2), pr: pixelRatio, quality, why, clarity, canvas: `${gl.drawingBufferWidth}x${gl.drawingBufferHeight}`,
     env: { browser, os, cores: navigator.hardwareConcurrency, mem: navigator.deviceMemory ?? null, iframe: self !== top },
     net: { html: nav ? Math.round(nav.responseEnd) : null, kb: nav ? Math.round((nav.transferSize || nav.encodedBodySize || 0) / 1024) : null },
     marks: {}, phases: [], programs: { title: progs.length, ready: 0, deploy: 0, now: 0, lit: 0 }, readiness: {}, asyncLink: false, calib: null, long: [], frames: 0,
@@ -124,7 +124,8 @@ export function bootDiag({ world, Q, quality, why, clarity, pixelRatio, title, p
       copy.addEventListener('pointerdown', (e) => e.stopPropagation());
       copy.addEventListener('click', (e) => { e.stopPropagation(); read(); const t = JSON.stringify(D); (navigator.clipboard?.writeText(t) ?? Promise.reject()).then(() => { copy.textContent = 'COPIED'; }, () => { pre.textContent = t; }); });
       el.append(pre, copy);
-      el.addEventListener('pointerdown', (e) => { e.stopPropagation(); pinned = !pinned; el.style.opacity = pinned ? 0.85 : 0.5; });
+      el.addEventListener('pointerdown', (e) => { e.stopPropagation(); pinned = !pinned; el.style.opacity = pinned ? 0.9 : 0.5; el.style.background = pinned ? '#000c' : ''; });
+      if (pinned) { el.style.opacity = 0.9; el.style.background = '#000c'; }
       document.body.appendChild(el);
     }
     pre.textContent = text();

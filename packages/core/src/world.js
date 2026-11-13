@@ -18,6 +18,7 @@ import * as geom from './geom.js';
 import { rng } from './rng.js';
 import { createLighting } from './lighting.js';
 import { lampPoolConfig, createLampPool } from './lamppool.js';
+import { surfaceBakesDone } from './surfaces.js';
 
 // ---------------------------------------------------------------------------
 // createWorldRenderer(config): one world = renderer + scene + sky + key light + fog + pipeline + day/night,
@@ -350,7 +351,7 @@ export function createWorldRenderer(config = {}) {
 
   /** Compile every program the first frames need, capture the environment. { warm: true } (opt-in) also draws one
    *  frame and waits for the GPU (see warmUp); returns { warmMs } then. */
-  async function prepare({ warm = false } = {}) {
+  async function prepare({ warm = false, captures = 'now' } = {}) {
     if (!light) setTime(time);
     scene.environment = noEnv();
     camera.updateMatrixWorld();
@@ -369,8 +370,14 @@ export function createWorldRenderer(config = {}) {
     // environment texture exist; the real capture below starts again from none.
     if (lighting) lighting.adopt();
     if (lampPool) lampPool.adopt();
-    await Promise.all([compile(), pipeline.compileAsync()]);   // (with the black environment: the programs of every capture pass and every frame)
-    captureEnv(true);
+    // (with the black environment: the programs of every capture pass and every frame; and the surface sets queued with
+    // `later`, drawn as their programs come ready: the capture below sees them)
+    await Promise.all([compile(), pipeline.compileAsync(), surfaceBakesDone(renderer)]);
+    // captures: 'later': the image-based light (and the probes after it) is captured by the first moving frames, one
+    // pass each, instead of here: the programs are the same (the black environment above is of its kind), so prepare
+    // ends as soon as they are built (a page that shows a still or a poster over those frames)
+    if (captures === 'later' && !warm) envState = 'instant';
+    else captureEnv(true);
     if (warm) return { warmMs: warmUp() };
   }
 

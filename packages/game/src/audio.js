@@ -27,10 +27,15 @@ export function createAudio({ volumes = {} } = {}) {
   const active = new Map(), added = new Map();   // add(): name -> AudioBuffer | AudioBuffer[] | (ctx) => either
   const make = (sound) => (typeof sound === 'function' ? sound(ctx || stand) : sound);
   const pendingLoops = [], J = sfc32(hash32('mirage/audio/jitter'));   // variant and pitch jitter
-  function gen(maker) {   // (the built-in sounds are getters: each is made when first played, makeSounds)
+  // the built-in sounds are getters: each is made when first played (makeSounds). The added ones are made here at
+  // unlock; after prepare() (a page still loading) they are getters too, made when first played
+  const lazy = (name, sound) => Object.defineProperty(bufs, name, { enumerable: true, configurable: true,
+    get() { const v = make(sound); Object.defineProperty(bufs, name, { value: v, enumerable: true, configurable: true, writable: true }); return v; },
+    set(v) { Object.defineProperty(bufs, name, { value: v, enumerable: true, configurable: true, writable: true }); } });
+  function gen(maker, later = false) {
     const t0 = performance.now();
     bufs = makeSounds(maker);
-    for (const [name, sound] of added) bufs[name] = make(sound);
+    for (const [name, sound] of added) if (later) lazy(name, sound); else bufs[name] = make(sound);
     stats.genMs = +(performance.now() - t0).toFixed(1);
   }
   const a = {
@@ -42,7 +47,7 @@ export function createAudio({ volumes = {} } = {}) {
     prepare(sampleRate = 48000) {
       if (closing || bufs || typeof AudioBuffer !== 'function') return a;
       stand = { sampleRate, createBuffer: (n, length, sr) => new AudioBuffer({ numberOfChannels: n, length, sampleRate: sr }) };
-      gen(stand);
+      gen(stand, true);
       return a;
     },
     unlock() {
@@ -70,7 +75,7 @@ export function createAudio({ volumes = {} } = {}) {
     add(name, sound) {
       if (closing) return a;
       added.set(name, sound);
-      if (bufs) bufs[name] = make(sound);
+      if (bufs) { if (stand) lazy(name, sound); else bufs[name] = make(sound); }   // (after prepare(): made when first played)
       return a;
     },
     volume(bus, v) { vol[bus] = v; if (buses && buses[bus]) buses[bus].gain.setTargetAtTime(v, ctx.currentTime, 0.05); },

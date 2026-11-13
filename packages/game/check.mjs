@@ -295,7 +295,7 @@ ok(input.pressed('jump') && !input.down('jump'), 'short keyboard tap survives un
 // startGame hands animate, fov and maxFps to createPlay (a game kept its scene clock still and its lens at 62°)
 {
   const { registerHooks } = await import('node:module');
-  const stop = new Error('stub play'), stub = 'data:text/javascript,export const createPlay = (w, o) => globalThis.__stubPlay(w, o);';
+  const stop = new Error('stub play'), stub = 'data:text/javascript,export const createPlay = (w, o) => globalThis.__stubPlay(w, o); export const bakeWalkGrid = () => null;';
   let seen = null;
   globalThis.__stubPlay = (w, o) => { seen = o; throw stop; };
   const hooks = registerHooks({ resolve: (spec, context, next) => spec === '@miragekit/play' && context.parentURL?.endsWith('?stub-play') ? { url: stub, shortCircuit: true } : next(spec, context) });
