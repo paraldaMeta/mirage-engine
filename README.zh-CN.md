@@ -77,7 +77,7 @@ node ../../packages/tools/src/package.mjs .                               # rele
 | | | |
 |---|---|---|
 | ![](docs/media/examples/hello-courtyard.jpg) **hello-courtyard**：带水池、花架和棕榈的围合院子；四个模块、五套 CC0 贴图、运行时钟 | ![](docs/media/examples/walled-garden.jpg) **walled-garden**：三层台地、台阶、水池、亭子；六个模块（外加一个故意报错的） | ![](docs/media/examples/garden-quest.jpg) **garden-quest**：把园林做成小游戏：找钥匙、开亭子、点灯笼；存档、手柄、触屏 |
-| ![](docs/media/examples/agent-trial.jpg) **agent-trial**：黄昏的栈桥和灯塔，三个 Agent 按技能包并行建成 | ![](docs/media/examples/snow-hut.jpg) **snow-hut**：蓝调时刻雪坡上的木屋，下着雪；走进去把炉子生起来 | ![](docs/media/examples/neon-district.jpg) **neon-district**：雨夜赛博街区里的第一人称射击，**[浏览器里直接玩](https://paraldameta.github.io/mirage-engine/)**（可安装、可离线、约 2 MB）：成簇霓虹灯、路面反射、室内探针 GI、体积光、GPU 粒子、行为不一般的导航网格敌人、格斗与刀剑 Boss、可破坏场景、二周目；约一秒打开（[各部分对应的引擎功能](examples/neon-district/NOTES.md)） |
+| ![](docs/media/examples/agent-trial.jpg) **agent-trial**：黄昏的栈桥和灯塔，三个 Agent 按技能包并行建成 | ![](docs/media/examples/snow-hut.jpg) **snow-hut**：蓝调时刻雪坡上的木屋，下着雪；走进去把炉子生起来 | ![](docs/media/examples/neon-district.jpg) **neon-district**：雨夜赛博街区里的第一人称射击，**[浏览器里直接玩](https://paraldameta.github.io/mirage-engine/)**（可安装、可离线、约 2 MB；也有[单个 HTML 文件](https://paraldameta.github.io/mirage-engine/neon-district.html)可保存后打开）：成簇霓虹灯、路面反射、室内探针 GI、体积光、GPU 粒子、行为不一般的导航网格敌人、格斗与刀剑 Boss、可破坏场景、二周目；约一秒打开（[各部分对应的引擎功能](examples/neon-district/NOTES.md)） |
 
 每个示例在自己目录里 `npx vite build && npx vite preview` 就能跑；`npm run playtest` 自测；`npm run package` 打成单文件。
 
