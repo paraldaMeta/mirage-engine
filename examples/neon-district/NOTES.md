@@ -1,6 +1,8 @@
 # Notes — neon-district
 
-A small first-person shooter in one rain-wet block of a city at night: the alley, Kestrel Street, a noodle bar,
+**Play it:** https://paraldameta.github.io/mirage-engine/ (built by `.github/workflows/pages.yml` on every push to `main`; a service worker makes it installable and offline).
+
+A first-person shooter in one rain-wet block of a city at night: the alley, Kestrel Street, a noodle bar,
 the plaza, the relay (a server room and a stairwell) and its roof. About five minutes from the spawn to the end.
 It is the engine's showcase, so this file first says which engine feature each part shows and where the code is,
 then holds the modules' own sections (the convention of `docs/world-protocol.md`).
