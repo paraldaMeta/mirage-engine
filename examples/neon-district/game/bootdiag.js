@@ -64,7 +64,7 @@ export function bootProbe() {
   return P;
 }
 
-export function bootDiag({ world, Q, quality, why, clarity, pixelRatio, title, probe: P = null }) {
+export function bootDiag({ world, Q, quality, why, clarity, pixelRatio, title, probe: P = null, label = () => 'Boot' }) {
   const r = world.renderer, gl = r.getContext(), progs = r.info.programs || [];
   const dbg = gl.getExtension('WEBGL_debug_renderer_info'), nav = performance.getEntriesByType('navigation')[0];
   const ua = navigator.userAgent, browser = (ua.match(/(CriOS|FxiOS|EdgA?|SamsungBrowser|Chrome|Firefox|Version)\/[\d.]+/) || [''])[0].replace('Version', 'Safari'), os = (ua.match(/iPhone OS [\d_]+|Android [\d.]+|Mac OS X [\d_]+|Windows NT [\d.]+/) || [''])[0];
@@ -106,47 +106,62 @@ export function bootDiag({ world, Q, quality, why, clarity, pixelRatio, title, p
     rows.push(`programs ${D.programs.title} at title, ${D.programs.ready || '…'} ready, ${D.programs.now} now (+${D.programs.now - (D.programs.deploy || D.programs.now)} since DEPLOY) · lit ${D.programs.lit} other ${D.programs.now - D.programs.lit}`
       + (P ? ` · GLSL ${D.glslKB} KB in ${D.shaders} shaders · ${D.syncLinksBeforeTitle} sync link checks before title · tex ${D.tex.n} ${D.tex.mb} MB` : ''));
     const rd = D.readiness;
-    rows.push(`ready 25% ${s(rd[25])} · 50% ${s(rd[50])} · 75% ${s(rd[75])} · 100% ${s(rd[100])} · async link ${D.asyncLink ? 'yes' : 'no'}${D.calib ? ` · calib: tiny ${D.calib.tiny} ms · lit ${D.calib.lit} ms · bake ${D.calib.bake} ms` : ''}`);
+    rows.push(`ready 25% ${s(rd[25])} · 50% ${s(rd[50])} · 75% ${s(rd[75])} · 100% ${s(rd[100])} · async link ${D.asyncLink ? 'yes' : 'no'}${D.calib ? ` · calib: tiny ${D.calib.tiny} ms · lit ${D.calib.lit} ms · bake ${D.calib.bake} ms` : measuring ? ' · calib: measuring…' : ''}`);
     if (D.gaps?.length) rows.push('gaps: ' + D.gaps.map((g) => `${g.ms}ms@${s(g.at)} ${g.phase.slice(3)}`).join(' · '));
     if (D.long.length) rows.push('long frames: ' + D.long.map((f) => `${(f.t / 1000).toFixed(1)}s ${f.ms}ms${f.p ? ` +${f.p} prog` : ''}${f.sync ? ` sync ${f.sync}ms` : ''}${f.what ? ' ' + f.what : ''}`).join(' · '));
     else if (t0) rows.push('long frames: none');
     return rows.join('\n');
   };
-  // unpinned: a small pill at the top right (over the scene, clear of the menu); a tap pins it: an opaque panel above
-  // everything along the top, COPY first, the text scrollable
-  let pre = null, copy = null;
-  const style = () => {
-    el.style.cssText = pinned
-      ? 'position:fixed;left:0;right:0;top:0;z-index:2147483000;max-height:40vh;overflow:auto;-webkit-overflow-scrolling:touch;padding:max(8px,env(safe-area-inset-top)) 10px 10px;background:#02060af2;border-bottom:1px solid #19d8ff80;font:10px/1.35 ui-monospace,monospace;color:#dff;pointer-events:auto'
-      : 'position:fixed;right:8px;top:max(56px,calc(env(safe-area-inset-top) + 48px));z-index:2147483000;padding:5px 9px;border-radius:12px;background:#02060ad0;border:1px solid #19d8ff60;font:10px/1.2 ui-monospace,monospace;color:#bfe;pointer-events:auto;cursor:pointer';
-    copy.style.display = pinned ? 'block' : 'none';
+  // a chip in the title's own column, under the menu (in flow: never under the feed / camera labels, portrait or
+  // landscape), for as long as the title is up; a tap (or the options panel's "Boot timing" row) opens an opaque panel
+  // along the top, COPY first, the text scrollable; a tap on the text closes it
+  let pre = null, copy = null, chip = null, measuring = false;
+  const bootTime = () => { read(); const m = D.marks; return m['nd:compiled'] ?? (compiling ? Math.round(performance.now()) : m['nd:title']); };
+  const chipText = () => `${label()} ${((bootTime() ?? 0) / 1000).toFixed(2)}″${compiling ? ' …' : ''} · ${D.programs.now} ›`;   // (″: seconds, in no language's letters)
+  const panel = () => {
+    if (el) return;
+    el = document.createElement('div');
+    el.id = 'nd-boot';
+    el.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:2147483000;max-height:60vh;overflow:auto;-webkit-overflow-scrolling:touch;padding:max(8px,env(safe-area-inset-top)) 10px 10px;background:#02060af2;border-bottom:1px solid #19d8ff80;font:10px/1.35 ui-monospace,monospace;color:#dff;pointer-events:auto';
+    pre = document.createElement('pre'); pre.style.cssText = 'margin:0;white-space:pre-wrap;user-select:text';
+    copy = document.createElement('button');
+    copy.textContent = 'COPY (boot numbers to the clipboard)';
+    copy.style.cssText = 'display:block;font:600 15px system-ui,sans-serif;color:#02080d;background:#19d8ff;border:0;border-radius:6px;padding:12px 18px;margin:0 0 8px;min-width:60%;min-height:44px;touch-action:manipulation';
+    copy.addEventListener('pointerdown', (e) => e.stopPropagation());
+    copy.addEventListener('click', (e) => {
+      e.stopPropagation(); read(); const t = JSON.stringify(D);
+      const fallback = () => { const ta = document.createElement('textarea'); ta.value = t; document.body.append(ta); ta.select(); let ok = false; try { ok = document.execCommand('copy'); } catch { /* none */ } ta.remove(); if (ok) copy.textContent = 'COPIED'; else pre.textContent = t; };
+      if (navigator.clipboard?.writeText) navigator.clipboard.writeText(t).then(() => { copy.textContent = 'COPIED'; }, fallback); else fallback();
+    });
+    el.append(copy, pre);
+    for (const ev of ['pointerdown', 'keydown', 'wheel', 'touchstart']) el.addEventListener(ev, (e) => e.stopPropagation());
+    el.addEventListener('click', (e) => { e.stopPropagation(); if (e.target !== copy) close(); });
+    document.body.appendChild(el);
   };
+  const close = () => { pinned = false; if (el) { el.remove(); el = null; } };
+  /** the panel, opened (the chip, the options row); the calibration runs once the compile is done, on demand */
+  const open = () => {
+    pinned = true; panel(); pre.textContent = text();
+    if (!D.calib && !compiling && !measuring) { measuring = true; pre.textContent = text(); setTimeout(() => { calibrate(); measuring = false; if (el) pre.textContent = text(); }, 60); }
+  };
+  window.__ndBootOpen = open;
   const show = () => {
-    if (!el) {
-      el = document.createElement('div');
-      el.id = 'nd-boot';
-      pre = document.createElement('pre'); pre.style.cssText = 'margin:0;white-space:pre-wrap;user-select:text';
-      copy = document.createElement('button');
-      copy.textContent = 'COPY (boot numbers to the clipboard)';
-      copy.style.cssText = 'display:none;font:600 15px system-ui,sans-serif;color:#02080d;background:#19d8ff;border:0;border-radius:6px;padding:12px 18px;margin:0 0 8px;min-width:60%;touch-action:manipulation';
-      copy.addEventListener('pointerdown', (e) => e.stopPropagation());
-      copy.addEventListener('click', (e) => {
-        e.stopPropagation(); read(); const t = JSON.stringify(D);
-        const fallback = () => { const ta = document.createElement('textarea'); ta.value = t; document.body.append(ta); ta.select(); let ok = false; try { ok = document.execCommand('copy'); } catch { /* none */ } ta.remove(); if (ok) copy.textContent = 'COPIED'; else pre.textContent = t; };
-        if (navigator.clipboard?.writeText) navigator.clipboard.writeText(t).then(() => { copy.textContent = 'COPIED'; }, fallback); else fallback();
-      });
-      el.append(copy, pre);
-      el.addEventListener('pointerdown', (e) => e.stopPropagation());
-      el.addEventListener('click', (e) => { if (e.target === copy) return; e.stopPropagation(); pinned = !pinned; style(); pre.textContent = text(); });
-      style();
-      document.body.appendChild(el);
+    if (!chip) {
+      chip = document.createElement('button');
+      chip.className = 'nd-boot-chip'; chip.type = 'button';
+      chip.style.cssText = 'all:unset;box-sizing:border-box;display:inline-block;margin-top:8px;padding:6px 11px;min-height:28px;border-radius:14px;background:#02060ad0;border:1px solid #19d8ff80;font:600 11px/1.3 ui-monospace,monospace;letter-spacing:.04em;color:#bff4ff;pointer-events:auto;cursor:pointer;touch-action:manipulation';
+      for (const ev of ['pointerdown', 'keydown']) chip.addEventListener(ev, (e) => e.stopPropagation());
+      chip.addEventListener('click', (e) => { e.stopPropagation(); e.preventDefault(); if (pinned) close(); else open(); });
+      // (a short screen, a phone held sideways: no room under the menu, so it sits at the right end of the description's line)
+      const st = document.createElement('style'); st.textContent = '@media (max-height:640px){.nd-boot-chip{position:absolute!important;right:0!important;bottom:-4px!important;margin-top:0!important}}';
+      (title.root.querySelector('.nt-main') || title.root).append(st, chip);
     }
-    if (pinned) pre.textContent = text();
-    else { read(); const m = D.marks, last = MARKS.filter(([k]) => m[k] !== undefined).at(-1); pre.textContent = `BOOT ${last ? `${last[1]} ${s(m[last[0]])}` : '…'} · ${D.programs.now} prog · tap`; }
+    chip.textContent = title.shown || compiling ? chipText() : '';
+    if (pinned && el) pre.textContent = text();
   };
-  const hideUnlessPinned = () => { if (!pinned && el) { el.remove(); el = null; } };
-  timer = setInterval(() => { if (compiling || pinned) show(); else hideUnlessPinned(); }, 500);
+  timer = setInterval(show, 500);
   show();
+  if (pinned) open();
 
   // a blocking compile + link, timed (a salt so no cache can answer): the per-program bill on this device
   function calibrate() {
@@ -161,6 +176,7 @@ export function bootDiag({ world, Q, quality, why, clarity, pixelRatio, title, p
     };
     const tiny = ['#version 300 es\nin vec3 p; void main(){ gl_Position = vec4(p, 1.0); }', '#version 300 es\nprecision highp float; out vec4 c; void main(){ c = vec4(1.0); }'];
     D.calib = { tiny: one(...tiny), lit: one(...(P?.src.lit || [])), bake: one(...(P?.src.bake || [])) };
+    read();
   }
 
   // the first 30 s after DEPLOY (the title gone: the intro, then play): each frame's gap, the programs it built, what else ran
@@ -170,7 +186,7 @@ export function bootDiag({ world, Q, quality, why, clarity, pixelRatio, title, p
       if (title.shown) { last = now; lastN = progs.length; lastSync = syncAll(); requestAnimationFrame(frame); return; }
       performance.mark('nd:deploy'); t0 = now; D.programs.deploy = progs.length;
     }
-    if (now - t0 > 30000) { if (P) P.stop = true; if (!pinned) { clearInterval(timer); hideUnlessPinned(); } return; }
+    if (now - t0 > 30000) { if (P) P.stop = true; clearInterval(timer); timer = setInterval(show, 2000); return; }
     const n = progs.length, dt = now - last, sy = syncAll();
     if (first && now > t0) { performance.mark('nd:frame1'); first = false; }
     D.frames++;
@@ -185,10 +201,10 @@ export function bootDiag({ world, Q, quality, why, clarity, pixelRatio, title, p
       for (const q of [25, 50, 75, 100]) if (D.readiness[q] === undefined && ready >= (n * q) / 100) D.readiness[q] = Math.round(performance.now());
     },
     /** the compile is done (DEPLOY is ready) */
+    open,
     ready() {
       compiling = false; D.programs.ready = progs.length; D.readiness[100] ??= Math.round(performance.now());
-      if (Q.get('boot') === '1') calibrate();
-      read(); if (!pinned) hideUnlessPinned(); else show(); requestAnimationFrame(frame);
+      read(); show(); if (pinned) open(); requestAnimationFrame(frame);
     },
   };
 }

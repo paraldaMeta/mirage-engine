@@ -369,7 +369,7 @@ if (Q.has('world')) {   // the district alone: walk, fly, orbit (stills, the wor
   if (defer) poster?.classList.add('under'); else poster?.remove();
   if (window.__ndOpts && !window.__ndTap) game.title.root.querySelector('[data-id=options] [data-a=main]')?.click();   // (OPTIONS tapped on the poster)
   // the start, measured on the device (game/bootdiag.js): dim text while the shaders compile; ?boot=1 or a tap keeps it
-  const diag = defer || Q.get('boot') === '1' ? bootDiag({ world, Q, quality, why: picked.why, clarity, pixelRatio, title: game.title, probe }) : null;
+  const diag = defer || Q.get('boot') === '1' ? bootDiag({ world, Q, quality, why: picked.why, clarity, pixelRatio, title: game.title, probe, label: () => T.opt.boot }) : null;
   if (!defer) diag?.ready();
   if (Q.has('start')) g.ui.begin();
   if (defer) {

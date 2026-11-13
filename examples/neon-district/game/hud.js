@@ -198,6 +198,7 @@ export function createHud({ camera, onDispose, T }) {
       ${flip('pops', T.opt.pops, v.pops === true)}
       <label><span>${T.opt.clarity}</span><button data-b="clarity">${T.opt.clarityNames[clarityNow()]}</button></label>
       <label><span>${T.opt.lang}</span><button data-b="lang" lang="${HTML_LANG[lang]}">${LANG_NAMES[lang]}</button></label>
+      ${window.__ndBootOpen ? `<label><span>${T.opt.boot}</span><button data-b="boot">${T.opt.bootGo}</button></label>` : ''}
       ${canInstall() ? `<label><span>${T.opt.install}</span><button data-b="install">${T.opt.installGo}</button></label>` : ''}
       <h3>${T.opt.feel}</h3><label><span>${T.opt.comfort}</span><button data-b="comfort">${T.opt.comfortNames[v.comfort] || T.opt.comfortNames.custom}</button></label>${range('shake', 0, 1.5, 0.05, T.opt.shake)}${range('vibrate', 0, 1, 0.05, T.opt.vibrate)}
       ${flip('hitStop', T.opt.hitStop, v.hitStop !== false)}
@@ -221,6 +222,7 @@ export function createHud({ camera, onDispose, T }) {
         else if (k === 'invert' || k === 'leftFire' || k === 'sprintLock') { v[k] = !v[k]; show(b, v[k]); o.onChange(k, v[k]); }
         else if (k === 'full') { v.fullscreen = v.fullscreen === false; show(b, v.fullscreen); Promise.resolve(o.onFull?.(v.fullscreen)).catch(() => {}); }
         else if (k === 'hitStop') { v[k] = v[k] === false; show(b, v[k]); o.onChange(k, v[k]); }
+        else if (k === 'boot') window.__ndBootOpen?.();   // the boot's numbers (game/bootdiag.js), with COPY
         else if (k === 'install') install();   // the browser's own prompt; the row goes with the offer
         else if (k === 'lang') o.onLang();   // the switch rebuilds this panel (relang) with values.lang from the game
         else if (k === 'comfort') { const L = ['comfort', 'standard', 'intense']; v.comfort = L[(L.indexOf(v.comfort) + 1) % 3]; b.textContent = T.opt.comfortNames[v.comfort]; o.onChange('comfort', v.comfort); }
