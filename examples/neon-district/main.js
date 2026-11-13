@@ -26,11 +26,14 @@ import plan from './plan.js';
 import modules from './modules/index.js';
 import { setupGame, objective, summary, VERSION, T } from './game/index.js';
 import { mirrorLayer, distanceCull, MIRROR_LAYER } from './perf.js';
-import { bootDiag } from './game/bootdiag.js';
+import { bootDiag, bootProbe } from './game/bootdiag.js';
 
 performance.mark('nd:eval');
 if (!location.search.includes('world=')) loadRapier().then(() => performance.mark('nd:rapier'), () => {});   // the wasm compiles while the world builds (createPhysics shares this promise)
 const Q = new URLSearchParams(location.search);
+// the boot measured on the device (game/bootdiag.js): on ?boot=1 and on a first visit the synchronous GL calls are timed
+// from before the renderer exists (a wrapper per call: off on later visits)
+const probe = (() => { let seen = false; try { seen = localStorage.getItem('nd.booted') === '1'; } catch { /* no storage */ } return Q.get('boot') === '1' || (!seen && !Q.has('start') && Q.get('ui') !== '0') ? bootProbe() : null; })();
 const W = +Q.get('w') || innerWidth, H = +Q.get('h') || innerHeight;
 const canvas = document.querySelector('canvas');
 canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
@@ -220,6 +223,9 @@ const world = createWorldRenderer({
 });
 
 performance.mark('nd:renderer');
+// three checks every program's link status and logs at its first use (four synchronous round trips each): only for the
+// tools (?start=1, ?ui=0, ?world=1) and ?debug=1, where a broken shader must report
+world.renderer.debug.checkShaderErrors = Q.get('debug') === '1' || Q.has('start') || Q.get('ui') === '0' || Q.has('world');
 // prepare() compiles what the first frames draw; two states it would otherwise compile in the wrong one, so that the
 // first frames (or the first aim) rebuilt them one by one on the main thread (a phone stalls seconds):
 //  - the moon's shadow (?moon=0, phones): the frame loop turns the sun's shadow off once the lamps are on; set now,
@@ -339,7 +345,7 @@ if (Q.has('world')) {   // the district alone: walk, fly, orbit (stills, the wor
   if (defer) poster?.classList.add('under'); else poster?.remove();
   if (window.__ndOpts && !window.__ndTap) game.title.root.querySelector('[data-id=options] [data-a=main]')?.click();   // (OPTIONS tapped on the poster)
   // the start, measured on the device (game/bootdiag.js): dim text while the shaders compile; ?boot=1 or a tap keeps it
-  const diag = defer || Q.get('boot') === '1' ? bootDiag({ world, Q, quality, pixelRatio, title: game.title }) : null;
+  const diag = defer || Q.get('boot') === '1' ? bootDiag({ world, Q, quality, why: picked.why, clarity, pixelRatio, title: game.title, probe }) : null;
   if (!defer) diag?.ready();
   if (Q.has('start')) g.ui.begin();
   if (defer) {
@@ -349,9 +355,9 @@ if (Q.has('world')) {   // the district alone: walk, fly, orbit (stills, the wor
     // the sounds are made in code (~2 s of a phone's main thread): now, while the driver compiles on its own threads,
     // not on the DEPLOY tap (the audio's unlock) where they held the first frame of play
     setTimeout(() => { g.audio.prepare(); game.sfx.poll(); }, 50);
-    const poll = setInterval(() => { const n = programs.length; let ready = 0; for (const p of programs) if (p.isReady?.()) ready++; best = Math.max(best, Math.min(0.99, ready / Math.max(n, EXPECT))); title.setBusy(best); }, 120);
+    const poll = setInterval(() => { const n = programs.length; let ready = 0; for (const p of programs) if (p.isReady?.()) ready++; best = Math.max(best, Math.min(0.99, ready / Math.max(n, EXPECT))); title.setBusy(best); diag?.progress(ready, n); }, 120);
     compiled.then(() => {
-      clearInterval(poll); performance.mark('nd:compiled'); diag?.ready();
+      clearInterval(poll); performance.mark('nd:compiled'); diag?.ready(); try { localStorage.setItem('nd.booted', '1'); } catch { /* no storage */ }
       title.setBusy(null); play.start();
       requestAnimationFrame(() => requestAnimationFrame(() => { poster?.classList.add('gone'); setTimeout(() => poster?.remove(), 600); }));   // (after the first 3D frame)
       if (window.__ndTap) g.ui.begin();   // (a tap on the loading card counts)
